@@ -2,6 +2,9 @@
 // In code we trust
 // AgarthaSoftware - 2024
 
+mod init;
+mod join;
+
 use clap::Parser;
 
 #[derive(Parser)] // requires `derive` feature
@@ -23,7 +26,6 @@ struct PodArgs {
     path: Option<std::path::PathBuf>,
 }
 
-
 #[derive(clap::Args)]
 #[command(version, about, long_about = None)]
 struct JoinArgs {
@@ -42,12 +44,13 @@ struct CreateArgs {
     path: Option<std::path::PathBuf>,
 }
 
-
-
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>>{
     match CargoCli::parse() {
-        CargoCli::Join(args) => println!("joining {}", args.url),
+        CargoCli::Join(args) => {
+            println!("joining {}", args.url); join::join(&args.path.unwrap_or(".".into()), args.url)?;
+        },
         CargoCli::Create(args) => println!("creating network {:?}", args.name),
         CargoCli::Remove(_) => println!("removing pod"),
     }
+    Ok(())
 }
