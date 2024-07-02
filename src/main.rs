@@ -24,25 +24,30 @@ enum CargoCli {
 #[derive(clap::Args)]
 #[command(version, about, long_about = None)]
 struct PodArgs {
-    #[arg(long, short)]
+    /// Change to DIRECTORY before doing anything
+    #[arg(long, short='C')]
     path: Option<std::path::PathBuf>,
 }
 
 #[derive(clap::Args)]
 #[command(version, about, long_about = None)]
 struct JoinArgs {
+    /// network url as 'host:network' to an existing node
     #[arg()]
     url: String,
-    #[arg(long, short)]
+    /// Change to DIRECTORY before doing anything
+    #[arg(long, short='C')]
     path: Option<std::path::PathBuf>,
 }
 
 #[derive(clap::Args)]
 #[command(version, about, long_about = None)]
 struct CreateArgs {
+    /// name of the network to create
     #[arg()]
     name: Option<String>,
-    #[arg(long, short)]
+    /// Change to DIRECTORY before doing anything
+    #[arg(long, short='C')]
     path: Option<std::path::PathBuf>,
 }
 
