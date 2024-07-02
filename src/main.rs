@@ -2,10 +2,8 @@
 // In code we trust
 // AgarthaSoftware - 2024
 
-use file_config::parse_toml_file;
-
-mod file_config;
+mod config;
 
 fn main() {
-    let _result = parse_toml_file("/home/ludofr3/WormHole/src/test.toml");
+    let _result = config::parser::parse_toml_file("/home/axel/wormhole/test.toml");
 }
