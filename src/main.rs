@@ -4,8 +4,7 @@
 
 mod config;
 
-mod init;
-mod join;
+mod commands;
 
 use clap::Parser;
 
@@ -59,7 +58,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>>{
         CargoCli::Join(args) => {
             println!("joining {}", args.url);
             println!("({:?})", args.additional_hosts);
-            join::join(&args.path.unwrap_or(".".into()), args.url, args.additional_hosts.unwrap_or(vec!()))?;
+            commands::join(&args.path.unwrap_or(".".into()), args.url, args.additional_hosts.unwrap_or(vec!()))?;
         },
         CargoCli::Create(args) => println!("creating network {:?}", args.name),
         CargoCli::Remove(_) => println!("removing pod"),

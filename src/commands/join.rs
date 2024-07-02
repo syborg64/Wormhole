@@ -3,7 +3,7 @@
 // AgarthaSoftware - 2024
 
 use std::error::Error;
-use crate::{config::{self, types::Config}, init};
+use crate::{commands, config::{self, types::Config}};
 
 #[must_use]
 pub fn join(path: &std::path::PathBuf, url: String, mut additional_hosts: Vec<String>) -> Result<(), Box<dyn Error>> {
@@ -14,7 +14,7 @@ pub fn join(path: &std::path::PathBuf, url: String, mut additional_hosts: Vec<St
         let mut peers = vec!(address_str.to_owned());
         peers.append(&mut additional_hosts);
         let network = config::Network::new(peers, network_name_str.to_owned());
-        init::init(path, network_name_str)?;
+        commands::init(path, network_name_str)?;
         network.write((&path).join(".wormhole/network.toml"))?;
         return Ok(());
     } else {
