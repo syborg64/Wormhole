@@ -1,6 +1,8 @@
 [package]
 name = "WormHole"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
+toml = "0.8.14"
+serde = { version = "1.0.201", features = ["derive"] }
