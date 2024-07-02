@@ -2,6 +2,8 @@
 // In code we trust
 // AgarthaSoftware - 2024
 
+mod config;
+
 mod init;
 mod join;
 
