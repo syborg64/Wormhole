@@ -1,3 +1,6 @@
 [essential]
 name = "Reseau A"
 ip = "127.0.0.1"
+
+[optional]
+test = false
