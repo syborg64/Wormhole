@@ -4,11 +4,10 @@ use std::io::Read;
 use toml::{from_str, Value};
 
 /** NOTE
- * For add elements in the configuration file
- * you must create a new structure you create a new section '[]'
+ * To add elements in the configuration file :
+ * To create a superior field like [field], create a new structure and add it to the Metadata struct
+ * Minors fields are named in the structure you added to Metadata
  * the section name is the same as the name of the value of your new struct in Metadata
- * if is juste add a new element in a section,
- * you can just add the value in the good section
  */
 
 #[derive(Debug, Deserialize)]
@@ -26,7 +25,6 @@ pub struct EssentialConfig {
 #[derive(Debug, Deserialize)]
 pub struct OptionalConfig {
     redundancy: Option<bool>,
-    test: Option<bool>,
 }
 
 
