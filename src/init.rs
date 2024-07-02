@@ -13,7 +13,8 @@ struct BasicConfig {
 
 #[must_use]
 pub fn init(path: &std::path::PathBuf, name: &str) -> Result<(), Box<dyn Error>> {
-    fs::create_dir((&path).join(".wormhole"))?;
+    fs::read_dir(path).map(|_| ())?;
+    fs::create_dir_all((&path).join(".wormhole"))?;
     let config = BasicConfig { name: name.to_owned() };
     let serialized = toml::to_string(&config)?;
     fs::write((&path).join(".wormhole/config.toml"), serialized)?;
