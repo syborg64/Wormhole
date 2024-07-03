@@ -1,6 +1,11 @@
-use clap::{crate_version, Arg, Command};
+use core::time;
+use std::thread::sleep;
 
-mod fuse;
+use clap::{crate_version, Arg, Command};
+use pod::pod::Pod;
+
+mod fuse; // used in pod
+mod pod;
 
 fn main() {
     let matches = Command::new("hello")
@@ -13,5 +18,12 @@ fn main() {
         )
         .get_matches();
     let mountpoint = matches.get_one::<String>("MOUNT_POINT").unwrap();
-    fuse::start::mount_fuse(mountpoint);
+    {
+        println!("mounting");
+        let _my_pod: Pod = Pod::new(mountpoint.clone());
+        println!("mounted");
+        sleep(time::Duration::from_secs(5));
+        println!("unmounting");
+    }
+    println!("unmounted");
 }

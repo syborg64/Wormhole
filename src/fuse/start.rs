@@ -1,6 +1,5 @@
 use fuser::{
-    FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData, ReplyDirectory, ReplyEntry,
-    Request,
+    BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData, ReplyDirectory, ReplyEntry, Request
 };
 use libc::ENOENT;
 use std::ffi::OsStr;
@@ -114,10 +113,9 @@ impl Filesystem for FuseController {
     }
 }
 
-pub fn mount_fuse(mountpoint: &String) {
-    let mut options = vec![MountOption::RO, MountOption::FSName("wormhole".to_string())];
-    options.push(MountOption::AllowOther);
-    options.push(MountOption::AutoUnmount);
+pub fn mount_fuse(mountpoint: &String) -> BackgroundSession {
+    let options = vec![MountOption::RO, MountOption::FSName("wormhole".to_string())];
+    // options.push(MountOption::AllowOther);/
 
-    fuser::mount2(FuseController, mountpoint, &options).unwrap();
+    fuser::spawn_mount2(FuseController, mountpoint, &options).unwrap() // FIXME unwrap
 }
