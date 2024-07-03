@@ -2,38 +2,16 @@
 // In code we trust
 // AgarthaSoftware - 2024
 
-use std::{env, fmt::Debug};
+use std::env;
 
-use futures_util::{stream::SplitStream, Sink, SinkExt, StreamExt};
-use serde::{Deserialize, Serialize};
+use futures_util::StreamExt;
 use tokio::{
     io::AsyncReadExt,
     sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
 };
+use wormhole::network::forward::{forward_read_to_sender, forward_reciver_to_write};
 
-use std::{
-    collections::HashMap,
-    net::SocketAddr,
-    sync::{Arc, Mutex},
-};
-
-use tokio::net::TcpListener;
-use tokio_tungstenite::tungstenite::protocol::Message;
-
-pub type Tx = UnboundedReceiver<NetworkMessage>;
-pub type PeerMap = Arc<Mutex<HashMap<SocketAddr, Tx>>>;
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub enum NetworkMessage {
-    Change(Change),
-    Binary(Vec<u8>),
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Change {
-    pub path: std::path::PathBuf,
-    pub file: Vec<u8>,
-}
+use wormhole::network::{message::NetworkMessage, server::Server};
 
 // async fn publish(pod_path: &std::path::Path, change_path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
 //     let nw = WormHole::config::Network::read(pod_path.join(".wormhole").join("network.toml"))?;
@@ -128,41 +106,6 @@ async fn local_watchdog(
     }
 }
 
-pub struct Server {
-    pub listener: TcpListener,
-    pub state: PeerMap,
-}
-
-async fn setup_server(addr: &str) -> Server {
-    Server {
-        listener: TcpListener::bind(addr).await.expect("Failed to bind"),
-        state: PeerMap::new(Mutex::new(HashMap::new())),
-    }
-}
-
-async fn forward_reciver_to_write<T>(mut write: T, rx: &mut UnboundedReceiver<NetworkMessage>)
-where
-    T: Sink<Message> + Unpin,
-    <T as Sink<Message>>::Error: Debug,
-{
-    while let Some(message) = rx.recv().await {
-        let serialized = bincode::serialize(&message).unwrap();
-        write.send(Message::binary(serialized)).await.unwrap();
-    }
-}
-
-async fn forward_read_to_sender<
-    T: StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>,
->(
-    mut read: SplitStream<T>,
-    tx: UnboundedSender<NetworkMessage>,
-) {
-    while let Ok(Message::Binary(message)) = read.next().await.unwrap() {
-        let deserialized = bincode::deserialize(&message).unwrap();
-        tx.send(deserialized).unwrap();
-    }
-}
-
 async fn remote_watchdog(
     server: Server,
     peer_tx: UnboundedSender<NetworkMessage>,
@@ -201,7 +144,7 @@ async fn main() {
             forward_reciver_to_write(write, &mut user_rx)
         );
     } else {
-        let server = setup_server(&own_addr).await;
+        let server = Server::setup(&own_addr).await;
         let _ = tokio::spawn(remote_watchdog(server, peer_tx, user_rx)).await;
     }
 }

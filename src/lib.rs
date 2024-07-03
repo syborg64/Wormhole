@@ -2,9 +2,9 @@
 // In code we trust
 // AgarthaSoftware - 2024
 
-pub mod config;
-
 pub mod commands;
+pub mod config;
+pub mod network;
 
 #[cfg(target_os = "windows")]
 pub const INSTANCE_PATH: &str = "%APPDATA%/local/wormhole";
