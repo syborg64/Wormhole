@@ -25,12 +25,13 @@ use tokio::sync::broadcast;
 use tokio::net::TcpListener;
 use tokio_tungstenite::{tungstenite::protocol::Message, MaybeTlsStream, WebSocketStream};
 
-type Tx = Receiver<Message>;
+type Tx = Receiver<WormMessage>;
 type PeerMap = Arc<Mutex<HashMap<SocketAddr, Tx>>>;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 enum WormMessage {
     Change(Change),
+    Binary(Vec<u8>),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -95,23 +96,39 @@ struct Change {
 //     Ok(())
 // }
 
-async fn local_watchdog(tx: Sender<Message>) {
+async fn local_watchdog(tx: Sender<WormMessage>, mut user_rx: Receiver<WormMessage>,  mut peer_rx: Receiver<WormMessage>) {
     let mut stdin = tokio::io::stdin();
     let mut buf = vec![0; 1024];
-    let mut rx = tx.subscribe();
     loop {
         tokio::select! {
             read = stdin.read(&mut buf) => {
                 match read {
-                    Err(_) | Ok(0) => break,
+                    Err(_) | Ok(0) => { println!("EOF"); break},
                     Ok(n) => {
                         buf.truncate(n);
-                        tx.send(Message::binary(buf.clone())).unwrap();
+                        tx.send(WormMessage::Binary(buf.to_owned())).unwrap();
                     }
                 };
             }
-            out = rx.recv() => {
-                info!("{}", out.unwrap());
+            out = user_rx.recv() => {
+                match out.unwrap() {
+                    WormMessage::Change(change) => {
+                        println!("user: {:?}", change);
+                    }
+                    WormMessage::Binary(bin) => {
+                        println!("user: {:?}", String::from_utf8(bin).unwrap_or("".to_string()));
+                    }
+                };
+            }
+            out = peer_rx.recv() => {
+                match out.unwrap() {
+                    WormMessage::Change(change) => {
+                        println!("peer: {:?}", change);
+                    }
+                    WormMessage::Binary(bin) => {
+                        println!("peer: {:?}", String::from_utf8(bin).unwrap_or("".to_string()));
+                    }
+                };
             }
             // fuse = fuse_watchdog() => {
             //     match fuse {
@@ -137,43 +154,47 @@ async fn setup_server(addr: &str) -> Server {
 
 async fn fwd_messages_to_channel(
     mut write: SplitSink<WebSocketStream<TcpStream>, Message>,
-    mut user_rx: Receiver<Message>,
+    mut user_rx: Receiver<WormMessage>,
 ) {
     while let Ok(message) = user_rx.recv().await {
-        write.send(message).await.unwrap();
+        let serialized = bincode::serialize(&message).unwrap();
+        write.send(Message::binary(serialized)).await.unwrap();
     }
 }
 
-async fn fwd_snd(mut read: SplitStream<WebSocketStream<TcpStream>>, user_tx: Sender<Message>) {
-    while let Ok(message) = read.next().await.unwrap() {
-        user_tx.send(message).unwrap();
+async fn fwd_snd(mut read: SplitStream<WebSocketStream<TcpStream>>, peer_tx: Sender<WormMessage>) {
+    while let Ok(Message::Binary(message)) = read.next().await.unwrap() {
+        let deserialized = bincode::deserialize(&message).unwrap();
+        peer_tx.send(deserialized).unwrap();
     }
 }
 
 async fn fwd_messages_to_channel2(
     mut write: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
-    mut user_rx: Receiver<Message>,
+    mut user_rx: Receiver<WormMessage>,
 ) {
     while let Ok(message) = user_rx.recv().await {
-        write.send(message).await.unwrap();
+        let serialized = bincode::serialize(&message).unwrap();
+        write.send(Message::binary(serialized)).await.unwrap();
     }
 }
 
-async fn fwd_snd2(mut read: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>, user_tx: Sender<Message>) {
-    while let Ok(message) = read.next().await.unwrap() {
-        user_tx.send(message).unwrap();
+async fn fwd_snd2(mut read: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>, peer_tx: Sender<WormMessage>) {
+    while let Ok(Message::Binary(message)) = read.next().await.unwrap() {
+        let deserialized = bincode::deserialize(&message).unwrap();
+        peer_tx.send(deserialized).unwrap();
     }
 }
 
-async fn remote_watchdog(server: Server, user_tx: Sender<Message>) {
+async fn remote_watchdog(server: Server, peer_tx: Sender<WormMessage>, user_rx: Receiver<WormMessage>) {
     while let Ok((stream, _)) = server.listener.accept().await {
         let ws_stream = tokio_tungstenite::accept_async(stream)
             .await
             .expect("Error during the websocket handshake occurred");
         let (write, read) = ws_stream.split();
         tokio::join!(
-            fwd_snd(read, user_tx.clone()),
-            fwd_messages_to_channel(write, user_tx.subscribe())
+            fwd_snd(read, peer_tx.clone()),
+            fwd_messages_to_channel(write, user_rx.resubscribe())
         );
     }
 }
@@ -183,21 +204,22 @@ async fn main() {
     env_logger::init();
 
     let own_addr = env::args().nth(1).unwrap_or("127.0.0.1:8080".to_string());
-    let other_addr = env::args().nth(2).unwrap_or("127.0.0.2:8080".to_string());
+    let other_addr = env::args().nth(2).unwrap_or("ws://127.0.0.2:8080".to_string());
 
-    let (user_tx, mut user_rx) = broadcast::channel(16);
+    let (peer_tx, peer_rx) = broadcast::channel::<WormMessage>(16);
+    let (user_tx, user_rx) = broadcast::channel::<WormMessage>(16);
 
-    tokio::spawn(local_watchdog(user_tx.clone()));
+    tokio::spawn(local_watchdog(user_tx.clone(), user_rx.resubscribe(), peer_rx.resubscribe()));
 
     if let Ok((ws_stream, _)) = tokio_tungstenite::connect_async(other_addr).await {
         let (write, read) = ws_stream.split();
         tokio::join!(
-            fwd_snd2(read, user_tx.clone()),
-            fwd_messages_to_channel2(write, user_tx.subscribe())
+            fwd_snd2(read, peer_tx.clone()),
+            fwd_messages_to_channel2(write, user_rx.resubscribe())
         );
     } else {
         let server = setup_server(&own_addr).await;
-        let _ = tokio::spawn(remote_watchdog(server, user_tx)).await;
+        let _ = tokio::spawn(remote_watchdog(server, peer_tx, user_rx)).await;
     }
 
 
