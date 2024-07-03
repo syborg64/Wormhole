@@ -1,13 +1,14 @@
+// In rust we code
+// In code we trust
+// AgarthaSoftware - 2024
+
 use std::{env, fmt::Debug};
 
 use futures_util::{stream::SplitStream, Sink, SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use tokio::{
     io::AsyncReadExt,
-    sync::{
-        broadcast::{self, Receiver, Sender},
-        mpsc::{self, UnboundedReceiver, UnboundedSender},
-    },
+    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
 };
 
 use std::{
@@ -19,11 +20,11 @@ use std::{
 use tokio::net::TcpListener;
 use tokio_tungstenite::tungstenite::protocol::Message;
 
-pub type Tx = Receiver<WormMessage>;
+pub type Tx = UnboundedReceiver<NetworkMessage>;
 pub type PeerMap = Arc<Mutex<HashMap<SocketAddr, Tx>>>;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub enum WormMessage {
+pub enum NetworkMessage {
     Change(Change),
     Binary(Vec<u8>),
 }
@@ -37,7 +38,7 @@ pub struct Change {
 // async fn publish(pod_path: &std::path::Path, change_path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
 //     let nw = WormHole::config::Network::read(pod_path.join(".wormhole").join("network.toml"))?;
 //     let file = std::fs::read(change_path)?;
-//     let change = WormMessage::Change(Change { path: change_path.to_owned(), file});
+//     let change = NetworkMessage::Change(Change { path: change_path.to_owned(), file});
 //     let serialized = bincode::serialize(&change)?;
 //     for peer in nw.peers {
 //         match tokio::net::TcpStream::connect(&peer).await {
@@ -91,9 +92,8 @@ pub struct Change {
 // }
 
 async fn local_watchdog(
-    tx: Sender<WormMessage>,
-    mut user_rx: Receiver<WormMessage>,
-    mut peer_rx: UnboundedReceiver<WormMessage>,
+    user_tx: UnboundedSender<NetworkMessage>,
+    mut peer_rx: UnboundedReceiver<NetworkMessage>,
 ) {
     let mut stdin = tokio::io::stdin();
     let mut buf = vec![0; 1024];
@@ -104,27 +104,17 @@ async fn local_watchdog(
                     Err(_) | Ok(0) => { println!("EOF"); break},
                     Ok(n) => {
                         buf.truncate(n);
-                        tx.send(WormMessage::Binary(buf.to_owned())).unwrap();
-                    }
-                };
-            }
-            out = user_rx.recv() => {
-                match out.unwrap() {
-                    WormMessage::Change(change) => {
-                        println!("user: {:?}", change);
-                    }
-                    WormMessage::Binary(bin) => {
-                        println!("user: {:?}", String::from_utf8(bin).unwrap_or("".to_string()));
+                        user_tx.send(NetworkMessage::Binary(buf.to_owned())).unwrap();
                     }
                 };
             }
             out = peer_rx.recv() => {
                 match out.unwrap() {
-                    WormMessage::Change(change) => {
+                    NetworkMessage::Change(change) => {
                         println!("peer: {:?}", change);
                     }
-                    WormMessage::Binary(bin) => {
-                        println!("peer: {:?}", String::from_utf8(bin).unwrap_or("".to_string()));
+                    NetworkMessage::Binary(bin) => {
+                        println!("peer: {:?}", String::from_utf8(bin).unwrap_or_default());
                     }
                 };
             }
@@ -150,12 +140,12 @@ async fn setup_server(addr: &str) -> Server {
     }
 }
 
-async fn forward_reciver_to_write<T>(mut write: T, mut rx: Receiver<WormMessage>)
+async fn forward_reciver_to_write<T>(mut write: T, rx: &mut UnboundedReceiver<NetworkMessage>)
 where
     T: Sink<Message> + Unpin,
     <T as Sink<Message>>::Error: Debug,
 {
-    while let Ok(message) = rx.recv().await {
+    while let Some(message) = rx.recv().await {
         let serialized = bincode::serialize(&message).unwrap();
         write.send(Message::binary(serialized)).await.unwrap();
     }
@@ -165,7 +155,7 @@ async fn forward_read_to_sender<
     T: StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>,
 >(
     mut read: SplitStream<T>,
-    tx: UnboundedSender<WormMessage>,
+    tx: UnboundedSender<NetworkMessage>,
 ) {
     while let Ok(Message::Binary(message)) = read.next().await.unwrap() {
         let deserialized = bincode::deserialize(&message).unwrap();
@@ -175,8 +165,8 @@ async fn forward_read_to_sender<
 
 async fn remote_watchdog(
     server: Server,
-    peer_tx: UnboundedSender<WormMessage>,
-    user_rx: Receiver<WormMessage>,
+    peer_tx: UnboundedSender<NetworkMessage>,
+    mut user_rx: UnboundedReceiver<NetworkMessage>,
 ) {
     while let Ok((stream, _)) = server.listener.accept().await {
         let ws_stream = tokio_tungstenite::accept_async(stream)
@@ -185,7 +175,7 @@ async fn remote_watchdog(
         let (write, read) = ws_stream.split();
         tokio::join!(
             forward_read_to_sender(read, peer_tx.clone()),
-            forward_reciver_to_write(write, user_rx.resubscribe())
+            forward_reciver_to_write(write, &mut user_rx)
         );
     }
 }
@@ -200,22 +190,18 @@ async fn main() {
         .unwrap_or("ws://127.0.0.2:8080".to_string());
 
     let (peer_tx, peer_rx) = mpsc::unbounded_channel();
-    let (user_tx, user_rx) = broadcast::channel::<WormMessage>(16);
+    let (user_tx, mut user_rx) = mpsc::unbounded_channel();
 
-    tokio::spawn(local_watchdog(user_tx, user_rx.resubscribe(), peer_rx));
+    tokio::spawn(local_watchdog(user_tx, peer_rx));
 
     if let Ok((ws_stream, _)) = tokio_tungstenite::connect_async(other_addr).await {
         let (write, read) = ws_stream.split();
         tokio::join!(
             forward_read_to_sender(read, peer_tx),
-            forward_reciver_to_write(write, user_rx.resubscribe())
+            forward_reciver_to_write(write, &mut user_rx)
         );
     } else {
         let server = setup_server(&own_addr).await;
         let _ = tokio::spawn(remote_watchdog(server, peer_tx, user_rx)).await;
     }
-
-    // while let Ok(message) = user_rx.recv().await {
-    //     info!("{}", message);
-    // }
 }
