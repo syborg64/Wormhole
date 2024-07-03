@@ -3,30 +3,33 @@ use std::fs;
 use std::{collections::HashMap, io::Error, os::unix::fs::MetadataExt, path::Path};
 use walkdir::WalkDir;
 
-const COPIED_ROOT: &str = "./original";
-
-// DEV only
+const COPIED_ROOT: &str = "./original/";
 
 fn original_ino() -> u64 {
     let meta = fs::metadata(Path::new(COPIED_ROOT)).unwrap();
     meta.ino()
 }
 
-// Axel's territory
-
-fn index_folder(pth: &Path) -> HashMap<u64, String> {
+pub fn index_folder(pth: &Path) -> HashMap<u64, String> {
     let mut arbo: HashMap<u64, String> = HashMap::new();
+    let mut inode: u64 = 2;
+
     arbo.insert(1, pth.to_string_lossy().to_string());
 
     for entry in WalkDir::new(COPIED_ROOT).into_iter().filter_map(|e| e.ok()) {
-        println!("{}", entry.path().display());
+        let strpath = entry.path().display().to_string();
+        if strpath != COPIED_ROOT {
+            println!("indexing {}", strpath);
+            arbo.insert(inode, strpath);
+            inode += 1;
+        } else {
+            println!("ignoring {}", strpath);
+        }
     }
     arbo
 }
 
-/////
-
-fn file_inode(file_name: &str) -> Result<(u64, FileType, String), Error> {
+/* fn file_inode(file_name: &str) -> Result<(u64, FileType, String), Error> {
     let metadata = fs::metadata(file_name)?;
     Ok((metadata.ino(), metadata.file_type(), file_name.to_owned()))
 }
@@ -51,3 +54,4 @@ pub fn list_files(path: &str) -> Result<Vec<(u64, FileType, String)>, Error> {
     //     Err(e) => return (e),
     // }
 }
+*/

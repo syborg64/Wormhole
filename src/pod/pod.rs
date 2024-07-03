@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use fuser::BackgroundSession;
 use crate::fuse::start::mount_fuse;
 
@@ -14,6 +16,8 @@ pub struct Pod {
 
 impl Pod {
     pub fn new(mountpoint: String) -> Self {
+        let arbo = super::executors::readers::index_folder(&Path::new(&mountpoint));
+        println!("final arbo is {:?}", arbo);
         Pod {
             session: mount_fuse(&mountpoint),
             mountpoint,
