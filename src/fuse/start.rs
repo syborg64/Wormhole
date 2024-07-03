@@ -49,8 +49,10 @@ const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
 
 pub struct FuseController;
 impl Filesystem for FuseController {
-    //Look up a directory entry by name and get its attributes.
+    // Look up a directory entry by name and get its attributes.
+    // parent = folder inode ? | name = file/folder (not path)
     fn lookup(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEntry) {
+        println!("lookup is called {} {:?}", parent, name);
         if parent == 1 && name.to_str() == Some("hello.txt") {
             reply.entry(&TTL, &TEMPLATE_FILE_ATTR, 0);
         } else {
@@ -59,6 +61,7 @@ impl Filesystem for FuseController {
     }
 
     fn getattr(&mut self, _req: &Request, ino: u64, reply: ReplyAttr) {
+        println!("getattr is called {}", ino);
         match ino {
             1 => reply.attr(&TTL, &MOUNT_DIR_ATTR),
             2 => reply.attr(&TTL, &TEMPLATE_FILE_ATTR),
@@ -77,6 +80,7 @@ impl Filesystem for FuseController {
         _lock: Option<u64>,
         reply: ReplyData,
     ) {
+        println!("read is called");
         if ino == 2 {
             reply.data(&TEMPLATE_FILE_CONTENT.as_bytes()[offset as usize..]);
         } else {
@@ -92,6 +96,7 @@ impl Filesystem for FuseController {
         offset: i64,
         mut reply: ReplyDirectory,
     ) {
+        println!("readdir is called");
         if ino != 1 {
             reply.error(ENOENT);
             return;
