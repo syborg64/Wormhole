@@ -7,22 +7,16 @@ use crate::pod::pod::Pod;
 use crate::pod::COPIED_ROOT;
 
 impl Pod {
-    fn file_inode(file_name: &String) -> Result<(u64, FileType, String), Error> {
-        let metadata = fs::metadata(file_name)?;
-        let file_type: fuser::FileType = if metadata.file_type().is_dir() {
-            fuser::FileType::Directory
-        } else {
-            fuser::FileType::RegularFile
-        };
-        Ok((metadata.ino(), file_type, file_name.to_owned()))
-    }
-
     // NOTE - dev only
     fn mirror_path_from_inode(&self, ino: u64) -> Option<&String> {
-        self.index.get(&ino)
+        if let Some(data) = self.index.get(&ino) {
+            Some(&data.1)
+        } else {
+            None
+        }
     }
 
-    pub fn read(&self, ino: u64) -> Option<Vec<u8>>{
+    pub fn read(&self, ino: u64) -> Option<Vec<u8>> {
         if let Some(path) = self.mirror_path_from_inode(ino) {
             if let Some(content) = fs::read(Path::new(&path)).ok() {
                 Some(content)
@@ -34,26 +28,41 @@ impl Pod {
         }
     }
 
-    /*
-    pub fn list_files(path: &str) -> Result<Vec<(u64, FileType, String)>, Error> {
-        // let files: Vec<(u64, FileType, String)>;
-
-        files = fs::read_dir(path)?.map(|entry| file_inode(entry));
-
-        // match fs::read_dir(path) {
-        //     Ok(entries) => {
-        //         for entry in entries {
-        //             match entry {
-        //                 Ok(entry) => match file_inode(entry) {
-        //                     Ok(file_inode) => files.append(file_inode),
-        //                     Err(e) => return (e),
-        //                 },
-        //                 Err(e) => return (e),
-        //             }
-        //         }
-        //     }
-        //     Err(e) => return (e),
-        // }
+    // list files inodes in the parent folder
+    fn list_files(&self, parent_ino: u64) -> Option<Vec<u64>> {
+        if let Some((_, parent_path)) = self.index.get(&parent_ino) {
+            Some(
+                self.index
+                    .clone()
+                    .into_iter()
+                    .filter(|e| e.1 .1.starts_with(parent_path))
+                    .map(|e| e.0)
+                    .collect(),
+            )
+        } else {
+            None
+        }
     }
-    */
+
+    // returns a small amount of data for a file (asked for readdir)
+    // -> (ino, type, path)
+    fn file_small_meta(&self, ino: u64) -> Option<(u64, fuser::FileType, String)> {
+        if let Some((file_type, file_path)) = self.index.get(&ino) {
+            Some((ino, file_type.clone(), file_path.clone()))
+        } else {
+            None
+        }
+    }
+
+    pub fn fs_readdir(&self, parent_ino: u64) -> Option<Vec<(u64, fuser::FileType, String)>> {
+        if let Some(list) = self.list_files(parent_ino) {
+            Some(
+                list.into_iter()
+                    .filter_map(|e| self.file_small_meta(e))
+                    .collect(),
+            )
+        } else {
+            None
+        }
+    }
 }
