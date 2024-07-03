@@ -1,34 +1,47 @@
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
-use fuser::BackgroundSession;
 use crate::fuse::start::mount_fuse;
+use fuser::BackgroundSession;
+use walkdir::WalkDir;
 
-/// Struct pod contain:
-/// - session: a value used for talk with the thread of the filesystem
-/// - mountpoint: the path of the mount point of the pod
-/// - active_fh: a vector containing all fh of the mount points
+use super::COPIED_ROOT;
+
 pub struct Pod {
-    session: BackgroundSession,
-    pub mountpoint: String,
-    active_fh: Vec<u64>,
+    session: BackgroundSession, // Fuse handle
+    pub index: HashMap<u64, String>, // Total fs indexing
+    pub mountpoint: String, // mountpoint of the fuse fs
+    //active_fh: Vec<u64>,
     // TODO - more variables on network
 }
 
 impl Pod {
     pub fn new(mountpoint: String) -> Self {
-        let arbo = super::executors::readers::index_folder(&Path::new(&mountpoint));
-        println!("final arbo is {:?}", arbo);
+        let index = Self::index_folder(&Path::new(&mountpoint));
+        println!("starting arbo is {:?}", index);
         Pod {
             session: mount_fuse(&mountpoint),
+            index,
             mountpoint,
-            active_fh: Vec::new(),
+            //active_fh: Vec::new(),
         }
     }
 
-    // NOTE - Objective : properly close the mounted folder / network
-    // now automatic when "session" is dropped
-    // Made for when the instance exits, not for a definitive exit of the network
-    // pub fn unmont() -> Result<(), Error> {
-    //     Ok(())
-    // }
+    fn index_folder(pth: &Path) -> HashMap<u64, String> {
+        let mut arbo: HashMap<u64, String> = HashMap::new();
+        let mut inode: u64 = 2;
+
+        arbo.insert(1, pth.to_string_lossy().to_string());
+
+        for entry in WalkDir::new(COPIED_ROOT).into_iter().filter_map(|e| e.ok()) {
+            let strpath = entry.path().display().to_string();
+            if strpath != COPIED_ROOT {
+                println!("indexing {}", strpath);
+                arbo.insert(inode, strpath);
+                inode += 1;
+            } else {
+                println!("ignoring {}", strpath);
+            }
+        }
+        arbo
+    }
 }
