@@ -22,6 +22,18 @@ impl Pod {
         self.index.get(&ino)
     }
 
+    pub fn read(&self, ino: u64) -> Option<Vec<u8>>{
+        if let Some(path) = self.mirror_path_from_inode(ino) {
+            if let Some(content) = fs::read(Path::new(&path)).ok() {
+                Some(content)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
     /*
     pub fn list_files(path: &str) -> Result<Vec<(u64, FileType, String)>, Error> {
         // let files: Vec<(u64, FileType, String)>;
