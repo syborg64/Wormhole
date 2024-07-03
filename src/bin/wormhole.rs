@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use tokio::{
     io::AsyncReadExt,
     sync::{
-        broadcast,
-        broadcast::{Receiver, Sender},
+        broadcast::{self, Receiver, Sender},
+        mpsc::{self, UnboundedReceiver, UnboundedSender},
     },
 };
 
@@ -93,7 +93,7 @@ pub struct Change {
 async fn local_watchdog(
     tx: Sender<WormMessage>,
     mut user_rx: Receiver<WormMessage>,
-    mut peer_rx: Receiver<WormMessage>,
+    mut peer_rx: UnboundedReceiver<WormMessage>,
 ) {
     let mut stdin = tokio::io::stdin();
     let mut buf = vec![0; 1024];
@@ -165,7 +165,7 @@ async fn forward_read_to_sender<
     T: StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>,
 >(
     mut read: SplitStream<T>,
-    tx: Sender<WormMessage>,
+    tx: UnboundedSender<WormMessage>,
 ) {
     while let Ok(Message::Binary(message)) = read.next().await.unwrap() {
         let deserialized = bincode::deserialize(&message).unwrap();
@@ -175,7 +175,7 @@ async fn forward_read_to_sender<
 
 async fn remote_watchdog(
     server: Server,
-    peer_tx: Sender<WormMessage>,
+    peer_tx: UnboundedSender<WormMessage>,
     user_rx: Receiver<WormMessage>,
 ) {
     while let Ok((stream, _)) = server.listener.accept().await {
@@ -199,19 +199,15 @@ async fn main() {
         .nth(2)
         .unwrap_or("ws://127.0.0.2:8080".to_string());
 
-    let (peer_tx, peer_rx) = broadcast::channel::<WormMessage>(16);
+    let (peer_tx, peer_rx) = mpsc::unbounded_channel();
     let (user_tx, user_rx) = broadcast::channel::<WormMessage>(16);
 
-    tokio::spawn(local_watchdog(
-        user_tx.clone(),
-        user_rx.resubscribe(),
-        peer_rx.resubscribe(),
-    ));
+    tokio::spawn(local_watchdog(user_tx, user_rx.resubscribe(), peer_rx));
 
     if let Ok((ws_stream, _)) = tokio_tungstenite::connect_async(other_addr).await {
         let (write, read) = ws_stream.split();
         tokio::join!(
-            forward_read_to_sender(read, peer_tx.clone()),
+            forward_read_to_sender(read, peer_tx),
             forward_reciver_to_write(write, user_rx.resubscribe())
         );
     } else {
