@@ -1,5 +1,6 @@
 use fuser::FileType;
 use std::fs;
+use std::ptr::metadata;
 use std::{collections::HashMap, io::Error, os::unix::fs::MetadataExt, path::Path};
 use walkdir::WalkDir;
 
@@ -31,7 +32,12 @@ pub fn index_folder(pth: &Path) -> HashMap<u64, String> {
 
 /* fn file_inode(file_name: &str) -> Result<(u64, FileType, String), Error> {
     let metadata = fs::metadata(file_name)?;
-    Ok((metadata.ino(), metadata.file_type(), file_name.to_owned()))
+    let file_type: fuser::FileType = if (metadata.file_type().is_dir()) {
+        fuser::FileType::Directory
+    } else {
+        fuser::FileType::RegularFile
+    };
+    Ok((metadata.ino(), file_type , file_name.to_owned()))
 }
 
 pub fn list_files(path: &str) -> Result<Vec<(u64, FileType, String)>, Error> {
