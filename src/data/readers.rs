@@ -7,6 +7,7 @@ use fuser::{FileAttr, FileType, Request};
 use std::ffi::OsStr;
 use std::fs;
 use std::fs::Metadata;
+use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 use std::time::UNIX_EPOCH;
 use std::{collections::HashMap, path::Path};
@@ -47,6 +48,10 @@ impl Provider {
     pub fn read(&self, ino: u64) -> Option<Vec<u8>> {
         if let Some(path) = self.mirror_path_from_inode(ino) {
             if let Some(content) = fs::read(Path::new(&path)).ok() {
+                println!(
+                    "READ CONTENT {}",
+                    String::from_utf8(content.clone()).unwrap_or("uh wtf".to_string())
+                );
                 Some(content)
             } else {
                 None
@@ -113,6 +118,7 @@ impl Provider {
         } else {
             fuser::FileType::CharDevice // random to detect unsupported
         };
+        attr.size = data.size();
         attr
     }
 

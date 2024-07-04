@@ -24,7 +24,7 @@ fn main() {
         println!("mounting");
         let _session = mount_fuse(mountpoint);
         println!("mounted");
-        sleep(time::Duration::from_secs(10));
+        sleep(time::Duration::from_secs(20));
         println!("unmounting");
     }
     println!("unmounted");
