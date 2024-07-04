@@ -4,6 +4,7 @@
  */
 
 use std::fs;
+use std::path::PathBuf;
 use std::{collections::HashMap, path::Path};
 
 use crate::fuse::fuse_impl::FuseController;
@@ -39,25 +40,33 @@ impl Data {
     // list files inodes in the parent folder
     fn list_files(&self, parent_ino: u64) -> Option<Vec<u64>> {
         if let Some((_, parent_path)) = self.index.get(&parent_ino) {
-            Some(
-                self
-                    .index
-                    .clone()
-                    .into_iter()
-                    .filter(|e| e.1 .1.starts_with(parent_path))
-                    .map(|e| e.0)
-                    .collect(),
-            )
+            let parent_path = Path::new(&parent_path);
+            println!("LISTING files in parent path {:?}", parent_path);
+            let test = self
+                .index
+                .clone()
+                .into_iter()
+                .map(|(a, (b, c))| (a, (b, PathBuf::from(c))))
+                .filter(|e| e.1 .1.parent().unwrap() == parent_path)
+                .map(|e| e.0)
+                .collect();
+            println!("LISTING RESULT {:?}", test);
+            Some(test)
         } else {
             None
         }
     }
 
     // returns a small amount of data for a file (asked for readdir)
-    // -> (ino, type, path)
+    // -> (ino, type, name)
     fn file_small_meta(&self, ino: u64) -> Option<(u64, fuser::FileType, String)> {
         if let Some((file_type, file_path)) = self.index.get(&ino) {
-            Some((ino, file_type.clone(), file_path.clone()))
+            let file_name = if let Some(name) = Path::new(file_path).file_name() {
+                name.to_string_lossy().to_string()
+            } else {
+                "errorname".to_string()
+            };
+            Some((ino, file_type.clone(), file_name))
         } else {
             None
         }
