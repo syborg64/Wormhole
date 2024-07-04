@@ -4,10 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-clap = { version = "4.5.8", features = ["derive"] }
+clap = { version = "4.5.8", features = ["cargo", "derive"] }
+fuser = "0.14.0"
+libc = "0.2.155"
+pkg-config = "0.3.30"
+walkdir = "2.5.0"
 serde = { version = "1.0.203", features = ["derive"] }
 toml = "0.8.14"
-
 log = "0.4.22"
 tokio = { version = "1.38.0", default-features = false, features = ["io-std", "macros", "net", "rt-multi-thread", "time", "sync"] }
 tokio-tungstenite = "0.23"
