@@ -5,23 +5,21 @@
 use std::{
     collections::HashMap,
     env,
-    error::Error,
     sync::{Arc, RwLock},
 };
 
-use futures_util::{lock, StreamExt};
-use log::error;
-use notify::Watcher;
+use futures_util::StreamExt;
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    sync::{
-        mpsc::{self, UnboundedReceiver, UnboundedSender},
-        oneshot, Mutex,
-    },
+    io::AsyncReadExt,
+    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
 };
 
-use wormhole::{config, data::metadata::MetaData, network::forward::{forward_read_to_sender, forward_receiver_to_write}};
-use wormhole::network::peer_ipc::PeerIPC;
+use wormhole::{
+    config,
+    data::metadata::MetaData,
+    network::forward::{forward_read_to_sender, forward_receiver_to_write},
+};
+use wormhole::{fuse::fuse_impl::mount_fuse, network::peer_ipc::PeerIPC};
 
 use wormhole::network::{message::NetworkMessage, server::Server};
 
@@ -157,6 +155,8 @@ async fn main() {
 
     let (peer_tx, peer_rx) = mpsc::unbounded_channel();
     let (user_tx, mut user_rx) = mpsc::unbounded_channel();
+
+    let a = mount_fuse("./virtual");
 
     tokio::spawn(local_watchdog(user_tx, peer_rx));
 

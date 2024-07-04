@@ -3,6 +3,7 @@ use fuser::{
     ReplyDirectory, ReplyEntry, Request,
 };
 use libc::ENOENT;
+use log::debug;
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::time::{Duration, UNIX_EPOCH};
@@ -30,7 +31,6 @@ const MOUNT_DIR_ATTR: FileAttr = FileAttr {
     flags: 0,
     blksize: 512,
 };
-
 
 const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
     ino: 2,
@@ -86,11 +86,11 @@ impl FuseController {
                 fuser::FileType::CharDevice // random to detect unsupported
             };
             if strpath != COPIED_ROOT && path_type != fuser::FileType::CharDevice {
-                println!("indexing {}", strpath);
+                debug!("indexing {}", strpath);
                 arbo.insert(inode, (path_type, strpath));
                 inode += 1;
             } else {
-                println!("ignoring {}", strpath);
+                debug!("ignoring {}", strpath);
             }
         }
         arbo
@@ -99,7 +99,7 @@ impl FuseController {
 
 impl Filesystem for FuseController {
     fn lookup(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEntry) {
-        println!("lookup is called {} {:?}", parent, name);
+        debug!("lookup is called {} {:?}", parent, name);
         if let Some(file_attr) = self.provider.fs_lookup(parent, name) {
             reply.entry(&TTL, &file_attr, 0)
         } else {
@@ -108,7 +108,7 @@ impl Filesystem for FuseController {
     }
 
     fn getattr(&mut self, _req: &Request, ino: u64, reply: ReplyAttr) {
-        println!("getattr is called {}", ino);
+        debug!("getattr is called {}", ino);
         match ino {
             1 => reply.attr(&TTL, &MOUNT_DIR_ATTR),
             2 => reply.attr(&TTL, &TEMPLATE_FILE_ATTR),
@@ -127,7 +127,7 @@ impl Filesystem for FuseController {
         _lock: Option<u64>,
         reply: ReplyData,
     ) {
-        println!("read is called");
+        debug!("read is called");
         if let Some(content) = self.provider.read(ino) {
             reply.data(&content[offset as usize..])
         } else {
@@ -143,10 +143,10 @@ impl Filesystem for FuseController {
         offset: i64,
         mut reply: ReplyDirectory,
     ) {
-        println!("readdir is called for ino {}", ino);
+        debug!("readdir is called for ino {}", ino);
         if let Some(entries) = self.provider.fs_readdir(ino) {
             for (i, entry) in entries.into_iter().enumerate().skip(offset as usize) {
-                println!("readdir entries : {:?}", entry);
+                debug!("readdir entries : {:?}", entry);
                 // i + 1 means the index of the next entry
                 if reply.add(entry.0, (i + 1) as i64, entry.1, entry.2) {
                     break;
@@ -154,13 +154,13 @@ impl Filesystem for FuseController {
             }
             reply.ok()
         } else {
-            println!("readdir EONENT ");
+            debug!("readdir EONENT ");
             reply.error(ENOENT)
         }
     }
 }
 
-pub fn mount_fuse(mountpoint: &String) -> BackgroundSession {
+pub fn mount_fuse(mountpoint: &str) -> BackgroundSession {
     let options = vec![MountOption::RO, MountOption::FSName("wormhole".to_string())];
     let ctrl = FuseController::new();
     fuser::spawn_mount2(ctrl, mountpoint, &options).unwrap()
