@@ -156,18 +156,20 @@ async fn main() {
     let (peer_tx, peer_rx) = mpsc::unbounded_channel();
     let (user_tx, mut user_rx) = mpsc::unbounded_channel();
 
-    let a = mount_fuse("./virtual");
-
-    tokio::spawn(local_watchdog(user_tx, peer_rx));
+    tokio::spawn(local_watchdog(user_tx.clone(), peer_rx));
 
     if let Ok((ws_stream, _)) = tokio_tungstenite::connect_async(other_addr).await {
         let (write, read) = ws_stream.split();
+        let _session = mount_fuse("./client", user_tx);
+
         tokio::join!(
             forward_read_to_sender(read, peer_tx),
             forward_receiver_to_write(write, &mut user_rx)
         );
     } else {
         let server = Server::setup(&own_addr).await;
+        let _session = mount_fuse("./server", user_tx);
+
         let _ = tokio::spawn(remote_watchdog(server, peer_tx, user_rx)).await;
     }
 }

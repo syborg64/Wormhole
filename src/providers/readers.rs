@@ -12,6 +12,9 @@ use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 use std::time::UNIX_EPOCH;
 use std::{collections::HashMap, path::Path};
+use tokio::sync::mpsc::UnboundedSender;
+
+use crate::network::message::NetworkMessage;
 
 // (inode_number, (Type, Original path))
 pub type FsIndex = HashMap<u64, (fuser::FileType, String)>;
@@ -22,6 +25,7 @@ pub type FsIndex = HashMap<u64, (fuser::FileType, String)>;
 // ownership during the runtime.
 pub struct Provider {
     pub index: FsIndex,
+    pub tx: UnboundedSender<NetworkMessage>,
 }
 
 // will soon be replaced once the dev continues

@@ -7,8 +7,10 @@ use log::debug;
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::time::{Duration, UNIX_EPOCH};
+use tokio::sync::mpsc::UnboundedSender;
 use walkdir::WalkDir;
 
+use crate::network::message::NetworkMessage;
 use crate::providers::readers::{FsIndex, Provider};
 
 // NOTE - placeholders
@@ -60,10 +62,11 @@ pub struct FuseController {
 // Custom data (not directly linked to fuse)
 // create some data for us like the index or data provider
 impl FuseController {
-    fn new() -> Self {
+    fn new(tx: UnboundedSender<NetworkMessage>) -> Self {
         Self {
             provider: Provider {
                 index: Self::index_folder(),
+                tx,
             },
         }
     }
@@ -160,8 +163,8 @@ impl Filesystem for FuseController {
     }
 }
 
-pub fn mount_fuse(mountpoint: &str) -> BackgroundSession {
+pub fn mount_fuse(mountpoint: &str, tx: UnboundedSender<NetworkMessage>) -> BackgroundSession {
     let options = vec![MountOption::RO, MountOption::FSName("wormhole".to_string())];
-    let ctrl = FuseController::new();
+    let ctrl = FuseController::new(tx);
     fuser::spawn_mount2(ctrl, mountpoint, &options).unwrap()
 }
