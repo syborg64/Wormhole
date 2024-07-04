@@ -2,11 +2,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::data::metadata::MetaData;
 
-
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum NetworkMessage {
     File(File),
     Meta(MetaData),
+    NewFolder,
     RequestFile(std::path::PathBuf),
     Binary(Vec<u8>),
 }

@@ -1,6 +1,6 @@
 use fuser::{FileAttr, FileType};
 use std::{collections::HashMap, time::UNIX_EPOCH};
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::network::message::NetworkMessage;
 

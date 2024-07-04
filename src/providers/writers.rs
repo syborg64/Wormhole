@@ -6,6 +6,8 @@ use std::{
 
 use fuser::{FileAttr, FileType};
 
+use crate::network::message::NetworkMessage;
+
 use super::{Provider, TEMPLATE_FILE_ATTR};
 
 impl Provider {
@@ -49,6 +51,8 @@ impl Provider {
     pub fn mkdir(&mut self, parent_ino: u64, name: &OsStr) -> Option<FileAttr> {
         // should check that the parent exists and is a folder
         // return None if error
+        println!("Creating dir");
+        self.tx.send(NetworkMessage::NewFolder).unwrap();
         if let Some(meta) = self.get_metadata(parent_ino) {
             if meta.kind == FileType::Directory {
                 let new_path =
@@ -133,5 +137,9 @@ impl Provider {
     pub fn write(&self, ino: u64, offset: i64, data: &[u8]) -> Option<u32> {
         // returns the writed size
         Some(0)
+    }
+
+    pub fn new_folder(&self) {
+        println!("Provider make new folder");
     }
 }

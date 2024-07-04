@@ -5,7 +5,7 @@
 use std::{
     collections::HashMap,
     env,
-    sync::{Arc, RwLock},
+    sync::{Arc, Mutex, RwLock},
 };
 
 use futures_util::StreamExt;
@@ -18,6 +18,7 @@ use wormhole::{
     config,
     data::metadata::MetaData,
     network::forward::{forward_read_to_sender, forward_receiver_to_write},
+    providers::Provider,
 };
 use wormhole::{fuse::fuse_impl::mount_fuse, network::peer_ipc::PeerIPC};
 
@@ -90,6 +91,7 @@ async fn publish_meta<'a>(
 async fn local_watchdog(
     user_tx: UnboundedSender<NetworkMessage>,
     mut peer_rx: UnboundedReceiver<NetworkMessage>,
+    provider: Arc<Mutex<Provider>>,
 ) {
     let mut stdin = tokio::io::stdin();
     let mut buf = vec![0; 1024];
@@ -112,8 +114,13 @@ async fn local_watchdog(
                     NetworkMessage::Binary(bin) => {
                         println!("peer: {:?}",String::from_utf8(bin).unwrap_or_default());
                     }
-                    NetworkMessage::Meta(_) => todo!(),
-                    NetworkMessage::RequestFile(_) => todo!(), };
+                    NetworkMessage::NewFolder => {
+                        println!("peer: NEW FOLDER");
+                        let provider = provider.lock().unwrap();
+                        provider.new_folder();
+                    },
+                    _ => todo!(),
+                };
             }
             // storage = storage_watchdog() => {
             //     match storage {
@@ -152,15 +159,16 @@ async fn main() {
     let other_addr = env::args()
         .nth(2)
         .unwrap_or("ws://127.0.0.2:8080".to_string());
+    let folder = env::args().nth(3).unwrap_or("./virtual".to_string());
 
     let (peer_tx, peer_rx) = mpsc::unbounded_channel();
     let (user_tx, mut user_rx) = mpsc::unbounded_channel();
+    let (_session, provider) = mount_fuse(&folder, user_tx.clone());
 
-    tokio::spawn(local_watchdog(user_tx.clone(), peer_rx));
+    tokio::spawn(local_watchdog(user_tx, peer_rx, provider));
 
     if let Ok((ws_stream, _)) = tokio_tungstenite::connect_async(other_addr).await {
         let (write, read) = ws_stream.split();
-        let _session = mount_fuse("./client", user_tx);
 
         tokio::join!(
             forward_read_to_sender(read, peer_tx),
@@ -168,7 +176,6 @@ async fn main() {
         );
     } else {
         let server = Server::setup(&own_addr).await;
-        let _session = mount_fuse("./server", user_tx);
 
         let _ = tokio::spawn(remote_watchdog(server, peer_tx, user_rx)).await;
     }
