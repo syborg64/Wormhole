@@ -8,7 +8,7 @@ use std::ffi::OsStr;
 use std::time::{Duration, UNIX_EPOCH};
 use walkdir::WalkDir;
 
-use crate::data::readers::{FsIndex, Provider};
+use crate::providers::readers::{FsIndex, Provider};
 
 // NOTE - placeholders
 const TTL: Duration = Duration::from_secs(1);
@@ -31,7 +31,6 @@ const MOUNT_DIR_ATTR: FileAttr = FileAttr {
     blksize: 512,
 };
 
-const TEMPLATE_FILE_CONTENT: &str = "Hello World!\n";
 
 const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
     ino: 2,

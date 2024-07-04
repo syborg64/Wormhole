@@ -7,7 +7,7 @@ use fuse::fuse_impl::mount_fuse;
 
 mod fuse; // used in pod
 // mod pod;
-mod data;
+mod providers;
 
 fn main() {
     let matches = Command::new("hello")
