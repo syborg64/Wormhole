@@ -8,7 +8,7 @@ use std::ffi::OsStr;
 use std::time::{Duration, UNIX_EPOCH};
 use walkdir::WalkDir;
 
-use crate::providers::readers::{FsIndex, Provider};
+use crate::providers::{FsIndex, Provider};
 
 // NOTE - placeholders
 const TTL: Duration = Duration::from_secs(1);
