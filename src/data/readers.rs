@@ -1,13 +1,20 @@
-use fuser::FileType;
+/*
+ * Used for the OUTSIDE interactions
+ * (actually reading mirror folder, but network one day)
+ */
+
 use std::fs;
-use std::{collections::HashMap, io::Error, os::unix::fs::MetadataExt, path::Path};
-use walkdir::WalkDir;
+use std::{collections::HashMap, path::Path};
 
-use crate::fuse::start::FuseController;
-use crate::pod::pod::Pod;
-use crate::pod::COPIED_ROOT;
+use crate::fuse::fuse_impl::FuseController;
 
-impl FuseController {
+pub type FsIndex = HashMap<u64, (fuser::FileType, String)>;
+pub struct Data {
+    pub index: FsIndex,
+    pub mountpoint: String,
+}
+
+impl Data {
     // NOTE - dev only
     fn mirror_path_from_inode(&self, ino: u64) -> Option<&String> {
         if let Some(data) = self.index.get(&ino) {
@@ -33,7 +40,8 @@ impl FuseController {
     fn list_files(&self, parent_ino: u64) -> Option<Vec<u64>> {
         if let Some((_, parent_path)) = self.index.get(&parent_ino) {
             Some(
-                self.index
+                self
+                    .index
                     .clone()
                     .into_iter()
                     .filter(|e| e.1 .1.starts_with(parent_path))

@@ -1,14 +1,16 @@
 use fuser::{
-    BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData, ReplyDirectory, ReplyEntry, Request
+    BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData,
+    ReplyDirectory, ReplyEntry, Request,
 };
 use libc::ENOENT;
-use walkdir::WalkDir;
 use std::collections::HashMap;
 use std::ffi::OsStr;
-use std::path::Path;
 use std::time::{Duration, UNIX_EPOCH};
+use walkdir::WalkDir;
 
-// FIX - placeholders
+use crate::data::readers::{Data, FsIndex};
+
+// NOTE - placeholders
 const TTL: Duration = Duration::from_secs(1);
 
 const MOUNT_DIR_ATTR: FileAttr = FileAttr {
@@ -51,22 +53,22 @@ const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
 // ^ placeholders
 
 const COPIED_ROOT: &str = "./original/";
-pub type fs_index = HashMap<u64, (fuser::FileType, String)>;
 pub struct FuseController {
-    pub index: fs_index,
-    mountpoint: String,
+    pub outside_info: Data,
 }
 
 impl FuseController {
-    pub fn new(mountpoint: String) -> Self {
+    fn new(mountpoint: String) -> Self {
         Self {
-            index: Self::index_folder(&Path::new(&mountpoint)),
-            mountpoint: mountpoint
+            outside_info: Data {
+                index: Self::index_folder(),
+                mountpoint: mountpoint,
+            },
         }
     }
 
-    fn index_folder(pth: &Path) -> fs_index {
-        let mut arbo: fs_index = HashMap::new();
+    fn index_folder() -> FsIndex {
+        let mut arbo: FsIndex = HashMap::new();
         let mut inode: u64 = 2;
 
         arbo.insert(1, (fuser::FileType::Directory, COPIED_ROOT.to_owned()));
@@ -91,6 +93,7 @@ impl FuseController {
         arbo
     }
 }
+
 impl Filesystem for FuseController {
     // Look up a directory entry by name and get its attributes.
     // parent = folder inode ? | name = file/folder (not path)
@@ -139,25 +142,31 @@ impl Filesystem for FuseController {
         offset: i64,
         mut reply: ReplyDirectory,
     ) {
-        println!("readdir is called");
-        if ino != 1 {
-            reply.error(ENOENT);
-            return;
-        }
+        // if ino != 1 {
+        //     reply.error(ENOENT);
+        //     return;
+        // }
 
-        let entries = vec![
-            (1, FileType::Directory, "."),
-            (1, FileType::Directory, ".."),
-            (2, FileType::RegularFile, "hello.txt"),
-        ];
+        // let entries = vec![
+        //     (1, FileType::Directory, "."),
+        //     (1, FileType::Directory, ".."),
+        //     (2, FileType::RegularFile, "hello.txt"),
+        // ];
 
-        for (i, entry) in entries.into_iter().enumerate().skip(offset as usize) {
-            // i + 1 means the index of the next entry
-            if reply.add(entry.0, (i + 1) as i64, entry.1, entry.2) {
-                break;
+        println!("readdir is called for ino {}", ino);
+        if let Some(entries) = self.outside_info.fs_readdir(ino) {
+            for (i, entry) in entries.into_iter().enumerate().skip(offset as usize) {
+                println!("readdir entries : {:?}", entry);
+                // i + 1 means the index of the next entry
+                if reply.add(entry.0, (i + 1) as i64, entry.1, entry.2) {
+                    break;
+                }
             }
+            reply.ok()
+        } else {
+            println!("readdir EONENT ");
+            reply.error(ENOENT)
         }
-        reply.ok();
     }
 }
 

@@ -2,10 +2,12 @@ use core::time;
 use std::thread::sleep;
 
 use clap::{crate_version, Arg, Command};
-use pod::pod::Pod;
+use fuse::fuse_impl::mount_fuse;
+// use pod::pod::Pod;
 
 mod fuse; // used in pod
-mod pod;
+// mod pod;
+mod data;
 
 fn main() {
     let matches = Command::new("hello")
@@ -20,7 +22,7 @@ fn main() {
     let mountpoint = matches.get_one::<String>("MOUNT_POINT").unwrap();
     {
         println!("mounting");
-        let _my_pod: Pod = Pod::new(mountpoint.clone());
+        let _session = mount_fuse(mountpoint);
         println!("mounted");
         sleep(time::Duration::from_secs(10));
         println!("unmounting");
