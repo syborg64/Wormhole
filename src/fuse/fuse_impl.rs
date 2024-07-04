@@ -233,6 +233,25 @@ impl Filesystem for FuseController {
         }
     }
 
+    fn write(
+        &mut self,
+        _req: &Request<'_>,
+        ino: u64,
+        _fh: u64,
+        offset: i64,
+        data: &[u8],
+        _write_flags: u32,
+        _flags: i32,
+        _lock_owner: Option<u64>,
+        reply: fuser::ReplyWrite,
+    ) {
+        if let Some(written) = self.provider.write(ino, offset, data) {
+            reply.written(written)
+        } else {
+            reply.error(ENOENT)
+        }
+    }
+
     // ^ WRITING
 }
 
