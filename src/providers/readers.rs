@@ -3,7 +3,7 @@
  * (actually reading mirror folder, but network one day)
  */
 
-use fuser::{FileAttr, FileType, Request};
+use fuser::{FileAttr, FileType};
 use std::ffi::OsStr;
 use std::fs;
 use std::fs::Metadata;
@@ -12,20 +12,27 @@ use std::path::PathBuf;
 use std::time::UNIX_EPOCH;
 use std::{collections::HashMap, path::Path};
 
+// (inode_number, (Type, Original path))
 pub type FsIndex = HashMap<u64, (fuser::FileType, String)>;
+
+// will keep all the necessary info to provide real
+// data to the fuse lib
+// For now this is given to the fuse controler on creation and we do NOT have
+// ownership during the runtime.
 pub struct Provider {
     pub index: FsIndex,
 }
 
+// will soon be replaced once the dev continues
 const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
-    ino: 2,
-    size: 13,
+    ino: 2, // required to be correct
+    size: 13, // required to be correct
     blocks: 1,
     atime: UNIX_EPOCH, // 1970-01-01 00:00:00
     mtime: UNIX_EPOCH,
     ctime: UNIX_EPOCH,
     crtime: UNIX_EPOCH,
-    kind: FileType::RegularFile,
+    kind: FileType::RegularFile, // required to be correct
     perm: 0o644,
     nlink: 1,
     uid: 501,
@@ -35,8 +42,12 @@ const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
     blksize: 512,
 };
 
+// should maybe be restructured, but
+// those are the functions made freely by us following our needs
+// and they are directly used by the fuse lib
 impl Provider {
-    // NOTE - dev only
+    
+    // find the path of the real file in the original folder
     fn mirror_path_from_inode(&self, ino: u64) -> Option<&String> {
         if let Some(data) = self.index.get(&ino) {
             Some(&data.1)
@@ -45,6 +56,7 @@ impl Provider {
         }
     }
 
+    // Used directly in the FuseControler read function
     pub fn read(&self, ino: u64) -> Option<Vec<u8>> {
         if let Some(path) = self.mirror_path_from_inode(ino) {
             if let Some(content) = fs::read(Path::new(&path)).ok() {
@@ -96,6 +108,7 @@ impl Provider {
         }
     }
 
+    // used directly in FuseControler's readdir function
     pub fn fs_readdir(&self, parent_ino: u64) -> Option<Vec<(u64, fuser::FileType, String)>> {
         if let Some(list) = self.list_files(parent_ino) {
             Some(
@@ -108,6 +121,7 @@ impl Provider {
         }
     }
 
+    // use real fs metadata and traduct part of it to the fuse FileAttr metadata
     fn modify_metadata_template(data: Metadata, ino: u64) -> FileAttr {
         let mut attr = TEMPLATE_FILE_ATTR;
         attr.ino = ino;
@@ -122,6 +136,7 @@ impl Provider {
         attr
     }
 
+    // get the metadata of a file from it's inode
     pub fn get_metadata(&self, ino: u64) -> Option<FileAttr> {
         if let Some(path) = self.mirror_path_from_inode(ino) {
             match fs::metadata(path) {

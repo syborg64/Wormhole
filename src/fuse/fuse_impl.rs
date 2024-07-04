@@ -52,10 +52,13 @@ const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
 // ^ placeholders
 
 const COPIED_ROOT: &str = "./original/";
+
 pub struct FuseController {
     pub provider: Provider,
 }
 
+// Custom data (not directly linked to fuse)
+// create some data for us like the index or data provider
 impl FuseController {
     fn new() -> Self {
         Self {
@@ -65,6 +68,8 @@ impl FuseController {
         }
     }
 
+    // for the mirror version
+    // we create an index of the original folder
     fn index_folder() -> FsIndex {
         let mut arbo: FsIndex = HashMap::new();
         let mut inode: u64 = 2;
