@@ -33,7 +33,7 @@ pub struct OptionalConfig {
     redundancy: Option<bool>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct Network {
     pub name: String,
     pub peers: Vec<String>,

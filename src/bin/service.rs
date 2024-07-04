@@ -2,21 +2,45 @@
 // In code we trust
 // AgarthaSoftware - 2024
 
-use std::env;
-
-use futures_util::StreamExt;
-use tokio::{
-    io::AsyncReadExt,
-    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
+use std::{
+    collections::HashMap,
+    env,
+    error::Error,
+    sync::{Arc, RwLock},
 };
-use wormhole::network::forward::{forward_read_to_sender, forward_receiver_to_write};
+
+use futures_util::{lock, StreamExt};
+use log::error;
+use notify::Watcher;
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    sync::{
+        mpsc::{self, UnboundedReceiver, UnboundedSender},
+        oneshot, Mutex,
+    },
+};
+
+use wormhole::{config, data::metadata::MetaData, network::forward::{forward_read_to_sender, forward_receiver_to_write}};
+use wormhole::network::peer_ipc::PeerIPC;
 
 use wormhole::network::{message::NetworkMessage, server::Server};
+
+struct Pod {
+    network: config::Network,
+    directory: Arc<std::fs::DirEntry>,
+    // fuser: !,
+}
+
+#[derive(Default)]
+struct State {
+    pub peers: RwLock<Vec<PeerIPC>>,
+    pub pods: RwLock<HashMap<std::path::PathBuf, Pod>>,
+}
 
 // async fn publish(pod_path: &std::path::Path, change_path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
 //     let nw = WormHole::config::Network::read(pod_path.join(".wormhole").join("network.toml"))?;
 //     let file = std::fs::read(change_path)?;
-//     let change = NetworkMessage::Change(Change { path: change_path.to_owned(), file});
+//     let change = NetworkMessage::File(File { path: change_path.to_owned(), file});
 //     let serialized = bincode::serialize(&change)?;
 //     for peer in nw.peers {
 //         match tokio::net::TcpStream::connect(&peer).await {
@@ -33,39 +57,35 @@ use wormhole::network::{message::NetworkMessage, server::Server};
 //     Ok(())
 // }
 
-// async fn fuse_watchdog() -> Result<(), Box<dyn std::error::Error>> {
-//     let pods_directory = std::path::Path::new(INSTANCE_PATH).join("pods");
-//     let folder = std::fs::read_dir(&pods_directory)?;
+async fn publish_meta<'a>(
+    state: &'a Arc<State>,
+    pod_path: &std::path::Path,
+    file_path: &std::path::Path,
+) -> Result<(), Box<dyn std::error::Error + 'a>> {
+    let pods = state.pods.read()?;
+    let nw = &pods
+        .get(pod_path)
+        .ok_or(std::io::Error::other("pod not registered"))?
+        .network;
+    let file = std::fs::read(file_path)?;
+    let change = NetworkMessage::Meta(MetaData::read(file_path)?);
+    for peer in &nw.peers {
+        let lock = state.peers.read()?;
+        if let Some(found) = lock.iter().find(|p| p.address == *peer) {
+            found.sender.send(change.clone()).await;
+        } else {
+            drop(lock);
+            let mut lock = state.peers.write()?;
+            let peer_ipc = PeerIPC::connect(peer.clone());
+            peer_ipc.sender.send(change.clone()).await;
+            lock.push(peer_ipc);
+        }
+    }
+    Ok(())
+}
 
-//     let mut watcher = notify::recommended_watcher(|res| {
-//         match res {
-//            Ok(event) => {
-//             println!("event: {:?}", event)
-//             match event.kind {
-//                 notify::EventKind::Modify(_) | notify::EventKind::Create(_) => {
-//                     event.paths.iter().map(|path| publish(path));
-//                 }
-//                 _ => todo!(),
-//             }
-//            },
-//            Err(e) => println!("watch error: {:?}", e),
-//         }
-//     })?;
-
-//     for pod in folder {
-//         match pod {
-//             Ok(pod) => {
-//                 let link = pods_directory.join(pod.file_name());
-//                 let real_path = std::fs::canonicalize(&link)?;
-//                 watcher.watch(&real_path, notify::RecursiveMode::Recursive)?;
-//             },
-//             Err(_) => ()
-//         }
-//     }
-
-//     watcher.
-//     // Add a path to be watched. All files and directories at that path and
-//     // below will be monitored for changes.
+// async fn storage_watchdog() -> Result<(), Box<dyn std::error::Error>> {
+// =
 //     Ok(())
 // }
 
@@ -88,16 +108,17 @@ async fn local_watchdog(
             }
             out = peer_rx.recv() => {
                 match out.unwrap() {
-                    NetworkMessage::Change(change) => {
-                        println!("peer: {:?}", change);
+                    NetworkMessage::File(change) => {
+                        println!("peer: {:?}",change);
                     }
                     NetworkMessage::Binary(bin) => {
-                        println!("peer: {:?}", String::from_utf8(bin).unwrap_or_default());
+                        println!("peer: {:?}",String::from_utf8(bin).unwrap_or_default());
                     }
-                };
+                    NetworkMessage::Meta(_) => todo!(),
+                    NetworkMessage::RequestFile(_) => todo!(), };
             }
-            // fuse = fuse_watchdog() => {
-            //     match fuse {
+            // storage = storage_watchdog() => {
+            //     match storage {
             //         Ok(_) => (),
             //         Err(_) => (),
             //     }
@@ -126,6 +147,8 @@ async fn remote_watchdog(
 #[tokio::main]
 async fn main() {
     env_logger::init();
+
+    let mut state = State::default();
 
     let own_addr = env::args().nth(1).unwrap_or("127.0.0.1:8080".to_string());
     let other_addr = env::args()
