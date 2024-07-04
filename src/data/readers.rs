@@ -7,15 +7,12 @@ use std::fs;
 use std::path::PathBuf;
 use std::{collections::HashMap, path::Path};
 
-use crate::fuse::fuse_impl::FuseController;
-
 pub type FsIndex = HashMap<u64, (fuser::FileType, String)>;
-pub struct Data {
+pub struct Provider {
     pub index: FsIndex,
-    pub mountpoint: String,
 }
 
-impl Data {
+impl Provider {
     // NOTE - dev only
     fn mirror_path_from_inode(&self, ino: u64) -> Option<&String> {
         if let Some(data) = self.index.get(&ino) {

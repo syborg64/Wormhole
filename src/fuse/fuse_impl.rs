@@ -8,7 +8,7 @@ use std::ffi::OsStr;
 use std::time::{Duration, UNIX_EPOCH};
 use walkdir::WalkDir;
 
-use crate::data::readers::{Data, FsIndex};
+use crate::data::readers::{FsIndex, Provider};
 
 // NOTE - placeholders
 const TTL: Duration = Duration::from_secs(1);
@@ -54,15 +54,14 @@ const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
 
 const COPIED_ROOT: &str = "./original/";
 pub struct FuseController {
-    pub outside_info: Data,
+    pub outside_info: Provider,
 }
 
 impl FuseController {
-    fn new(mountpoint: String) -> Self {
+    fn new() -> Self {
         Self {
-            outside_info: Data {
+            outside_info: Provider {
                 index: Self::index_folder(),
-                mountpoint: mountpoint,
             },
         }
     }
@@ -173,6 +172,6 @@ impl Filesystem for FuseController {
 pub fn mount_fuse(mountpoint: &String) -> BackgroundSession {
     let options = vec![MountOption::RO, MountOption::FSName("wormhole".to_string())];
     // options.push(MountOption::AllowOther);/
-    let ctrl = FuseController::new(mountpoint.clone());
+    let ctrl = FuseController::new();
     fuser::spawn_mount2(ctrl, mountpoint, &options).unwrap() // FIXME unwrap
 }
