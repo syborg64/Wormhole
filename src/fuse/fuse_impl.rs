@@ -94,8 +94,6 @@ impl FuseController {
 }
 
 impl Filesystem for FuseController {
-    // Look up a directory entry by name and get its attributes.
-    // parent = folder inode ? | name = file/folder (not path)
     fn lookup(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEntry) {
         println!("lookup is called {} {:?}", parent, name);
         if let Some(file_attr) = self.provider.fs_lookup(parent, name) {
@@ -103,11 +101,6 @@ impl Filesystem for FuseController {
         } else {
             reply.error(ENOENT)
         }
-        // if parent == 1 && name.to_str() == Some("hello.txt") {
-        //     reply.entry(&TTL, &TEMPLATE_FILE_ATTR, 0);
-        // } else {
-        //     reply.error(ENOENT);
-        // }
     }
 
     fn getattr(&mut self, _req: &Request, ino: u64, reply: ReplyAttr) {
@@ -146,17 +139,6 @@ impl Filesystem for FuseController {
         offset: i64,
         mut reply: ReplyDirectory,
     ) {
-        // if ino != 1 {
-        //     reply.error(ENOENT);
-        //     return;
-        // }
-
-        // let entries = vec![
-        //     (1, FileType::Directory, "."),
-        //     (1, FileType::Directory, ".."),
-        //     (2, FileType::RegularFile, "hello.txt"),
-        // ];
-
         println!("readdir is called for ino {}", ino);
         if let Some(entries) = self.provider.fs_readdir(ino) {
             for (i, entry) in entries.into_iter().enumerate().skip(offset as usize) {
@@ -176,7 +158,6 @@ impl Filesystem for FuseController {
 
 pub fn mount_fuse(mountpoint: &String) -> BackgroundSession {
     let options = vec![MountOption::RO, MountOption::FSName("wormhole".to_string())];
-    // options.push(MountOption::AllowOther);/
     let ctrl = FuseController::new();
-    fuser::spawn_mount2(ctrl, mountpoint, &options).unwrap() // FIXME unwrap
+    fuser::spawn_mount2(ctrl, mountpoint, &options).unwrap()
 }
