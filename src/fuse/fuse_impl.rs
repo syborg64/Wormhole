@@ -182,6 +182,22 @@ impl Filesystem for FuseController {
         }
     }
 
+    fn mkdir(
+        &mut self,
+        _req: &Request<'_>,
+        parent: u64,
+        name: &OsStr,
+        _mode: u32,
+        _umask: u32,
+        reply: ReplyEntry,
+    ) {
+        if let Some(attr) = self.provider.mkdir(parent, name) {
+            reply.entry(&TTL, &attr, 0)
+        } else {
+            reply.error(ENOSYS)
+        }
+    }
+
     // ^ WRITING
 }
 
