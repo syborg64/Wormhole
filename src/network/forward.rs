@@ -6,7 +6,7 @@ use tokio_tungstenite::tungstenite::Message;
 
 use super::message::NetworkMessage;
 
-pub async fn forward_reciver_to_write<T>(mut write: T, rx: &mut UnboundedReceiver<NetworkMessage>)
+pub async fn forward_receiver_to_write<T>(mut write: T, rx: &mut UnboundedReceiver<NetworkMessage>)
 where
     T: Sink<Message> + Unpin,
     <T as Sink<Message>>::Error: Debug,

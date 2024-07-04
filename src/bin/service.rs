@@ -9,7 +9,7 @@ use tokio::{
     io::AsyncReadExt,
     sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
 };
-use wormhole::network::forward::{forward_read_to_sender, forward_reciver_to_write};
+use wormhole::network::forward::{forward_read_to_sender, forward_receiver_to_write};
 
 use wormhole::network::{message::NetworkMessage, server::Server};
 
@@ -118,7 +118,7 @@ async fn remote_watchdog(
         let (write, read) = ws_stream.split();
         tokio::join!(
             forward_read_to_sender(read, peer_tx.clone()),
-            forward_reciver_to_write(write, &mut user_rx)
+            forward_receiver_to_write(write, &mut user_rx)
         );
     }
 }
@@ -141,7 +141,7 @@ async fn main() {
         let (write, read) = ws_stream.split();
         tokio::join!(
             forward_read_to_sender(read, peer_tx),
-            forward_reciver_to_write(write, &mut user_rx)
+            forward_receiver_to_write(write, &mut user_rx)
         );
     } else {
         let server = Server::setup(&own_addr).await;
