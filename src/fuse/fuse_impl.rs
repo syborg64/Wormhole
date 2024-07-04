@@ -198,6 +198,23 @@ impl Filesystem for FuseController {
         }
     }
 
+    fn unlink(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: fuser::ReplyEmpty) {
+        if let Some(()) = self.provider.rmfile(parent, name) {
+            reply.ok()
+        } else {
+            reply.error(ENOENT)
+        }
+    }
+
+    fn rmdir(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: fuser::ReplyEmpty) {
+        // should be only called on empty dirs ?
+        if let Some(()) = self.provider.rmdir(parent, name) {
+            reply.ok()
+        } else {
+            reply.error(ENOENT)
+        }
+    }
+
     // ^ WRITING
 }
 
