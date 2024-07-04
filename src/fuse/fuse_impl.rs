@@ -2,7 +2,7 @@ use fuser::{
     BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData,
     ReplyDirectory, ReplyEntry, Request,
 };
-use libc::ENOENT;
+use libc::{ENOENT, ENOSYS};
 use log::debug;
 use std::collections::HashMap;
 use std::ffi::OsStr;
@@ -11,7 +11,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use walkdir::WalkDir;
 
 use crate::network::message::NetworkMessage;
-use crate::providers::readers::{FsIndex, Provider};
+use crate::providers::{FsIndex, Provider};
 
 // NOTE - placeholders
 const TTL: Duration = Duration::from_secs(1);
@@ -63,9 +63,11 @@ pub struct FuseController {
 // create some data for us like the index or data provider
 impl FuseController {
     fn new(tx: UnboundedSender<NetworkMessage>) -> Self {
+        let index = Self::index_folder();
         Self {
             provider: Provider {
-                index: Self::index_folder(),
+                next_inode: (index.len() + 2) as u64,
+                index: index,
                 tx,
             },
         }
@@ -101,6 +103,8 @@ impl FuseController {
 }
 
 impl Filesystem for FuseController {
+    // READING
+
     fn lookup(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEntry) {
         debug!("lookup is called {} {:?}", parent, name);
         if let Some(file_attr) = self.provider.fs_lookup(parent, name) {
@@ -110,6 +114,7 @@ impl Filesystem for FuseController {
         }
     }
 
+    // TODO
     fn getattr(&mut self, _req: &Request, ino: u64, reply: ReplyAttr) {
         debug!("getattr is called {}", ino);
         match ino {
@@ -161,10 +166,103 @@ impl Filesystem for FuseController {
             reply.error(ENOENT)
         }
     }
+
+    // ^ READING
+
+    // WRITING
+
+    fn mknod(
+        &mut self,
+        _req: &Request<'_>,
+        parent: u64,
+        name: &OsStr,
+        _mode: u32,
+        _umask: u32,
+        _rdev: u32,
+        reply: ReplyEntry,
+    ) {
+        if let Some(attr) = self.provider.mkfile(parent, name) {
+            reply.entry(&TTL, &attr, 0)
+        } else {
+            reply.error(ENOSYS)
+        }
+    }
+
+    fn mkdir(
+        &mut self,
+        _req: &Request<'_>,
+        parent: u64,
+        name: &OsStr,
+        _mode: u32,
+        _umask: u32,
+        reply: ReplyEntry,
+    ) {
+        if let Some(attr) = self.provider.mkdir(parent, name) {
+            reply.entry(&TTL, &attr, 0)
+        } else {
+            reply.error(ENOSYS)
+        }
+    }
+
+    fn unlink(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: fuser::ReplyEmpty) {
+        if let Some(()) = self.provider.rmfile(parent, name) {
+            reply.ok()
+        } else {
+            reply.error(ENOENT)
+        }
+    }
+
+    fn rmdir(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: fuser::ReplyEmpty) {
+        // should be only called on empty dirs ?
+        if let Some(()) = self.provider.rmdir(parent, name) {
+            reply.ok()
+        } else {
+            reply.error(ENOENT)
+        }
+    }
+
+    fn rename(
+        &mut self,
+        _req: &Request<'_>,
+        parent: u64,
+        name: &OsStr,
+        newparent: u64,
+        newname: &OsStr,
+        _flags: u32,
+        reply: fuser::ReplyEmpty,
+    ) {
+        // comment sont gérés les dossiers et sous fichiers ?
+        if let Some(()) = self.provider.rename(parent, name, newparent, newname) {
+            reply.ok()
+        } else {
+            reply.error(ENOENT)
+        }
+    }
+
+    fn write(
+        &mut self,
+        _req: &Request<'_>,
+        ino: u64,
+        _fh: u64,
+        offset: i64,
+        data: &[u8],
+        _write_flags: u32,
+        _flags: i32,
+        _lock_owner: Option<u64>,
+        reply: fuser::ReplyWrite,
+    ) {
+        if let Some(written) = self.provider.write(ino, offset, data) {
+            reply.written(written)
+        } else {
+            reply.error(ENOENT)
+        }
+    }
+
+    // ^ WRITING
 }
 
 pub fn mount_fuse(mountpoint: &str, tx: UnboundedSender<NetworkMessage>) -> BackgroundSession {
-    let options = vec![MountOption::RO, MountOption::FSName("wormhole".to_string())];
+    let options = vec![MountOption::RW, MountOption::FSName("wormhole".to_string())];
     let ctrl = FuseController::new(tx);
     fuser::spawn_mount2(ctrl, mountpoint, &options).unwrap()
 }
