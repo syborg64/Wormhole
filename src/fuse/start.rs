@@ -2,7 +2,10 @@ use fuser::{
     BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData, ReplyDirectory, ReplyEntry, Request
 };
 use libc::ENOENT;
+use walkdir::WalkDir;
+use std::collections::HashMap;
 use std::ffi::OsStr;
+use std::path::Path;
 use std::time::{Duration, UNIX_EPOCH};
 
 // FIX - placeholders
@@ -47,7 +50,47 @@ const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
 };
 // ^ placeholders
 
-pub struct FuseController;
+const COPIED_ROOT: &str = "./original/";
+pub type fs_index = HashMap<u64, (fuser::FileType, String)>;
+pub struct FuseController {
+    pub index: fs_index,
+    mountpoint: String,
+}
+
+impl FuseController {
+    pub fn new(mountpoint: String) -> Self {
+        Self {
+            index: Self::index_folder(&Path::new(&mountpoint)),
+            mountpoint: mountpoint
+        }
+    }
+
+    fn index_folder(pth: &Path) -> fs_index {
+        let mut arbo: fs_index = HashMap::new();
+        let mut inode: u64 = 2;
+
+        arbo.insert(1, (fuser::FileType::Directory, COPIED_ROOT.to_owned()));
+
+        for entry in WalkDir::new(COPIED_ROOT).into_iter().filter_map(|e| e.ok()) {
+            let strpath = entry.path().display().to_string();
+            let path_type = if entry.file_type().is_dir() {
+                fuser::FileType::Directory
+            } else if entry.file_type().is_file() {
+                fuser::FileType::RegularFile
+            } else {
+                fuser::FileType::CharDevice // random to detect unsupported
+            };
+            if strpath != COPIED_ROOT && path_type != fuser::FileType::CharDevice {
+                println!("indexing {}", strpath);
+                arbo.insert(inode, (path_type, strpath));
+                inode += 1;
+            } else {
+                println!("ignoring {}", strpath);
+            }
+        }
+        arbo
+    }
+}
 impl Filesystem for FuseController {
     // Look up a directory entry by name and get its attributes.
     // parent = folder inode ? | name = file/folder (not path)
@@ -121,6 +164,6 @@ impl Filesystem for FuseController {
 pub fn mount_fuse(mountpoint: &String) -> BackgroundSession {
     let options = vec![MountOption::RO, MountOption::FSName("wormhole".to_string())];
     // options.push(MountOption::AllowOther);/
-
-    fuser::spawn_mount2(FuseController, mountpoint, &options).unwrap() // FIXME unwrap
+    let ctrl = FuseController::new(mountpoint.clone());
+    fuser::spawn_mount2(ctrl, mountpoint, &options).unwrap() // FIXME unwrap
 }

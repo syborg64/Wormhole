@@ -3,10 +3,11 @@ use std::fs;
 use std::{collections::HashMap, io::Error, os::unix::fs::MetadataExt, path::Path};
 use walkdir::WalkDir;
 
+use crate::fuse::start::FuseController;
 use crate::pod::pod::Pod;
 use crate::pod::COPIED_ROOT;
 
-impl Pod {
+impl FuseController {
     // NOTE - dev only
     fn mirror_path_from_inode(&self, ino: u64) -> Option<&String> {
         if let Some(data) = self.index.get(&ino) {
