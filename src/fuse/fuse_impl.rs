@@ -215,6 +215,24 @@ impl Filesystem for FuseController {
         }
     }
 
+    fn rename(
+        &mut self,
+        _req: &Request<'_>,
+        parent: u64,
+        name: &OsStr,
+        newparent: u64,
+        newname: &OsStr,
+        _flags: u32,
+        reply: fuser::ReplyEmpty,
+    ) {
+        // comment sont gérés les dossiers et sous fichiers ?
+        if let Some(()) = self.provider.rename(parent, name, newparent, newname) {
+            reply.ok()
+        } else {
+            reply.error(ENOENT)
+        }
+    }
+
     // ^ WRITING
 }
 
