@@ -3,12 +3,13 @@
  * (actually reading mirror folder, but network one day)
  */
 
-use std::fs;
-use std::path::PathBuf;
-use std::{collections::HashMap, path::Path};
 use fuser::{FileAttr, FileType, Request};
+use std::ffi::OsStr;
+use std::fs;
 use std::fs::Metadata;
+use std::path::PathBuf;
 use std::time::UNIX_EPOCH;
+use std::{collections::HashMap, path::Path};
 
 pub type FsIndex = HashMap<u64, (fuser::FileType, String)>;
 pub struct Provider {
@@ -115,7 +116,7 @@ impl Provider {
         attr
     }
 
-    pub fn get_metadata(&self, _req: &Request, ino: u64) -> Option<FileAttr> {
+    pub fn get_metadata(&self, ino: u64) -> Option<FileAttr> {
         if let Some(path) = self.mirror_path_from_inode(ino) {
             match fs::metadata(path) {
                 Ok(data) => Some(Self::modify_metadata_template(data, ino)),
@@ -126,17 +127,13 @@ impl Provider {
         }
     }
 
-    pub fn lookup_metadata(
-        &self,
-        _req: &Request,
-        parent_ino: u64,
-        file_name: String,
-    ) -> Option<FileAttr> {
+    pub fn fs_lookup(&self, parent_ino: u64, file_name: &OsStr) -> Option<FileAttr> {
+        let file_name = file_name.to_string_lossy().to_string();
         if let Some(datas) = self.fs_readdir(parent_ino) {
             let mut metadata: Option<FileAttr> = None;
             for data in datas {
                 if data.2 == file_name {
-                    metadata = self.get_metadata(_req, data.0);
+                    metadata = self.get_metadata(data.0);
                 };
             }
             metadata

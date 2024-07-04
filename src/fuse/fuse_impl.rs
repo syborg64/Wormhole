@@ -54,13 +54,13 @@ const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
 
 const COPIED_ROOT: &str = "./original/";
 pub struct FuseController {
-    pub outside_info: Provider,
+    pub provider: Provider,
 }
 
 impl FuseController {
     fn new() -> Self {
         Self {
-            outside_info: Provider {
+            provider: Provider {
                 index: Self::index_folder(),
             },
         }
@@ -98,11 +98,16 @@ impl Filesystem for FuseController {
     // parent = folder inode ? | name = file/folder (not path)
     fn lookup(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEntry) {
         println!("lookup is called {} {:?}", parent, name);
-        if parent == 1 && name.to_str() == Some("hello.txt") {
-            reply.entry(&TTL, &TEMPLATE_FILE_ATTR, 0);
+        if let Some(file_attr) = self.provider.fs_lookup(parent, name) {
+            reply.entry(&TTL, &file_attr, 0)
         } else {
-            reply.error(ENOENT);
+            reply.error(ENOENT)
         }
+        // if parent == 1 && name.to_str() == Some("hello.txt") {
+        //     reply.entry(&TTL, &TEMPLATE_FILE_ATTR, 0);
+        // } else {
+        //     reply.error(ENOENT);
+        // }
     }
 
     fn getattr(&mut self, _req: &Request, ino: u64, reply: ReplyAttr) {
@@ -153,7 +158,7 @@ impl Filesystem for FuseController {
         // ];
 
         println!("readdir is called for ino {}", ino);
-        if let Some(entries) = self.outside_info.fs_readdir(ino) {
+        if let Some(entries) = self.provider.fs_readdir(ino) {
             for (i, entry) in entries.into_iter().enumerate().skip(offset as usize) {
                 println!("readdir entries : {:?}", entry);
                 // i + 1 means the index of the next entry
