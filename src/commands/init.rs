@@ -18,5 +18,6 @@ pub fn init(path: &std::path::PathBuf, name: &str) -> Result<(), Box<dyn Error>>
     let config = BasicConfig { name: name.to_owned() };
     let serialized = toml::to_string(&config)?;
     fs::write((&path).join(".wormhole/config.toml"), serialized)?;
+    crate::commands::register(path, name)?;
     Ok(())
 }
