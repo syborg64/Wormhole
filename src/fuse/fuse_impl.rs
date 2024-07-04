@@ -124,8 +124,8 @@ impl Filesystem for FuseController {
         reply: ReplyData,
     ) {
         println!("read is called");
-        if ino == 2 {
-            reply.data(&TEMPLATE_FILE_CONTENT.as_bytes()[offset as usize..]);
+        if let Some(content) = self.provider.read(ino) {
+            reply.data(&content[offset as usize..])
         } else {
             reply.error(ENOENT);
         }
