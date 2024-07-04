@@ -12,6 +12,7 @@ pub type FsIndex = HashMap<u64, (fuser::FileType, String)>;
 // For now this is given to the fuse controler on creation and we do NOT have
 // ownership during the runtime.
 pub struct Provider {
+    pub next_inode: u64,
     pub index: FsIndex,
 }
 
@@ -36,9 +37,9 @@ const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
 
 impl Provider {
     // find the path of the real file in the original folder
-    fn mirror_path_from_inode(&self, ino: u64) -> Option<&String> {
+    fn mirror_path_from_inode(&self, ino: u64) -> Option<String> {
         if let Some(data) = self.index.get(&ino) {
-            Some(&data.1)
+            Some(data.1.clone())
         } else {
             None
         }

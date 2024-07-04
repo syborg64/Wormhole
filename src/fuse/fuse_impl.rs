@@ -60,9 +60,11 @@ pub struct FuseController {
 // create some data for us like the index or data provider
 impl FuseController {
     fn new() -> Self {
+        let index = Self::index_folder();
         Self {
             provider: Provider {
-                index: Self::index_folder(),
+                next_inode: (index.len() + 2) as u64,
+                index: index,
             },
         }
     }
