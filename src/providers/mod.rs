@@ -2,6 +2,7 @@ use fuser::{FileAttr, FileType};
 use std::{collections::HashMap, time::UNIX_EPOCH};
 
 pub mod readers;
+pub mod writers;
 
 // (inode_number, (Type, Original path))
 pub type FsIndex = HashMap<u64, (fuser::FileType, String)>;
