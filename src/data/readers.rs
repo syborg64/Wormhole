@@ -6,11 +6,32 @@
 use std::fs;
 use std::path::PathBuf;
 use std::{collections::HashMap, path::Path};
+use fuser::{FileAttr, FileType, Request};
+use std::fs::Metadata;
+use std::time::UNIX_EPOCH;
 
 pub type FsIndex = HashMap<u64, (fuser::FileType, String)>;
 pub struct Provider {
     pub index: FsIndex,
 }
+
+const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
+    ino: 2,
+    size: 13,
+    blocks: 1,
+    atime: UNIX_EPOCH, // 1970-01-01 00:00:00
+    mtime: UNIX_EPOCH,
+    ctime: UNIX_EPOCH,
+    crtime: UNIX_EPOCH,
+    kind: FileType::RegularFile,
+    perm: 0o644,
+    nlink: 1,
+    uid: 501,
+    gid: 20,
+    rdev: 0,
+    flags: 0,
+    blksize: 512,
+};
 
 impl Provider {
     // NOTE - dev only
@@ -76,6 +97,49 @@ impl Provider {
                     .filter_map(|e| self.file_small_meta(e))
                     .collect(),
             )
+        } else {
+            None
+        }
+    }
+
+    fn modify_metadata_template(data: Metadata, ino: u64) -> FileAttr {
+        let mut attr = TEMPLATE_FILE_ATTR;
+        attr.ino = ino;
+        attr.kind = if data.is_dir() {
+            fuser::FileType::Directory
+        } else if data.is_file() {
+            fuser::FileType::RegularFile
+        } else {
+            fuser::FileType::CharDevice // random to detect unsupported
+        };
+        attr
+    }
+
+    pub fn get_metadata(&self, _req: &Request, ino: u64) -> Option<FileAttr> {
+        if let Some(path) = self.mirror_path_from_inode(ino) {
+            match fs::metadata(path) {
+                Ok(data) => Some(Self::modify_metadata_template(data, ino)),
+                Err(_) => None,
+            }
+        } else {
+            None
+        }
+    }
+
+    pub fn lookup_metadata(
+        &self,
+        _req: &Request,
+        parent_ino: u64,
+        file_name: String,
+    ) -> Option<FileAttr> {
+        if let Some(datas) = self.fs_readdir(parent_ino) {
+            let mut metadata: Option<FileAttr> = None;
+            for data in datas {
+                if data.2 == file_name {
+                    metadata = self.get_metadata(_req, data.0);
+                };
+            }
+            metadata
         } else {
             None
         }
