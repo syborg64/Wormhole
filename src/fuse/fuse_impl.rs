@@ -2,7 +2,7 @@ use fuser::{
     BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData,
     ReplyDirectory, ReplyEntry, Request,
 };
-use libc::ENOENT;
+use libc::{ENOENT, ENOSYS};
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::time::{Duration, UNIX_EPOCH};
@@ -30,7 +30,6 @@ const MOUNT_DIR_ATTR: FileAttr = FileAttr {
     flags: 0,
     blksize: 512,
 };
-
 
 const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
     ino: 2,
@@ -98,6 +97,8 @@ impl FuseController {
 }
 
 impl Filesystem for FuseController {
+    // READING
+
     fn lookup(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEntry) {
         println!("lookup is called {} {:?}", parent, name);
         if let Some(file_attr) = self.provider.fs_lookup(parent, name) {
@@ -107,6 +108,7 @@ impl Filesystem for FuseController {
         }
     }
 
+    // TODO
     fn getattr(&mut self, _req: &Request, ino: u64, reply: ReplyAttr) {
         println!("getattr is called {}", ino);
         match ino {
@@ -158,6 +160,29 @@ impl Filesystem for FuseController {
             reply.error(ENOENT)
         }
     }
+
+    // ^ READING
+
+    // WRITING
+
+    fn mknod(
+        &mut self,
+        _req: &Request<'_>,
+        parent: u64,
+        name: &OsStr,
+        _mode: u32,
+        _umask: u32,
+        _rdev: u32,
+        reply: ReplyEntry,
+    ) {
+        if let Some(attr) = self.provider.mkfile(parent, name) {
+            reply.entry(&TTL, &attr, 0)
+        } else {
+            reply.error(ENOSYS)
+        }
+    }
+
+    // ^ WRITING
 }
 
 pub fn mount_fuse(mountpoint: &String) -> BackgroundSession {
