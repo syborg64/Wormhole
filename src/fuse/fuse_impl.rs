@@ -258,7 +258,7 @@ impl Filesystem for FuseController {
 }
 
 pub fn mount_fuse(mountpoint: &String) -> BackgroundSession {
-    let options = vec![MountOption::RO, MountOption::FSName("wormhole".to_string())];
+    let options = vec![MountOption::RW, MountOption::FSName("wormhole".to_string())];
     let ctrl = FuseController::new();
     fuser::spawn_mount2(ctrl, mountpoint, &options).unwrap()
 }

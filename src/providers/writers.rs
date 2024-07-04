@@ -1,4 +1,4 @@
-use std::{ffi::OsStr, path::PathBuf};
+use std::{ffi::OsStr, fs, path::PathBuf};
 
 use fuser::{FileAttr, FileType};
 
@@ -14,17 +14,17 @@ impl Provider {
         // return None if error
         if let Some(meta) = self.get_metadata(parent_ino) {
             if meta.kind == FileType::Directory {
-                let new_name =
+                let new_path =
                     PathBuf::from(self.mirror_path_from_inode(parent_ino).unwrap()).join(name);
 
-                // TODO - write the real file in the mirror
+                fs::File::create(&new_path).unwrap(); // real file creation
 
                 // add entry to the index
                 self.index.insert(
                     self.next_inode,
                     (
                         FileType::RegularFile,
-                        new_name.to_string_lossy().to_string(),
+                        new_path.to_string_lossy().to_string(),
                     ),
                 );
                 let mut new_attr = TEMPLATE_FILE_ATTR;

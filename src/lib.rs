@@ -5,7 +5,7 @@
 pub mod commands;
 pub mod config;
 pub mod network;
-mod fuse;
+pub mod fuse;
 mod providers;
 
 #[cfg(target_os = "windows")]
