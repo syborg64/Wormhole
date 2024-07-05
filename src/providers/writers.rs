@@ -30,7 +30,11 @@ impl Provider {
                     self.next_inode,
                     (
                         FileType::RegularFile,
-                        new_path.to_string_lossy().to_string(),
+                        new_path
+                            .strip_prefix(self.local_source.clone())
+                            .unwrap()
+                            .to_string_lossy()
+                            .to_string(),
                     ),
                 );
                 self.tx
