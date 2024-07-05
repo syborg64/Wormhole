@@ -145,32 +145,19 @@ impl Provider {
         Some(())
     }
 
-    pub fn write(&self, ino: u64, offset: i64, data: &[u8]) -> Option<u32> {
+    pub fn write(&self, ino: u64, _offset: i64, data: &[u8]) -> Option<u32> {
         // returns the writed size
         info!("WRITE ENTERNAL");
-        if let Some(path) = self.mirror_path_from_inode(ino) {
-            let mut pos = 0;
-            info!("WRITE GOOD PATH: {:?}", path);
-            match File::options().append(true).open(path) {
-                Ok(mut f) => {
-                    info!("WRITE: {:?}", f);
-                    while pos < data.len() {
-                        if let Ok(bytes_written) = f.write(&data[pos..]) {
-                            pos += bytes_written;
-                        } else {
-                            info!("WRITE ERROR");
-                            return Some(pos as u32);
-                        }
-                    }
-                    info!("WRITE {:?}", pos);
-                    Some(pos as u32)
-                }
-                Err(_) => None,
+        match self.index.get(&ino) {
+            Some((FileType::RegularFile, _)) => {
+                let Some(path) = self.mirror_path_from_inode(ino) else {
+                    return None;
+                };
+                fs::write(path, data).unwrap();
+                Some(data.len() as u32)
             }
-        } else {
-            None
+            _ => None,
         }
-        // Some(0)
     }
 
     // RECEPTION
