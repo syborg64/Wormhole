@@ -168,7 +168,8 @@ impl Provider {
     // RECEPTION
     pub fn new_folder(&mut self, ino: u64, path: PathBuf) {
         println!("Provider make new folder");
-        fs::create_dir(&path).unwrap();
+        let real_path = PathBuf::from(self.local_source.clone()).join(&path);
+        fs::create_dir(&real_path).unwrap();
         self.index.insert(
             ino,
             (FileType::Directory, path.to_string_lossy().to_string()),
