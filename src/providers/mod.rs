@@ -1,5 +1,5 @@
 use fuser::{FileAttr, FileType};
-use std::{collections::HashMap, time::UNIX_EPOCH};
+use std::{collections::HashMap, ops::Add, time::UNIX_EPOCH};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::network::message::NetworkMessage;
@@ -17,6 +17,7 @@ pub type FsIndex = HashMap<u64, (fuser::FileType, String)>;
 pub struct Provider {
     pub next_inode: u64,
     pub index: FsIndex,
+    pub local_source: String,
     pub tx: UnboundedSender<NetworkMessage>,
 }
 
@@ -43,7 +44,8 @@ impl Provider {
     // find the path of the real file in the original folder
     fn mirror_path_from_inode(&self, ino: u64) -> Option<String> {
         if let Some(data) = self.index.get(&ino) {
-            Some(data.1.clone())
+            let data = self.local_source.clone().add(&data.1);
+            Some(data)
         } else {
             None
         }

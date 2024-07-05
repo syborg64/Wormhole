@@ -159,11 +159,12 @@ async fn main() {
     let other_addr = env::args()
         .nth(2)
         .unwrap_or("ws://127.0.0.2:8080".to_string());
-    let folder = env::args().nth(3).unwrap_or("./virtual".to_string());
+    let mount = env::args().nth(3).unwrap_or("./virtual/".to_string());
+    let source = env::args().nth(4).unwrap_or("./original/".to_string());
 
     let (peer_tx, peer_rx) = mpsc::unbounded_channel();
     let (user_tx, mut user_rx) = mpsc::unbounded_channel();
-    let (_session, provider) = mount_fuse(&folder, user_tx.clone());
+    let (_session, provider) = mount_fuse(&source, &mount, user_tx.clone());
 
     tokio::spawn(local_watchdog(user_tx, peer_rx, provider));
 
