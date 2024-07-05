@@ -103,7 +103,23 @@ impl Provider {
     pub fn rmfile(&mut self, parent_ino: u64, name: &OsStr) -> Option<()> {
         // should only be called on files and not folders
         // if 404 or Folder -> None
-        Some(())
+        println!("Removing file");
+        if let Some(list) = self.fs_readdir(parent_ino) {
+            // finds a files that matches (if any)
+            if let Some(file) = list.iter().find(|(_, e_type, e_name)| {
+                *e_name == name.to_string_lossy().to_string() && *e_type == FileType::RegularFile
+            }) {
+                if let Some(file_path) = self.mirror_path_from_inode(file.0) {
+                    fs::remove_file(file_path).ok()
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 
     pub fn rmdir(&mut self, parent_ino: u64, name: &OsStr) -> Option<()> {
