@@ -8,7 +8,7 @@ use std::{
 use fuser::{FileAttr, FileType};
 use log::info;
 
-use crate::network::message::{File, Folder, NetworkMessage};
+use crate::network::message::{self, Folder, NetworkMessage};
 
 use super::{Provider, TEMPLATE_FILE_ATTR};
 
@@ -32,11 +32,15 @@ impl Provider {
                     self.next_inode,
                     (
                         FileType::RegularFile,
-                        new_path.to_string_lossy().to_string(),
+                        new_path
+                            .strip_prefix(self.local_source.clone())
+                            .unwrap()
+                            .to_string_lossy()
+                            .to_string(),
                     ),
                 );
                 self.tx
-                    .send(NetworkMessage::File(File {
+                    .send(NetworkMessage::File(message::File {
                         path: new_path,
                         file: [].to_vec(),
                         ino: self.next_inode,
@@ -67,14 +71,18 @@ impl Provider {
                     PathBuf::from(self.mirror_path_from_inode(parent_ino).unwrap()).join(name);
                 println!("directory created: {:?}", new_path);
                 fs::create_dir(&new_path).unwrap(); // create a real directory
-                self.index.insert(
-                    self.next_inode,
-                    (FileType::Directory, new_path.to_string_lossy().to_string()),
-                );
+                let virt_path = new_path
+                    .strip_prefix(self.local_source.clone())
+                    .unwrap()
+                    .to_string_lossy()
+                    .to_string();
+
+                self.index
+                    .insert(self.next_inode, (FileType::Directory, virt_path.clone()));
                 self.tx
                     .send(NetworkMessage::NewFolder(Folder {
                         ino: self.next_inode,
-                        path: new_path,
+                        path: virt_path.into(),
                     }))
                     .unwrap();
                 let mut new_attr = TEMPLATE_FILE_ATTR;
@@ -162,12 +170,15 @@ impl Provider {
         // } else {
         //     None
         // }
+        Some(0)
     }
 
     // RECEPTION
     pub fn new_folder(&mut self, ino: u64, path: PathBuf) {
         println!("Provider make new folder");
-        fs::create_dir(&path).unwrap();
+        let real_path = PathBuf::from(self.local_source.clone()).join(&path);
+        info!("AHAHA CREATING DIR with path {:?}", real_path);
+        fs::create_dir(&real_path).unwrap();
         self.index.insert(
             ino,
             (FileType::Directory, path.to_string_lossy().to_string()),

@@ -1,5 +1,5 @@
 use fuser::{FileAttr, FileType};
-use std::{collections::HashMap, ops::Add, time::UNIX_EPOCH};
+use std::{collections::HashMap, ops::Add, path::Path, time::UNIX_EPOCH};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::network::message::NetworkMessage;
