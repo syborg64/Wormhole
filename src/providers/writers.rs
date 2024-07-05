@@ -2,7 +2,7 @@ use fuser::{FileAttr, FileType};
 use log::info;
 use std::{
     ffi::OsStr,
-    fs::{self, create_dir, File},
+    fs::{self, create_dir, File, OpenOptions},
     io::Write,
     path::{self, PathBuf},
 };
@@ -102,12 +102,32 @@ impl Provider {
     pub fn rmfile(&mut self, parent_ino: u64, name: &OsStr) -> Option<()> {
         // should only be called on files and not folders
         // if 404 or Folder -> None
-        Some(())
+        println!("Removing file");
+        if let Some(list) = self.fs_readdir(parent_ino) {
+            // finds a files that matches (if any)
+            if let Some(file) = list.iter().find(|(_, e_type, e_name)| {
+                *e_name == name.to_string_lossy().to_string() && *e_type == FileType::RegularFile
+            }) {
+                if let Some(file_path) = self.mirror_path_from_inode(file.0) {
+                    fs::remove_file(file_path).ok()
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 
     pub fn rmdir(&mut self, parent_ino: u64, name: &OsStr) -> Option<()> {
         // should only be called on empty folders
         // if 404, not empty or file -> None
+<<<<<<< HEAD
+=======
+
+>>>>>>> bd91d95aa460134812dd48d60e2965b52086e424
         Some(())
     }
 
@@ -153,13 +173,47 @@ impl Provider {
 
     // RECEPTION
     pub fn new_folder(&mut self, ino: u64, path: PathBuf) {
-        println!("Provider make new folder");
         let real_path = PathBuf::from(self.local_source.clone()).join(&path);
-        info!("AHAHA CREATING DIR with path {:?}", real_path);
+        println!("Provider make new folder at: {:?}", real_path);
         fs::create_dir(&real_path).unwrap();
         self.index.insert(
             ino,
             (FileType::Directory, path.to_string_lossy().to_string()),
         );
+    }
+
+    pub fn new_file(&mut self, ino: u64, path: PathBuf) {
+        let real_path = PathBuf::from(self.local_source.clone()).join(&path);
+        println!("Provider make new file at: {:?}", real_path);
+        fs::File::create(&real_path).unwrap();
+        self.index.insert(
+            ino,
+            (FileType::RegularFile, path.to_string_lossy().to_string()),
+        );
+    }
+
+    pub fn recpt_remove(&mut self, ino: u64) {
+        let (file_type, path) = self.index.get(&ino).unwrap();
+        let real_path = PathBuf::from(self.local_source.clone()).join(&path);
+        println!("Provider remove object at: {:?}", real_path);
+        match file_type {
+            FileType::Directory => fs::remove_dir_all(&real_path).unwrap(),
+            FileType::RegularFile => fs::remove_file(&real_path).unwrap(),
+            _ => todo!(),
+        }
+        self.index.remove(&ino);
+    }
+
+    pub fn recpt_write(&mut self, ino: u64, content: Vec<u8>) {
+        let (_, path) = self.index.get(&ino).unwrap();
+        let real_path = PathBuf::from(self.local_source.clone()).join(&path);
+        println!("Provider write to file at: {:?}", real_path);
+        let mut file = OpenOptions::new()
+            .read(true)
+            .write(true) // <--------- this
+            .create(true)
+            .open(real_path)
+            .unwrap();
+        file.write_all(&content).unwrap();
     }
 }
