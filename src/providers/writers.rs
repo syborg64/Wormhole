@@ -109,7 +109,13 @@ impl Provider {
                 *e_name == name.to_string_lossy().to_string() && *e_type == FileType::RegularFile
             }) {
                 if let Some(file_path) = self.mirror_path_from_inode(file.0) {
-                    fs::remove_file(file_path).ok()
+                    if let Ok(_) = fs::remove_file(file_path) {
+                        self.tx.send(NetworkMessage::Remove(file.0)).unwrap();
+                        self.index.remove(&file.0);
+                        Some(())
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 }
