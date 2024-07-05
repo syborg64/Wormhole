@@ -7,9 +7,11 @@ use libc::{ENOENT, ENOSYS};
 use log::debug;
 use std::collections::HashMap;
 use std::ffi::OsStr;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, UNIX_EPOCH};
 use tokio::sync::mpsc::UnboundedSender;
+use walkdir::WalkDir;
 
 use crate::network::message::NetworkMessage;
 use crate::providers::{FsIndex, Provider};
@@ -54,7 +56,7 @@ const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
 };
 // ^ placeholders
 
-// const COPIED_ROOT: &str = "./original/";
+// const MIRROR_PTH: &str = "./wh_mirror/";
 
 pub struct FuseController {
     pub provider: Arc<Mutex<Provider>>,
@@ -63,31 +65,35 @@ pub struct FuseController {
 // Custom data (not directly linked to fuse)
 // create some data for us like the index or data provider
 impl FuseController {
-    // for the mirror version
     // we create an index of the original folder
-    fn index_folder() -> FsIndex {
+    fn index_folder(source: &String) -> FsIndex {
         let mut arbo: FsIndex = HashMap::new();
         let mut inode: u64 = 2;
 
-        // arbo.insert(1, (fuser::FileType::Directory, COPIED_ROOT.to_owned()));
+        arbo.insert(1, (fuser::FileType::Directory, "".to_owned()));
 
-        // for entry in WalkDir::new(COPIED_ROOT).into_iter().filter_map(|e| e.ok()) {
-        //     let strpath = entry.path().display().to_string();
-        //     let path_type = if entry.file_type().is_dir() {
-        //         fuser::FileType::Directory
-        //     } else if entry.file_type().is_file() {
-        //         fuser::FileType::RegularFile
-        //     } else {
-        //         fuser::FileType::CharDevice // random to detect unsupported
-        //     };
-        //     if strpath != COPIED_ROOT && path_type != fuser::FileType::CharDevice {
-        //         debug!("indexing {}", strpath);
-        //         arbo.insert(inode, (path_type, strpath));
-        //         inode += 1;
-        //     } else {
-        //         debug!("ignoring {}", strpath);
-        //     }
-        // }
+        for entry in WalkDir::new(source).into_iter().filter_map(|e| e.ok()) {
+            let strpath = entry.path().display().to_string();
+            let path_type = if entry.file_type().is_dir() {
+                fuser::FileType::Directory
+            } else if entry.file_type().is_file() {
+                fuser::FileType::RegularFile
+            } else {
+                fuser::FileType::CharDevice // random to detect unsupported
+            };
+            if strpath != *source && path_type != fuser::FileType::CharDevice {
+                let relative_path = PathBuf::from(&strpath)
+                    .strip_prefix(source)
+                    .unwrap()
+                    .to_string_lossy()
+                    .to_string();
+                debug!("indexing {} to {}", strpath, relative_path);
+                arbo.insert(inode, (path_type, relative_path));
+                inode += 1;
+            } else {
+                debug!("ignoring {}", strpath);
+            }
+        }
         arbo
     }
 }
@@ -261,14 +267,16 @@ impl Filesystem for FuseController {
 }
 
 pub fn mount_fuse(
-    mountpoint: &str,
+    source: &String,
+    mountpoint: &String,
     tx: UnboundedSender<NetworkMessage>,
 ) -> (BackgroundSession, Arc<Mutex<Provider>>) {
     let options = vec![MountOption::RW, MountOption::FSName("wormhole".to_string())];
-    let index = FuseController::index_folder();
+    let index = FuseController::index_folder(source);
     let provider = Arc::new(Mutex::new(Provider {
         next_inode: (index.len() + 2) as u64,
         index,
+        local_source: source.clone(),
         tx,
     }));
     let ctrl = FuseController {

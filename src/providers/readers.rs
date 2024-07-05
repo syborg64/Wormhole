@@ -5,6 +5,7 @@
 
 use fuser::FileAttr;
 use log::debug;
+use log::info;
 use std::ffi::OsStr;
 use std::fs;
 use std::fs::Metadata;
@@ -22,6 +23,7 @@ impl Provider {
     // Used directly in the FuseControler read function
     pub fn read(&self, ino: u64) -> Option<Vec<u8>> {
         if let Some(path) = self.mirror_path_from_inode(ino) {
+            info!("mirror path from inode is {}", path);
             if let Some(content) = fs::read(Path::new(&path)).ok() {
                 debug!(
                     "READ CONTENT {}",
@@ -46,7 +48,7 @@ impl Provider {
                 .clone()
                 .into_iter()
                 .map(|(a, (b, c))| (a, (b, PathBuf::from(c))))
-                .filter(|e| e.1 .1.parent().unwrap() == parent_path)
+                .filter(|e| e.1 .1.parent().unwrap_or(Path::new("/")) == parent_path)
                 .map(|e| e.0)
                 .collect();
             debug!("LISTING RESULT {:?}", test);
@@ -102,6 +104,7 @@ impl Provider {
     // get the metadata of a file from it's inode
     pub fn get_metadata(&self, ino: u64) -> Option<FileAttr> {
         if let Some(path) = self.mirror_path_from_inode(ino) {
+            info!("GET METADATA FOR PATH MIRROR {}", path);
             match fs::metadata(path) {
                 Ok(data) => Some(Self::modify_metadata_template(data, ino)),
                 Err(_) => None,
