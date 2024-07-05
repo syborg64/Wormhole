@@ -1,10 +1,12 @@
 use std::{
     ffi::OsStr,
-    fs::{self, create_dir},
+    fs::{self, create_dir, File},
+    io::Write,
     path::{self, PathBuf},
 };
 
 use fuser::{FileAttr, FileType};
+use log::info;
 
 use crate::network::message::{File, Folder, NetworkMessage};
 
@@ -147,12 +149,19 @@ impl Provider {
 
     pub fn write(&self, ino: u64, offset: i64, data: &[u8]) -> Option<u32> {
         // returns the writed size
-        if let Some(path) = self.mirror_path_from_inode(ino) {
+        // if let Some(path) = self.mirror_path_from_inode(ino) {
+        //     let mut f = File::options().append(true).open(path);
+        //     let mut pos = 0;
+        //     while pos < data.len() {
+        //         match f.write(&data[pos..]) {
+        //             Ok(bytes) => pos += bytes;
 
-            Some(0)
-        } else {
-            None
-        }
+        //         }
+        //     }
+        //     Some(pos as u32)
+        // } else {
+        //     None
+        // }
     }
 
     // RECEPTION
