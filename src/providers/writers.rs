@@ -1,6 +1,6 @@
 use std::{
     ffi::OsStr,
-    fs::{self, create_dir, File},
+    fs::{self, create_dir, File, OpenOptions},
     io::Write,
     path::{self, PathBuf},
 };
@@ -110,36 +110,6 @@ impl Provider {
         // should only be called on empty folders
         // if 404, not empty or file -> None
 
-        // if let Some(parent_data) = self.get_metadata(parent_ino) {
-        //     if parent_data.kind == FileType::Directory {
-        //         if let Some(meta_folder) = self.fs_lookup(parent_ino, name) {
-        //             if meta_folder.kind == FileType::Directory {
-        //                 if let Some(inode_list) = self.list_files(parent_ino) {
-        //                     if inode_list.is_empty() {
-        //                         let path =
-        //                             PathBuf::from(self.mirror_path_from_inode(parent_ino).unwrap())
-        //                                 .join(name);
-        //                         println!("The directory {:?} is deleted", path);
-        //                         fs::remove_dir(path).unwrap();
-        //                         Some(())
-        //                     } else {
-        //                         None
-        //                     }
-        //                 } else {
-        //                     None
-        //                 }
-        //             } else {
-        //                 None
-        //             }
-        //         } else {
-        //             None
-        //         }
-        //     } else {
-        //         None
-        //     }
-        // } else {
-        //     None
-        // }
         Some(())
     }
 
@@ -175,13 +145,47 @@ impl Provider {
 
     // RECEPTION
     pub fn new_folder(&mut self, ino: u64, path: PathBuf) {
-        println!("Provider make new folder");
         let real_path = PathBuf::from(self.local_source.clone()).join(&path);
-        info!("AHAHA CREATING DIR with path {:?}", real_path);
+        println!("Provider make new folder at: {:?}", real_path);
         fs::create_dir(&real_path).unwrap();
         self.index.insert(
             ino,
             (FileType::Directory, path.to_string_lossy().to_string()),
         );
+    }
+
+    pub fn new_file(&mut self, ino: u64, path: PathBuf) {
+        let real_path = PathBuf::from(self.local_source.clone()).join(&path);
+        println!("Provider make new file at: {:?}", real_path);
+        fs::File::create(&real_path).unwrap();
+        self.index.insert(
+            ino,
+            (FileType::RegularFile, path.to_string_lossy().to_string()),
+        );
+    }
+
+    pub fn recpt_remove(&mut self, ino: u64) {
+        let (file_type, path) = self.index.get(&ino).unwrap();
+        let real_path = PathBuf::from(self.local_source.clone()).join(&path);
+        println!("Provider remove object at: {:?}", real_path);
+        match file_type {
+            FileType::Directory => fs::remove_dir_all(&real_path).unwrap(),
+            FileType::RegularFile => fs::remove_file(&real_path).unwrap(),
+            _ => todo!(),
+        }
+        self.index.remove(&ino);
+    }
+
+    pub fn recpt_write(&mut self, ino: u64, content: Vec<u8>) {
+        let (_, path) = self.index.get(&ino).unwrap();
+        let real_path = PathBuf::from(self.local_source.clone()).join(&path);
+        println!("Provider write to file at: {:?}", real_path);
+        let mut file = OpenOptions::new()
+            .read(true)
+            .write(true) // <--------- this
+            .create(true)
+            .open(real_path)
+            .unwrap();
+        file.write_all(&content).unwrap();
     }
 }
