@@ -67,7 +67,14 @@ impl Provider {
                 fs::create_dir(&new_path).unwrap(); // create a real directory
                 self.index.insert(
                     self.next_inode,
-                    (FileType::Directory, new_path.to_string_lossy().to_string()),
+                    (
+                        FileType::Directory,
+                        new_path
+                            .strip_prefix(self.local_source.clone())
+                            .unwrap()
+                            .to_string_lossy()
+                            .to_string(),
+                    ),
                 );
                 self.tx
                     .send(NetworkMessage::NewFolder(Folder {
@@ -148,7 +155,6 @@ impl Provider {
     pub fn write(&self, ino: u64, offset: i64, data: &[u8]) -> Option<u32> {
         // returns the writed size
         if let Some(path) = self.mirror_path_from_inode(ino) {
-
             Some(0)
         } else {
             None
