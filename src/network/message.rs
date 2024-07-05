@@ -4,6 +4,7 @@ use crate::data::metadata::MetaData;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum NetworkMessage {
+    Remove(u64),
     File(File),
     Meta(MetaData),
     NewFolder(Folder),

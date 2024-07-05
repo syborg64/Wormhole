@@ -108,9 +108,6 @@ async fn local_watchdog(
             }
             out = peer_rx.recv() => {
                 match out.unwrap() {
-                    NetworkMessage::File(change) => {
-                        println!("peer: {:?}",change);
-                    }
                     NetworkMessage::Binary(bin) => {
                         println!("peer: {:?}",String::from_utf8(bin).unwrap_or_default());
                     }
@@ -118,6 +115,16 @@ async fn local_watchdog(
                         println!("peer: NEW FOLDER");
                         let mut provider = provider.lock().unwrap();
                         provider.new_folder(folder.ino, folder.path);
+                    },
+                    NetworkMessage::File(file) => {
+                        println!("peer: NEW FILE");
+                        let mut provider = provider.lock().unwrap();
+                        provider.new_file(file.ino, file.path);
+                    },
+                    NetworkMessage::Remove(ino) => {
+                        println!("peer: REMOVE");
+                        let mut provider = provider.lock().unwrap();
+                        provider.recpt_remove(ino);
                     },
                     _ => todo!(),
                 };
