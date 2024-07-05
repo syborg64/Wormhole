@@ -1,12 +1,11 @@
+use fuser::{FileAttr, FileType};
+use log::info;
 use std::{
     ffi::OsStr,
     fs::{self, create_dir, File},
     io::Write,
     path::{self, PathBuf},
 };
-
-use fuser::{FileAttr, FileType};
-use log::info;
 
 use crate::network::message::{self, Folder, NetworkMessage};
 
@@ -109,37 +108,6 @@ impl Provider {
     pub fn rmdir(&mut self, parent_ino: u64, name: &OsStr) -> Option<()> {
         // should only be called on empty folders
         // if 404, not empty or file -> None
-
-        // if let Some(parent_data) = self.get_metadata(parent_ino) {
-        //     if parent_data.kind == FileType::Directory {
-        //         if let Some(meta_folder) = self.fs_lookup(parent_ino, name) {
-        //             if meta_folder.kind == FileType::Directory {
-        //                 if let Some(inode_list) = self.list_files(parent_ino) {
-        //                     if inode_list.is_empty() {
-        //                         let path =
-        //                             PathBuf::from(self.mirror_path_from_inode(parent_ino).unwrap())
-        //                                 .join(name);
-        //                         println!("The directory {:?} is deleted", path);
-        //                         fs::remove_dir(path).unwrap();
-        //                         Some(())
-        //                     } else {
-        //                         None
-        //                     }
-        //                 } else {
-        //                     None
-        //                 }
-        //             } else {
-        //                 None
-        //             }
-        //         } else {
-        //             None
-        //         }
-        //     } else {
-        //         None
-        //     }
-        // } else {
-        //     None
-        // }
         Some(())
     }
 
@@ -157,20 +125,30 @@ impl Provider {
 
     pub fn write(&self, ino: u64, offset: i64, data: &[u8]) -> Option<u32> {
         // returns the writed size
-        // if let Some(path) = self.mirror_path_from_inode(ino) {
-        //     let mut f = File::options().append(true).open(path);
-        //     let mut pos = 0;
-        //     while pos < data.len() {
-        //         match f.write(&data[pos..]) {
-        //             Ok(bytes) => pos += bytes;
-
-        //         }
-        //     }
-        //     Some(pos as u32)
-        // } else {
-        //     None
-        // }
-        Some(0)
+        info!("WRITE ENTERNAL");
+        if let Some(path) = self.mirror_path_from_inode(ino) {
+            let mut pos = 0;
+            info!("WRITE GOOD PATH: {:?}", path);
+            match File::options().append(true).open(path) {
+                Ok(mut f) => {
+                    info!("WRITE: {:?}", f);
+                    while pos < data.len() {
+                        if let Ok(bytes_written) = f.write(&data[pos..]) {
+                            pos += bytes_written;
+                        } else {
+                            info!("WRITE ERROR");
+                            return Some(pos as u32);
+                        }
+                    }
+                    info!("WRITE {:?}", pos);
+                    Some(pos as u32)
+                }
+                Err(_) => None,
+            }
+        } else {
+            None
+        }
+        // Some(0)
     }
 
     // RECEPTION
