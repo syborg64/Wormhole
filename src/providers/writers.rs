@@ -124,10 +124,6 @@ impl Provider {
     pub fn rmdir(&mut self, parent_ino: u64, name: &OsStr) -> Option<()> {
         // should only be called on empty folders
         // if 404, not empty or file -> None
-<<<<<<< HEAD
-=======
-
->>>>>>> bd91d95aa460134812dd48d60e2965b52086e424
         Some(())
     }
 
