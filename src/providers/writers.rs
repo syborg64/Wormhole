@@ -26,21 +26,23 @@ impl Provider {
 
                 fs::File::create(&new_path).unwrap(); // real file creation
 
+                let virt_path = new_path
+                    .strip_prefix(self.local_source.clone())
+                    .unwrap()
+                    .to_string_lossy()
+                    .to_string();
+
                 // add entry to the index
                 self.index.insert(
                     self.next_inode,
                     (
                         FileType::RegularFile,
-                        new_path
-                            .strip_prefix(self.local_source.clone())
-                            .unwrap()
-                            .to_string_lossy()
-                            .to_string(),
+                        virt_path.clone(),
                     ),
                 );
                 self.tx
                     .send(NetworkMessage::File(message::File {
-                        path: new_path,
+                        path: virt_path.into(),
                         file: [].to_vec(),
                         ino: self.next_inode,
                     }))
@@ -153,8 +155,14 @@ impl Provider {
                 let Some(path) = self.mirror_path_from_inode(ino) else {
                     return None;
                 };
-                fs::write(path, data).unwrap();
-                Some(data.len() as u32)
+                if fs::write(path, data).is_ok() {
+                    self.tx
+                        .send(NetworkMessage::Write(ino, data.to_owned()))
+                        .unwrap();
+                    Some(data.len() as u32)
+                } else {
+                    None
+                }
             }
             _ => None,
         }
@@ -172,6 +180,7 @@ impl Provider {
     }
 
     pub fn new_file(&mut self, ino: u64, path: PathBuf) {
+        println!("Provider make new file at ORIGINAL PATH: {:?}", path);
         let real_path = PathBuf::from(self.local_source.clone()).join(&path);
         println!("Provider make new file at: {:?}", real_path);
         fs::File::create(&real_path).unwrap();

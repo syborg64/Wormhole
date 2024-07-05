@@ -126,6 +126,11 @@ async fn local_watchdog(
                         let mut provider = provider.lock().unwrap();
                         provider.recpt_remove(ino);
                     },
+                    NetworkMessage::Write(ino, data) => {
+                        println!("peer: WRITE");
+                        let mut provider = provider.lock().unwrap();
+                        provider.recpt_write(ino, data);
+                    },
                     _ => todo!(),
                 };
             }

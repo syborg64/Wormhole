@@ -10,6 +10,7 @@ pub enum NetworkMessage {
     NewFolder(Folder),
     RequestFile(std::path::PathBuf),
     Binary(Vec<u8>),
+    Write(u64, Vec<u8>),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
