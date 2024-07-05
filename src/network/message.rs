@@ -6,7 +6,7 @@ use crate::data::metadata::MetaData;
 pub enum NetworkMessage {
     File(File),
     Meta(MetaData),
-    NewFolder,
+    NewFolder(Folder),
     RequestFile(std::path::PathBuf),
     Binary(Vec<u8>),
 }
@@ -15,4 +15,11 @@ pub enum NetworkMessage {
 pub struct File {
     pub path: std::path::PathBuf,
     pub file: Vec<u8>,
+    pub ino: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct Folder {
+    pub ino: u64,
+    pub path: std::path::PathBuf,
 }

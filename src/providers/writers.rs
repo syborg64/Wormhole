@@ -1,12 +1,12 @@
 use std::{
     ffi::OsStr,
     fs::{self, create_dir},
-    path::PathBuf,
+    path::{self, PathBuf},
 };
 
 use fuser::{FileAttr, FileType};
 
-use crate::network::message::NetworkMessage;
+use crate::network::message::{File, Folder, NetworkMessage};
 
 use super::{Provider, TEMPLATE_FILE_ATTR};
 
@@ -33,6 +33,13 @@ impl Provider {
                         new_path.to_string_lossy().to_string(),
                     ),
                 );
+                self.tx
+                    .send(NetworkMessage::File(File {
+                        path: new_path,
+                        file: [].to_vec(),
+                        ino: self.next_inode,
+                    }))
+                    .unwrap();
                 let mut new_attr = TEMPLATE_FILE_ATTR;
                 new_attr.ino = self.next_inode;
                 new_attr.kind = FileType::RegularFile;
@@ -52,18 +59,22 @@ impl Provider {
         // should check that the parent exists and is a folder
         // return None if error
         println!("Creating dir");
-        self.tx.send(NetworkMessage::NewFolder).unwrap();
         if let Some(meta) = self.get_metadata(parent_ino) {
             if meta.kind == FileType::Directory {
                 let new_path =
                     PathBuf::from(self.mirror_path_from_inode(parent_ino).unwrap()).join(name);
                 println!("directory created: {:?}", new_path);
                 fs::create_dir(&new_path).unwrap(); // create a real directory
-
                 self.index.insert(
                     self.next_inode,
                     (FileType::Directory, new_path.to_string_lossy().to_string()),
                 );
+                self.tx
+                    .send(NetworkMessage::NewFolder(Folder {
+                        ino: self.next_inode,
+                        path: new_path,
+                    }))
+                    .unwrap();
                 let mut new_attr = TEMPLATE_FILE_ATTR;
                 new_attr.ino = self.next_inode;
                 new_attr.kind = FileType::Directory;
@@ -136,10 +147,21 @@ impl Provider {
 
     pub fn write(&self, ino: u64, offset: i64, data: &[u8]) -> Option<u32> {
         // returns the writed size
-        Some(0)
+        if let Some(path) = self.mirror_path_from_inode(ino) {
+
+            Some(0)
+        } else {
+            None
+        }
     }
 
-    pub fn new_folder(&self) {
+    // RECEPTION
+    pub fn new_folder(&mut self, ino: u64, path: PathBuf) {
         println!("Provider make new folder");
+        fs::create_dir(&path).unwrap();
+        self.index.insert(
+            ino,
+            (FileType::Directory, path.to_string_lossy().to_string()),
+        );
     }
 }

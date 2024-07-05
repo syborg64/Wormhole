@@ -114,10 +114,10 @@ async fn local_watchdog(
                     NetworkMessage::Binary(bin) => {
                         println!("peer: {:?}",String::from_utf8(bin).unwrap_or_default());
                     }
-                    NetworkMessage::NewFolder => {
+                    NetworkMessage::NewFolder(folder) => {
                         println!("peer: NEW FOLDER");
-                        let provider = provider.lock().unwrap();
-                        provider.new_folder();
+                        let mut provider = provider.lock().unwrap();
+                        provider.new_folder(folder.ino, folder.path);
                     },
                     _ => todo!(),
                 };
