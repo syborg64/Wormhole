@@ -1,12 +1,11 @@
 use std::{
     ffi::OsStr,
-    fs::{self, create_dir, File, OpenOptions},
+    fs::{self, OpenOptions},
     io::Write,
-    path::{self, PathBuf},
+    path::PathBuf,
 };
 
 use fuser::{FileAttr, FileType};
-use log::info;
 
 use crate::network::message::{self, Folder, NetworkMessage};
 
@@ -188,4 +187,12 @@ impl Provider {
             .unwrap();
         file.write_all(&content).unwrap();
     }
+
+    // pub fn recpt_rename(&mut self, ino: u64, newparent_ino: u64, newname: &OsStr) {
+    //     let (_, path) = self.index.get(&ino).unwrap();
+    //     let real_path = PathBuf::from(self.local_source.clone()).join(&path);
+    //     let real_path = PathBuf::from(self.local_source.clone()).join(&path);
+    //     println!("Provider rename object at: {:?}", real_path);
+
+    // }
 }

@@ -99,7 +99,7 @@ async fn local_watchdog(
         tokio::select! {
             read = stdin.read(&mut buf) => {
                 match read {
-                    Err(_) | Ok(0) => { println!("EOF"); break},
+                    Err(_) | Ok(0) => { println!("Quiting!"); break;},
                     Ok(n) => {
                         buf.truncate(n);
                         user_tx.send(NetworkMessage::Binary(buf.to_owned())).unwrap();
@@ -132,7 +132,7 @@ async fn local_watchdog(
     }
 }
 
-async fn remote_watchdog(
+async fn server_watchdog(
     server: Server,
     peer_tx: UnboundedSender<NetworkMessage>,
     mut user_rx: UnboundedReceiver<NetworkMessage>,
@@ -149,25 +149,12 @@ async fn remote_watchdog(
     }
 }
 
-#[tokio::main]
-async fn main() {
-    env_logger::init();
-
-    let mut state = State::default();
-
-    let own_addr = env::args().nth(1).unwrap_or("127.0.0.1:8080".to_string());
-    let other_addr = env::args()
-        .nth(2)
-        .unwrap_or("ws://127.0.0.2:8080".to_string());
-    let mount = env::args().nth(3).unwrap_or("./virtual/".to_string());
-    let source = env::args().nth(4).unwrap_or("./original/".to_string());
-
-    let (peer_tx, peer_rx) = mpsc::unbounded_channel();
-    let (user_tx, mut user_rx) = mpsc::unbounded_channel();
-    let (_session, provider) = mount_fuse(&source, &mount, user_tx.clone());
-
-    tokio::spawn(local_watchdog(user_tx, peer_rx, provider));
-
+async fn remote_watchdog(
+    own_addr: String,
+    other_addr: String,
+    peer_tx: UnboundedSender<NetworkMessage>,
+    mut user_rx: UnboundedReceiver<NetworkMessage>,
+) {
     if let Ok((ws_stream, _)) = tokio_tungstenite::connect_async(other_addr).await {
         let (write, read) = ws_stream.split();
 
@@ -178,6 +165,27 @@ async fn main() {
     } else {
         let server = Server::setup(&own_addr).await;
 
-        let _ = tokio::spawn(remote_watchdog(server, peer_tx, user_rx)).await;
+        server_watchdog(server, peer_tx, user_rx).await;
     }
+}
+
+#[tokio::main]
+async fn main() {
+    env_logger::init();
+
+    let own_addr = env::args().nth(1).unwrap_or("127.0.0.1:8080".to_string());
+    let other_addr = env::args()
+        .nth(2)
+        .unwrap_or("ws://127.0.0.2:8080".to_string());
+    let mount = env::args().nth(3).unwrap_or("./virtual/".to_string());
+    let source = env::args().nth(4).unwrap_or("./original/".to_string());
+
+    let (peer_tx, peer_rx) = mpsc::unbounded_channel();
+    let (user_tx, user_rx) = mpsc::unbounded_channel();
+    let (_session, provider) = mount_fuse(&source, &mount, user_tx.clone());
+
+    let local_handle = tokio::spawn(local_watchdog(user_tx, peer_rx, provider));
+    let remote_handle = tokio::spawn(remote_watchdog(own_addr, other_addr, peer_tx, user_rx));
+    local_handle.await.unwrap();
+    remote_handle.abort();
 }
