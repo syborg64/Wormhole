@@ -1,4 +1,5 @@
 # Main Wormhole configuration
+
 Main configuration for a Wormhole network.
 This configuration defines the general behavior of the network and all its related information.
 > [!IMPORTANT]
@@ -6,6 +7,7 @@ This configuration defines the general behavior of the network and all its relat
 > See [emergency strategies](../strategies/emergency.md) for details.
 
 ## General
+>
 > [!NOTE] [wormhole]
 
 > [!CAUTION] Mandatory
@@ -21,6 +23,7 @@ Defines how new pods should join the network.
 ---
 
 ## Network
+>
 > [!NOTE] [network]
 
 **frequency**: seconds<br>
@@ -34,6 +37,7 @@ Prevents network floods when creating lot of files fastly.
 ---
 
 ## Redundancy
+>
 > [!NOTE] [redundancy]
 
 > [!TIP]

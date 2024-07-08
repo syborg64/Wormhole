@@ -6,7 +6,7 @@
 
 The language chosen for configuration is the TOML, offering excellent clarity.
 
-### [Network Configuration](./spec/configuration/main_conf.md)
+### [Network Configuration](./spec/configuration/conf_principal.md)
 
 General network configuration
 Cloned by newcomers during a join, it defines the network's main rules.
@@ -20,10 +20,10 @@ These rules are only applied if their existence does not invalidate the network 
 
 ## Architecture
 
-### Archtecture logique
+### [Logical architecture](./spec/Architecture/logical_architecture.md)
 
 // TODO
 
-### Architecture code
+### [Code architecture](./spec/Architecture/code_architecture.md)
 
 // TODO
