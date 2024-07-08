@@ -34,7 +34,7 @@ o   - linux fuse
 o   - winfsp
  - divers
    - api web standard (routes)
-x     - totale (accès et tout)
+     - totale (accès et tout)
      - partielle (indique des infos comme où est un fichier, pour permettre à un client web de fetch la bonne node et éviter les restreams)
    - nfs
  - conteneurs
@@ -52,7 +52,7 @@ o   - redondance par réplication simple
 o     - libre du nombre de réplications
 o     - réplications peuvent êtres utilisées pour accélérer le système
     - methodes fancy (xor et autres)
-x   - guaranties logicielles
+   - guaranties logicielles
  - gestion de réseau globale
    - locks
      - gérer plusieurs accès en même temps aux fichiers
