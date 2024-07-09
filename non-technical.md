@@ -1,4 +1,4 @@
-# Specifications Non-Techniques
+# Spécification Non-Technique
 
 ***Obligatoire :***
 
