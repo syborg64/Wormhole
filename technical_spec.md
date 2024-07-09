@@ -4,7 +4,7 @@ Cette partie du document propose une rapide explication de ce qu'est la décentr
 Le détail technique des fonctions proposées par le projet ainsi que sa stack technique sera ensuite abordé.
 
 ## La décentralisation (contexte - définition - utilité)
-ùùAujoud'hui, petites comme grandes entreprises ont de grands besoins en terme de stockage de données :ùù
+Aujoud'hui, petites comme grandes entreprises ont de grands besoins en terme de stockage de données :
 - Données internes
   - Documents de l'entreprise (cloud interne pour les employés)
   - Données de travail

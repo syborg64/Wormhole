@@ -64,7 +64,3 @@ Cela implique :
 - Notre projet sera publique sur GitHub et incitera à la contribution.
 - La RoadMap sera publiée pour donner à chaque contributeur potentiel une idée de l'avancement et de l'activité du projet.
 - Dans la mesure du possible, nous parlerons de notre projet sur des groupes internet centrés autour du sujet (Reddit, Discord...)
-
-### - Flexibilité technique de l'outil
-Nous développerons des interfaces pour plugins et middlewares afin de pouvoir étendre les fonctionnalités du projet.
-

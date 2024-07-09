@@ -144,7 +144,11 @@ sera possiblement long, si on ne veut pas un truc bancal
 
 _____________________________________________________________________________________
 
-^1 - lui je ne l'avais pas noté et j'ai eu l'idée ce soir. on peut le virer
+^1 - lui je ne l'avais pas noté et j'ai eu l'idée ce soir. sera probablement pas dans les sprints du coup, mais l'idée est smart
+    j'entendais parler de ça parce qu'en entreprise, quand on deploie une maj windows aux 3000 pc d'un batiment, seuls 2-3 pull depuis les serveurs microsoft.
+    Et après tous les autres se pull entre eux sur le réseau local par effet boule de neige. ça économise de la bande passante pour tout le monde
+    le process est intéréssant fait sur un réseau local comme ça.
+    Et ça rejoint notre idée (qui elle est prévu) de répartir la charge de réplication coté des nodes
 
 ^2 - on a dit qu'on ne faisait pas ça et j'accepte la volonté du groupe (surtout en vue du peu de jours sur le projet)
 mais si on a du temps ou qu'on doit reprioriser
