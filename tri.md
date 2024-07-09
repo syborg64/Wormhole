@@ -6,6 +6,8 @@ Le projet Wormhole est né de la nécessité de simplifier l'accès et la gestio
 
 Wormhole se positionne comme une solution innovante visant à offrir un accès sécurisé, souverain, et facile aux données. Le projet vise à répondre aux besoins de sécurité, de flexibilité et de simplicité de configuration pour les entreprises et les particuliers. L'objectif est de fournir une infrastructure de données distribuée qui peut s'adapter à divers besoins, tout en garantissant la transparence et la sécurité des données.
 
+Avec Wormhole, les utilisateurs finaux bénéficieront d'une expérience fluide et transparente. Les fichiers apparaîtront et se comporteront comme des fichiers locaux habituels, sans nécessiter de gestion complexe. Une fois le système mis en place, tout fonctionne automatiquement, garantissant une utilisation simple et sans accroc.L'utilisateur aura la possibilité d'accéder à un dossier Wormhole sur son bureau, où ses fichiers seront immédiatement accessibles, quel que soit l'appareil utilisé. Ils seront disponibles de manière transparente, tout comme s'ils étaient stockés localement, permettant à l'utilisateur de les consulter, de les modifier ou de les supprimer à sa convenance.
+
 ## Specification technique
 
 ### Stack thechnologique
