@@ -1,5 +1,109 @@
 (les blocs c'est pas des sprints, et l'odre est changeable dans une certaine mesure)
 
+
+1 semaine = 1 jour par personne = 4 JeH
+1 sprint = 6 semaines = 6 * 4 = 24 JeH
+EIP = 6 sprints = 24 * 6 = 144 JeH
+1 personne travaille 36 jours durant l'EIP
+
+Milestones:
+    sprint 1:
+        MVP
+            - connect arbitrarily to peers
+            - add & remove pods
+            - create, modify, read, and delete files off the network
+            - move files from pods
+            - natively integrated on linux
+    sprint 2
+        full metadata
+            - local awareness of remote file status
+            - QoL (import)
+        config
+            - global config
+            - per pod config
+            - config template ?
+    sprint 3
+        replication & cache
+            - local storage cache
+            - ownership
+            - move operations respecting replication count
+    sprint 4
+        failure conditions
+            - identify reliable peers
+            - recovery systems
+            - conflicts
+            - data loss reporting
+            - resync
+    sprint 5
+        performance improvements (chopping bloc)
+            - benchmarking
+            - major refactoring
+            - search for hot slow code
+        system balancing
+            - system-based cache pruning
+            - track file acess and usage
+            - automatically move files to hotest pod
+    sprint 6
+        safety
+            - software guarantees
+            - perfect error handling
+        authentification
+            - key-pair based authentification
+            - ssh based
+
+Borne:
+    sprint 1:
+        MVP
+            - connection automatique aux autres nodes
+            - ajout & retir des pods
+            - création, modification, lecture et suppression de fichier sur le réseau
+            - déplacer des fichiers entre les pods
+            - intégration native linux
+    sprint 2
+        métadonnée complète
+            - information locale persistante des fichiers distants
+            - fonctionnalités d'aisance (importation)
+        configuration
+            - configuration par réseau
+            - configuration par pod
+            - template de configuration
+    sprint 3
+        replication et cache
+            - cache en stockage local
+            - possession
+            - replication N
+            - déplacement de fichiers répliqués
+            - Affinité par pod pour la redondance
+        mise en place de la gestion de pannes
+            - identifier l'état de santé du réseau
+            - notification et log
+    sprint 4
+        intégration d'autres API
+            - fonctionalités équivalentes avec la version FUSE
+            - integration windows
+            - Intégration Docker / Kubernetes
+
+        stratégies de récupérations            
+            - compensation / rééquilibrage
+            - conciliation de conflicts
+            - systèmes de récupération
+            - resynchronisation
+    sprint 5
+        amélioration des performances (leste)
+            - tests de performances
+            - refactorations majeures 
+            - identification de code hot & lent
+        équilibrage du système
+            - nettoyage du cache automatisé
+            - track les accès et utilisations de fichier
+            - déplacement automatique des fichiers vers le pod le plus demandant
+    sprint 6
+        sécurité
+            - gestion d'erreur intégrale et verbeuse
+        authentification
+            - authentification TLS/paire de clé
+            - par ssh
+
 ### bloc A - MVP
 Reproduction++ au propre du proto (MVP)
     integration linux

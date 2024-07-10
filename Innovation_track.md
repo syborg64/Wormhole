@@ -1,9 +1,17 @@
-# Spécification Technique
+# Wormhole
+
+## Context
+
+Le projet Wormhole est né de la nécessité de simplifier l'accès et la gestion des données entre plusieurs serveurs. Actuellement, les entreprises sont confrontées à plusieurs défis liés à la centralisation ou à la décentralisation des données. Les solutions centralisées présentent des risques de sécurité, des limitations d'accès et un poids accru sur l'infrastructure. En revanche, les infrastructures décentralisées sont difficiles à mettre en place et manquent de solutions universelles.
+
+Wormhole se positionne comme une solution technique innovante visant à offrir un accès sécurisé, souverain, et transparent aux données. Le projet vise à répondre aux besoins de sécurité, de flexibilité et de simplicité de configuration pour les entreprises et les particuliers. L'objectif est de permettre une infrastructure de données distribuée s'adaptant à divers besoins, tout en garantissant la transparence et l'integrité des données.
+
+## Spécification Technique
 Comme expliqué dans le contexte du projet, Wormhole est une solution de **stockage décentralisé de données**.   
 Cette partie du document propose une rapide explication de ce qu'est la décentralisation, et de comment cette méthode se compare aux autres.   
 Le détail technique des fonctions proposées par le projet ainsi que sa stack technique sera ensuite abordé.
 
-## La décentralisation (contexte - définition - utilité)
+### La décentralisation (contexte - définition - utilité)
 Aujoud'hui, petites comme grandes entreprises ont de grands besoins en terme de stockage de données :
 - **Données internes**
   - Documents de l'entreprise (cloud interne pour les employés)
@@ -58,14 +66,14 @@ Face à ce besoin incontournable, les entreprises ont peu de solutions :
 
 > [!TIP] Wormhole se veut être le Kubernetes de l'espace disque.
 
-## Notre solution : Wormhole
+### Notre solution : Wormhole
 **Wormhole offre une solution simple et déclarative pour la création d'infrastructures décentralisées simples comme avancées.**   
 Wormhole créé un système de fichiers décentralisé entre toutes les machines ajoutés au réseau.   
 Une fois monté, ce système de fichier, intégré nativement, ne diffère pas des autres fichiers de la machine.
 > [!NOTE] Pour un utilisateur, il n'y a aucune différence entre un dossier de fichiers locaux et un dossier Wormhole.   
 > Il en va de même les logiciels et les applications, les fichiers se comportant comme des fichiers locaux normaux, aucune adaptation n'est nécéssaire.
 
-### Pour les entreprises :
+#### Pour les entreprises :
 Adapté aux besoins de grande échelle, Wormhole permet de monter en un claquement de doigt une infrastructure puissante :
 - **Massive**, libérée de la centralisation sur un serveur, la croissance n'a pas de limite.
 - **Performante**, tirant parti de toute la puissance mise à disposition de manière optimisée, évitant la consomation inutile.
@@ -86,7 +94,7 @@ Adapté aux besoins de grande échelle, Wormhole permet de monter en un claqueme
 > **Léger**, ne demande pas de configuration minimale puissante.   
 > **Optimisé**, il tirera parti des serveurs les plus capables.   
 
-#### Exemples d'utilisations (User Stories) :
+##### Exemples d'utilisations (User Stories) :
 
 > ➕**Startup / PME dans la cybersécurité**   
 > Petite équipe, n'a pas de pôle DSI pour gérer de l'infrastructure.   
@@ -145,7 +153,7 @@ Une fois le système mis en place, tout fonctionne automatiquement, garantissant
 La configuration par fichier est réutilisable et partageable. Sa clareté la rend facile à comprendre et maintenir même des années après sa mise en place.
 La plasticité du réseau le rend fiable, adaptable et modifiable sans mesures compliquées.
 
-### Pour les particuliers
+#### Pour les particuliers
 La nature **flexible** de Wormhole lui permet un usage pratique même chez les particuliers.   
 Marre de chercher vos documents, photos et projets entre votre NAS, votre ordinateur fixe et votre ordinateur portable?   
 Montez en quelques minutes un réseau Wormhole, et vos différents appareils ne font plus qu'un. Vos données sont disponibles sur tous comme si elles y étaient !   
@@ -159,5 +167,74 @@ Montez en quelques minutes un réseau Wormhole, et vos différents appareils ne 
 
 ___
 
-## specification
+### specification
 partie Arthur
+
+
+## Spécification Non-Technique
+
+***Obligatoire :***
+
+### Évaluer et Intégrer les nouvelles technologies
+Nous utiliserons une stack technique **récente**, avec une communauté active et **axée performance / sécurité**.
+> [!TIP] Rust nous parrait le choix de langage le plus approprié.
+> Nous resterons à l'écoute des évolutions de ce langage comme des autres pour ajuster nos choix.
+
+**Nous suivrons l'apparition de nouvelles plateformes** et de leur pertinence pour une potentielle intégration native.
+> [!NOTE] Les plateformes prioritaires sont actuellement :
+> - Linux
+> - Windows
+> - Mac
+
+
+**Nous explorerons les différents protocoles réseau qui pourraient nous servir au mieux**, tant pour leur vitesse que pour leur fiabilité.   
+Cela va de soit aussi pour les protocoles d'accès.
+> [!IMPORTANT] Dans le cadre de l'EIP, nous utiliserons les protocoles natifs pour les systèmes précédement cités.
+> Mais nous sommes ouverts à l'intégration future de protocoles ouverts pour étendre nos compatibilités.
+
+
+Nous tiendrons un environnement de développement à jour pour accélérer les temps d’itérations.
+
+<br>
+
+___
+
+***Optionnels :***
+### Protéger et améliorer notre technologie
+**Nous sélectionnerons et appliquerons une licence de développement open source qui servira au mieux notre projet.**   
+> [!NOTE] Nous réfléchissons à des licences ouvertes pour les particuliers et payantes pour l'usage commercial / d'entreprises.   
+> Ces licences ont le bénéfice de ne pas entraver la démocratisation du projet tout en ouvrant la possibilité de le rentabiliser.
+
+
+Nous validerons soigneusement nos dépendances afin de :
+- Respecter les licences
+- Respecter nos objectifs de légereté, performance et multiplateforme
+- Limiter notre surface d'attaque
+
+### Entretenir les contributions par la communauté
+**Nous voulons obtenir rapidement le soutien de la communauté.**  
+Cela passe par plusieurs mesures :
+
+#### - Utilisation plaisante et accessible
+Bien que notre outil reste technique et qu'il ne disposera pas de notion "UI/UX" à proprement parler, nous ferons de notre mieux pour le rendre intuitif dès la première utilisation, et surtout pour les besoins courrants et simples. Tout cela afin de ne pas décourager les personnes pouvant s'intérésser au projet.
+> [!TIP] L'environnement de développement Rust est une bonne inspiration.
+> Rust est intrasequement une notion technique, mais la "developer experience" est une préoccupation.
+> - La documentation est claire.
+> - Le compilateur détaille et explique les erreurs ou warnings de manière claire.
+> - Vient avec une suite d'outils (formatting, cross-compilation, intégration Visual Studio Code...)
+>
+>
+> Tout ceci joue probablement une grande part dans la popularité de Rust, et est inspirant pour un projet comme le notre.
+
+> [!CAUTION] Notre EIP reste un EIP technique.
+> L'expérience utilisateur fera partie de nos préoccupations car elle constitue une bonne stratégie, mais elle reste au second plan face aux objectifs techniques.   
+> Les objectifs "qualité" (documentation claire, CLI bien pensée) seront bien sur intégrés, mais les objectifs additionnels (ex. suite d'outils) ne feront pas partie des sprints ou objectifs de l'EIP.
+
+#### - Clareté technique
+Nous ciblerons un public qui souhaite des améliorations au projet et possède la volonté de les faire.   
+Cela implique :
+- Maintenir une documentation technique publique et claire, pour faciliter le développement par des tiers.
+- Notre projet sera publique sur GitHub et incitera à la contribution.
+- La RoadMap sera publiée pour donner à chaque contributeur potentiel une idée de l'avancement et de l'activité du projet.
+- Dans la mesure du possible, nous parlerons de notre projet sur des groupes internet centrés autour du sujet (Reddit, Discord...)
+
