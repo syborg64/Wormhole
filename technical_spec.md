@@ -29,8 +29,16 @@ Centraliser la donnée sur une seule machine poserait aussi un problème d'inté
 **Très vite arrive la nécéssité de multiplier le nombre de machines pour répondre au moins à certaines des exigences suivantes :**
 - Besoin de capacité massive de stockage (plus de place)
 - Besoin de plus de puissance (servir les données plus vite)
-- Gestion de crise (résister à une panne sans interruption de service ni perte de données)
+- Fiabilité / Gestion de crise
+  - Résister sans effort aux pannes mineures
+  - Suivre sa politique de PCA/PCI ([Plan de Continuité d'activité Informatique](https://fr.wikipedia.org/wiki/Plan_de_continuit%C3%A9_d%27activit%C3%A9_(informatique))) en cas d'incidant majeur
 - Faciliter l'accès à tous les sites géographiques de l'entreprise
+
+> [!TIP] Plan de Continuité d'Activité / Informatique
+> La **PCA/PCI** est une pratique courante pour les entreprises dépendantes de services informatique.   
+> Généralement mise en place par la direction informatique ainsi que les coeurs de métiers concernés, elle prend la forme d'une procédure claire de réaction aux incidents graves les plus probables.   
+> Wormhole n'écrit pas ce plan pour l'entreprise, mais dispose des paramètres nécéssaire pour respecter des procédures définies à l'avance.   
+> Plus d'informations : [Wikipédia - Plan de continuité d'activité (informatique)](https://fr.wikipedia.org/wiki/Plan_de_continuit%C3%A9_d%27activit%C3%A9_(informatique))
 
 Multiplier le nombre de machines pour un même service s'appelle de la décentralisation, par opposition à la centralisation, restreinte à une entité.   
 Face à ce besoin incontournable, les entreprises ont peu de solutions :
@@ -70,7 +78,7 @@ Adapté aux besoins de grande échelle, Wormhole permet de monter en un claqueme
 > [!IMPORTANT] La configuration simple, claire et déclarative permet d'éviter l'erreur humaine.   
 > Une fois lancé, l'expérience sera fluide et fiable pour tous les services.
 > Le réseau peut être modifié, des machines ajoutées ou retirées sans interrompre le service.   
-> L'entreprise peut facilement définir sa gestion de sécurité pour la concervation des données, ainsi que les plans de gestion de crise pour résister même aux pannes les plus massives.
+> L'entreprise peut facilement définir sa gestion de sécurité pour la concervation des données, ainsi que ses [plans de continuité d'activité informatique](https://fr.wikipedia.org/wiki/Plan_de_continuit%C3%A9_d%27activit%C3%A9_(informatique)) pour résister aux incidents mineurs comme majeurs.
 <br>
 
 > [!TIP] Evolutif / Scalable
@@ -93,7 +101,7 @@ Adapté aux besoins de grande échelle, Wormhole permet de monter en un claqueme
 > - Les machines d'un réseau sont "fusionnées". Pour l'utilisateur final, il n'y a qu'une racine (/) peu importe le nombre de machines individuelles. Libre à lui de créer les dossiers et l'organisation qu'il souhaite.
 > - La configuration d'intégrité est très complète, elle permet d'anticiper et de réagir aux imprévus. Voici quelques exemples :
 >   - L'option de redondance stocke la quantité demandée de copies d'un même fichier sur plusieurs machines. Le plus le nombre copies, le moins le risque de perte !
->   - Les options gestion de crise permettent prévoir la posture à adopter si trop de machinent tombent pour continuer le fonctionnement normal.
+>   - Les options gestion de crise ([PCI](https://fr.wikipedia.org/wiki/Plan_de_continuit%C3%A9_d%27activit%C3%A9_(informatique))) permettent prévoir la posture à adopter si trop de machines tombent pour continuer le fonctionnement normal.
 > - La création d'un réseau est faisable rapidement même par un débutant, et ne demande pas de gestion une fois en place.
 > - La modification d'un réseau ne nécéssite pas sa suppression, il s'équilibre automatiquement lors de l'ajout ou du retrait d'une machine.
 >   Il est donc facilement portable sur une infrastructure croissante.
@@ -130,7 +138,7 @@ ___
 > **Solution Wormhole :**
 > - Utilise toutes les ressources qui lui sont offertes, et en permet un ajout facile.
 > - La configuration des systèmes de cache et d'affinités permet de distinguer les serveurs rapides (SSD) et massifs (HDD) et d'utiliser au mieux leur potentiel.
-> - Le réseau maintenant installé sur une telle quantité de serveurs, la redondance, l'équilibrage automatique et la gestion de crise rendent une interruption de service ou une perte de données virtuellement impossibles.
+> - Le réseau maintenant installé sur une telle quantité de serveurs, la redondance et l'équilibrage automatique rendent une interruption de service ou une perte de données virtuellement impossibles.
 
 <br>
 Une fois le système mis en place, tout fonctionne automatiquement, garantissant une utilisation simple et sans accroc.   
