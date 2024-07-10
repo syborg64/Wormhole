@@ -22,17 +22,17 @@ Aujoud'hui, petites comme grandes entreprises ont de grands besoins en terme de 
   > Diverses données stockées pour un service comme OneDrive/Google Drive   
 
 Tous ces usages ne sont que des exemples mais représentent bien les besoins qu'ont les entreprises correctement implantés dans l'ère informatique.   
-**Cependant, ce besoin est vite limité par un plafond de verre.**   
+**Cependant, ce besoin est vite limité par une limite physique.**   
 En effet, on ne peut pas concentrer une infinité de ressources dans un seul serveur.   
 Centraliser la donnée sur une seule machine poserait aussi un problème d'intégrité des données en cas de panne.   
 
-**Très vite arrive la nécéssité de multiplier le nombre de machines pour répondre au moins à certaines des exigences suivantes :**
+**Très vite arrive la nécéssité d'augmenter le nombre de machines pour répondre au moins à certaines des exigences suivantes :**
 - Besoin de capacité massive de stockage (plus de place)
 - Besoin de plus de puissance (servir les données plus vite)
 - Fiabilité / Gestion de crise
   - Résister sans effort aux pannes mineures
   - Suivre sa politique de PCA/PCI ([Plan de Continuité d'activité Informatique](https://fr.wikipedia.org/wiki/Plan_de_continuit%C3%A9_d%27activit%C3%A9_(informatique))) en cas d'incidant majeur
-- Faciliter l'accès à tous les sites géographiques de l'entreprise
+- Faciliter l'accès pour tous les sites géographiques de l'entreprise
 
 > [!TIP] Plan de Continuité d'Activité / Informatique
 > La **PCA/PCI** est une pratique courante pour les entreprises dépendantes de services informatique.   
@@ -62,7 +62,7 @@ Face à ce besoin incontournable, les entreprises ont peu de solutions :
 **Wormhole offre une solution simple et déclarative pour la création d'infrastructures décentralisées simples comme avancées.**   
 Wormhole créé un système de fichiers décentralisé entre toutes les machines ajoutés au réseau.   
 Une fois monté, ce système de fichier, intégré nativement, ne diffère pas des autres fichiers de la machine.
-> [!NOTE] Pour un utilisateur, impossible de différencier un dossier de fichiers locaux et un dossier Wormhole.   
+> [!NOTE] Pour un utilisateur, aucune différence n'est visible entre un dossier de fichiers locaux et un dossier Wormhole.   
 > Il en va de même les logiciels et les applications, les fichiers se comportant comme des fichiers locaux normaux, aucune adaptation n'est nécéssaire.
 
 ### Pour les entreprises :
@@ -100,7 +100,7 @@ Adapté aux besoins de grande échelle, Wormhole permet de monter en un claqueme
 > **Solution Wormhole :**
 > - Les machines d'un réseau sont "fusionnées". Pour l'utilisateur final, il n'y a qu'une racine (/) peu importe le nombre de machines individuelles. Libre à lui de créer les dossiers et l'organisation qu'il souhaite.
 > - La configuration d'intégrité est très complète, elle permet d'anticiper et de réagir aux imprévus. Voici quelques exemples :
->   - L'option de redondance stocke la quantité demandée de copies d'un même fichier sur plusieurs machines. Le plus le nombre copies, le moins le risque de perte !
+>   - L'option de redondance stocke la quantité demandée de copies d'un même fichier sur plusieurs machines. Plus il y a de copies, moins le risque de perte est important.
 >   - Les options gestion de crise ([PCI](https://fr.wikipedia.org/wiki/Plan_de_continuit%C3%A9_d%27activit%C3%A9_(informatique))) permettent prévoir la posture à adopter si trop de machines tombent pour continuer le fonctionnement normal.
 > - La création d'un réseau est faisable rapidement même par un débutant, et ne demande pas de gestion une fois en place.
 > - La modification d'un réseau ne nécéssite pas sa suppression, il s'équilibre automatiquement lors de l'ajout ou du retrait d'une machine.
