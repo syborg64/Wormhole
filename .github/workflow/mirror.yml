@@ -1,0 +1,22 @@
+name: Mirror Repository
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout source repository
+      uses: actions/checkout@v2
+      with:
+        repository: Agartha-Software/Wormhole
+        token: ${{ secrets.MIRROR_REPO_TOKEN }}
+
+    - name: Push to mirror repository
+      run: |
+        git remote add mirror https://github.com/EpitechPromo2026/G-EIP-700-PAR-7-1-eip-axel.denis.git
+        git push mirror main --force
