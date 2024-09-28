@@ -63,16 +63,18 @@ impl Provider {
 
     // returns a small amount of data for a file (asked for readdir)
     // -> (ino, type, name)
-    fn file_small_meta(&self, ino: u64) -> Option<(u64, fuser::FileType, String)> {
-        if let Some((file_type, file_path)) = self.index.get(&ino) {
-            let file_name = if let Some(name) = Path::new(file_path).file_name() {
-                name.to_string_lossy().to_string()
-            } else {
-                "errorname".to_string()
-            };
-            Some((ino, file_type.clone(), file_name))
-        } else {
-            None
+    fn file_small_meta(&self, ino: u64) -> io::Result<(u64, fuser::FileType, String)> {
+        match self.index.get(&ino) {
+            Some((file_type, file_path)) => {
+                let file_name = match Path::new(file_path).file_name() {
+                    Some(name) => name.to_string_lossy().to_string(),
+                    None => {
+                        return Err(io::Error::new(io::ErrorKind::Other, "Invalid path ending"))
+                    }
+                };
+                Ok((ino, file_type.clone(), file_name))
+            }
+            None => Err(io::Error::new(io::ErrorKind::NotFound, "Inode not found")),
         }
     }
 
