@@ -40,25 +40,31 @@ impl Provider {
     }
 
     // list files inodes in the parent folder
-    fn list_files(&self, parent_ino: u64) -> Option<Vec<u64>> {
-        if let Some((_, parent_path)) = self.index.get(&parent_ino) {
-            let parent_path = Path::new(&parent_path);
-            debug!("LISTING files in parent path {:?}", parent_path);
-            let ino_list = self
-                .index
-                .iter()
-                .filter_map(|e| {
-                    if PathBuf::from(&e.1 .1).parent().unwrap_or(Path::new("/")) == parent_path {
-                        Some(e.0.clone())
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-            debug!("LISTING RESULT {:?}", ino_list);
-            Some(ino_list)
-        } else {
-            None
+    // List from hashmap and not from disk
+    fn list_files(&self, parent_ino: u64) -> io::Result<Vec<u64>> {
+        match self.index.get(&parent_ino) {
+            Some((_, parent_path)) => {
+                let parent_path = Path::new(&parent_path);
+                debug!("LISTING files in parent path {:?}", parent_path);
+                let ino_list = self
+                    .index
+                    .iter()
+                    .filter_map(|e| {
+                        if PathBuf::from(&e.1 .1).parent().unwrap_or(Path::new("/")) == parent_path
+                        {
+                            Some(e.0.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                debug!("LISTING RESULT {:?}", ino_list);
+                Ok(ino_list)
+            }
+            None => Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "Parent inode not found",
+            )),
         }
     }
 
@@ -119,7 +125,7 @@ impl Provider {
         }
     }
 
-    pub fn fs_lookup(&self, parent_ino: u64, file_name: &OsStr) -> Option<FileAttr> {
+    pub fn fs_lookup(&self, parent_ino: u64, file_name: &OsStr) -> io::Result<FileAttr> {
         let file_name = file_name.to_string_lossy().to_string();
         if let Some(datas) = self.fs_readdir(parent_ino) {
             let mut metadata: Option<FileAttr> = None;
