@@ -45,15 +45,14 @@ impl Provider {
             debug!("LISTING files in parent path {:?}", parent_path);
             let test = self
                 .index
-                .clone()
-                .into_iter()
+                .iter()
                 .filter_map(|e| {
                     if PathBuf::from(e.1 .1.clone())
                         .parent()
                         .unwrap_or(Path::new("/"))
                         == parent_path
                     {
-                        Some(e.0)
+                        Some(e.0.clone())
                     } else {
                         None
                     }
