@@ -77,15 +77,13 @@ impl Provider {
     }
 
     // used directly in FuseControler's readdir function
-    pub fn fs_readdir(&self, parent_ino: u64) -> Option<Vec<(u64, fuser::FileType, String)>> {
-        if let Some(list) = self.list_files(parent_ino) {
-            Some(
-                list.into_iter()
-                    .filter_map(|e| self.file_small_meta(e))
-                    .collect(),
-            )
-        } else {
-            None
+    pub fn fs_readdir(&self, parent_ino: u64) -> io::Result<Vec<(u64, fuser::FileType, String)>> {
+        match self.list_files(parent_ino) {
+            Ok(list) => Ok(list
+                .into_iter()
+                .filter_map(|e| self.file_small_meta(e))
+                .collect()),
+            Err(e) => Err(e),
         }
     }
 
