@@ -47,9 +47,17 @@ impl Provider {
                 .index
                 .clone()
                 .into_iter()
-                .map(|(a, (b, c))| (a, (b, PathBuf::from(c))))
-                .filter(|e| e.1 .1.parent().unwrap_or(Path::new("/")) == parent_path)
-                .map(|e| e.0)
+                .filter_map(|e| {
+                    if PathBuf::from(e.1 .1.clone())
+                        .parent()
+                        .unwrap_or(Path::new("/"))
+                        == parent_path
+                    {
+                        Some(e.0)
+                    } else {
+                        None
+                    }
+                })
                 .collect();
             debug!("LISTING RESULT {:?}", test);
             Some(test)
