@@ -83,7 +83,7 @@ impl Provider {
         match self.list_files(parent_ino) {
             Ok(list) => Ok(list
                 .into_iter()
-                .filter_map(|e| self.file_small_meta(e))
+                .filter_map(|e| self.file_small_meta(e).ok())
                 .collect()),
             Err(e) => Err(e),
         }
@@ -120,16 +120,18 @@ impl Provider {
 
     pub fn fs_lookup(&self, parent_ino: u64, file_name: &OsStr) -> io::Result<FileAttr> {
         let file_name = file_name.to_string_lossy().to_string();
-        if let Some(datas) = self.fs_readdir(parent_ino) {
-            let mut metadata: Option<FileAttr> = None;
-            for data in datas {
-                if data.2 == file_name {
-                    metadata = self.get_metadata(data.0);
-                };
+        match self.fs_readdir(parent_ino) {
+            Ok(datas) => {
+                let mut metadata: io::Result<FileAttr> =
+                    Err(io::Error::new(io::ErrorKind::NotFound, "Path not found"));
+                for data in datas {
+                    if data.2 == file_name {
+                        metadata = self.get_metadata(data.0);
+                    };
+                }
+                metadata
             }
-            metadata
-        } else {
-            None
+            Err(e) => Err(e),
         }
     }
 }
