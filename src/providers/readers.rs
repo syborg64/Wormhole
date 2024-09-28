@@ -9,6 +9,7 @@ use log::info;
 use std::ffi::OsStr;
 use std::fs;
 use std::fs::Metadata;
+use std::io;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 use std::path::PathBuf;
@@ -43,23 +44,19 @@ impl Provider {
         if let Some((_, parent_path)) = self.index.get(&parent_ino) {
             let parent_path = Path::new(&parent_path);
             debug!("LISTING files in parent path {:?}", parent_path);
-            let test = self
+            let ino_list = self
                 .index
                 .iter()
                 .filter_map(|e| {
-                    if PathBuf::from(e.1 .1.clone())
-                        .parent()
-                        .unwrap_or(Path::new("/"))
-                        == parent_path
-                    {
+                    if PathBuf::from(&e.1 .1).parent().unwrap_or(Path::new("/")) == parent_path {
                         Some(e.0.clone())
                     } else {
                         None
                     }
                 })
                 .collect();
-            debug!("LISTING RESULT {:?}", test);
-            Some(test)
+            debug!("LISTING RESULT {:?}", ino_list);
+            Some(ino_list)
         } else {
             None
         }
@@ -109,15 +106,16 @@ impl Provider {
     }
 
     // get the metadata of a file from it's inode
-    pub fn get_metadata(&self, ino: u64) -> Option<FileAttr> {
-        if let Some(path) = self.mirror_path_from_inode(ino) {
-            info!("GET METADATA FOR PATH MIRROR {}", path);
-            match fs::metadata(path) {
-                Ok(data) => Some(Self::modify_metadata_template(data, ino)),
-                Err(_) => None,
+    pub fn get_metadata(&self, ino: u64) -> io::Result<FileAttr> {
+        match self.mirror_path_from_inode(ino) {
+            Ok(path) => {
+                debug!("GET METADATA FOR PATH MIRROR {}", path);
+                match fs::metadata(path) {
+                    Ok(data) => Ok(Self::modify_metadata_template(data, ino)),
+                    Err(e) => Err(e),
+                }
             }
-        } else {
-            None
+            Err(e) => Err(e),
         }
     }
 
