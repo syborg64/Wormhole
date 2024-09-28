@@ -22,20 +22,13 @@ use super::TEMPLATE_FILE_ATTR;
 // and they are directly used by the fuse lib
 impl Provider {
     // Used directly in the FuseControler read function
-    pub fn read(&self, ino: u64) -> Option<Vec<u8>> {
-        if let Some(path) = self.mirror_path_from_inode(ino) {
-            info!("mirror path from inode is {}", path);
-            if let Some(content) = fs::read(Path::new(&path)).ok() {
-                debug!(
-                    "READ CONTENT {}",
-                    String::from_utf8(content.clone()).unwrap_or("uh wtf".to_string())
-                );
-                Some(content)
-            } else {
-                None
+    pub fn read(&self, ino: u64) -> io::Result<Vec<u8>> {
+        match self.mirror_path_from_inode(ino) {
+            Ok(path) => {
+                info!("mirror path from inode is {}", path);
+                fs::read(Path::new(&path))
             }
-        } else {
-            None
+            Err(e) => Err(e),
         }
     }
 
