@@ -1,35 +1,24 @@
 name: Mirror Repository
 
+env:
+  MIRROR_URL: git@github.com:Ludofr3/Test_Mirror_and_release_wormhole.git
+
 on:
   push:
     branches:
-      - main
-
-name: Check PR Source Branch
-
-on:
-  pull_request:
-    branches:
-      - main
+      - workflow/CI
 
 jobs:
-  mirror:
+  push_to_mirror:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Check if PR is from dev branch
-    run: |
-      if [ "${{ github.head_ref }}" != "dev" ]; then
-        echo "Pull requests to main must come from the dev branch."
-        exit 1
-      fi
-    - name: Checkout source repository
-      uses: actions/checkout@v2
-      with:
-        repository: Agartha-Software/Wormhole
-        token: ${{ secrets.MIRROR_REPO_TOKEN }}
-
-    - name: Push to mirror repository
-      run: |
-        git remote add mirror https://github.com/EpitechPromo2026/G-EIP-700-PAR-7-1-eip-axel.denis.git
-        git push mirror main --force
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - uses: pixta-dev/repository-mirroring-action@v1
+        with:
+          target_repo_url:
+            ${{ env.MIRROR_URL }}
+          ssh_private_key:
+            ${{ secrets.SSH_PRIVATE_KEY }}
