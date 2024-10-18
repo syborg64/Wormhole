@@ -5,8 +5,9 @@ env:
 
 on:
   push:
-    branches:
-      - workflow/CI
+    branches: ["workflow/CI"]
+  pull_request:
+    branches: ["main"]
 
 jobs:
   push_to_mirror:
