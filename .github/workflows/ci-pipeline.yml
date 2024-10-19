@@ -1,6 +1,5 @@
 name: CI Pipeline Rust
 
-# Implementation of the workflow on push or pull request
 on:
   push:
     branches:
@@ -13,26 +12,26 @@ on:
 
 jobs:
   build:
-    # Specify on which type of machine to run the job
+
     runs-on: ubuntu-latest
 
-    # Configuring steps
     steps:
-      # Step 1: Clone the deposit
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      # Step 2 : Install Rust
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libfuse3-dev libfuse-dev
+
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
 
-      # Step 3: Complie the project
       - name: Build the project
         run: cargo build --verbose
 
-      # Step 4: Run the tests
       - name: Run tests
         run: cargo test --verbose
