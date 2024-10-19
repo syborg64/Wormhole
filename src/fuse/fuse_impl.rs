@@ -2,13 +2,19 @@ use fuser::{
     BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData,
     ReplyDirectory, ReplyEntry, Request,
 };
-use libc::ENOENT;
+use futures_util::future::Fuse;
+use libc::{ENOENT, ENOSYS};
+use log::debug;
 use std::collections::HashMap;
 use std::ffi::OsStr;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, UNIX_EPOCH};
+use tokio::sync::mpsc::UnboundedSender;
 use walkdir::WalkDir;
 
-use crate::providers::readers::{FsIndex, Provider};
+use crate::network::message::NetworkMessage;
+use crate::providers::{FsIndex, Provider};
 
 // NOTE - placeholders
 const TTL: Duration = Duration::from_secs(1);
@@ -31,7 +37,6 @@ const MOUNT_DIR_ATTR: FileAttr = FileAttr {
     blksize: 512,
 };
 
-
 const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
     ino: 2,
     size: 13,
@@ -51,32 +56,23 @@ const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
 };
 // ^ placeholders
 
-const COPIED_ROOT: &str = "./original/";
+// const MIRROR_PTH: &str = "./wh_mirror/";
 
 pub struct FuseController {
-    pub provider: Provider,
+    pub provider: Arc<Mutex<Provider>>,
 }
 
 // Custom data (not directly linked to fuse)
 // create some data for us like the index or data provider
 impl FuseController {
-    fn new() -> Self {
-        Self {
-            provider: Provider {
-                index: Self::index_folder(),
-            },
-        }
-    }
-
-    // for the mirror version
     // we create an index of the original folder
-    fn index_folder() -> FsIndex {
+    fn index_folder(source: &String) -> FsIndex {
         let mut arbo: FsIndex = HashMap::new();
         let mut inode: u64 = 2;
 
-        arbo.insert(1, (fuser::FileType::Directory, COPIED_ROOT.to_owned()));
+        arbo.insert(1, (fuser::FileType::Directory, "".to_owned()));
 
-        for entry in WalkDir::new(COPIED_ROOT).into_iter().filter_map(|e| e.ok()) {
+        for entry in WalkDir::new(source).into_iter().filter_map(|e| e.ok()) {
             let strpath = entry.path().display().to_string();
             let path_type = if entry.file_type().is_dir() {
                 fuser::FileType::Directory
@@ -85,12 +81,17 @@ impl FuseController {
             } else {
                 fuser::FileType::CharDevice // random to detect unsupported
             };
-            if strpath != COPIED_ROOT && path_type != fuser::FileType::CharDevice {
-                println!("indexing {}", strpath);
-                arbo.insert(inode, (path_type, strpath));
+            if strpath != *source && path_type != fuser::FileType::CharDevice {
+                let relative_path = PathBuf::from(&strpath)
+                    .strip_prefix(source)
+                    .unwrap()
+                    .to_string_lossy()
+                    .to_string();
+                debug!("indexing {} to {}", strpath, relative_path);
+                arbo.insert(inode, (path_type, relative_path));
                 inode += 1;
             } else {
-                println!("ignoring {}", strpath);
+                debug!("ignoring {}", strpath);
             }
         }
         arbo
@@ -98,17 +99,21 @@ impl FuseController {
 }
 
 impl Filesystem for FuseController {
+    // READING
+
     fn lookup(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEntry) {
-        println!("lookup is called {} {:?}", parent, name);
-        if let Some(file_attr) = self.provider.fs_lookup(parent, name) {
+        debug!("lookup is called {} {:?}", parent, name);
+        let provider = self.provider.lock().unwrap();
+        if let Some(file_attr) = provider.fs_lookup(parent, name) {
             reply.entry(&TTL, &file_attr, 0)
         } else {
             reply.error(ENOENT)
         }
     }
 
+    // TODO
     fn getattr(&mut self, _req: &Request, ino: u64, reply: ReplyAttr) {
-        println!("getattr is called {}", ino);
+        debug!("getattr is called {}", ino);
         match ino {
             1 => reply.attr(&TTL, &MOUNT_DIR_ATTR),
             2 => reply.attr(&TTL, &TEMPLATE_FILE_ATTR),
@@ -127,8 +132,9 @@ impl Filesystem for FuseController {
         _lock: Option<u64>,
         reply: ReplyData,
     ) {
-        println!("read is called");
-        if let Some(content) = self.provider.read(ino) {
+        debug!("read is called");
+        let provider = self.provider.lock().unwrap();
+        if let Some(content) = provider.read(ino) {
             reply.data(&content[offset as usize..])
         } else {
             reply.error(ENOENT);
@@ -143,10 +149,11 @@ impl Filesystem for FuseController {
         offset: i64,
         mut reply: ReplyDirectory,
     ) {
-        println!("readdir is called for ino {}", ino);
-        if let Some(entries) = self.provider.fs_readdir(ino) {
+        debug!("readdir is called for ino {}", ino);
+        let provider = self.provider.lock().unwrap();
+        if let Some(entries) = provider.fs_readdir(ino) {
             for (i, entry) in entries.into_iter().enumerate().skip(offset as usize) {
-                println!("readdir entries : {:?}", entry);
+                debug!("readdir entries : {:?}", entry);
                 // i + 1 means the index of the next entry
                 if reply.add(entry.0, (i + 1) as i64, entry.1, entry.2) {
                     break;
@@ -154,14 +161,129 @@ impl Filesystem for FuseController {
             }
             reply.ok()
         } else {
-            println!("readdir EONENT ");
+            debug!("readdir EONENT ");
             reply.error(ENOENT)
         }
     }
+
+    // ^ READING
+
+    // WRITING
+
+    fn mknod(
+        &mut self,
+        _req: &Request<'_>,
+        parent: u64,
+        name: &OsStr,
+        _mode: u32,
+        _umask: u32,
+        _rdev: u32,
+        reply: ReplyEntry,
+    ) {
+        let mut provider = self.provider.lock().unwrap();
+        if let Some(attr) = provider.mkfile(parent, name) {
+            reply.entry(&TTL, &attr, 0)
+        } else {
+            reply.error(ENOSYS)
+        }
+    }
+
+    fn mkdir(
+        &mut self,
+        _req: &Request<'_>,
+        parent: u64,
+        name: &OsStr,
+        _mode: u32,
+        _umask: u32,
+        reply: ReplyEntry,
+    ) {
+        let mut provider = self.provider.lock().unwrap();
+        if let Some(attr) = provider.mkdir(parent, name) {
+            reply.entry(&TTL, &attr, 0)
+        } else {
+            reply.error(ENOSYS)
+        }
+    }
+
+    fn unlink(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: fuser::ReplyEmpty) {
+        let mut provider = self.provider.lock().unwrap();
+        if let Some(()) = provider.rmfile(parent, name) {
+            reply.ok()
+        } else {
+            reply.error(ENOENT)
+        }
+    }
+
+    fn rmdir(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: fuser::ReplyEmpty) {
+        // should be only called on empty dirs ?
+        let mut provider = self.provider.lock().unwrap();
+        if let Some(()) = provider.rmdir(parent, name) {
+            reply.ok()
+        } else {
+            reply.error(ENOENT)
+        }
+    }
+
+    fn rename(
+        &mut self,
+        _req: &Request<'_>,
+        parent: u64,
+        name: &OsStr,
+        newparent: u64,
+        newname: &OsStr,
+        _flags: u32,
+        reply: fuser::ReplyEmpty,
+    ) {
+        // comment sont gérés les dossiers et sous fichiers ?
+        let mut provider = self.provider.lock().unwrap();
+        if let Some(()) = provider.rename(parent, name, newparent, newname) {
+            reply.ok()
+        } else {
+            reply.error(ENOENT)
+        }
+    }
+
+    fn write(
+        &mut self,
+        _req: &Request<'_>,
+        ino: u64,
+        _fh: u64,
+        offset: i64,
+        data: &[u8],
+        _write_flags: u32,
+        _flags: i32,
+        _lock_owner: Option<u64>,
+        reply: fuser::ReplyWrite,
+    ) {
+        let provider = self.provider.lock().unwrap();
+        if let Some(written) = provider.write(ino, offset, data) {
+            reply.written(written)
+        } else {
+            reply.error(ENOENT)
+        }
+    }
+
+    // ^ WRITING
 }
 
-pub fn mount_fuse(mountpoint: &String) -> BackgroundSession {
-    let options = vec![MountOption::RO, MountOption::FSName("wormhole".to_string())];
-    let ctrl = FuseController::new();
-    fuser::spawn_mount2(ctrl, mountpoint, &options).unwrap()
+pub fn mount_fuse(
+    source: &String,
+    mountpoint: &String,
+    tx: UnboundedSender<NetworkMessage>,
+) -> (BackgroundSession, Arc<Mutex<Provider>>) {
+    let options = vec![MountOption::RW, MountOption::FSName("wormhole".to_string())];
+    let index = FuseController::index_folder(source);
+    let provider = Arc::new(Mutex::new(Provider {
+        next_inode: (index.len() + 2) as u64,
+        index,
+        local_source: source.clone(),
+        tx,
+    }));
+    let ctrl = FuseController {
+        provider: provider.clone(),
+    };
+    (
+        fuser::spawn_mount2(ctrl, mountpoint, &options).unwrap(),
+        provider,
+    )
 }

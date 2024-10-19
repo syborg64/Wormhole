@@ -14,10 +14,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      - uses: pixta-dev/repository-mirroring-action@v1
+       # Step to check the repository URL
+      - name: Check if this is the destination repository
+        id: check_mirror
+        run: |
+         if [[ "${{ github.repository }}" == "Ludofr3/Test_Mirror_and_release_wormhole" ]]; then
+           echo "This is the destination repository. Skipping mirroring."
+           exit 0
+         fi
+      - name: Mirror repository
+        if: steps.check_mirror.outcome == 'success'
+        uses: pixta-dev/repository-mirroring-action@v1
         with:
           target_repo_url:
             ${{ env.MIRROR_URL }}

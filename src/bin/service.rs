@@ -5,23 +5,22 @@
 use std::{
     collections::HashMap,
     env,
-    error::Error,
-    sync::{Arc, RwLock},
+    sync::{Arc, Mutex, RwLock},
 };
 
-use futures_util::{lock, StreamExt};
-use log::error;
-use notify::Watcher;
+use futures_util::StreamExt;
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    sync::{
-        mpsc::{self, UnboundedReceiver, UnboundedSender},
-        oneshot, Mutex,
-    },
+    io::AsyncReadExt,
+    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
 };
 
-use wormhole::{config, data::metadata::MetaData, network::forward::{forward_read_to_sender, forward_receiver_to_write}};
-use wormhole::network::peer_ipc::PeerIPC;
+use wormhole::{
+    config,
+    data::metadata::MetaData,
+    network::forward::{forward_read_to_sender, forward_receiver_to_write},
+    providers::Provider,
+};
+use wormhole::{fuse::fuse_impl::mount_fuse, network::peer_ipc::PeerIPC};
 
 use wormhole::network::{message::NetworkMessage, server::Server};
 
@@ -92,6 +91,7 @@ async fn publish_meta<'a>(
 async fn local_watchdog(
     user_tx: UnboundedSender<NetworkMessage>,
     mut peer_rx: UnboundedReceiver<NetworkMessage>,
+    provider: Arc<Mutex<Provider>>,
 ) {
     let mut stdin = tokio::io::stdin();
     let mut buf = vec![0; 1024];
@@ -99,7 +99,7 @@ async fn local_watchdog(
         tokio::select! {
             read = stdin.read(&mut buf) => {
                 match read {
-                    Err(_) | Ok(0) => { println!("EOF"); break},
+                    Err(_) | Ok(0) => { println!("Quiting!"); break;},
                     Ok(n) => {
                         buf.truncate(n);
                         user_tx.send(NetworkMessage::Binary(buf.to_owned())).unwrap();
@@ -108,14 +108,31 @@ async fn local_watchdog(
             }
             out = peer_rx.recv() => {
                 match out.unwrap() {
-                    NetworkMessage::File(change) => {
-                        println!("peer: {:?}",change);
-                    }
                     NetworkMessage::Binary(bin) => {
                         println!("peer: {:?}",String::from_utf8(bin).unwrap_or_default());
                     }
-                    NetworkMessage::Meta(_) => todo!(),
-                    NetworkMessage::RequestFile(_) => todo!(), };
+                    NetworkMessage::NewFolder(folder) => {
+                        println!("peer: NEW FOLDER");
+                        let mut provider = provider.lock().unwrap();
+                        provider.new_folder(folder.ino, folder.path);
+                    },
+                    NetworkMessage::File(file) => {
+                        println!("peer: NEW FILE");
+                        let mut provider = provider.lock().unwrap();
+                        provider.new_file(file.ino, file.path);
+                    },
+                    NetworkMessage::Remove(ino) => {
+                        println!("peer: REMOVE");
+                        let mut provider = provider.lock().unwrap();
+                        provider.recpt_remove(ino);
+                    },
+                    NetworkMessage::Write(ino, data) => {
+                        println!("peer: WRITE");
+                        let mut provider = provider.lock().unwrap();
+                        provider.recpt_write(ino, data);
+                    },
+                    _ => todo!(),
+                };
             }
             // storage = storage_watchdog() => {
             //     match storage {
@@ -127,7 +144,7 @@ async fn local_watchdog(
     }
 }
 
-async fn remote_watchdog(
+async fn server_watchdog(
     server: Server,
     peer_tx: UnboundedSender<NetworkMessage>,
     mut user_rx: UnboundedReceiver<NetworkMessage>,
@@ -144,30 +161,43 @@ async fn remote_watchdog(
     }
 }
 
-#[tokio::main]
-async fn main() {
-    env_logger::init();
-
-    let mut state = State::default();
-
-    let own_addr = env::args().nth(1).unwrap_or("127.0.0.1:8080".to_string());
-    let other_addr = env::args()
-        .nth(2)
-        .unwrap_or("ws://127.0.0.2:8080".to_string());
-
-    let (peer_tx, peer_rx) = mpsc::unbounded_channel();
-    let (user_tx, mut user_rx) = mpsc::unbounded_channel();
-
-    tokio::spawn(local_watchdog(user_tx, peer_rx));
-
+async fn remote_watchdog(
+    own_addr: String,
+    other_addr: String,
+    peer_tx: UnboundedSender<NetworkMessage>,
+    mut user_rx: UnboundedReceiver<NetworkMessage>,
+) {
     if let Ok((ws_stream, _)) = tokio_tungstenite::connect_async(other_addr).await {
         let (write, read) = ws_stream.split();
+
         tokio::join!(
             forward_read_to_sender(read, peer_tx),
             forward_receiver_to_write(write, &mut user_rx)
         );
     } else {
         let server = Server::setup(&own_addr).await;
-        let _ = tokio::spawn(remote_watchdog(server, peer_tx, user_rx)).await;
+
+        server_watchdog(server, peer_tx, user_rx).await;
     }
+}
+
+#[tokio::main]
+async fn main() {
+    env_logger::init();
+
+    let own_addr = env::args().nth(1).unwrap_or("127.0.0.1:8080".to_string());
+    let other_addr = env::args()
+        .nth(2)
+        .unwrap_or("ws://127.0.0.2:8080".to_string());
+    let mount = env::args().nth(3).unwrap_or("./virtual/".to_string());
+    let source = env::args().nth(4).unwrap_or("./original/".to_string());
+
+    let (peer_tx, peer_rx) = mpsc::unbounded_channel();
+    let (user_tx, user_rx) = mpsc::unbounded_channel();
+    let (_session, provider) = mount_fuse(&source, &mount, user_tx.clone());
+
+    let local_handle = tokio::spawn(local_watchdog(user_tx, peer_rx, provider));
+    let remote_handle = tokio::spawn(remote_watchdog(own_addr, other_addr, peer_tx, user_rx));
+    local_handle.await.unwrap();
+    remote_handle.abort();
 }
