@@ -24,7 +24,7 @@ jobs:
         run: |
          if [[ "${{ github.repository }}" == "Ludofr3/Test_Mirror_and_release_wormhole" ]]; then
            echo "This is the destination repository. Skipping mirroring."
-           exit 0
+           exit 1
          fi
       - name: Mirror repository
         if: steps.check_mirror.conclusion == 'success'
