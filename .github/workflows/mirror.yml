@@ -1,11 +1,9 @@
 name: Mirror Repository
 
 env:
-  MIRROR_URL: git@github.com:Ludofr3/Test_Mirror_and_release_wormhole.git
+  MIRROR_URL: git@github.com:EpitechPromo2026/G-EIP-700-PAR-7-1-eip-axel.denis.git
 
 on:
-  push:
-    branches: ["workflow/CI"]
   pull_request:
     branches: ["main"]
 
@@ -21,7 +19,7 @@ jobs:
       - name: Check if this is the destination repository
         id: check_mirror
         run: |
-          if [[ "${{ github.repository }}" == "Ludofr3/Test_Mirror_and_release_wormhole" ]]; then
+          if [[ "${{ github.repository }}" == "EpitechPromo2026/G-EIP-700-PAR-7-1-eip-axel.denis" ]]; then
             echo "This is the destination repository. Skipping mirroring."
             echo "::set-output name=skip_mirror::true"
           else
