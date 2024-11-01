@@ -2,6 +2,22 @@
 // In code we trust
 // AgarthaSoftware - 2024
 
+/**DOC
+ * Important variables to know :
+ * nfa_rx - nfa_tx
+ *  Use nfa_tx to send a file related message to the newtork_file_actions function
+ * 
+ * Important functions to know :
+ * 
+ * local_cli_watchdog
+ *  this is the handle linked to the terminal, that will terminate the
+ *  program if CTRL-D
+ * 
+ * newtork_file_actions
+ *  reads a message (supposely emitted by a peer) related to files actions
+ *  and execute instructions on the disk
+ */
+
 use std::{
     collections::HashMap,
     env,
@@ -36,26 +52,6 @@ struct State {
     pub pods: RwLock<HashMap<std::path::PathBuf, Pod>>,
 }
 
-// async fn publish(pod_path: &std::path::Path, change_path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
-//     let nw = WormHole::config::Network::read(pod_path.join(".wormhole").join("network.toml"))?;
-//     let file = std::fs::read(change_path)?;
-//     let change = NetworkMessage::File(File { path: change_path.to_owned(), file});
-//     let serialized = bincode::serialize(&change)?;
-//     for peer in nw.peers {
-//         match tokio::net::TcpStream::connect(&peer).await {
-//             Ok(mut connection) => {
-//                 if let Err(e) = connection.write(&serialized).await {
-//                     error!("sending {:?} to peer {} failed in {}", &change_path, &peer, e);
-//                 }
-//             },
-//             Err(_) => {
-//                 error!("peer {} is unavailable", &peer);
-//             }
-//         }
-//     }
-//     Ok(())
-// }
-
 async fn publish_meta<'a>(
     state: &'a Arc<State>,
     pod_path: &std::path::Path,
@@ -83,18 +79,13 @@ async fn publish_meta<'a>(
     Ok(())
 }
 
-// async fn storage_watchdog() -> Result<(), Box<dyn std::error::Error>> {
-// =
-//     Ok(())
-// }
-
 async fn local_cli_watchdog() {
     let mut stdin = tokio::io::stdin();
     let mut buf = vec![0; 1024];
 
     loop {
         let read = stdin.read(&mut buf).await;
-        
+
         // NOTE -  on ctrl-D -> quit
         match read {
             Err(_) | Ok(0) => {
@@ -105,57 +96,53 @@ async fn local_cli_watchdog() {
         };
     }
 }
-// SECTION - local_watchdog
 
-/**
-local_watchdog
+/**DOC
+ * reads a message (supposely emitted by a peer) related to files actions
+ * and execute instructions on the disk
+ * 
+ * params:
+ *  @nfa_rx: reception for file related messages
+ *  @provider: fuse instance
 */
-async fn local_watchdog(
-    mut peer_rx: UnboundedReceiver<NetworkMessage>,
+async fn network_file_actions(
+    mut nfa_rx: UnboundedReceiver<NetworkMessage>,
     provider: Arc<Mutex<Provider>>,
 ) {
-    let mut stdin = tokio::io::stdin();
-    let mut buf = vec![0; 1024];
     loop {
-        // waiting for events
-        tokio::select! {
-            // NOTE - on peer_rx reception
-            out = peer_rx.recv() => {
-                match out.unwrap() {
-                    NetworkMessage::Binary(bin) => {
-                        println!("peer: {:?}",String::from_utf8(bin).unwrap_or_default());
-                    }
-                    NetworkMessage::NewFolder(folder) => {
-                        println!("peer: NEW FOLDER");
-                        let mut provider = provider.lock().unwrap();
-                        provider.new_folder(folder.ino, folder.path);
-                    },
-                    NetworkMessage::File(file) => {
-                        println!("peer: NEW FILE");
-                        let mut provider = provider.lock().unwrap();
-                        provider.new_file(file.ino, file.path);
-                    },
-                    NetworkMessage::Remove(ino) => {
-                        println!("peer: REMOVE");
-                        let mut provider = provider.lock().unwrap();
-                        provider.recpt_remove(ino);
-                    },
-                    NetworkMessage::Write(ino, data) => {
-                        println!("peer: WRITE");
-                        let mut provider = provider.lock().unwrap();
-                        provider.recpt_write(ino, data);
-                    },
-                    _ => todo!(),
-                };
+        match nfa_rx.recv().await.unwrap() {
+            NetworkMessage::Binary(bin) => {
+                println!("peer: {:?}", String::from_utf8(bin).unwrap_or_default());
             }
+            NetworkMessage::NewFolder(folder) => {
+                println!("peer: NEW FOLDER");
+                let mut provider = provider.lock().unwrap();
+                provider.new_folder(folder.ino, folder.path);
+            }
+            NetworkMessage::File(file) => {
+                println!("peer: NEW FILE");
+                let mut provider = provider.lock().unwrap();
+                provider.new_file(file.ino, file.path);
+            }
+            NetworkMessage::Remove(ino) => {
+                println!("peer: REMOVE");
+                let mut provider = provider.lock().unwrap();
+                provider.recpt_remove(ino);
+            }
+            NetworkMessage::Write(ino, data) => {
+                println!("peer: WRITE");
+                let mut provider = provider.lock().unwrap();
+                provider.recpt_write(ino, data);
+            }
+            _ => todo!(),
         };
     }
 }
-// !SECTION
+
 
 async fn server_watchdog(
     server: Server,
-    peer_tx: UnboundedSender<NetworkMessage>,
+    nfa_tx: UnboundedSender<NetworkMessage>,
     mut user_rx: UnboundedReceiver<NetworkMessage>,
 ) {
     while let Ok((stream, _)) = server.listener.accept().await {
@@ -164,7 +151,7 @@ async fn server_watchdog(
             .expect("Error during the websocket handshake occurred");
         let (write, read) = ws_stream.split();
         tokio::join!(
-            forward_read_to_sender(read, peer_tx.clone()),
+            forward_read_to_sender(read, nfa_tx.clone()),
             forward_receiver_to_write(write, &mut user_rx)
         );
     }
@@ -173,20 +160,20 @@ async fn server_watchdog(
 async fn remote_watchdog(
     own_addr: String,
     other_addr: String,
-    peer_tx: UnboundedSender<NetworkMessage>,
+    nfa_tx: UnboundedSender<NetworkMessage>,
     mut user_rx: UnboundedReceiver<NetworkMessage>,
 ) {
     if let Ok((ws_stream, _)) = tokio_tungstenite::connect_async(other_addr).await {
         let (write, read) = ws_stream.split();
 
         tokio::join!(
-            forward_read_to_sender(read, peer_tx),
+            forward_read_to_sender(read, nfa_tx),
             forward_receiver_to_write(write, &mut user_rx)
         );
     } else {
         let server = Server::setup(&own_addr).await;
 
-        server_watchdog(server, peer_tx, user_rx).await;
+        server_watchdog(server, nfa_tx, user_rx).await;
     }
 }
 
@@ -201,14 +188,15 @@ async fn main() {
     let mount = env::args().nth(3).unwrap_or("./virtual/".to_string());
     let source = env::args().nth(4).unwrap_or("./original/".to_string());
 
-    let (peer_tx, peer_rx) = mpsc::unbounded_channel();
+    let (nfa_tx, nfa_rx) = mpsc::unbounded_channel();
     let (user_tx, user_rx) = mpsc::unbounded_channel();
     let (_session, provider) = mount_fuse(&source, &mount, user_tx.clone());
 
     let local_cli_handle = tokio::spawn(local_cli_watchdog());
-    let local_handle = tokio::spawn(local_watchdog(peer_rx, provider));
-    let remote_handle = tokio::spawn(remote_watchdog(own_addr, other_addr, peer_tx, user_rx));
-    // local_handle.await.unwrap();
+    let nfa_handle = tokio::spawn(network_file_actions(nfa_rx, provider));
+    let remote_handle = tokio::spawn(remote_watchdog(own_addr, other_addr, nfa_tx, user_rx));
+    // nfa_handle.await.unwrap();
     local_cli_handle.await.unwrap(); // keeps the main process alive until interruption from this watchdog;
+    nfa_handle.abort();
     remote_handle.abort();
 }
