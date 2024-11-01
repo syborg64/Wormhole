@@ -88,24 +88,38 @@ async fn publish_meta<'a>(
 //     Ok(())
 // }
 
+async fn local_cli_watchdog() {
+    let mut stdin = tokio::io::stdin();
+    let mut buf = vec![0; 1024];
+
+    loop {
+        let read = stdin.read(&mut buf).await;
+        
+        // NOTE -  on ctrl-D -> quit
+        match read {
+            Err(_) | Ok(0) => {
+                println!("Quiting!");
+                break;
+            }
+            _ => (),
+        };
+    }
+}
+// SECTION - local_watchdog
+
+/**
+local_watchdog
+*/
 async fn local_watchdog(
-    user_tx: UnboundedSender<NetworkMessage>,
     mut peer_rx: UnboundedReceiver<NetworkMessage>,
     provider: Arc<Mutex<Provider>>,
 ) {
     let mut stdin = tokio::io::stdin();
     let mut buf = vec![0; 1024];
     loop {
+        // waiting for events
         tokio::select! {
-            read = stdin.read(&mut buf) => {
-                match read {
-                    Err(_) | Ok(0) => { println!("Quiting!"); break;},
-                    Ok(n) => {
-                        buf.truncate(n);
-                        user_tx.send(NetworkMessage::Binary(buf.to_owned())).unwrap();
-                    }
-                };
-            }
+            // NOTE - on peer_rx reception
             out = peer_rx.recv() => {
                 match out.unwrap() {
                     NetworkMessage::Binary(bin) => {
@@ -134,15 +148,10 @@ async fn local_watchdog(
                     _ => todo!(),
                 };
             }
-            // storage = storage_watchdog() => {
-            //     match storage {
-            //         Ok(_) => (),
-            //         Err(_) => (),
-            //     }
-            // }
         };
     }
 }
+// !SECTION
 
 async fn server_watchdog(
     server: Server,
@@ -196,8 +205,10 @@ async fn main() {
     let (user_tx, user_rx) = mpsc::unbounded_channel();
     let (_session, provider) = mount_fuse(&source, &mount, user_tx.clone());
 
-    let local_handle = tokio::spawn(local_watchdog(user_tx, peer_rx, provider));
+    let local_cli_handle = tokio::spawn(local_cli_watchdog());
+    let local_handle = tokio::spawn(local_watchdog(peer_rx, provider));
     let remote_handle = tokio::spawn(remote_watchdog(own_addr, other_addr, peer_tx, user_rx));
-    local_handle.await.unwrap();
+    // local_handle.await.unwrap();
+    local_cli_handle.await.unwrap(); // keeps the main process alive until interruption from this watchdog;
     remote_handle.abort();
 }
