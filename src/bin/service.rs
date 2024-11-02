@@ -247,9 +247,7 @@ async fn remote_watchdog(
 async fn main() {
     env_logger::init();
 
-    /**DOC
-     * arguments: own_address other_addr1 other_addr2 mount_to source
-     */
+    // DOC - arguments: own_address other_addr1 other_addr2 mount_to source
     let own_addr = env::args().nth(1).unwrap_or("127.0.0.1:8080".to_string());
     let other_addr1 = env::args()
         .nth(2)

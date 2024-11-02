@@ -25,14 +25,17 @@ impl PeerIPC {
         sender: mpsc::UnboundedSender<NetworkMessage>,
         mut receiver: mpsc::UnboundedReceiver<NetworkMessage>,
     ) {
-        if let Ok((stream, _)) = tokio_tungstenite::connect_async(&address).await {
-            let (write, read) = stream.split();
-            tokio::join!(
-                forward_read_to_sender(read, sender),
-                forward_receiver_to_write(write, &mut receiver)
-            );
-        } else {
-            println!("failed to connect to {}", address);
+        match tokio_tungstenite::connect_async(&address).await {
+            Ok((stream, _)) => {
+                let (write, read) = stream.split();
+                tokio::join!(
+                    forward_read_to_sender(read, sender),
+                    forward_receiver_to_write(write, &mut receiver)
+                );
+            }
+            Err(e) => {
+                println!("failed to connect to {}. Error: {}", address, e);
+            }
         }
     }
 
