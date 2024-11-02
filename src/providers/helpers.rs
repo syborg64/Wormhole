@@ -21,7 +21,7 @@ impl Provider {
         }
     }
 
-    pub fn virt_path_from_mirror_path(&self, mirror_path: PathBuf) -> String {
+    pub fn virt_path_from_mirror_path(&self, mirror_path: &PathBuf) -> String {
         mirror_path
             .strip_prefix(self.local_source.clone())
             .unwrap()

@@ -2,7 +2,7 @@ use fuser::{FileAttr, FileType};
 use log::info;
 use std::{
     ffi::OsStr,
-    fs::{self, File, OpenOptions},
+    fs::{self, OpenOptions},
     io::{self, Write},
     path::PathBuf,
 };
@@ -65,7 +65,7 @@ impl Provider {
                 };
 
                 // generation of the wormhole path
-                let virt_path = self.virt_path_from_mirror_path(new_path);
+                let virt_path = self.virt_path_from_mirror_path(&new_path);
 
 
                 // adding path to the wormhole index
