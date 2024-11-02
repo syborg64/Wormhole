@@ -7,6 +7,7 @@ use crate::network::message::NetworkMessage;
 pub mod readers;
 pub mod errors;
 pub mod writers;
+mod helpers;
 
 // (inode_number, (Type, Original path))
 pub type FsIndex = HashMap<u64, (fuser::FileType, String)>;

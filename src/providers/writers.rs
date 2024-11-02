@@ -58,44 +58,49 @@ impl Provider {
     }
 
     pub fn mkdir(&mut self, parent_ino: u64, name: &OsStr) -> io::Result<FileAttr> {
-        // should check that the parent exists and is a folder
-        // return None if error
-        println!("Creating dir");
-        match self.get_metadata(parent_ino) {
-            Ok(meta) => {
-                if meta.kind == FileType::Directory {
-                    let new_path =
-                        PathBuf::from(self.mirror_path_from_inode(parent_ino).unwrap()).join(name);
-                    println!("directory created: {:?}", new_path);
-                    fs::create_dir(&new_path).unwrap(); // create a real directory
-                    let virt_path = new_path
-                        .strip_prefix(self.local_source.clone())
-                        .unwrap()
-                        .to_string_lossy()
-                        .to_string();
+        // Check that the parent exists and is a folder
+        match self.check_file_type(parent_ino, FileType::Directory) {
+            Ok(_) => {
 
-                    self.index
-                        .insert(self.next_inode, (FileType::Directory, virt_path.clone()));
-                    self.tx
-                        .send(NetworkMessage::NewFolder(Folder {
-                            ino: self.next_inode,
-                            path: virt_path.into(),
-                        }))
-                        .unwrap();
-                    let mut new_attr = TEMPLATE_FILE_ATTR;
-                    new_attr.ino = self.next_inode;
-                    new_attr.kind = FileType::Directory;
-                    new_attr.size = 0;
-                    self.next_inode += 1; // NOTE - ne jamais oublier d'incrémenter si besoin next_inode
+                // generation of the real path (of the mirror)
+                let new_path =
+                    PathBuf::from(self.mirror_path_from_inode(parent_ino).unwrap()).join(name);
+                
+                // bare metal dir creation (on the mirror)
+                match fs::create_dir(&new_path) {
+                    Ok(_) => (),
+                    Err(e) => return Err(e),
+                };
 
-                    Ok(new_attr)
-                } else {
-                    // REVIEW - check which error to set when trying to create a folder in a file
-                    Err(io::Error::new(
-                        io::ErrorKind::NotFound,
-                        "Parent is not a folder",
-                    ))
-                }
+                // generation of the wormhole path
+                let virt_path = new_path
+                    .strip_prefix(self.local_source.clone())
+                    .unwrap()
+                    .to_string_lossy()
+                    .to_string();
+
+                // adding path to the wormhole index
+                self.index
+                    .insert(self.next_inode, (FileType::Directory, virt_path.clone()));
+
+                // send update to network
+                self.tx
+                    .send(NetworkMessage::NewFolder(Folder {
+                        ino: self.next_inode,
+                        path: virt_path.into(),
+                    }))
+                    .expect("mkdir: unable to update modification on the network");
+
+                // creating metadata to return
+                let mut new_attr = TEMPLATE_FILE_ATTR;
+                new_attr.ino = self.next_inode;
+                new_attr.kind = FileType::Directory;
+                new_attr.size = 0;
+                self.next_inode += 1; // NOTE - ne jamais oublier d'incrémenter si besoin next_inode
+
+                println!("directory created: {:?}", new_path); //DEBUG
+
+                Ok(new_attr)
             }
             Err(e) => Err(e),
         }
@@ -143,7 +148,7 @@ impl Provider {
         newname: &OsStr,
     ) -> Option<()> {
         // pas clair de quand c'est appelé, si ça l'est sur des dossiers
-        // non vides, go ignorer et pas tester à la démo
+        // non vides, go ignorer pour l'instant
         Some(())
     }
 
