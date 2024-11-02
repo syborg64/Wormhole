@@ -1,5 +1,12 @@
-use futures_util::StreamExt;
-use tokio::sync::mpsc::{self, UnboundedSender};
+use futures_util::{
+    stream::{SplitSink, SplitStream},
+    StreamExt,
+};
+use tokio::{
+    net::TcpStream,
+    sync::mpsc::{self, UnboundedSender},
+};
+use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
 use crate::network::forward::{forward_read_to_sender, forward_receiver_to_write};
 
@@ -24,6 +31,40 @@ impl PeerIPC {
                 forward_read_to_sender(read, sender),
                 forward_receiver_to_write(write, &mut receiver)
             );
+        } else {
+            println!("failed to connect to {}", address);
+        }
+    }
+
+    async fn work_from_incomming(
+        write: SplitSink<WebSocketStream<TcpStream>, Message>,
+        read: SplitStream<WebSocketStream<TcpStream>>,
+        sender: mpsc::UnboundedSender<NetworkMessage>,
+        mut receiver: mpsc::UnboundedReceiver<NetworkMessage>,
+    ) {
+        tokio::join!(
+            forward_read_to_sender(read, sender),
+            forward_receiver_to_write(write, &mut receiver)
+        );
+    }
+
+    pub fn connect_from_incomming(
+        address: String,
+        on_recept: UnboundedSender<NetworkMessage>,
+        write: SplitSink<WebSocketStream<TcpStream>, Message>,
+        read: SplitStream<WebSocketStream<TcpStream>>,
+    ) -> Self {
+        let (outbound_send, outbound_recv) = mpsc::unbounded_channel();
+
+        Self {
+            thread: tokio::spawn(Self::work_from_incomming(
+                write,
+                read,
+                on_recept,
+                outbound_recv,
+            )),
+            address,
+            sender: outbound_send,
         }
     }
 

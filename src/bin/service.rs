@@ -110,49 +110,64 @@ async fn network_file_actions(
     provider: Arc<Mutex<Provider>>,
 ) {
     loop {
-        match nfa_rx.recv().await.unwrap() {
-            NetworkMessage::Binary(bin) => {
+        match nfa_rx.recv().await {
+            Some(NetworkMessage::Binary(bin)) => {
                 println!("peer: {:?}", String::from_utf8(bin).unwrap_or_default());
             }
-            NetworkMessage::NewFolder(folder) => {
+            Some(NetworkMessage::NewFolder(folder)) => {
                 println!("peer: NEW FOLDER");
-                let mut provider = provider.lock().unwrap();
+                let mut provider = provider.lock().expect("failed to lock mutex");
                 provider.new_folder(folder.ino, folder.path);
             }
-            NetworkMessage::File(file) => {
+            Some(NetworkMessage::File(file)) => {
                 println!("peer: NEW FILE");
-                let mut provider = provider.lock().unwrap();
+                let mut provider = provider.lock().expect("failed to lock mutex");
                 provider.new_file(file.ino, file.path);
             }
-            NetworkMessage::Remove(ino) => {
+            Some(NetworkMessage::Remove(ino)) => {
                 println!("peer: REMOVE");
-                let mut provider = provider.lock().unwrap();
+                let mut provider = provider.lock().expect("failed to lock mutex");
                 provider.recpt_remove(ino);
             }
-            NetworkMessage::Write(ino, data) => {
+            Some(NetworkMessage::Write(ino, data)) => {
                 println!("peer: WRITE");
-                let mut provider = provider.lock().unwrap();
+                let mut provider = provider.lock().expect("failed to lock mutex");
                 provider.recpt_write(ino, data);
             }
-            _ => todo!(),
+            Some(NetworkMessage::Meta(_)) => {
+                println!("peer: META");
+            }
+            Some(NetworkMessage::RequestFile(_)) => {
+                println!("peer: REQUEST FILE");
+            }
+            None => {
+                () //REVIEW - Is it ok to loop every time ? the recv should wait or throw None every time ?
+            }
         };
     }
 }
 
-async fn server_watchdog(
+async fn incoming_connections_watchdog(
     server: Server,
     nfa_tx: UnboundedSender<NetworkMessage>,
-    mut user_rx: UnboundedReceiver<NetworkMessage>,
+    existing_peers: Arc<Mutex<Vec<PeerIPC>>>,
 ) {
     while let Ok((stream, _)) = server.listener.accept().await {
+        println!("connecting new client");
         let ws_stream = tokio_tungstenite::accept_async(stream)
             .await
             .expect("Error during the websocket handshake occurred");
         let (write, read) = ws_stream.split();
-        tokio::join!(
-            forward_read_to_sender(read, nfa_tx.clone()),
-            forward_receiver_to_write(write, &mut user_rx)
-        );
+        let new_peer =
+            PeerIPC::connect_from_incomming("unknown".to_owned(), nfa_tx.clone(), write, read);
+        {
+            existing_peers.lock().unwrap().push(new_peer);
+        }
+        println!("new client connected");
+        // tokio::join!(
+        //     forward_read_to_sender(read, nfa_tx.clone()),
+        //     forward_receiver_to_write(write, &mut user_rx)
+        // );
     }
 }
 
@@ -180,27 +195,27 @@ async fn peer_startup(
 //     }
 // }
 
-// // use futures_util::FutureExt;
-// // pub async fn select_from_peers(peers: &[&PeerIPC]) -> Option<(usize, NetworkMessage)> {
-// //     let mut futures = vec![];
+// use futures_util::FutureExt;
+// pub async fn select_from_peers(peers: &[&PeerIPC]) -> Option<(usize, NetworkMessage)> {
+//     let mut futures = vec![];
 
-// //     for (index, peer) in peers.iter().enumerate() {
-// //         let future = peer.receiver.recv();
-// //         futures.push(future.boxed());
-// //     }
+//     for (index, peer) in peers.iter().enumerate() {
+//         let future = peer.receiver.recv();
+//         futures.push(future.boxed());
+//     }
 
-// //     select_all(futures).await.map(|(result, _, _)| result)
-// // }
+//     select_all(futures).await.map(|(result, _, _)| result)
+// }
 
-// // async fn all_peers_reception2(
-// //     peers_list: &mut Vec<PeerIPC>,
-// //     nfa_tx: UnboundedSender<NetworkMessage>,
-// // ) {
-// //     let recv_futures: Vec<tokio::task::JoinHandle<Option<NetworkMessage>>> = peers_list
-// //         .iter_mut()
-// //         .map(|peer| tokio::spawn(peer.receiver.recv()))
-// //         .collect();
-// // }
+// async fn all_peers_reception2(
+//     peers_list: &mut Vec<PeerIPC>,
+//     nfa_tx: UnboundedSender<NetworkMessage>,
+// ) {
+//     let recv_futures: Vec<tokio::task::JoinHandle<Option<NetworkMessage>>> = peers_list
+//         .iter_mut()
+//         .map(|peer| tokio::spawn(peer.receiver.recv()))
+//         .collect();
+// }
 
 async fn all_peers_broadcast(
     peers_list: &Vec<PeerIPC>,
@@ -224,7 +239,7 @@ async fn remote_watchdog(
     } else {
         let server = Server::setup(&own_addr).await;
 
-        server_watchdog(server, nfa_tx, user_rx).await;
+        //server_watchdog(server, nfa_tx, user_rx).await;
     }
 }
 
@@ -232,6 +247,9 @@ async fn remote_watchdog(
 async fn main() {
     env_logger::init();
 
+    /**DOC
+     * arguments: own_address other_addr1 other_addr2 mount_to source
+     */
     let own_addr = env::args().nth(1).unwrap_or("127.0.0.1:8080".to_string());
     let other_addr1 = env::args()
         .nth(2)
@@ -254,18 +272,25 @@ async fn main() {
 
     let local_cli_handle = tokio::spawn(local_cli_watchdog());
     let nfa_handle = tokio::spawn(network_file_actions(nfa_rx, provider));
-    // let remote_handle = tokio::spawn(remote_watchdog(own_addr, other_addr1, nfa_tx, user_rx));
+    let server = Server::setup(&own_addr).await;
 
-    let connected_peers = peer_startup(vec![other_addr1, other_addr2], nfa_tx).await;
+    let peers = peer_startup(vec![other_addr1, other_addr2], nfa_tx.clone()).await;
+    let peers: Arc<Mutex<Vec<PeerIPC>>> = Arc::new(Mutex::new(peers));
+
+    let new_conn_handle = tokio::spawn(incoming_connections_watchdog(
+        server,
+        nfa_tx.clone(),
+        peers.clone(),
+    ));
     // let remote_reception = tokio::spawn(all_peers_reception(connected_peers, nfa_tx));
 
     println!("started");
     local_cli_handle.await.unwrap(); // keeps the main process alive until interruption from this watchdog;
     println!("stopping");
-    connected_peers.iter().for_each(|peer| {
+    new_conn_handle.abort();
+    peers.lock().unwrap().iter().for_each(|peer| {
         peer.thread.abort();
     });
-    // remote_reception.abort();
     nfa_handle.abort();
     println!("stopped");
 }
