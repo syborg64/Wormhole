@@ -157,9 +157,9 @@ async fn incoming_connections_watchdog(
         let ws_stream = tokio_tungstenite::accept_async(stream)
             .await
             .expect("Error during the websocket handshake occurred");
+        let addr = ws_stream.get_ref().peer_addr().unwrap().to_string();
         let (write, read) = ws_stream.split();
-        let new_peer =
-            PeerIPC::connect_from_incomming("unknown".to_owned(), nfa_tx.clone(), write, read);
+        let new_peer = PeerIPC::connect_from_incomming(addr, nfa_tx.clone(), write, read);
         {
             existing_peers.lock().unwrap().push(new_peer);
         }
@@ -217,10 +217,27 @@ async fn peer_startup(
 //         .collect();
 // }
 
+// receive a message on user_rx and broadcast it to all peers
 async fn all_peers_broadcast(
-    peers_list: &Vec<PeerIPC>,
+    peers_list: Arc<Mutex<Vec<PeerIPC>>>,
     mut user_rx: UnboundedReceiver<NetworkMessage>,
 ) {
+    //generating peers senders
+    let peer_tx: Vec<(UnboundedSender<NetworkMessage>, String)> = peers_list
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|peer| (peer.sender.clone(), peer.address.clone()))
+        .collect();
+
+    // on message reception, broadcast it to all peers senders
+    while let Some(message) = user_rx.recv().await {
+        peer_tx.iter().for_each(|peer| {
+            peer.0
+                .send(message.clone())
+                .expect(&format!("failed to send message to peer {}", peer.1))
+        });
+    }
 }
 
 async fn remote_watchdog(
@@ -280,6 +297,8 @@ async fn main() {
         nfa_tx.clone(),
         peers.clone(),
     ));
+
+    let peers_broadcast_handle = tokio::spawn(all_peers_broadcast(peers.clone(), user_rx));
     // let remote_reception = tokio::spawn(all_peers_reception(connected_peers, nfa_tx));
 
     println!("started");
@@ -290,5 +309,6 @@ async fn main() {
         peer.thread.abort();
     });
     nfa_handle.abort();
+    peers_broadcast_handle.abort();
     println!("stopped");
 }
