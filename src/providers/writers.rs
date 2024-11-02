@@ -12,25 +12,20 @@ use crate::network::message::{self, Folder, NetworkMessage};
 use super::{Provider, TEMPLATE_FILE_ATTR};
 
 impl Provider {
-    // Basically no error handling for the poc
-    // If good : Some(requested_data)
-    // Else : None
-
-    pub fn mkfile(&mut self, parent_ino: u64, name: &OsStr) -> Option<FileAttr> {
-        // should check that the parent exists and is a folder
-        // return None if error
-        if let Some(meta) = self.get_metadata(parent_ino) {
-            if meta.kind == FileType::Directory {
+    pub fn mkfile(&mut self, parent_ino: u64, name: &OsStr) -> io::Result<FileAttr> {
+        match self.check_file_type(parent_ino, FileType::Directory) {
+            Ok(_) => {
                 let new_path =
                     PathBuf::from(self.mirror_path_from_inode(parent_ino).unwrap()).join(name);
 
-                fs::File::create(&new_path).unwrap(); // real file creation
+                // bare metal file creation (on the mirror)
+                match fs::File::create(&new_path) {
+                    Ok(_) => (),
+                    Err(e) => return Err(e),
+                };
 
-                let virt_path = new_path
-                    .strip_prefix(self.local_source.clone())
-                    .unwrap()
-                    .to_string_lossy()
-                    .to_string();
+                // generation of the wormhole path
+                let virt_path = self.virt_path_from_mirror_path(new_path);
 
                 // add entry to the index
                 self.index
@@ -38,34 +33,31 @@ impl Provider {
                 self.tx
                     .send(NetworkMessage::File(message::File {
                         path: virt_path.into(),
-                        file: [].to_vec(),
+                        file: [].to_vec(), // REVIEW - why this field ? useful ?
                         ino: self.next_inode,
                     }))
-                    .unwrap();
+                    .expect("mkfile: unable to update modification on the network");
+
+                // creating metadata to return
                 let mut new_attr = TEMPLATE_FILE_ATTR;
                 new_attr.ino = self.next_inode;
                 new_attr.kind = FileType::RegularFile;
                 new_attr.size = 0;
                 self.next_inode += 1; // NOTE - ne jamais oublier d'incrémenter si besoin next_inode
 
-                Some(new_attr)
-            } else {
-                None
+                Ok(new_attr)
             }
-        } else {
-            None
+            Err(e) => Err(e),
         }
     }
 
     pub fn mkdir(&mut self, parent_ino: u64, name: &OsStr) -> io::Result<FileAttr> {
-        // Check that the parent exists and is a folder
         match self.check_file_type(parent_ino, FileType::Directory) {
             Ok(_) => {
-
                 // generation of the real path (of the mirror)
                 let new_path =
                     PathBuf::from(self.mirror_path_from_inode(parent_ino).unwrap()).join(name);
-                
+
                 // bare metal dir creation (on the mirror)
                 match fs::create_dir(&new_path) {
                     Ok(_) => (),
@@ -73,11 +65,8 @@ impl Provider {
                 };
 
                 // generation of the wormhole path
-                let virt_path = new_path
-                    .strip_prefix(self.local_source.clone())
-                    .unwrap()
-                    .to_string_lossy()
-                    .to_string();
+                let virt_path = self.virt_path_from_mirror_path(new_path);
+
 
                 // adding path to the wormhole index
                 self.index

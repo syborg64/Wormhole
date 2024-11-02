@@ -1,4 +1,4 @@
-use std::io;
+use std::{io, path::PathBuf};
 
 use fuser::{FileAttr, FileType};
 
@@ -19,5 +19,13 @@ impl Provider {
             }
             Err(e) => Err(e),
         }
+    }
+
+    pub fn virt_path_from_mirror_path(&self, mirror_path: PathBuf) -> String {
+        mirror_path
+            .strip_prefix(self.local_source.clone())
+            .unwrap()
+            .to_string_lossy()
+            .to_string()
     }
 }
