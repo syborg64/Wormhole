@@ -3,7 +3,7 @@ use log::info;
 use std::{
     ffi::OsStr,
     fs::{self, File, OpenOptions},
-    io::Write,
+    io::{self, Write},
     path::PathBuf,
 };
 
@@ -33,13 +33,8 @@ impl Provider {
                     .to_string();
 
                 // add entry to the index
-                self.index.insert(
-                    self.next_inode,
-                    (
-                        FileType::RegularFile,
-                        virt_path.clone(),
-                    ),
-                );
+                self.index
+                    .insert(self.next_inode, (FileType::RegularFile, virt_path.clone()));
                 self.tx
                     .send(NetworkMessage::File(message::File {
                         path: virt_path.into(),
@@ -62,42 +57,47 @@ impl Provider {
         }
     }
 
-    pub fn mkdir(&mut self, parent_ino: u64, name: &OsStr) -> Option<FileAttr> {
+    pub fn mkdir(&mut self, parent_ino: u64, name: &OsStr) -> io::Result<FileAttr> {
         // should check that the parent exists and is a folder
         // return None if error
         println!("Creating dir");
-        if let Some(meta) = self.get_metadata(parent_ino) {
-            if meta.kind == FileType::Directory {
-                let new_path =
-                    PathBuf::from(self.mirror_path_from_inode(parent_ino).unwrap()).join(name);
-                println!("directory created: {:?}", new_path);
-                fs::create_dir(&new_path).unwrap(); // create a real directory
-                let virt_path = new_path
-                    .strip_prefix(self.local_source.clone())
-                    .unwrap()
-                    .to_string_lossy()
-                    .to_string();
+        match self.get_metadata(parent_ino) {
+            Ok(meta) => {
+                if meta.kind == FileType::Directory {
+                    let new_path =
+                        PathBuf::from(self.mirror_path_from_inode(parent_ino).unwrap()).join(name);
+                    println!("directory created: {:?}", new_path);
+                    fs::create_dir(&new_path).unwrap(); // create a real directory
+                    let virt_path = new_path
+                        .strip_prefix(self.local_source.clone())
+                        .unwrap()
+                        .to_string_lossy()
+                        .to_string();
 
-                self.index
-                    .insert(self.next_inode, (FileType::Directory, virt_path.clone()));
-                self.tx
-                    .send(NetworkMessage::NewFolder(Folder {
-                        ino: self.next_inode,
-                        path: virt_path.into(),
-                    }))
-                    .unwrap();
-                let mut new_attr = TEMPLATE_FILE_ATTR;
-                new_attr.ino = self.next_inode;
-                new_attr.kind = FileType::Directory;
-                new_attr.size = 0;
-                self.next_inode += 1; // NOTE - ne jamais oublier d'incrémenter si besoin next_inode
+                    self.index
+                        .insert(self.next_inode, (FileType::Directory, virt_path.clone()));
+                    self.tx
+                        .send(NetworkMessage::NewFolder(Folder {
+                            ino: self.next_inode,
+                            path: virt_path.into(),
+                        }))
+                        .unwrap();
+                    let mut new_attr = TEMPLATE_FILE_ATTR;
+                    new_attr.ino = self.next_inode;
+                    new_attr.kind = FileType::Directory;
+                    new_attr.size = 0;
+                    self.next_inode += 1; // NOTE - ne jamais oublier d'incrémenter si besoin next_inode
 
-                Some(new_attr)
-            } else {
-                None
+                    Ok(new_attr)
+                } else {
+                    // REVIEW - check which error to set when trying to create a folder in a file
+                    Err(io::Error::new(
+                        io::ErrorKind::NotFound,
+                        "Parent is not a folder",
+                    ))
+                }
             }
-        } else {
-            None
+            Err(e) => Err(e),
         }
     }
 
