@@ -26,29 +26,30 @@ pub async fn forward_read_to_sender<
 ) {
     while let Ok(Message::Binary(message)) = read.next().await.unwrap() {
         let deserialized = bincode::deserialize(&message).unwrap();
+        println!("message from network {:?}", deserialized);
         tx.send(deserialized).unwrap();
     }
 }
 
-pub async fn forward_receiver_to_write2<T>(mut write: T, rx: &mut Receiver<NetworkMessage>)
-where
-    T: Sink<Message> + Unpin,
-    <T as Sink<Message>>::Error: Debug,
-{
-    while let Some(message) = rx.recv().await {
-        let serialized = bincode::serialize(&message).unwrap();
-        write.send(Message::binary(serialized)).await.unwrap();
-    }
-}
+// pub async fn forward_receiver_to_write2<T>(mut write: T, rx: &mut Receiver<NetworkMessage>)
+// where
+//     T: Sink<Message> + Unpin,
+//     <T as Sink<Message>>::Error: Debug,
+// {
+//     while let Some(message) = rx.recv().await {
+//         let serialized = bincode::serialize(&message).unwrap();
+//         write.send(Message::binary(serialized)).await.unwrap();
+//     }
+// }
 
-pub async fn forward_read_to_sender2<
-    T: StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>,
->(
-    mut read: SplitStream<T>,
-    tx: Sender<NetworkMessage>,
-) {
-    while let Ok(Message::Binary(message)) = read.next().await.unwrap() {
-        let deserialized = bincode::deserialize(&message).unwrap();
-        tx.send(deserialized).await.unwrap();
-    }
-}
+// pub async fn forward_read_to_sender2<
+//     T: StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>,
+// >(
+//     mut read: SplitStream<T>,
+//     tx: Sender<NetworkMessage>,
+// ) {
+//     while let Ok(Message::Binary(message)) = read.next().await.unwrap() {
+//         let deserialized = bincode::deserialize(&message).unwrap();
+//         tx.send(deserialized).await.unwrap();
+//     }
+// }

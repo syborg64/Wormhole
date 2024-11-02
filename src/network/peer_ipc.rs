@@ -6,7 +6,8 @@ use tokio::{
     net::TcpStream,
     sync::mpsc::{self, UnboundedSender},
 };
-use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
+use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
 use crate::network::forward::{forward_read_to_sender, forward_receiver_to_write};
 
@@ -21,22 +22,15 @@ pub struct PeerIPC {
 
 impl PeerIPC {
     async fn work(
-        address: String,
+        stream: WebSocketStream<MaybeTlsStream<TcpStream>>,
         sender: mpsc::UnboundedSender<NetworkMessage>,
         mut receiver: mpsc::UnboundedReceiver<NetworkMessage>,
     ) {
-        match tokio_tungstenite::connect_async(&address).await {
-            Ok((stream, _)) => {
-                let (write, read) = stream.split();
-                tokio::join!(
-                    forward_read_to_sender(read, sender),
-                    forward_receiver_to_write(write, &mut receiver)
-                );
-            }
-            Err(e) => {
-                println!("failed to connect to {}. Error: {}", address, e);
-            }
-        }
+        let (write, read) = stream.split();
+        tokio::join!(
+            forward_read_to_sender(read, sender),
+            forward_receiver_to_write(write, &mut receiver)
+        );
     }
 
     async fn work_from_incomming(
@@ -71,14 +65,24 @@ impl PeerIPC {
         }
     }
 
-    pub fn connect(address: String, on_recept: UnboundedSender<NetworkMessage>) -> Self {
+    pub async fn connect(
+        address: String,
+        on_recept: UnboundedSender<NetworkMessage>,
+    ) -> Option<Self> {
         let (outbound_send, outbound_recv) = mpsc::unbounded_channel();
-        // let (inbound_send, inbound_recv) = mpsc::channel(16);
-        Self {
-            thread: tokio::spawn(Self::work(address.clone(), on_recept, outbound_recv)),
+
+        let thread = match tokio_tungstenite::connect_async(&address).await {
+            Ok((stream, _)) => tokio::spawn(Self::work(stream, on_recept, outbound_recv)),
+            Err(e) => {
+                println!("failed to connect to {}. Error: {}", address, e);
+                return None;
+            }
+        };
+        Some(Self {
+            thread,
             address,
             sender: outbound_send,
             // receiver: inbound_recv,
-        }
+        })
     }
 }

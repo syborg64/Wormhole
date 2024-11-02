@@ -23,19 +23,13 @@ use std::{
     sync::{Arc, Mutex, RwLock},
 };
 
-use futures_util::{stream::select_all, StreamExt};
+use futures_util::{future::join_all, StreamExt};
 use tokio::{
     io::AsyncReadExt,
     sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
 };
 
-use tokio_stream::wrappers::ReceiverStream;
-use wormhole::{
-    config,
-    data::metadata::MetaData,
-    network::forward::{forward_read_to_sender, forward_receiver_to_write},
-    providers::Provider,
-};
+use wormhole::{config, providers::Provider};
 use wormhole::{fuse::fuse_impl::mount_fuse, network::peer_ipc::PeerIPC};
 
 use wormhole::network::{message::NetworkMessage, server::Server};
@@ -176,10 +170,15 @@ async fn peer_startup(
     peers_ip_list: Vec<String>,
     nfa_tx: UnboundedSender<NetworkMessage>,
 ) -> Vec<PeerIPC> {
-    peers_ip_list
-        .into_iter()
-        .map(|ip| PeerIPC::connect(ip, nfa_tx.clone()))
-        .collect()
+    join_all(
+        peers_ip_list
+            .into_iter()
+            .map(|ip| PeerIPC::connect(ip, nfa_tx.clone())), // .filter(|peer| !peer.thread.is_finished())
+    )
+    .await
+    .into_iter()
+    .flatten()
+    .collect()
 }
 
 // wait for message from peers and inform the file manager via nfa_tx
@@ -222,17 +221,24 @@ async fn all_peers_broadcast(
     peers_list: Arc<Mutex<Vec<PeerIPC>>>,
     mut user_rx: UnboundedReceiver<NetworkMessage>,
 ) {
-    //generating peers senders
-    let peer_tx: Vec<(UnboundedSender<NetworkMessage>, String)> = peers_list
-        .lock()
-        .unwrap()
-        .iter()
-        .map(|peer| (peer.sender.clone(), peer.address.clone()))
-        .collect();
+    // peer_tx
+    //     .iter()
+    //     .for_each(|p| println!("START | is_closed ? {} {}", p.1, p.0.is_closed()));
 
     // on message reception, broadcast it to all peers senders
     while let Some(message) = user_rx.recv().await {
+        //generating peers senders
+        // REVIEW - should avoid locking peers in future versions, as it more or less locks the entire program
+        let peer_tx: Vec<(UnboundedSender<NetworkMessage>, String)> = peers_list
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|peer| (peer.sender.clone(), peer.address.clone()))
+            .collect();
+
+        println!("broadcasting message to peers:\n{:?}", message);
         peer_tx.iter().for_each(|peer| {
+            println!("peer: {}", peer.1);
             peer.0
                 .send(message.clone())
                 .expect(&format!("failed to send message to peer {}", peer.1))
@@ -240,25 +246,25 @@ async fn all_peers_broadcast(
     }
 }
 
-async fn remote_watchdog(
-    own_addr: String,
-    other_addr: String,
-    nfa_tx: UnboundedSender<NetworkMessage>,
-    mut user_rx: UnboundedReceiver<NetworkMessage>,
-) {
-    if let Ok((ws_stream, _)) = tokio_tungstenite::connect_async(other_addr).await {
-        let (write, read) = ws_stream.split();
+// async fn remote_watchdog(
+//     own_addr: String,
+//     other_addr: String,
+//     nfa_tx: UnboundedSender<NetworkMessage>,
+//     mut user_rx: UnboundedReceiver<NetworkMessage>,
+// ) {
+//     if let Ok((ws_stream, _)) = tokio_tungstenite::connect_async(other_addr).await {
+//         let (write, read) = ws_stream.split();
 
-        tokio::join!(
-            forward_read_to_sender(read, nfa_tx),
-            forward_receiver_to_write(write, &mut user_rx)
-        );
-    } else {
-        let server = Server::setup(&own_addr).await;
+//         tokio::join!(
+//             forward_read_to_sender(read, nfa_tx),
+//             forward_receiver_to_write(write, &mut user_rx)
+//         );
+//     } else {
+//         let server = Server::setup(&own_addr).await;
 
-        //server_watchdog(server, nfa_tx, user_rx).await;
-    }
-}
+//         //server_watchdog(server, nfa_tx, user_rx).await;
+//     }
+// }
 
 #[tokio::main]
 async fn main() {
@@ -290,6 +296,13 @@ async fn main() {
     let server = Server::setup(&own_addr).await;
 
     let peers = peer_startup(vec![other_addr1, other_addr2], nfa_tx.clone()).await;
+    println!(
+        "successful peers at startup :\n{:?}",
+        peers
+            .iter()
+            .map(|p| p.address.clone())
+            .collect::<Vec<String>>()
+    );
     let peers: Arc<Mutex<Vec<PeerIPC>>> = Arc::new(Mutex::new(peers));
 
     let new_conn_handle = tokio::spawn(incoming_connections_watchdog(
