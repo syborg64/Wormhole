@@ -52,32 +52,32 @@ struct State {
     pub pods: RwLock<HashMap<std::path::PathBuf, Pod>>,
 }
 
-async fn publish_meta<'a>(
-    state: &'a Arc<State>,
-    pod_path: &std::path::Path,
-    file_path: &std::path::Path,
-) -> Result<(), Box<dyn std::error::Error + 'a>> {
-    let pods = state.pods.read()?;
-    let nw = &pods
-        .get(pod_path)
-        .ok_or(std::io::Error::other("pod not registered"))?
-        .network;
-    let file = std::fs::read(file_path)?;
-    let change = NetworkMessage::Meta(MetaData::read(file_path)?);
-    for peer in &nw.peers {
-        let lock = state.peers.read()?;
-        if let Some(found) = lock.iter().find(|p| p.address == *peer) {
-            found.sender.send(change.clone()).await;
-        } else {
-            drop(lock);
-            let mut lock = state.peers.write()?;
-            let peer_ipc = PeerIPC::connect(peer.clone());
-            peer_ipc.sender.send(change.clone()).await;
-            lock.push(peer_ipc);
-        }
-    }
-    Ok(())
-}
+// async fn publish_meta<'a>(
+//     state: &'a Arc<State>,
+//     pod_path: &std::path::Path,
+//     file_path: &std::path::Path,
+// ) -> Result<(), Box<dyn std::error::Error + 'a>> {
+//     let pods = state.pods.read()?;
+//     let nw = &pods
+//         .get(pod_path)
+//         .ok_or(std::io::Error::other("pod not registered"))?
+//         .network;
+//     let file = std::fs::read(file_path)?;
+//     let change = NetworkMessage::Meta(MetaData::read(file_path)?);
+//     for peer in &nw.peers {
+//         let lock = state.peers.read()?;
+//         if let Some(found) = lock.iter().find(|p| p.address == *peer) {
+//             found.sender.send(change.clone()).await;
+//         } else {
+//             drop(lock);
+//             let mut lock = state.peers.write()?;
+//             let peer_ipc = PeerIPC::connect(peer.clone());
+//             peer_ipc.sender.send(change.clone()).await;
+//             lock.push(peer_ipc);
+//         }
+//     }
+//     Ok(())
+// }
 
 async fn local_cli_watchdog() {
     let mut stdin = tokio::io::stdin();
@@ -157,25 +157,50 @@ async fn server_watchdog(
 }
 
 // start connexions to peers
-async fn peer_startup(peers_ip_list: Vec<String>) -> Vec<PeerIPC> {
+async fn peer_startup(
+    peers_ip_list: Vec<String>,
+    nfa_tx: UnboundedSender<NetworkMessage>,
+) -> Vec<PeerIPC> {
     peers_ip_list
         .into_iter()
-        .map(|ip| PeerIPC::connect(ip))
+        .map(|ip| PeerIPC::connect(ip, nfa_tx.clone()))
         .collect()
 }
 
 // wait for message from peers and inform the file manager via nfa_tx
-async fn all_peers_reception(peers_list: Vec<PeerIPC>, nfa_tx: UnboundedSender<NetworkMessage>) {
-    let receptors: Vec<ReceiverStream<NetworkMessage>> = peers_list
-        .into_iter()
-        .map(|peer| ReceiverStream::new(peer.receiver))
-        .collect();
-    let mut stream = select_all(receptors);
+// async fn all_peers_reception(peers_list: Vec<PeerIPC>, nfa_tx: UnboundedSender<NetworkMessage>) {
+//     let receptors: Vec<ReceiverStream<NetworkMessage>> = peers_list
+//         .into_iter()
+//         .map(|peer| ReceiverStream::new(peer.receiver))
+//         .collect();
+//     let mut stream = select_all(receptors);
 
-    while let Some(msg) = stream.next().await {
-        nfa_tx.send(msg).unwrap();
-    }
-}
+//     while let Some(msg) = stream.next().await {
+//         nfa_tx.send(msg).unwrap();
+//     }
+// }
+
+// // use futures_util::FutureExt;
+// // pub async fn select_from_peers(peers: &[&PeerIPC]) -> Option<(usize, NetworkMessage)> {
+// //     let mut futures = vec![];
+
+// //     for (index, peer) in peers.iter().enumerate() {
+// //         let future = peer.receiver.recv();
+// //         futures.push(future.boxed());
+// //     }
+
+// //     select_all(futures).await.map(|(result, _, _)| result)
+// // }
+
+// // async fn all_peers_reception2(
+// //     peers_list: &mut Vec<PeerIPC>,
+// //     nfa_tx: UnboundedSender<NetworkMessage>,
+// // ) {
+// //     let recv_futures: Vec<tokio::task::JoinHandle<Option<NetworkMessage>>> = peers_list
+// //         .iter_mut()
+// //         .map(|peer| tokio::spawn(peer.receiver.recv()))
+// //         .collect();
+// // }
 
 async fn all_peers_broadcast(
     peers_list: &Vec<PeerIPC>,
@@ -221,6 +246,8 @@ async fn main() {
     println!("peer1 address: {}", other_addr1);
     println!("peer2 address: {}", other_addr2);
 
+    println!("\nstarting");
+
     let (nfa_tx, nfa_rx) = mpsc::unbounded_channel();
     let (user_tx, user_rx) = mpsc::unbounded_channel();
     let (_session, provider) = mount_fuse(&source, &mount, user_tx.clone());
@@ -229,10 +256,16 @@ async fn main() {
     let nfa_handle = tokio::spawn(network_file_actions(nfa_rx, provider));
     // let remote_handle = tokio::spawn(remote_watchdog(own_addr, other_addr1, nfa_tx, user_rx));
 
-    let connected_peers = peer_startup(vec![other_addr1, other_addr2]).await;
-    let remote_reception = tokio::spawn(all_peers_reception(connected_peers, nfa_tx));
+    let connected_peers = peer_startup(vec![other_addr1, other_addr2], nfa_tx).await;
+    // let remote_reception = tokio::spawn(all_peers_reception(connected_peers, nfa_tx));
 
+    println!("started");
     local_cli_handle.await.unwrap(); // keeps the main process alive until interruption from this watchdog;
-    remote_reception.abort();
+    println!("stopping");
+    connected_peers.iter().for_each(|peer| {
+        peer.thread.abort();
+    });
+    // remote_reception.abort();
     nfa_handle.abort();
+    println!("stopped");
 }
