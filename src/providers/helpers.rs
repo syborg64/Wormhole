@@ -1,3 +1,4 @@
+use std::ops::Add;
 use std::{io, path::PathBuf};
 
 use fuser::{FileAttr, FileType};
@@ -5,6 +6,16 @@ use fuser::{FileAttr, FileType};
 use super::Provider;
 
 impl Provider {
+    // find the path of the real file in the original folder
+    pub fn mirror_path_from_inode(&self, ino: u64) -> io::Result<String> {
+        if let Some(data) = self.index.get(&ino) {
+            let data = self.local_source.clone().add(&data.1);
+            Ok(data)
+        } else {
+            Err(io::Error::new(io::ErrorKind::NotFound, "Inode not found"))
+        }
+    }
+
     pub fn check_file_type(&self, ino: u64, wanted_type: FileType) -> io::Result<FileAttr> {
         match self.get_metadata(ino) {
             Ok(meta) => {

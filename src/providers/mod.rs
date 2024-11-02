@@ -43,13 +43,5 @@ const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
 };
 
 impl Provider {
-    // find the path of the real file in the original folder
-    fn mirror_path_from_inode(&self, ino: u64) -> io::Result<String> {
-        if let Some(data) = self.index.get(&ino) {
-            let data = self.local_source.clone().add(&data.1);
-            Ok(data)
-        } else {
-            Err(io::Error::new(io::ErrorKind::NotFound, "Inode not found"))
-        }
-    }
+    
 }
