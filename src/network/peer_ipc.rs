@@ -8,12 +8,12 @@ use super::message::NetworkMessage;
 pub struct PeerIPC {
     pub address: String,
     pub thread: tokio::task::JoinHandle<()>,
-    pub sender: mpsc::Sender<NetworkMessage>,
-    pub receiver: mpsc::Receiver<NetworkMessage>,
+    pub sender: mpsc::Sender<NetworkMessage>, // send a message to the peer
+    pub receiver: mpsc::Receiver<NetworkMessage>, // receive a message from the peer
 }
 
 impl PeerIPC {
-    pub async fn work(address: String, sender: mpsc::Sender<NetworkMessage>, mut receiver: mpsc::Receiver<NetworkMessage>) {
+    async fn work(address: String, sender: mpsc::Sender<NetworkMessage>, mut receiver: mpsc::Receiver<NetworkMessage>) {
         if let Ok((stream, _)) = tokio_tungstenite::connect_async(&address).await {
             let (write, read) = stream.split();
             tokio::join!(

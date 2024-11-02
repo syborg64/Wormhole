@@ -6,30 +6,30 @@
  * Important variables to know :
  * nfa_rx - nfa_tx
  *  Use nfa_tx to send a file related message to the newtork_file_actions function
- * 
+ *
  * Important functions to know :
- * 
+ *
  * local_cli_watchdog
  *  this is the handle linked to the terminal, that will terminate the
  *  program if CTRL-D
- * 
+ *
  * newtork_file_actions
  *  reads a message (supposely emitted by a peer) related to files actions
  *  and execute instructions on the disk
  */
-
 use std::{
     collections::HashMap,
     env,
     sync::{Arc, Mutex, RwLock},
 };
 
-use futures_util::StreamExt;
+use futures_util::{stream::select_all, StreamExt};
 use tokio::{
     io::AsyncReadExt,
     sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
 };
 
+use tokio_stream::wrappers::ReceiverStream;
 use wormhole::{
     config,
     data::metadata::MetaData,
@@ -100,7 +100,7 @@ async fn local_cli_watchdog() {
 /**DOC
  * reads a message (supposely emitted by a peer) related to files actions
  * and execute instructions on the disk
- * 
+ *
  * params:
  *  @nfa_rx: reception for file related messages
  *  @provider: fuse instance
@@ -139,7 +139,6 @@ async fn network_file_actions(
     }
 }
 
-
 async fn server_watchdog(
     server: Server,
     nfa_tx: UnboundedSender<NetworkMessage>,
@@ -155,6 +154,33 @@ async fn server_watchdog(
             forward_receiver_to_write(write, &mut user_rx)
         );
     }
+}
+
+// start connexions to peers
+async fn peer_startup(peers_ip_list: Vec<String>) -> Vec<PeerIPC> {
+    peers_ip_list
+        .into_iter()
+        .map(|ip| PeerIPC::connect(ip))
+        .collect()
+}
+
+// wait for message from peers and inform the file manager via nfa_tx
+async fn all_peers_reception(peers_list: Vec<PeerIPC>, nfa_tx: UnboundedSender<NetworkMessage>) {
+    let receptors: Vec<ReceiverStream<NetworkMessage>> = peers_list
+        .into_iter()
+        .map(|peer| ReceiverStream::new(peer.receiver))
+        .collect();
+    let mut stream = select_all(receptors);
+
+    while let Some(msg) = stream.next().await {
+        nfa_tx.send(msg).unwrap();
+    }
+}
+
+async fn all_peers_broadcast(
+    peers_list: &Vec<PeerIPC>,
+    mut user_rx: UnboundedReceiver<NetworkMessage>,
+) {
 }
 
 async fn remote_watchdog(
@@ -182,11 +208,18 @@ async fn main() {
     env_logger::init();
 
     let own_addr = env::args().nth(1).unwrap_or("127.0.0.1:8080".to_string());
-    let other_addr = env::args()
+    let other_addr1 = env::args()
         .nth(2)
         .unwrap_or("ws://127.0.0.2:8080".to_string());
-    let mount = env::args().nth(3).unwrap_or("./virtual/".to_string());
-    let source = env::args().nth(4).unwrap_or("./original/".to_string());
+    let other_addr2 = env::args()
+        .nth(3)
+        .unwrap_or("ws://127.0.0.3:8080".to_string());
+    let mount = env::args().nth(4).unwrap_or("./virtual/".to_string());
+    let source = env::args().nth(5).unwrap_or("./original/".to_string());
+
+    println!("own address: {}", own_addr);
+    println!("peer1 address: {}", other_addr1);
+    println!("peer2 address: {}", other_addr2);
 
     let (nfa_tx, nfa_rx) = mpsc::unbounded_channel();
     let (user_tx, user_rx) = mpsc::unbounded_channel();
@@ -194,9 +227,12 @@ async fn main() {
 
     let local_cli_handle = tokio::spawn(local_cli_watchdog());
     let nfa_handle = tokio::spawn(network_file_actions(nfa_rx, provider));
-    let remote_handle = tokio::spawn(remote_watchdog(own_addr, other_addr, nfa_tx, user_rx));
-    // nfa_handle.await.unwrap();
+    // let remote_handle = tokio::spawn(remote_watchdog(own_addr, other_addr1, nfa_tx, user_rx));
+
+    let connected_peers = peer_startup(vec![other_addr1, other_addr2]).await;
+    let remote_reception = tokio::spawn(all_peers_reception(connected_peers, nfa_tx));
+
     local_cli_handle.await.unwrap(); // keeps the main process alive until interruption from this watchdog;
+    remote_reception.abort();
     nfa_handle.abort();
-    remote_handle.abort();
 }
