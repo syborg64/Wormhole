@@ -18,117 +18,19 @@
  *  and execute instructions on the disk
  */
 use std::{
-    collections::HashMap,
     env,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, Mutex},
 };
 
 use tokio::sync::mpsc::{self};
 
-use wormhole::{
-    config,
-    network::{
-        peers_operations::{all_peers_broadcast, peer_startup},
-        watchdogs::{incoming_connections_watchdog, local_cli_watchdog, network_file_actions},
-    },
+use wormhole::network::{
+    peers_operations::{all_peers_broadcast, peer_startup},
+    watchdogs::{incoming_connections_watchdog, local_cli_watchdog, network_file_actions},
 };
 use wormhole::{fuse::fuse_impl::mount_fuse, network::peer_ipc::PeerIPC};
 
 use wormhole::network::server::Server;
-
-struct Pod {
-    network: config::Network,
-    directory: Arc<std::fs::DirEntry>,
-    // fuser: !,
-}
-
-#[derive(Default)]
-struct State {
-    pub peers: RwLock<Vec<PeerIPC>>,
-    pub pods: RwLock<HashMap<std::path::PathBuf, Pod>>,
-}
-
-// async fn publish_meta<'a>(
-//     state: &'a Arc<State>,
-//     pod_path: &std::path::Path,
-//     file_path: &std::path::Path,
-// ) -> Result<(), Box<dyn std::error::Error + 'a>> {
-//     let pods = state.pods.read()?;
-//     let nw = &pods
-//         .get(pod_path)
-//         .ok_or(std::io::Error::other("pod not registered"))?
-//         .network;
-//     let file = std::fs::read(file_path)?;
-//     let change = NetworkMessage::Meta(MetaData::read(file_path)?);
-//     for peer in &nw.peers {
-//         let lock = state.peers.read()?;
-//         if let Some(found) = lock.iter().find(|p| p.address == *peer) {
-//             found.sender.send(change.clone()).await;
-//         } else {
-//             drop(lock);
-//             let mut lock = state.peers.write()?;
-//             let peer_ipc = PeerIPC::connect(peer.clone());
-//             peer_ipc.sender.send(change.clone()).await;
-//             lock.push(peer_ipc);
-//         }
-//     }
-//     Ok(())
-// }
-
-// wait for message from peers and inform the file manager via nfa_tx
-// async fn all_peers_reception(peers_list: Vec<PeerIPC>, nfa_tx: UnboundedSender<NetworkMessage>) {
-//     let receptors: Vec<ReceiverStream<NetworkMessage>> = peers_list
-//         .into_iter()
-//         .map(|peer| ReceiverStream::new(peer.receiver))
-//         .collect();
-//     let mut stream = select_all(receptors);
-
-//     while let Some(msg) = stream.next().await {
-//         nfa_tx.send(msg).unwrap();
-//     }
-// }
-
-// use futures_util::FutureExt;
-// pub async fn select_from_peers(peers: &[&PeerIPC]) -> Option<(usize, NetworkMessage)> {
-//     let mut futures = vec![];
-
-//     for (index, peer) in peers.iter().enumerate() {
-//         let future = peer.receiver.recv();
-//         futures.push(future.boxed());
-//     }
-
-//     select_all(futures).await.map(|(result, _, _)| result)
-// }
-
-// async fn all_peers_reception2(
-//     peers_list: &mut Vec<PeerIPC>,
-//     nfa_tx: UnboundedSender<NetworkMessage>,
-// ) {
-//     let recv_futures: Vec<tokio::task::JoinHandle<Option<NetworkMessage>>> = peers_list
-//         .iter_mut()
-//         .map(|peer| tokio::spawn(peer.receiver.recv()))
-//         .collect();
-// }
-
-// async fn remote_watchdog(
-//     own_addr: String,
-//     other_addr: String,
-//     nfa_tx: UnboundedSender<NetworkMessage>,
-//     mut user_rx: UnboundedReceiver<NetworkMessage>,
-// ) {
-//     if let Ok((ws_stream, _)) = tokio_tungstenite::connect_async(other_addr).await {
-//         let (write, read) = ws_stream.split();
-
-//         tokio::join!(
-//             forward_read_to_sender(read, nfa_tx),
-//             forward_receiver_to_write(write, &mut user_rx)
-//         );
-//     } else {
-//         let server = Server::setup(&own_addr).await;
-
-//         //server_watchdog(server, nfa_tx, user_rx).await;
-//     }
-// }
 
 #[tokio::main]
 async fn main() {

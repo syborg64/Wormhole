@@ -6,7 +6,7 @@ use libc::{ENOENT, ENOSYS};
 use log::debug;
 use std::collections::HashMap;
 use std::ffi::OsStr;
-use std::path::{PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, UNIX_EPOCH};
 use tokio::sync::mpsc::UnboundedSender;

@@ -90,6 +90,8 @@ impl Provider {
     }
 
     pub fn rmdir(&mut self, parent_ino: u64, name: &OsStr) -> Option<()> {
+        let _ = name;
+        let _ = parent_ino;
         // should only be called on empty folders
         // if 404, not empty or file -> None
         Some(())
@@ -102,6 +104,10 @@ impl Provider {
         newparent_ino: u64,
         newname: &OsStr,
     ) -> Option<()> {
+        let _ = newname;
+        let _ = newparent_ino;
+        let _ = name;
+        let _ = parent_ino;
         // pas clair de quand c'est appelé, si ça l'est sur des dossiers
         // non vides, go ignorer pour l'instant
         Some(())
