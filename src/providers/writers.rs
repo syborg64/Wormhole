@@ -123,24 +123,19 @@ impl Provider {
         Some(())
     }
 
-    pub fn write(&self, ino: u64, _offset: i64, data: &[u8]) -> Option<u32> {
-        // returns the writed size
-        info!("WRITE ENTERNAL");
+    // returns the writed size
+    pub fn write(&self, ino: u64, _offset: i64, data: &[u8]) -> io::Result<u32> {
         match self.index.get(&ino) {
             Some((FileType::RegularFile, _)) => {
-                let Some(path) = self.mirror_path_from_inode(ino) else {
-                    return None;
-                };
-                if fs::write(path, data).is_ok() {
-                    self.tx
-                        .send(NetworkMessage::Write(ino, data.to_owned()))
-                        .unwrap();
-                    Some(data.len() as u32)
-                } else {
-                    None
-                }
+                let path = self.mirror_path_from_inode(ino)?;
+                fs::write(path, data)?;
+                self.tx
+                    .send(NetworkMessage::Write(ino, data.to_owned()))
+                    .unwrap();
+                Ok(data.len() as u32)
             }
-            _ => None,
+            Some(_) => Err(io::Error::new(io::ErrorKind::Other, "File not writable")),
+            None => Err(io::Error::new(io::ErrorKind::NotFound, "File not found")),
         }
     }
 
