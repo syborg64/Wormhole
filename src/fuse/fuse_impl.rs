@@ -2,12 +2,11 @@ use fuser::{
     BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData,
     ReplyDirectory, ReplyEntry, Request,
 };
-use futures_util::future::Fuse;
 use libc::{ENOENT, ENOSYS};
 use log::debug;
 use std::collections::HashMap;
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, UNIX_EPOCH};
 use tokio::sync::mpsc::UnboundedSender;
@@ -98,13 +97,14 @@ impl FuseController {
     }
 }
 
+// REVIEW - should later invest in proper error handling
 impl Filesystem for FuseController {
     // READING
 
     fn lookup(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEntry) {
         debug!("lookup is called {} {:?}", parent, name);
         let provider = self.provider.lock().unwrap();
-        if let Some(file_attr) = provider.fs_lookup(parent, name) {
+        if let Ok(file_attr) = provider.fs_lookup(parent, name) {
             reply.entry(&TTL, &file_attr, 0)
         } else {
             reply.error(ENOENT)
@@ -134,7 +134,7 @@ impl Filesystem for FuseController {
     ) {
         debug!("read is called");
         let provider = self.provider.lock().unwrap();
-        if let Some(content) = provider.read(ino) {
+        if let Ok(content) = provider.read(ino) {
             reply.data(&content[offset as usize..])
         } else {
             reply.error(ENOENT);
@@ -151,7 +151,7 @@ impl Filesystem for FuseController {
     ) {
         debug!("readdir is called for ino {}", ino);
         let provider = self.provider.lock().unwrap();
-        if let Some(entries) = provider.fs_readdir(ino) {
+        if let Ok(entries) = provider.fs_readdir(ino) {
             for (i, entry) in entries.into_iter().enumerate().skip(offset as usize) {
                 debug!("readdir entries : {:?}", entry);
                 // i + 1 means the index of the next entry
@@ -181,7 +181,7 @@ impl Filesystem for FuseController {
         reply: ReplyEntry,
     ) {
         let mut provider = self.provider.lock().unwrap();
-        if let Some(attr) = provider.mkfile(parent, name) {
+        if let Ok(attr) = provider.mkfile(parent, name) {
             reply.entry(&TTL, &attr, 0)
         } else {
             reply.error(ENOSYS)
@@ -198,7 +198,7 @@ impl Filesystem for FuseController {
         reply: ReplyEntry,
     ) {
         let mut provider = self.provider.lock().unwrap();
-        if let Some(attr) = provider.mkdir(parent, name) {
+        if let Ok(attr) = provider.mkdir(parent, name) {
             reply.entry(&TTL, &attr, 0)
         } else {
             reply.error(ENOSYS)
@@ -207,7 +207,7 @@ impl Filesystem for FuseController {
 
     fn unlink(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: fuser::ReplyEmpty) {
         let mut provider = self.provider.lock().unwrap();
-        if let Some(()) = provider.rmfile(parent, name) {
+        if let Ok(()) = provider.rmfile(parent, name) {
             reply.ok()
         } else {
             reply.error(ENOENT)
@@ -256,7 +256,7 @@ impl Filesystem for FuseController {
         reply: fuser::ReplyWrite,
     ) {
         let provider = self.provider.lock().unwrap();
-        if let Some(written) = provider.write(ino, offset, data) {
+        if let Ok(written) = provider.write(ino, offset, data) {
             reply.written(written)
         } else {
             reply.error(ENOENT)

@@ -1,9 +1,10 @@
 use fuser::{FileAttr, FileType};
-use std::{collections::HashMap, ops::Add, path::Path, time::UNIX_EPOCH};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use std::{collections::HashMap, time::UNIX_EPOCH};
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::network::message::NetworkMessage;
 
+mod helpers;
 pub mod readers;
 pub mod writers;
 
@@ -40,14 +41,4 @@ const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
     blksize: 512,
 };
 
-impl Provider {
-    // find the path of the real file in the original folder
-    fn mirror_path_from_inode(&self, ino: u64) -> Option<String> {
-        if let Some(data) = self.index.get(&ino) {
-            let data = self.local_source.clone().add(&data.1);
-            Some(data)
-        } else {
-            None
-        }
-    }
-}
+impl Provider {}
