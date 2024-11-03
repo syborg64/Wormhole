@@ -140,6 +140,7 @@ impl Provider {
     }
 
     // RECEPTION
+    // REVIEW - not yet refactored nor properly error handled
     pub fn new_folder(&mut self, ino: u64, path: PathBuf) {
         let real_path = PathBuf::from(self.local_source.clone()).join(&path);
         println!("Provider make new folder at: {:?}", real_path);
