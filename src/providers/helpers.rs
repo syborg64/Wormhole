@@ -1,6 +1,7 @@
 use std::ops::Add;
 use std::{io, path::PathBuf};
 
+use std::ffi::OsStr;
 use fuser::{FileAttr, FileType};
 
 use super::Provider;
@@ -38,5 +39,32 @@ impl Provider {
             .unwrap()
             .to_string_lossy()
             .to_string()
+    }
+
+    /**
+     * For cases such as unlink, that gives an inode and a name
+     * returns a result of (inode, FileType, name)
+     */
+    pub fn file_from_parent_ino_and_name(
+        &self,
+        parent_ino: u64,
+        name: &OsStr,
+    ) -> io::Result<(u64, fuser::FileType, String)> {
+        match self.fs_readdir(parent_ino) {
+            Ok(list) => {
+                if let Some(file) = list.into_iter().find(|(_, e_type, e_name)| {
+                    *e_name == name.to_string_lossy().to_string()
+                        && *e_type == FileType::RegularFile
+                }) {
+                    Ok(file)
+                } else {
+                    Err(io::Error::new(
+                        io::ErrorKind::NotFound,
+                        "Cannot find a matching file",
+                    ))
+                }
+            }
+            Err(e) => Err(e),
+        }
     }
 }

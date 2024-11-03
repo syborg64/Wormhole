@@ -25,7 +25,7 @@ impl Provider {
                 };
 
                 // generation of the wormhole path
-                let virt_path = self.virt_path_from_mirror_path(new_path);
+                let virt_path = self.virt_path_from_mirror_path(&new_path);
 
                 // add entry to the index
                 self.index
@@ -67,7 +67,6 @@ impl Provider {
                 // generation of the wormhole path
                 let virt_path = self.virt_path_from_mirror_path(&new_path);
 
-
                 // adding path to the wormhole index
                 self.index
                     .insert(self.next_inode, (FileType::Directory, virt_path.clone()));
@@ -95,32 +94,15 @@ impl Provider {
         }
     }
 
-    pub fn rmfile(&mut self, parent_ino: u64, name: &OsStr) -> Option<()> {
-        // should only be called on files and not folders
-        // if 404 or Folder -> None
-        println!("Removing file");
-        if let Some(list) = self.fs_readdir(parent_ino) {
-            // finds a files that matches (if any)
-            if let Some(file) = list.iter().find(|(_, e_type, e_name)| {
-                *e_name == name.to_string_lossy().to_string() && *e_type == FileType::RegularFile
-            }) {
-                if let Some(file_path) = self.mirror_path_from_inode(file.0) {
-                    if let Ok(_) = fs::remove_file(file_path) {
-                        self.tx.send(NetworkMessage::Remove(file.0)).unwrap();
-                        self.index.remove(&file.0);
-                        Some(())
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        } else {
-            None
-        }
+    pub fn rmfile(&mut self, parent_ino: u64, name: &OsStr) -> io::Result<()> {
+        let file = self.file_from_parent_ino_and_name(parent_ino, name)?;
+
+        self.mirror_path_from_inode(file.0)
+            .and_then(|file_path| fs::remove_file(file_path))
+            .map(|_| {
+                self.tx.send(NetworkMessage::Remove(file.0)).unwrap();
+                self.index.remove(&file.0);
+            })
     }
 
     pub fn rmdir(&mut self, parent_ino: u64, name: &OsStr) -> Option<()> {
