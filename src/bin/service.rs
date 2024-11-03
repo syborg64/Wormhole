@@ -54,8 +54,8 @@ async fn main() {
     println!("\nstarting");
 
     let (nfa_tx, nfa_rx) = mpsc::unbounded_channel();
-    let (user_tx, user_rx) = mpsc::unbounded_channel();
-    let (_session, provider) = mount_fuse(&source, &mount, user_tx.clone());
+    let (local_fuse_tx, local_fuse_rx) = mpsc::unbounded_channel();
+    let (_session, provider) = mount_fuse(&source, &mount, local_fuse_tx.clone());
 
     let local_cli_handle = tokio::spawn(local_cli_watchdog());
     let nfa_handle = tokio::spawn(network_file_actions(nfa_rx, provider));
@@ -77,7 +77,7 @@ async fn main() {
         peers.clone(),
     ));
 
-    let peers_broadcast_handle = tokio::spawn(all_peers_broadcast(peers.clone(), user_rx));
+    let peers_broadcast_handle = tokio::spawn(all_peers_broadcast(peers.clone(), local_fuse_rx));
     // let remote_reception = tokio::spawn(all_peers_reception(connected_peers, nfa_tx));
 
     println!("started");

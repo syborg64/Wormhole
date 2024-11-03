@@ -10,14 +10,10 @@ use crate::network::message::NetworkMessage;
 // receive a message on user_rx and broadcast it to all peers
 pub async fn all_peers_broadcast(
     peers_list: Arc<Mutex<Vec<PeerIPC>>>,
-    mut user_rx: UnboundedReceiver<NetworkMessage>,
+    mut rx: UnboundedReceiver<NetworkMessage>,
 ) {
-    // peer_tx
-    //     .iter()
-    //     .for_each(|p| println!("START | is_closed ? {} {}", p.1, p.0.is_closed()));
-
     // on message reception, broadcast it to all peers senders
-    while let Some(message) = user_rx.recv().await {
+    while let Some(message) = rx.recv().await {
         //generating peers senders
         // REVIEW - should avoid locking peers in future versions, as it more or less locks the entire program
         let peer_tx: Vec<(UnboundedSender<NetworkMessage>, String)> = peers_list

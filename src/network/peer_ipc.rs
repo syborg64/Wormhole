@@ -51,28 +51,28 @@ impl PeerIPC {
         write: SplitSink<WebSocketStream<TcpStream>, Message>,
         read: SplitStream<WebSocketStream<TcpStream>>,
     ) -> Self {
-        let (outbound_send, outbound_recv) = mpsc::unbounded_channel();
+        let (peer_send, peer_recv) = mpsc::unbounded_channel();
 
         Self {
             thread: tokio::spawn(Self::work_from_incomming(
                 write,
                 read,
                 on_recept,
-                outbound_recv,
+                peer_recv,
             )),
             address,
-            sender: outbound_send,
+            sender: peer_send,
         }
     }
 
     pub async fn connect(
         address: String,
-        on_recept: UnboundedSender<NetworkMessage>,
+        nfa_tx: UnboundedSender<NetworkMessage>,
     ) -> Option<Self> {
-        let (outbound_send, outbound_recv) = mpsc::unbounded_channel();
+        let (peer_send, peer_recv) = mpsc::unbounded_channel();
 
         let thread = match tokio_tungstenite::connect_async(&address).await {
-            Ok((stream, _)) => tokio::spawn(Self::work(stream, on_recept, outbound_recv)),
+            Ok((stream, _)) => tokio::spawn(Self::work(stream, nfa_tx, peer_recv)),
             Err(e) => {
                 println!("failed to connect to {}. Error: {}", address, e);
                 return None;
@@ -81,7 +81,7 @@ impl PeerIPC {
         Some(Self {
             thread,
             address,
-            sender: outbound_send,
+            sender: peer_send,
             // receiver: inbound_recv,
         })
     }
