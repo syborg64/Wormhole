@@ -23,16 +23,18 @@ use std::{
     sync::{Arc, Mutex, RwLock},
 };
 
-use futures_util::{future::join_all, StreamExt};
-use tokio::{
-    io::AsyncReadExt,
-    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
-};
+use tokio::sync::mpsc::{self};
 
-use wormhole::{config, providers::Provider};
+use wormhole::{
+    config,
+    network::{
+        peers_operations::{all_peers_broadcast, peer_startup},
+        watchdogs::{incoming_connections_watchdog, local_cli_watchdog, network_file_actions},
+    },
+};
 use wormhole::{fuse::fuse_impl::mount_fuse, network::peer_ipc::PeerIPC};
 
-use wormhole::network::{message::NetworkMessage, server::Server};
+use wormhole::network::server::Server;
 
 struct Pod {
     network: config::Network,
@@ -73,114 +75,6 @@ struct State {
 //     Ok(())
 // }
 
-async fn local_cli_watchdog() {
-    let mut stdin = tokio::io::stdin();
-    let mut buf = vec![0; 1024];
-
-    loop {
-        let read = stdin.read(&mut buf).await;
-
-        // NOTE -  on ctrl-D -> quit
-        match read {
-            Err(_) | Ok(0) => {
-                println!("Quiting!");
-                break;
-            }
-            _ => (),
-        };
-    }
-}
-
-/**DOC
- * reads a message (supposely emitted by a peer) related to files actions
- * and execute instructions on the disk
- *
- * params:
- *  @nfa_rx: reception for file related messages
- *  @provider: fuse instance
-*/
-async fn network_file_actions(
-    mut nfa_rx: UnboundedReceiver<NetworkMessage>,
-    provider: Arc<Mutex<Provider>>,
-) {
-    loop {
-        match nfa_rx.recv().await {
-            Some(NetworkMessage::Binary(bin)) => {
-                println!("peer: {:?}", String::from_utf8(bin).unwrap_or_default());
-            }
-            Some(NetworkMessage::NewFolder(folder)) => {
-                println!("peer: NEW FOLDER");
-                let mut provider = provider.lock().expect("failed to lock mutex");
-                provider.new_folder(folder.ino, folder.path);
-            }
-            Some(NetworkMessage::File(file)) => {
-                println!("peer: NEW FILE");
-                let mut provider = provider.lock().expect("failed to lock mutex");
-                provider.new_file(file.ino, file.path);
-            }
-            Some(NetworkMessage::Remove(ino)) => {
-                println!("peer: REMOVE");
-                let mut provider = provider.lock().expect("failed to lock mutex");
-                provider.recpt_remove(ino);
-            }
-            Some(NetworkMessage::Write(ino, data)) => {
-                println!("peer: WRITE");
-                let mut provider = provider.lock().expect("failed to lock mutex");
-                provider.recpt_write(ino, data);
-            }
-            Some(NetworkMessage::Meta(_)) => {
-                println!("peer: META");
-            }
-            Some(NetworkMessage::RequestFile(_)) => {
-                println!("peer: REQUEST FILE");
-            }
-            None => {
-                () //REVIEW - Is it ok to loop every time ? the recv should wait or throw None every time ?
-            }
-        };
-    }
-}
-
-async fn incoming_connections_watchdog(
-    server: Server,
-    nfa_tx: UnboundedSender<NetworkMessage>,
-    existing_peers: Arc<Mutex<Vec<PeerIPC>>>,
-) {
-    while let Ok((stream, _)) = server.listener.accept().await {
-        println!("connecting new client");
-        let ws_stream = tokio_tungstenite::accept_async(stream)
-            .await
-            .expect("Error during the websocket handshake occurred");
-        let addr = ws_stream.get_ref().peer_addr().unwrap().to_string();
-        let (write, read) = ws_stream.split();
-        let new_peer = PeerIPC::connect_from_incomming(addr, nfa_tx.clone(), write, read);
-        {
-            existing_peers.lock().unwrap().push(new_peer);
-        }
-        println!("new client connected");
-        // tokio::join!(
-        //     forward_read_to_sender(read, nfa_tx.clone()),
-        //     forward_receiver_to_write(write, &mut user_rx)
-        // );
-    }
-}
-
-// start connexions to peers
-async fn peer_startup(
-    peers_ip_list: Vec<String>,
-    nfa_tx: UnboundedSender<NetworkMessage>,
-) -> Vec<PeerIPC> {
-    join_all(
-        peers_ip_list
-            .into_iter()
-            .map(|ip| PeerIPC::connect(ip, nfa_tx.clone())), // .filter(|peer| !peer.thread.is_finished())
-    )
-    .await
-    .into_iter()
-    .flatten()
-    .collect()
-}
-
 // wait for message from peers and inform the file manager via nfa_tx
 // async fn all_peers_reception(peers_list: Vec<PeerIPC>, nfa_tx: UnboundedSender<NetworkMessage>) {
 //     let receptors: Vec<ReceiverStream<NetworkMessage>> = peers_list
@@ -215,36 +109,6 @@ async fn peer_startup(
 //         .map(|peer| tokio::spawn(peer.receiver.recv()))
 //         .collect();
 // }
-
-// receive a message on user_rx and broadcast it to all peers
-async fn all_peers_broadcast(
-    peers_list: Arc<Mutex<Vec<PeerIPC>>>,
-    mut user_rx: UnboundedReceiver<NetworkMessage>,
-) {
-    // peer_tx
-    //     .iter()
-    //     .for_each(|p| println!("START | is_closed ? {} {}", p.1, p.0.is_closed()));
-
-    // on message reception, broadcast it to all peers senders
-    while let Some(message) = user_rx.recv().await {
-        //generating peers senders
-        // REVIEW - should avoid locking peers in future versions, as it more or less locks the entire program
-        let peer_tx: Vec<(UnboundedSender<NetworkMessage>, String)> = peers_list
-            .lock()
-            .unwrap()
-            .iter()
-            .map(|peer| (peer.sender.clone(), peer.address.clone()))
-            .collect();
-
-        println!("broadcasting message to peers:\n{:?}", message);
-        peer_tx.iter().for_each(|peer| {
-            println!("peer: {}", peer.1);
-            peer.0
-                .send(message.clone())
-                .expect(&format!("failed to send message to peer {}", peer.1))
-        });
-    }
-}
 
 // async fn remote_watchdog(
 //     own_addr: String,
