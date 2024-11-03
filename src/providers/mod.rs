@@ -1,13 +1,12 @@
 use fuser::{FileAttr, FileType};
-use std::{collections::HashMap, io, ops::Add, path::Path, time::UNIX_EPOCH};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use std::{collections::HashMap, time::UNIX_EPOCH};
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::network::message::NetworkMessage;
 
-pub mod readers;
-pub mod errors;
-pub mod writers;
 mod helpers;
+pub mod readers;
+pub mod writers;
 
 // (inode_number, (Type, Original path))
 pub type FsIndex = HashMap<u64, (fuser::FileType, String)>;
@@ -42,6 +41,4 @@ const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
     blksize: 512,
 };
 
-impl Provider {
-    
-}
+impl Provider {}
