@@ -4,9 +4,12 @@ use fuser::{
 };
 use libc::{ENOENT, ENOSYS};
 use log::debug;
+use openat::{AsPath, Dir};
 use std::collections::HashMap;
-use std::ffi::OsStr;
-use std::path::PathBuf;
+use std::ffi::{OsStr, OsString};
+use std::fs::{self, File};
+use std::io;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, UNIX_EPOCH};
 use tokio::sync::mpsc::UnboundedSender;
@@ -64,8 +67,23 @@ pub struct FuseController {
 // Custom data (not directly linked to fuse)
 // create some data for us like the index or data provider
 impl FuseController {
+
+    fn index_folder2(path: PathBuf) -> io::Result<FsIndex> {
+        let metal_mount_handle = Dir::open(&path)?;
+        println!("new version on path {:?}", path);
+        // let test_file = metal_mount_handle.open_file(path)
+        let mut arbo: FsIndex = HashMap::new();
+        for entry in metal_mount_handle.list_self()? {
+            let strpath = entry?.file_name().to_path().unwrap();
+            println!("found path {:?}", strpath);
+        }
+        Ok(arbo)
+    }
     // we create an index of the original folder
     fn index_folder(source: &String) -> FsIndex {
+        println!("calling new version");
+        let pouet = Self::index_folder2(PathBuf::from(&source));
+        println!("end with\n{:?}\n_______", pouet);
         let mut arbo: FsIndex = HashMap::new();
         let mut inode: u64 = 2;
 
@@ -80,6 +98,7 @@ impl FuseController {
             } else {
                 fuser::FileType::CharDevice // random to detect unsupported
             };
+
             if strpath != *source && path_type != fuser::FileType::CharDevice {
                 let relative_path = PathBuf::from(&strpath)
                     .strip_prefix(source)
@@ -273,6 +292,7 @@ pub fn mount_fuse(
 ) -> (BackgroundSession, Arc<Mutex<Provider>>) {
     let options = vec![MountOption::RW, MountOption::FSName("wormhole".to_string())];
     let index = FuseController::index_folder(source);
+    println!("FUSE MOUNT, actual file index:\n{:#?}", index);
     let provider = Arc::new(Mutex::new(Provider {
         next_inode: (index.len() + 2) as u64,
         index,
