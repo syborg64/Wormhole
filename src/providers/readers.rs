@@ -7,12 +7,9 @@ use fuser::FileAttr;
 use log::debug;
 use log::info;
 use std::ffi::OsStr;
-use std::fs;
-use std::fs::Metadata;
 use std::io;
-use std::os::unix::fs::MetadataExt;
+use std::io::Read;
 use std::path::Path;
-use std::path::PathBuf;
 
 use super::Provider;
 use super::TEMPLATE_FILE_ATTR;
@@ -27,7 +24,10 @@ impl Provider {
         match self.mirror_path_from_inode(ino) {
             Ok(path) => {
                 info!("mirror path from inode is {:?}", path);
-                fs::read(Path::new(&path))
+                let mut file = self.metal_handle.open_file(&path)?;
+                let mut buf: Vec<u8> = vec![];
+                file.read_to_end(&mut buf)?;
+                Ok(buf)
             }
             Err(e) => Err(e),
         }
@@ -44,29 +44,38 @@ impl Provider {
                     .index
                     .iter()
                     .filter_map(|e| {
-                        let tested_path = &e.1 .1;
-                        println!("...Tested path {}", tested_path.display());
-                        let tested_parent_path = tested_path.parent().unwrap_or(Path::new("/"));
-                        println!("...Parent path {}", tested_parent_path.display());
-                        if tested_parent_path == parent_path {
-                            Some(e.0.clone())
+                        let e_path = &e.1 .1;
+                        let e_parent = e_path.parent()?;
+
+                        if e_path == parent_path {
+                            println!("!!!! e_path is parent path so skip");
+                            None
                         } else {
                             println!(
-                                "bahahahahahah none on path ({}) & parent ({})",
-                                tested_path.display(),
-                                tested_parent_path.display()
+                                "!!!! comp for {}, parent is {} and wanted parent is {}",
+                                e_path.display(),
+                                e_parent.display(),
+                                parent_path.display()
                             );
-                            None
+                            if e_parent == parent_path {
+                                println!(">yes");
+                                Some(*e.0)
+                            } else {
+                                println!(">no");
+                                None
+                            }
                         }
                     })
                     .collect();
-                debug!("LISTING RESULT {:?}", ino_list);
+                println!("LISTING RESULT {:?}", ino_list);
                 Ok(ino_list)
             }
-            None => Err(io::Error::new(
+            None => {
+                println!("ERROR IN RESULT");
+                Err(io::Error::new(
                 io::ErrorKind::NotFound,
                 "Parent inode not found",
-            )),
+            ))}
         }
     }
 
@@ -101,7 +110,7 @@ impl Provider {
     }
 
     // use real fs metadata and traduct part of it to the fuse FileAttr metadata
-    fn modify_metadata_template(data: Metadata, ino: u64) -> FileAttr {
+    fn modify_metadata_template(data: openat::Metadata, ino: u64) -> FileAttr {
         let mut attr = TEMPLATE_FILE_ATTR;
         attr.ino = ino;
         attr.kind = if data.is_dir() {
@@ -111,7 +120,7 @@ impl Provider {
         } else {
             fuser::FileType::CharDevice // random to detect unsupported
         };
-        attr.size = data.size();
+        attr.size = data.len();
         attr
     }
 
@@ -120,13 +129,16 @@ impl Provider {
         println!("get_metadata called on ino {}", ino); // DEBUG
         match self.mirror_path_from_inode(ino) {
             Ok(path) => {
-                debug!("GET METADATA FOR PATH MIRROR {:?}", path);
-                match fs::metadata(path) {
+                println!("....GET METADATA FOR PATH MIRROR {:?}", path);
+                match self.metal_handle.metadata(&path) {
                     Ok(data) => Ok(Self::modify_metadata_template(data, ino)),
                     Err(e) => Err(e),
                 }
             }
-            Err(e) => Err(e),
+            Err(e) => {
+                println!("....mirror path from inode FAILED");
+                Err(e)
+            },
         }
     }
 
@@ -141,6 +153,7 @@ impl Provider {
                 let mut metadata: io::Result<FileAttr> =
                     Err(io::Error::new(io::ErrorKind::NotFound, "Path not found"));
                 for data in datas {
+                    println!("looping on {:?}", data);
                     if data.2 == file_name {
                         metadata = self.get_metadata(data.0);
                     };
