@@ -110,48 +110,13 @@ fn index_folder_recursive(
     Ok(())
 }
 impl FuseController {
-    fn index_folder2(path: PathBuf) -> io::Result<FsIndex> {
-        let metal_mount_handle = Dir::open(&path)?;
+    fn index_folder(path: &Path) -> io::Result<FsIndex> {
+        let metal_mount_handle = Dir::open(path)?;
         let mut arbo: FsIndex = HashMap::new();
         let mut inode: u64 = 2;
 
-        index_folder_recursive(&mut arbo, &mut inode, &metal_mount_handle, ".".into());
+        index_folder_recursive(&mut arbo, &mut inode, &metal_mount_handle, ".".into())?;
         Ok(arbo)
-    }
-    // we create an index of the original folder
-    fn index_folder(source: &Path) -> FsIndex {
-        println!("calling new version");
-        let pouet = Self::index_folder2(PathBuf::from(&source));
-        println!("end with\n{:?}\n_______", pouet);
-        let mut arbo: FsIndex = HashMap::new();
-        let mut inode: u64 = 2;
-
-        arbo.insert(1, (fuser::FileType::Directory, "".into()));
-
-        for entry in WalkDir::new(source).into_iter().filter_map(|e| e.ok()) {
-            let strpath = entry.path();
-            let path_type = if entry.file_type().is_dir() {
-                fuser::FileType::Directory
-            } else if entry.file_type().is_file() {
-                fuser::FileType::RegularFile
-            } else {
-                fuser::FileType::CharDevice // random to detect unsupported
-            };
-
-            if *strpath != *source && path_type != fuser::FileType::CharDevice {
-                let relative_path = PathBuf::from(&strpath)
-                    .strip_prefix(source)
-                    .unwrap()
-                    .to_string_lossy()
-                    .to_string();
-                debug!("indexing {:?} to {}", strpath, relative_path);
-                arbo.insert(inode, (path_type, relative_path.into()));
-                inode += 1;
-            } else {
-                debug!("ignoring {:?}", strpath);
-            }
-        }
-        arbo
     }
 }
 
@@ -330,7 +295,10 @@ pub fn mount_fuse(
     tx: UnboundedSender<NetworkMessage>,
 ) -> (BackgroundSession, Arc<Mutex<Provider>>) {
     let options = vec![MountOption::RW, MountOption::FSName("wormhole".to_string())];
-    let index = FuseController::index_folder(source);
+    let index = match FuseController::index_folder(source) {
+        Ok(idx) => idx,
+        Err(_) => todo!(),
+    };
     println!("FUSE MOUNT, actual file index:\n{:#?}", index);
     let provider = Arc::new(Mutex::new(Provider {
         next_inode: (index.len() + 2) as u64,
