@@ -87,15 +87,25 @@ fn index_folder_recursive(
             let name = entry.file_name();
             let stype = entry.simple_type().unwrap();
 
+            // let mut generated_path = path.clone();
+            let generated_path = path
+                .strip_prefix(".")
+                .unwrap_or(&path)
+                .to_path_buf()
+                .join(name);
+
             arbo.insert(
                 *inode,
-                (simple_type_to_fuse_type(stype), path.clone().join(name)),
+                (
+                    simple_type_to_fuse_type(stype),
+                    PathBuf::from("/").join(&generated_path),
+                ),
             );
             println!("added entry to arbo {}:{:?}", inode, arbo.get(inode));
             *inode += 1;
 
             if stype == SimpleType::Dir {
-                index_folder_recursive(arbo, inode, root_fd, path.clone().join(name))?;
+                index_folder_recursive(arbo, inode, root_fd, generated_path)?;
             }
             Ok(())
         })
@@ -109,6 +119,7 @@ fn index_folder_recursive(
     );
     Ok(())
 }
+
 impl FuseController {
     fn index_folder(path: &Path) -> io::Result<FsIndex> {
         let metal_mount_handle = Dir::open(path)?;
@@ -174,11 +185,12 @@ impl Filesystem for FuseController {
         offset: i64,
         mut reply: ReplyDirectory,
     ) {
-        debug!("readdir is called for ino {}", ino);
+        println!("readdir is called for ino {}", ino);
         let provider = self.provider.lock().unwrap();
         if let Ok(entries) = provider.fs_readdir(ino) {
+            println!("....listing entries {:?}", entries);
             for (i, entry) in entries.into_iter().enumerate().skip(offset as usize) {
-                debug!("readdir entries : {:?}", entry);
+                println!("....readdir entries : {:?}", entry);
                 // i + 1 means the index of the next entry
                 if reply.add(entry.0, (i + 1) as i64, entry.1, entry.2) {
                     break;
@@ -186,7 +198,7 @@ impl Filesystem for FuseController {
             }
             reply.ok()
         } else {
-            debug!("readdir EONENT ");
+            println!("/!\\ readdir EONENT ");
             reply.error(ENOENT)
         }
     }

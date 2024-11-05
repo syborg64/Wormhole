@@ -62,7 +62,7 @@ async fn main() {
 
     let (nfa_tx, nfa_rx) = mpsc::unbounded_channel();
     let (local_fuse_tx, local_fuse_rx) = mpsc::unbounded_channel();
-    let (_session, provider) = mount_fuse(&source, &mount, local_fuse_tx.clone());
+    let (_session, provider) = mount_fuse(&source, &source, local_fuse_tx.clone());
 
     let local_cli_handle = tokio::spawn(local_cli_watchdog());
     let nfa_handle = tokio::spawn(network_file_actions(nfa_rx, provider));
