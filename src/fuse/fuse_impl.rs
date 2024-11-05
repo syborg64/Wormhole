@@ -12,7 +12,6 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, UNIX_EPOCH};
 use tokio::sync::mpsc::UnboundedSender;
-use walkdir::WalkDir;
 
 use crate::network::message::NetworkMessage;
 use crate::providers::{FsIndex, Provider};
@@ -88,17 +87,13 @@ fn index_folder_recursive(
             let stype = entry.simple_type().unwrap();
 
             // let mut generated_path = path.clone();
-            let generated_path = path
-                .strip_prefix(".")
-                .unwrap_or(&path)
-                .to_path_buf()
-                .join(name);
+            let generated_path = path.join(name);
 
             arbo.insert(
                 *inode,
                 (
                     simple_type_to_fuse_type(stype),
-                    PathBuf::from("/").join(&generated_path),
+                    generated_path.clone(),
                 ),
             );
             println!("added entry to arbo {}:{:?}", inode, arbo.get(inode));
@@ -121,15 +116,15 @@ fn index_folder_recursive(
 }
 
 impl FuseController {
-    fn index_folder(path: &Path) -> io::Result<FsIndex> {
+    fn index_folder(path: &Path) -> io::Result<(openat::Dir, FsIndex)> {
         let metal_mount_handle = Dir::open(path)?;
         let mut arbo: FsIndex = HashMap::new();
         let mut inode: u64 = 2;
 
-        arbo.insert(1, (FileType::Directory, "/".into()));
+        arbo.insert(1, (FileType::Directory, "./".into()));
 
         index_folder_recursive(&mut arbo, &mut inode, &metal_mount_handle, ".".into())?;
-        Ok(arbo)
+        Ok((metal_mount_handle, arbo))
     }
 }
 
@@ -309,14 +304,15 @@ pub fn mount_fuse(
     tx: UnboundedSender<NetworkMessage>,
 ) -> (BackgroundSession, Arc<Mutex<Provider>>) {
     let options = vec![MountOption::RW, MountOption::FSName("wormhole".to_string())];
-    let index = match FuseController::index_folder(source) {
-        Ok(idx) => idx,
+    let (handle, index) = match FuseController::index_folder(source) {
+        Ok((handle, idx)) => (handle, idx),
         Err(_) => todo!(),
     };
     println!("FUSE MOUNT, actual file index:\n{:#?}", index);
     let provider = Arc::new(Mutex::new(Provider {
         next_inode: (index.len() + 2) as u64,
         index,
+        metal_handle: handle,
         local_source: source.to_path_buf(),
         tx,
     }));

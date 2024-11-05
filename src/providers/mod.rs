@@ -1,5 +1,5 @@
-use clap::builder::OsStr;
 use fuser::{FileAttr, FileType};
+use openat::Dir;
 use std::{collections::HashMap, path::PathBuf, time::UNIX_EPOCH};
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -20,6 +20,7 @@ pub struct Provider {
     pub next_inode: u64,
     pub index: FsIndex,
     pub local_source: PathBuf,
+    pub metal_handle: Dir,
     pub tx: UnboundedSender<NetworkMessage>,
 }
 
