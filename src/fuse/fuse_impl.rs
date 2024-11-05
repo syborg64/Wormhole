@@ -4,10 +4,9 @@ use fuser::{
 };
 use libc::{ENOENT, ENOSYS};
 use log::debug;
-use openat::{AsPath, Dir, Entry, SimpleType};
+use openat::{Dir, SimpleType};
 use std::collections::HashMap;
-use std::ffi::{OsStr, OsString};
-use std::fs::{self, File};
+use std::ffi::OsStr;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -80,25 +79,34 @@ fn index_folder_recursive(
     root_fd: &Dir,
     path: PathBuf,
 ) -> io::Result<()> {
-    let errors_nb = root_fd.list_dir(&path)?.map(|entry| -> io::Result<()> {
-        let entry = entry?;
+    let errors_nb = root_fd
+        .list_dir(&path)?
+        .map(|entry| -> io::Result<()> {
+            let entry = entry?;
 
-        let name = entry.file_name();
-        let stype = entry.simple_type().unwrap();
+            let name = entry.file_name();
+            let stype = entry.simple_type().unwrap();
 
-        arbo.insert(
-            *inode,
-            (simple_type_to_fuse_type(stype), path.clone().join(name)),
-        );
-        println!("added entry to arbo {}:{:?}", inode, arbo.get(inode));
-        *inode += 1;
+            arbo.insert(
+                *inode,
+                (simple_type_to_fuse_type(stype), path.clone().join(name)),
+            );
+            println!("added entry to arbo {}:{:?}", inode, arbo.get(inode));
+            *inode += 1;
 
-        if stype == SimpleType::Dir {
-            index_folder_recursive(arbo, inode, root_fd, path.clone().join(name))?;
-        }
-        Ok(())
-    }).filter(|e| e.is_err()).collect::<Vec<Result<(), io::Error>>>().len();
-    println!("indexing: {} error(s) in folder {}", errors_nb, path.display());
+            if stype == SimpleType::Dir {
+                index_folder_recursive(arbo, inode, root_fd, path.clone().join(name))?;
+            }
+            Ok(())
+        })
+        .filter(|e| e.is_err())
+        .collect::<Vec<Result<(), io::Error>>>()
+        .len();
+    println!(
+        "indexing: {} error(s) in folder {}",
+        errors_nb,
+        path.display()
+    );
     Ok(())
 }
 impl FuseController {

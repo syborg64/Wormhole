@@ -2,10 +2,10 @@
 // In code we trust
 // AgarthaSoftware - 2024
 
-use std::error::Error;
-use std::fs;
 use crate::commands;
 use crate::config::types::Config;
+use std::error::Error;
+use std::fs;
 
 #[derive(PartialEq)]
 pub enum Mode {

@@ -54,21 +54,13 @@ impl PeerIPC {
         let (peer_send, peer_recv) = mpsc::unbounded_channel();
 
         Self {
-            thread: tokio::spawn(Self::work_from_incomming(
-                write,
-                read,
-                on_recept,
-                peer_recv,
-            )),
+            thread: tokio::spawn(Self::work_from_incomming(write, read, on_recept, peer_recv)),
             address,
             sender: peer_send,
         }
     }
 
-    pub async fn connect(
-        address: String,
-        nfa_tx: UnboundedSender<NetworkMessage>,
-    ) -> Option<Self> {
+    pub async fn connect(address: String, nfa_tx: UnboundedSender<NetworkMessage>) -> Option<Self> {
         let (peer_send, peer_recv) = mpsc::unbounded_channel();
 
         let thread = match tokio_tungstenite::connect_async(&address).await {
