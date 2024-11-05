@@ -149,21 +149,23 @@ impl Provider {
 
     pub fn new_file(&mut self, ino: u64, path: PathBuf) {
         println!("Provider make new file at ORIGINAL PATH: {:?}", path);
-        let real_path = PathBuf::from(self.local_source.clone()).join(&path);
-        println!("Provider make new file at: {:?}", real_path);
+        // let real_path = PathBuf::from(self.local_source.clone()).join(&path);
+        // println!("Provider make new file at: {:?}", real_path);
         self.metal_handle
-            .new_file(&real_path, S_IWRITE | S_IREAD)
+            .new_file(&path, S_IWRITE | S_IREAD)
             .expect("unable to create file");
         self.index.insert(ino, (FileType::RegularFile, path));
+        self.next_inode = ino + 1;
+        println!("created created created");
     }
 
     pub fn recpt_remove(&mut self, ino: u64) {
         let (file_type, path) = self.index.get(&ino).unwrap();
-        let real_path = PathBuf::from(self.local_source.clone()).join(&path);
-        println!("Provider remove object at: {:?}", real_path);
+        // let real_path = PathBuf::from(self.local_source.clone()).join(&path);
+        println!("Provider remove object at: {:?}", path);
         match file_type {
             FileType::Directory => todo!(),
-            FileType::RegularFile => self.metal_handle.remove_file(&real_path).unwrap(),
+            FileType::RegularFile => self.metal_handle.remove_file(path).unwrap(),
             _ => todo!(),
         }
         self.index.remove(&ino);
@@ -171,11 +173,11 @@ impl Provider {
 
     pub fn recpt_write(&mut self, ino: u64, content: Vec<u8>) {
         let (_, path) = self.index.get(&ino).unwrap();
-        let real_path = PathBuf::from(self.local_source.clone()).join(&path);
-        println!("Provider write to file at: {:?}", real_path);
+        // let real_path = PathBuf::from(self.local_source.clone()).join(&path);
+        println!("Provider write to file at: {:?}", path);
         let mut file = self
             .metal_handle
-            .write_file(&real_path, S_IWRITE | S_IREAD)
+            .write_file(path, S_IWRITE | S_IREAD)
             .expect("can't write file");
         file.write_all(&content).unwrap();
     }
