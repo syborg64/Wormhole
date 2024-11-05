@@ -115,6 +115,8 @@ impl FuseController {
         let mut arbo: FsIndex = HashMap::new();
         let mut inode: u64 = 2;
 
+        arbo.insert(1, (FileType::Directory, "/".into()));
+
         index_folder_recursive(&mut arbo, &mut inode, &metal_mount_handle, ".".into())?;
         Ok(arbo)
     }
