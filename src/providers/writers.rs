@@ -23,8 +23,10 @@ impl Provider {
         let virt_path = self.virt_path_from_mirror_path(&new_path);
 
         // add entry to the index
-        self.index
-            .insert(self.next_inode, (FileType::RegularFile, virt_path.clone()));
+        self.index.insert(
+            self.next_inode,
+            (FileType::RegularFile, virt_path.clone().into()),
+        );
         self.tx
             .send(NetworkMessage::File(message::File {
                 path: virt_path.into(),
@@ -55,8 +57,10 @@ impl Provider {
         let virt_path = self.virt_path_from_mirror_path(&new_path);
 
         // adding path to the wormhole index
-        self.index
-            .insert(self.next_inode, (FileType::Directory, virt_path.clone()));
+        self.index.insert(
+            self.next_inode,
+            (FileType::Directory, virt_path.clone().into()),
+        );
 
         // send update to network
         self.tx
@@ -135,10 +139,7 @@ impl Provider {
         let real_path = PathBuf::from(self.local_source.clone()).join(&path);
         println!("Provider make new folder at: {:?}", real_path);
         fs::create_dir(&real_path).unwrap();
-        self.index.insert(
-            ino,
-            (FileType::Directory, path.to_string_lossy().to_string()),
-        );
+        self.index.insert(ino, (FileType::Directory, path));
     }
 
     pub fn new_file(&mut self, ino: u64, path: PathBuf) {
@@ -146,10 +147,7 @@ impl Provider {
         let real_path = PathBuf::from(self.local_source.clone()).join(&path);
         println!("Provider make new file at: {:?}", real_path);
         fs::File::create(&real_path).unwrap();
-        self.index.insert(
-            ino,
-            (FileType::RegularFile, path.to_string_lossy().to_string()),
-        );
+        self.index.insert(ino, (FileType::RegularFile, path));
     }
 
     pub fn recpt_remove(&mut self, ino: u64) {

@@ -19,6 +19,7 @@
  */
 use std::{
     env,
+    path::PathBuf,
     sync::{Arc, Mutex},
 };
 
@@ -44,8 +45,14 @@ async fn main() {
     let other_addr2 = env::args()
         .nth(3)
         .unwrap_or("ws://127.0.0.3:8080".to_string());
-    let mount = env::args().nth(4).unwrap_or("./virtual/".to_string());
-    let source = env::args().nth(5).unwrap_or("./original/".to_string());
+    let mount: PathBuf = env::args()
+        .nth(4)
+        .unwrap_or("./virtual/".to_string())
+        .into();
+    let source: PathBuf = env::args()
+        .nth(5)
+        .unwrap_or("./original/".to_string())
+        .into();
 
     println!("own address: {}", own_addr);
     println!("peer1 address: {}", other_addr1);

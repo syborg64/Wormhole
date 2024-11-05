@@ -25,7 +25,7 @@ impl Provider {
     pub fn read(&self, ino: u64) -> io::Result<Vec<u8>> {
         match self.mirror_path_from_inode(ino) {
             Ok(path) => {
-                info!("mirror path from inode is {}", path);
+                info!("mirror path from inode is {:?}", path);
                 fs::read(Path::new(&path))
             }
             Err(e) => Err(e),
@@ -108,7 +108,7 @@ impl Provider {
     pub fn get_metadata(&self, ino: u64) -> io::Result<FileAttr> {
         match self.mirror_path_from_inode(ino) {
             Ok(path) => {
-                debug!("GET METADATA FOR PATH MIRROR {}", path);
+                debug!("GET METADATA FOR PATH MIRROR {:?}", path);
                 match fs::metadata(path) {
                     Ok(data) => Ok(Self::modify_metadata_template(data, ino)),
                     Err(e) => Err(e),
