@@ -1,5 +1,6 @@
 use fuser::{FileAttr, FileType};
-use std::{collections::HashMap, time::UNIX_EPOCH};
+use openat::Dir;
+use std::{collections::HashMap, path::PathBuf, time::UNIX_EPOCH};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::network::message::NetworkMessage;
@@ -9,7 +10,7 @@ pub mod readers;
 pub mod writers;
 
 // (inode_number, (Type, Original path))
-pub type FsIndex = HashMap<u64, (fuser::FileType, String)>;
+pub type FsIndex = HashMap<u64, (fuser::FileType, PathBuf)>;
 
 // will keep all the necessary info to provide real
 // data to the fuse lib
@@ -18,7 +19,8 @@ pub type FsIndex = HashMap<u64, (fuser::FileType, String)>;
 pub struct Provider {
     pub next_inode: u64,
     pub index: FsIndex,
-    pub local_source: String,
+    pub local_source: PathBuf,
+    pub metal_handle: Dir,
     pub tx: UnboundedSender<NetworkMessage>,
 }
 
