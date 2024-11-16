@@ -1,0 +1,25 @@
+name: Mirror Repository
+
+env:
+  MIRROR_URL: git@github.com:EpitechPromo2026/G-EIP-700-PAR-7-1-eip-axel.denis.git
+
+on:
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  push_to_mirror:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Mirror repository
+        uses: pixta-dev/repository-mirroring-action@v1
+        with:
+          target_repo_url: ${{ env.MIRROR_URL }}
+          ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+        env:
+          GITHUB_ACTION_TRACE: true
