@@ -2,16 +2,16 @@ use fuser::{
     BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData,
     ReplyDirectory, ReplyEntry, Request,
 };
-use futures_util::future::Fuse;
 use libc::{ENOENT, ENOSYS};
 use log::debug;
+use openat::{Dir, SimpleType};
 use std::collections::HashMap;
 use std::ffi::OsStr;
+use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, UNIX_EPOCH};
 use tokio::sync::mpsc::UnboundedSender;
-use walkdir::WalkDir;
 
 use crate::network::message::NetworkMessage;
 use crate::providers::{FsIndex, Provider};
@@ -64,47 +64,78 @@ pub struct FuseController {
 
 // Custom data (not directly linked to fuse)
 // create some data for us like the index or data provider
+
+fn simple_type_to_fuse_type(t: SimpleType) -> fuser::FileType {
+    match t {
+        SimpleType::Dir => fuser::FileType::Directory,
+        SimpleType::File => fuser::FileType::RegularFile,
+        _ => fuser::FileType::CharDevice, // NOTE - random because unsupported, should be handled
+    }
+}
+fn index_folder_recursive(
+    arbo: &mut FsIndex,
+    inode: &mut u64,
+    root_fd: &Dir,
+    path: PathBuf,
+) -> io::Result<()> {
+    let errors_nb = root_fd
+        .list_dir(&path)?
+        .map(|entry| -> io::Result<()> {
+            let entry = entry?;
+
+            let name = entry.file_name();
+            let stype = entry.simple_type().unwrap();
+
+            // let mut generated_path = path.clone();
+            let generated_path = path.join(name);
+
+            arbo.insert(
+                *inode,
+                (
+                    simple_type_to_fuse_type(stype),
+                    generated_path.clone(),
+                ),
+            );
+            println!("added entry to arbo {}:{:?}", inode, arbo.get(inode));
+            *inode += 1;
+
+            if stype == SimpleType::Dir {
+                index_folder_recursive(arbo, inode, root_fd, generated_path)?;
+            }
+            Ok(())
+        })
+        .filter(|e| e.is_err())
+        .collect::<Vec<Result<(), io::Error>>>()
+        .len();
+    println!(
+        "indexing: {} error(s) in folder {}",
+        errors_nb,
+        path.display()
+    );
+    Ok(())
+}
+
 impl FuseController {
-    // we create an index of the original folder
-    fn index_folder(source: &String) -> FsIndex {
+    fn index_folder(path: &Path) -> io::Result<(openat::Dir, FsIndex)> {
+        let metal_mount_handle = Dir::open(path)?;
         let mut arbo: FsIndex = HashMap::new();
         let mut inode: u64 = 2;
 
-        arbo.insert(1, (fuser::FileType::Directory, "".to_owned()));
+        arbo.insert(1, (FileType::Directory, "./".into()));
 
-        for entry in WalkDir::new(source).into_iter().filter_map(|e| e.ok()) {
-            let strpath = entry.path().display().to_string();
-            let path_type = if entry.file_type().is_dir() {
-                fuser::FileType::Directory
-            } else if entry.file_type().is_file() {
-                fuser::FileType::RegularFile
-            } else {
-                fuser::FileType::CharDevice // random to detect unsupported
-            };
-            if strpath != *source && path_type != fuser::FileType::CharDevice {
-                let relative_path = PathBuf::from(&strpath)
-                    .strip_prefix(source)
-                    .unwrap()
-                    .to_string_lossy()
-                    .to_string();
-                debug!("indexing {} to {}", strpath, relative_path);
-                arbo.insert(inode, (path_type, relative_path));
-                inode += 1;
-            } else {
-                debug!("ignoring {}", strpath);
-            }
-        }
-        arbo
+        index_folder_recursive(&mut arbo, &mut inode, &metal_mount_handle, ".".into())?;
+        Ok((metal_mount_handle, arbo))
     }
 }
 
+// REVIEW - should later invest in proper error handling
 impl Filesystem for FuseController {
     // READING
 
     fn lookup(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEntry) {
         debug!("lookup is called {} {:?}", parent, name);
         let provider = self.provider.lock().unwrap();
-        if let Some(file_attr) = provider.fs_lookup(parent, name) {
+        if let Ok(file_attr) = provider.fs_lookup(parent, name) {
             reply.entry(&TTL, &file_attr, 0)
         } else {
             reply.error(ENOENT)
@@ -134,7 +165,7 @@ impl Filesystem for FuseController {
     ) {
         debug!("read is called");
         let provider = self.provider.lock().unwrap();
-        if let Some(content) = provider.read(ino) {
+        if let Ok(content) = provider.read(ino) {
             reply.data(&content[offset as usize..])
         } else {
             reply.error(ENOENT);
@@ -149,11 +180,12 @@ impl Filesystem for FuseController {
         offset: i64,
         mut reply: ReplyDirectory,
     ) {
-        debug!("readdir is called for ino {}", ino);
+        println!("readdir is called for ino {}", ino);
         let provider = self.provider.lock().unwrap();
-        if let Some(entries) = provider.fs_readdir(ino) {
+        if let Ok(entries) = provider.fs_readdir(ino) {
+            println!("....listing entries {:?}", entries);
             for (i, entry) in entries.into_iter().enumerate().skip(offset as usize) {
-                debug!("readdir entries : {:?}", entry);
+                println!("....readdir entries : {:?}", entry);
                 // i + 1 means the index of the next entry
                 if reply.add(entry.0, (i + 1) as i64, entry.1, entry.2) {
                     break;
@@ -161,7 +193,7 @@ impl Filesystem for FuseController {
             }
             reply.ok()
         } else {
-            debug!("readdir EONENT ");
+            println!("/!\\ readdir EONENT ");
             reply.error(ENOENT)
         }
     }
@@ -181,7 +213,7 @@ impl Filesystem for FuseController {
         reply: ReplyEntry,
     ) {
         let mut provider = self.provider.lock().unwrap();
-        if let Some(attr) = provider.mkfile(parent, name) {
+        if let Ok(attr) = provider.mkfile(parent, name) {
             reply.entry(&TTL, &attr, 0)
         } else {
             reply.error(ENOSYS)
@@ -198,7 +230,7 @@ impl Filesystem for FuseController {
         reply: ReplyEntry,
     ) {
         let mut provider = self.provider.lock().unwrap();
-        if let Some(attr) = provider.mkdir(parent, name) {
+        if let Ok(attr) = provider.mkdir(parent, name) {
             reply.entry(&TTL, &attr, 0)
         } else {
             reply.error(ENOSYS)
@@ -207,7 +239,7 @@ impl Filesystem for FuseController {
 
     fn unlink(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: fuser::ReplyEmpty) {
         let mut provider = self.provider.lock().unwrap();
-        if let Some(()) = provider.rmfile(parent, name) {
+        if let Ok(()) = provider.rmfile(parent, name) {
             reply.ok()
         } else {
             reply.error(ENOENT)
@@ -256,7 +288,7 @@ impl Filesystem for FuseController {
         reply: fuser::ReplyWrite,
     ) {
         let provider = self.provider.lock().unwrap();
-        if let Some(written) = provider.write(ino, offset, data) {
+        if let Ok(written) = provider.write(ino, offset, data) {
             reply.written(written)
         } else {
             reply.error(ENOENT)
@@ -267,16 +299,21 @@ impl Filesystem for FuseController {
 }
 
 pub fn mount_fuse(
-    source: &String,
-    mountpoint: &String,
+    source: &Path,
+    mountpoint: &Path,
     tx: UnboundedSender<NetworkMessage>,
 ) -> (BackgroundSession, Arc<Mutex<Provider>>) {
     let options = vec![MountOption::RW, MountOption::FSName("wormhole".to_string())];
-    let index = FuseController::index_folder(source);
+    let (handle, index) = match FuseController::index_folder(source) {
+        Ok((handle, idx)) => (handle, idx),
+        Err(_) => todo!(),
+    };
+    println!("FUSE MOUNT, actual file index:\n{:#?}", index);
     let provider = Arc::new(Mutex::new(Provider {
         next_inode: (index.len() + 2) as u64,
         index,
-        local_source: source.clone(),
+        metal_handle: handle,
+        local_source: source.to_path_buf(),
         tx,
     }));
     let ctrl = FuseController {

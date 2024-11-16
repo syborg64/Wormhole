@@ -1,14 +1,16 @@
 use fuser::{FileAttr, FileType};
-use std::{collections::HashMap, ops::Add, path::Path, time::UNIX_EPOCH};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use openat::Dir;
+use std::{collections::HashMap, path::PathBuf, time::UNIX_EPOCH};
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::network::message::NetworkMessage;
 
+mod helpers;
 pub mod readers;
 pub mod writers;
 
 // (inode_number, (Type, Original path))
-pub type FsIndex = HashMap<u64, (fuser::FileType, String)>;
+pub type FsIndex = HashMap<u64, (fuser::FileType, PathBuf)>;
 
 // will keep all the necessary info to provide real
 // data to the fuse lib
@@ -17,7 +19,8 @@ pub type FsIndex = HashMap<u64, (fuser::FileType, String)>;
 pub struct Provider {
     pub next_inode: u64,
     pub index: FsIndex,
-    pub local_source: String,
+    pub local_source: PathBuf,
+    pub metal_handle: Dir,
     pub tx: UnboundedSender<NetworkMessage>,
 }
 
@@ -40,14 +43,4 @@ const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
     blksize: 512,
 };
 
-impl Provider {
-    // find the path of the real file in the original folder
-    fn mirror_path_from_inode(&self, ino: u64) -> Option<String> {
-        if let Some(data) = self.index.get(&ino) {
-            let data = self.local_source.clone().add(&data.1);
-            Some(data)
-        } else {
-            None
-        }
-    }
-}
+impl Provider {}

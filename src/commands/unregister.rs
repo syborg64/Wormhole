@@ -14,7 +14,6 @@ pub fn unregister(path: &std::path::PathBuf, name: &str) -> Result<(), Box<dyn E
     Ok(())
 }
 
-
 #[cfg(target_os = "linux")]
 #[must_use]
 pub fn unregister(name: &str) -> Result<(), Box<dyn Error>> {
