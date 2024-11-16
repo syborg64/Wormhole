@@ -1,5 +1,5 @@
-name-template: 'v$NEXT_MAJOR_VERSION'
-tag-template: 'v$NEXT_MAJOR_VERSION'
+name-template: 'v$NEXT_MINOR_VERSION'
+tag-template: 'v$NEXT_MINOR_VERSION'
 categories:
   - title: '🎯 Features'
     labels:
@@ -7,7 +7,7 @@ categories:
       - 'feat'
       - 'enhancement'
   - title: '📜 Documentation'
-    labels: 
+    labels:
       - 'documentation'
       - 'doc'
   - title: '🪲 Bug Fixes'

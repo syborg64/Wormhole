@@ -1,7 +1,12 @@
 name: Release Minor
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
   build:
@@ -26,6 +31,6 @@ jobs:
         id: create_release
         uses: release-drafter/release-drafter@v5
         with:
-          config-name: release-drafter-minor.yml
+          config-name: release-minor.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
