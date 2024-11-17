@@ -55,16 +55,17 @@ impl Provider {
      * For cases such as unlink, that gives an inode and a name
      * returns a result of (inode, FileType, name)
      */
-    pub fn file_from_parent_ino_and_name(
+    pub fn filesystem_from_parent_ino_and_name(
         &self,
         parent_ino: u64,
         name: &OsStr,
+        filetype: FileType,
     ) -> io::Result<(u64, fuser::FileType, String)> {
         match self.fs_readdir(parent_ino) {
             Ok(list) => {
                 if let Some(file) = list.into_iter().find(|(_, e_type, e_name)| {
                     *e_name == name.to_string_lossy().to_string()
-                        && *e_type == FileType::RegularFile
+                        && *e_type == filetype
                 }) {
                     Ok(file)
                 } else {

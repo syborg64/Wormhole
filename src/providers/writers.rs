@@ -81,8 +81,8 @@ impl Provider {
     }
 
     pub fn rmfile(&mut self, parent_ino: u64, name: &OsStr) -> io::Result<()> {
-        let file = self.file_from_parent_ino_and_name(parent_ino, name)?;
-
+        let file = self.filesystem_from_parent_ino_and_name(parent_ino, name, FileType::RegularFile)?;
+        println!("=============> DELETE THE FILE {:?}", name);
         self.mirror_path_from_inode(file.0)
             .and_then(|file_path| self.metal_handle.remove_file(&file_path))
             .map(|_| {
@@ -91,12 +91,44 @@ impl Provider {
             })
     }
 
-    pub fn rmdir(&mut self, parent_ino: u64, name: &OsStr) -> Option<()> {
-        let _ = name;
-        let _ = parent_ino;
-        // should only be called on empty folders
-        // if 404, not empty or file -> None
-        Some(())
+    fn rm_inside_dir(&mut self, parent_ino: u64, files_system: Vec<(u64, fuser::FileType, String)>) -> io::Result<()>{
+        files_system.into_iter().try_for_each(|file| {
+        println!("FILE: {:?}", file);
+        if file.1 == fuser::FileType::Directory {
+            println!("IS A DIRECTORY");
+            self.rmdir(parent_ino, OsStr::new(&file.2))
+        } else if file.1 == fuser::FileType::RegularFile {
+            println!("IS A FILE");
+            self.rmfile(parent_ino, &OsStr::new(&file.2))
+        } else {
+            println!("THERE IS AN ERROR THR FILE IS NOT A FOLDER OR A REGULAR FILE");
+            return Err(io::Error::new(io::ErrorKind::NotFound, "This is not a folder"));
+        }})
+    }
+
+    pub fn rmdir(&mut self, parent_ino: u64, name: &OsStr) -> io::Result<()> {
+        println!("================================> INTER IN RMDIR: {:?}", name);
+        let folder = self.filesystem_from_parent_ino_and_name(parent_ino, name, FileType::Directory)?;
+        println!("FOLDER: {:?}", folder);
+        match self.fs_readdir(folder.0) {
+            Ok(files_system) => {
+                println!("FILESSYSTEM: {:?}", files_system);
+                if files_system.len() > 0 {
+                    self.rm_inside_dir(folder.0, files_system)?;
+                }
+                println!("===========> DELETE AN EMPTY FOLDER {:?}", folder);
+                self.mirror_path_from_inode(folder.0)
+                .and_then(|file_path| self.metal_handle.remove_dir(&file_path))
+                .map(|_| {
+                    self.tx.send(NetworkMessage::Remove(folder.0)).unwrap();
+                    self.index.remove(&folder.0);
+                })
+            },
+            Err(e) => {
+                println!("ERROR DURING THE FS_READDIR IN RMDIR");
+                Err(e)
+            },
+        }
     }
 
     pub fn rename(
