@@ -1,0 +1,9 @@
+(function() {
+    var implementors = Object.fromEntries([["wormhole",[["impl <a class=\"trait\" href=\"https://docs.rs/serde/1.0.215/serde/ser/trait.Serialize.html\" title=\"trait serde::ser::Serialize\">Serialize</a> for <a class=\"enum\" href=\"wormhole/network/message/enum.NetworkMessage.html\" title=\"enum wormhole::network::message::NetworkMessage\">NetworkMessage</a>"],["impl <a class=\"trait\" href=\"https://docs.rs/serde/1.0.215/serde/ser/trait.Serialize.html\" title=\"trait serde::ser::Serialize\">Serialize</a> for <a class=\"struct\" href=\"wormhole/config/types/struct.Network.html\" title=\"struct wormhole::config::types::Network\">Network</a>"],["impl <a class=\"trait\" href=\"https://docs.rs/serde/1.0.215/serde/ser/trait.Serialize.html\" title=\"trait serde::ser::Serialize\">Serialize</a> for <a class=\"struct\" href=\"wormhole/data/metadata/struct.MetaData.html\" title=\"struct wormhole::data::metadata::MetaData\">MetaData</a>"],["impl <a class=\"trait\" href=\"https://docs.rs/serde/1.0.215/serde/ser/trait.Serialize.html\" title=\"trait serde::ser::Serialize\">Serialize</a> for <a class=\"struct\" href=\"wormhole/network/message/struct.File.html\" title=\"struct wormhole::network::message::File\">File</a>"],["impl <a class=\"trait\" href=\"https://docs.rs/serde/1.0.215/serde/ser/trait.Serialize.html\" title=\"trait serde::ser::Serialize\">Serialize</a> for <a class=\"struct\" href=\"wormhole/network/message/struct.Folder.html\" title=\"struct wormhole::network::message::Folder\">Folder</a>"]]]]);
+    if (window.register_implementors) {
+        window.register_implementors(implementors);
+    } else {
+        window.pending_implementors = implementors;
+    }
+})()
+//{"start":57,"fragment_lengths":[1475]}

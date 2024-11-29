@@ -1,0 +1,3 @@
+var srcIndex = new Map(JSON.parse('[["wormhole",["",[["commands",[],["init.rs","join.rs","mod.rs","register.rs","remove.rs","unregister.rs"]],["config",[],["mod.rs","parser.rs","types.rs"]],["data",[],["metadata.rs","mod.rs"]],["fuse",[],["fuse_impl.rs","mod.rs"]],["network",[],["forward.rs","message.rs","mod.rs","peer_ipc.rs","peers_operations.rs","server.rs","watchdogs.rs"]],["providers",[],["helpers.rs","mod.rs","readers.rs","writers.rs"]]],["lib.rs"]]],["wormhole_cli",["",[],["cli.rs"]]],["wormhole_service",["",[],["service.rs"]]]]'));
+createSrcSidebar();
+//{"start":36,"fragment_lengths":[424,36,44]}

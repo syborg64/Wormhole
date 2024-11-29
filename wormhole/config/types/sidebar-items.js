@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["EssentialConfig","Metadata","Network","OptionalConfig"],"trait":["Config"]};
