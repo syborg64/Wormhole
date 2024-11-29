@@ -2,6 +2,19 @@
 name = "wormhole"
 version = "0.1.0"
 edition = "2021"
+authors = ["Axel Denis <axel.denis@epitech.eu>", "Julian Scott <julian.scott@epitech.eu>", "Ludovic De Chavagnac <ludovic.de-chavagnac@epitech.eu>", "Arthur Aillet <arthur.aillet@epitech.eu>"]
+
+[lib]
+name = "wormhole"
+path = "src/lib.rs"
+
+[[bin]]
+name = "wormhole-cli"
+path = "src/bin/cli.rs"
+
+[[bin]]
+name = "wormhole-service"
+path = "src/bin/service.rs"
 
 [dependencies]
 clap = { version = "4.5.8", features = ["cargo", "derive"] }
