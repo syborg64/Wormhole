@@ -24,12 +24,14 @@ pub async fn all_peers_broadcast(
             .collect();
 
         println!("broadcasting message to peers:\n{:?}", message);
-        peer_tx.iter().for_each(|peer| {
-            println!("peer: {}", peer.1);
-            peer.0
-                .send(message.clone())
-                .expect(&format!("failed to send message to peer {}", peer.1))
-        });
+        peer_tx
+            .iter()
+            .for_each(|peer: &(UnboundedSender<NetworkMessage>, String)| {
+                println!("peer: {}", peer.1);
+                peer.0
+                    .send(message.clone())
+                    .expect(&format!("failed to send message to peer {}", peer.1))
+            });
     }
 }
 

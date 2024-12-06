@@ -72,6 +72,9 @@ pub async fn network_file_actions(
             Some(NetworkMessage::RequestFile(_)) => {
                 println!("peer: REQUEST FILE");
             }
+            Some(NetworkMessage::RequestArborescence) => {
+                println!("Arbo requested");
+            }
             None => {
                 () //REVIEW - Is it ok to loop every time ? the recv should wait or throw None every time ?
             }

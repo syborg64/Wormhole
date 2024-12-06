@@ -9,6 +9,7 @@ pub enum NetworkMessage {
     Meta(MetaData),
     NewFolder(Folder),
     RequestFile(std::path::PathBuf),
+    RequestArborescence,
     Binary(Vec<u8>),
     Write(u64, Vec<u8>),
 }
