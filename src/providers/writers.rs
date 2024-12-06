@@ -1,5 +1,5 @@
 use fuser::{FileAttr, FileType};
-use libc::{O_WRONLY, S_IREAD, S_IWRITE};
+use libc::{S_IREAD, S_IWRITE};
 use std::{
     ffi::OsStr,
     io::{self, Write},
