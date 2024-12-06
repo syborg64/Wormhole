@@ -20,3 +20,10 @@ notify = "6.1.1"
 bincode = "1.3.3"
 tokio-stream = "0.1.16"
 openat = "0.1.21"
+predicates = "3.1.2"
+
+[dev-dependencies]
+assert_fs = "1.1.2"
+dir-diff = "0.3.3"
+tokio = { version = "1.38.0", default-features = false, features = ["process"] }
+
