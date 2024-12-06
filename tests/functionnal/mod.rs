@@ -13,9 +13,9 @@ fn append_to_path(p: &PathBuf, s: &str) -> PathBuf {
 #[tokio::test]
 async fn test_files() {
     let mut env = EnvironnementManager::new();
-    env.add_service(false).unwrap();
-    env.add_service(false).unwrap();
-    env.add_service(false).unwrap();
+    env.add_service(true).unwrap();
+    env.add_service(true).unwrap();
+    env.add_service(true).unwrap();
 
     std::thread::sleep(std::time::Duration::from_secs_f32(0.5));
     let file_path = append_to_path(&env.paths[0], "/foo.txt");
