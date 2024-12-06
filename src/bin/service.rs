@@ -36,9 +36,7 @@ use wormhole::network::server::Server;
 #[tokio::main]
 async fn main() {
     env_logger::init();
-    let args = env::args();
-    let args2 = env::args().nth(2).unwrap();
-    println!("Args {args:?}, {args2}");
+
     // DOC - arguments: own_address other_addr1 other_addr2 mount_to source
     let own_addr = env::args().nth(1).unwrap_or("127.0.0.1:8080".to_string());
     let other_addr1 = env::args()
