@@ -1,5 +1,3 @@
-extern crate wormhole;
-
 pub mod environnement_manager;
 
 use std::path::PathBuf;
@@ -15,14 +13,14 @@ fn append_to_path(p: &PathBuf, s: &str) -> PathBuf {
 #[tokio::test]
 async fn test_files() {
     let mut env = EnvironnementManager::new();
-    env.add_service().unwrap();
-    env.add_service().unwrap();
-    env.add_service().unwrap();
+    env.add_service(false).unwrap();
+    env.add_service(false).unwrap();
+    env.add_service(false).unwrap();
 
-    std::thread::sleep(std::time::Duration::from_secs_f32(0.3));
+    std::thread::sleep(std::time::Duration::from_secs_f32(0.5));
     let file_path = append_to_path(&env.paths[0], "/foo.txt");
     std::fs::write(&file_path, "Hello world!").unwrap();
-    std::thread::sleep(std::time::Duration::from_secs_f32(0.1));
+    std::thread::sleep(std::time::Duration::from_secs_f32(0.3));
 
     for paths in [&env.paths[1], &env.paths[2]] {
         match std::fs::read_to_string(append_to_path(paths, "/foo.txt")) {

@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use assert_fs::TempDir;
+use std::process::Stdio;
 use tokio::process::Command;
 
 pub struct EnvironnementManager {
@@ -18,7 +19,15 @@ impl EnvironnementManager {
         };
     }
 
-    pub fn add_service(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn generate_pipe(pipe_output: bool) -> Stdio {
+        if pipe_output {
+            Stdio::inherit()
+        } else {
+            Stdio::null()
+        }
+    }
+
+    pub fn add_service(&mut self, pipe_output: bool) -> Result<(), Box<dyn std::error::Error>> {
         let temp_dir = assert_fs::TempDir::new()?;
 
         let new_path = temp_dir.path().to_string_lossy().to_string();
@@ -29,6 +38,7 @@ impl EnvironnementManager {
         self.paths.push(temp_dir.path().to_owned());
         self.temp_dirs.push(temp_dir);
         let mut command = Command::new("cargo");
+
         command.kill_on_drop(true);
         self.service_instances.push(
             command
@@ -42,8 +52,8 @@ impl EnvironnementManager {
                     new_path.clone(),
                     new_path,
                 ])
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
+                .stdout(Self::generate_pipe(pipe_output))
+                .stderr(Self::generate_pipe(pipe_output))
                 .spawn()?,
         );
         return Ok(());
