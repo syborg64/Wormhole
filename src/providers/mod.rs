@@ -9,15 +9,19 @@ mod helpers;
 pub mod readers;
 pub mod writers;
 
-// (inode_number, (Type, Original path))
-pub type FsIndex = HashMap<u64, (fuser::FileType, PathBuf)>;
+/// Ino is represented by an u64
+pub type Ino = u64;
 
-// will keep all the necessary info to provide real
-// data to the fuse lib
-// For now this is given to the fuse controler on creation and we do NOT have
-// ownership during the runtime.
+/// Hashmap containing file system data
+/// (inode_number, (Type, Original path))
+pub type FsIndex = HashMap<Ino, (fuser::FileType, PathBuf)>;
+
+/// Will keep all the necessary info to provide real
+/// data to the fuse lib
+/// For now this is given to the fuse controler on creation and we do NOT have
+/// ownership during the runtime.
 pub struct Provider {
-    pub next_inode: u64,
+    pub next_inode: Ino,
     pub index: FsIndex,
     pub local_source: PathBuf,
     pub metal_handle: Dir,
@@ -42,5 +46,3 @@ const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
     flags: 0,
     blksize: 512,
 };
-
-impl Provider {}

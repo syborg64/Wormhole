@@ -1,5 +1,5 @@
 use fuser::{FileAttr, FileType};
-use libc::{O_WRONLY, S_IREAD, S_IWRITE};
+use libc::{S_IREAD, S_IWRITE};
 use std::{
     ffi::OsStr,
     io::{self, Write},
@@ -9,10 +9,10 @@ use std::{
 
 use crate::network::message::{self, Folder, NetworkMessage};
 
-use super::{Provider, TEMPLATE_FILE_ATTR};
+use super::{Ino, Provider, TEMPLATE_FILE_ATTR};
 
 impl Provider {
-    pub fn mkfile(&mut self, parent_ino: u64, name: &OsStr) -> io::Result<FileAttr> {
+    pub fn mkfile(&mut self, parent_ino: Ino, name: &OsStr) -> io::Result<FileAttr> {
         println!("MKFILE FUNCTION");
         self.check_file_type(parent_ino, FileType::Directory)?;
         println!("MKFILE FUNCTION1");
@@ -35,7 +35,6 @@ impl Provider {
         self.tx
             .send(NetworkMessage::File(message::File {
                 path: new_path.into(),
-                file: [].to_vec(), // REVIEW - why this field ? useful ?
                 ino: self.next_inode,
             }))
             .expect("mkfile: unable to update modification on the network");
@@ -49,7 +48,7 @@ impl Provider {
         Ok(new_attr)
     }
 
-    pub fn mkdir(&mut self, parent_ino: u64, name: &OsStr) -> io::Result<FileAttr> {
+    pub fn mkdir(&mut self, parent_ino: Ino, name: &OsStr) -> io::Result<FileAttr> {
         self.check_file_type(parent_ino, FileType::Directory)?;
         // generation of the real path (of the mirror)
         let new_path = PathBuf::from(self.mirror_path_from_inode(parent_ino).unwrap()).join(name);
@@ -80,7 +79,7 @@ impl Provider {
         Ok(new_attr)
     }
 
-    pub fn rmfile(&mut self, parent_ino: u64, name: &OsStr) -> io::Result<()> {
+    pub fn rmfile(&mut self, parent_ino: Ino, name: &OsStr) -> io::Result<()> {
         let file = self.file_from_parent_ino_and_name(parent_ino, name)?;
 
         self.mirror_path_from_inode(file.0)
@@ -91,7 +90,7 @@ impl Provider {
             })
     }
 
-    pub fn rmdir(&mut self, parent_ino: u64, name: &OsStr) -> Option<()> {
+    pub fn rmdir(&mut self, parent_ino: Ino, name: &OsStr) -> Option<()> {
         let _ = name;
         let _ = parent_ino;
         // should only be called on empty folders
@@ -101,9 +100,9 @@ impl Provider {
 
     pub fn rename(
         &mut self,
-        parent_ino: u64,
+        parent_ino: Ino,
         name: &OsStr,
-        newparent_ino: u64,
+        newparent_ino: Ino,
         newname: &OsStr,
     ) -> Option<()> {
         let _ = newname;
@@ -116,7 +115,7 @@ impl Provider {
     }
 
     // returns the writed size
-    pub fn write(&self, ino: u64, offset: i64, data: &[u8]) -> io::Result<u32> {
+    pub fn write(&self, ino: Ino, offset: i64, data: &[u8]) -> io::Result<u32> {
         match self.index.get(&ino) {
             Some((FileType::RegularFile, _)) => {
                 let path = self.mirror_path_from_inode(ino)?;
@@ -137,7 +136,7 @@ impl Provider {
 
     // RECEPTION
     // REVIEW - not yet refactored nor properly error handled
-    pub fn new_folder(&mut self, ino: u64, path: PathBuf) {
+    pub fn new_folder(&mut self, ino: Ino, path: PathBuf) {
         let real_path = PathBuf::from(self.local_source.clone()).join(&path);
         println!("Provider make new folder at: {:?}", real_path);
         self.metal_handle
@@ -147,7 +146,7 @@ impl Provider {
         self.index.insert(ino, (FileType::Directory, path));
     }
 
-    pub fn new_file(&mut self, ino: u64, path: PathBuf) {
+    pub fn new_file(&mut self, ino: Ino, path: PathBuf) {
         println!("Provider make new file at ORIGINAL PATH: {:?}", path);
         // let real_path = PathBuf::from(self.local_source.clone()).join(&path);
         // println!("Provider make new file at: {:?}", real_path);
@@ -159,7 +158,7 @@ impl Provider {
         println!("created created created");
     }
 
-    pub fn recpt_remove(&mut self, ino: u64) {
+    pub fn recpt_remove(&mut self, ino: Ino) {
         let (file_type, path) = self.index.get(&ino).unwrap();
         // let real_path = PathBuf::from(self.local_source.clone()).join(&path);
         println!("Provider remove object at: {:?}", path);
@@ -171,7 +170,7 @@ impl Provider {
         self.index.remove(&ino);
     }
 
-    pub fn recpt_write(&mut self, ino: u64, content: Vec<u8>) {
+    pub fn recpt_write(&mut self, ino: Ino, content: Vec<u8>) {
         let (_, path) = self.index.get(&ino).unwrap();
         // let real_path = PathBuf::from(self.local_source.clone()).join(&path);
         println!("Provider write to file at: {:?}", path);
@@ -182,7 +181,7 @@ impl Provider {
         file.write_all(&content).unwrap();
     }
 
-    // pub fn recpt_rename(&mut self, ino: u64, newparent_ino: u64, newname: &OsStr) {
+    // pub fn recpt_rename(&mut self, ino: Ino, newparent_ino: Ino, newname: &OsStr) {
     //     let (_, path) = self.index.get(&ino).unwrap();
     //     let real_path = PathBuf::from(self.local_source.clone()).join(&path);
     //     let real_path = PathBuf::from(self.local_source.clone()).join(&path);

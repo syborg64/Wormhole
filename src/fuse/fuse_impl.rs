@@ -91,10 +91,7 @@ fn index_folder_recursive(
 
             arbo.insert(
                 *inode,
-                (
-                    simple_type_to_fuse_type(stype),
-                    generated_path.clone(),
-                ),
+                (simple_type_to_fuse_type(stype), generated_path.clone()),
             );
             println!("added entry to arbo {}:{:?}", inode, arbo.get(inode));
             *inode += 1;
