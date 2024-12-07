@@ -151,6 +151,7 @@ impl WhPath {
     }
 
     ///!SECTION - Est-ce qu'il faudra modifier pour Windows en rajoutant le '\' ??
+    ///!SECTION- A modifier pour prendre en compte les fichiers cachés ?
     fn remove_leading_slash(segment: &str) -> &str {
         let mut i = 0;
         for c in segment.chars() {
@@ -164,22 +165,24 @@ impl WhPath {
     }
 
     ///!SECTION - Est-ce qu'il faudra modifier pour Windows en rajoutant le '\' ??
-    fn add_last_slash(&mut self) {
-        if self.inner.chars().last() != Some('/') {
+    fn add_last_slash(&mut self) -> &Self {
+        if self.kind != PathType::Empty && self.inner.chars().last() != Some('/') {
             self.inner = format!("{}/", self.inner);
         }
+        return self;
     }
 
     ///!SECTION - Est-ce qu'il faudra modifier pour Windows en rajoutant le '\' ??
-    fn remove_last_slash(&mut self) {
+    fn remove_last_slash(&mut self) -> &Self {
         if let Some(pos) = self.inner.rfind('/') {
             if pos == self.inner.len() - 1 {
                 self.inner.pop();
             }
         }
+        return self;
     }
 
-    fn delete_double_slash(&mut self) {
+    fn delete_double_slash(&mut self) -> &Self {
         let mut i = 0;
         let mut index = 0;
         while index < self.inner.len() {
@@ -196,14 +199,15 @@ impl WhPath {
 
             index += 1;
         }
+        return self;
     }
 
     ///!SECTION - Est-ce qu'il faudra modifier pour Windows en rajoutant le '\' ??
-    fn convert_path(&mut self, pathtype: PathType) {
+    fn convert_path(&mut self, pathtype: PathType) -> &Self {
         if pathtype == PathType::Empty || self.inner == String::from("") {
             self.inner = String::from("");
             self.kind = PathType::Empty;
-            return;
+            return self;
         }
         self.inner = Self::remove_leading_slash(&self.inner.clone()).to_string();
         if pathtype == PathType::Absolute {
@@ -214,5 +218,30 @@ impl WhPath {
         } else {
         }
         self.kind = self.kind();
+        return self;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_remove_leading_slash() {
+        assert_eq!(WhPath::remove_leading_slash("bar"), "bar");
+        assert_eq!(WhPath::remove_leading_slash("./bar"), "bar");
+        assert_eq!(WhPath::remove_leading_slash("/bar"), "bar");
+        assert_eq!(WhPath::remove_leading_slash(""), "");
+        assert_eq!(WhPath::remove_leading_slash(".bar"), "bar");
+    }
+
+    #[test]
+    fn test_add_last_slash() {
+        let mut empty = WhPath::new("");
+        let mut basic_folder = WhPath::new("foo/");
+        let mut no_slash = WhPath::new("baz");
+
+        assert_eq!(empty.add_last_slash(), &WhPath::new(""));
+        assert_eq!(basic_folder.add_last_slash(), &WhPath::new("foo/"));
+        assert_eq!(no_slash.add_last_slash(), &WhPath::new("baz/"));
     }
 }

@@ -282,3 +282,4 @@ fn test_whpath_remove_end() {
     assert_eq!(basic_subfolder.remove_end(), &WhPath::new("foo/"));
     assert_eq!(no_slash.remove_end(), &WhPath::new(""));
 }
+
