@@ -49,10 +49,6 @@ async fn main() {
         .nth(4)
         .unwrap_or("./virtual/".to_string())
         .into();
-    let source: PathBuf = env::args()
-        .nth(5)
-        .unwrap_or("./original/".to_string())
-        .into();
 
     println!("own address: {}", own_addr);
     println!("peer1 address: {}", other_addr1);
@@ -62,7 +58,7 @@ async fn main() {
 
     let (nfa_tx, nfa_rx) = mpsc::unbounded_channel();
     let (local_fuse_tx, local_fuse_rx) = mpsc::unbounded_channel();
-    let (_session, provider) = mount_fuse(&source, &mount, local_fuse_tx.clone());
+    let (_session, provider) = mount_fuse(&mount, local_fuse_tx.clone());
 
     let local_cli_handle = tokio::spawn(local_cli_watchdog());
     let nfa_handle = tokio::spawn(network_file_actions(nfa_rx, provider));

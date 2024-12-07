@@ -299,12 +299,11 @@ impl Filesystem for FuseController {
 }
 
 pub fn mount_fuse(
-    source: &Path,
     mountpoint: &Path,
     tx: UnboundedSender<NetworkMessage>,
 ) -> (BackgroundSession, Arc<Mutex<Provider>>) {
     let options = vec![MountOption::RW, MountOption::FSName("wormhole".to_string())];
-    let (handle, index) = match FuseController::index_folder(source) {
+    let (handle, index) = match FuseController::index_folder(mountpoint) {
         Ok((handle, idx)) => (handle, idx),
         Err(_) => todo!(),
     };
@@ -313,7 +312,7 @@ pub fn mount_fuse(
         next_inode: (index.len() + 2) as u64,
         index,
         metal_handle: handle,
-        local_source: source.to_path_buf(),
+        local_source: mountpoint.to_path_buf(),
         tx,
     }));
     let ctrl = FuseController {
