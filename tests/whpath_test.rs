@@ -252,3 +252,18 @@ fn test_whpath_isln() {
     assert_eq!(empty.isln("peanuts"), false);
     assert_eq!(empty.isln(""), true);
 }
+
+#[test]
+fn test_whpath_get_end() {
+    let empty = WhPath::new("");
+    let basic_folder = WhPath::new("foo/");
+    let basic_file = WhPath::new("foo/file.txt");
+    let basic_subfolder = WhPath::new("foo/bar/");
+    let no_slash = WhPath::new("baz");
+
+    assert_eq!(empty.get_end(), String::from(""));
+    assert_eq!(basic_folder.get_end(), String::from("foo"));
+    assert_eq!(basic_file.get_end(), String::from("file.txt"));
+    assert_eq!(basic_subfolder.get_end(), String::from("bar"));
+    assert_eq!(no_slash.get_end(), String::from("baz"));
+}
