@@ -226,7 +226,7 @@ impl WhPath {
 mod tests {
     use super::*;
     #[test]
-    fn test_remove_leading_slash() {
+    fn test_whpath_remove_leading_slash() {
         assert_eq!(WhPath::remove_leading_slash("bar"), "bar");
         assert_eq!(WhPath::remove_leading_slash("./bar"), "bar");
         assert_eq!(WhPath::remove_leading_slash("/bar"), "bar");
@@ -235,7 +235,7 @@ mod tests {
     }
 
     #[test]
-    fn test_add_last_slash() {
+    fn test_whpath_add_last_slash() {
         let mut empty = WhPath::new("");
         let mut basic_folder = WhPath::new("foo/");
         let mut no_slash = WhPath::new("baz");
@@ -243,5 +243,50 @@ mod tests {
         assert_eq!(empty.add_last_slash(), &WhPath::new(""));
         assert_eq!(basic_folder.add_last_slash(), &WhPath::new("foo/"));
         assert_eq!(no_slash.add_last_slash(), &WhPath::new("baz/"));
+    }
+
+    #[test]
+    fn test_whpath_remove_last_slash() {
+        let mut empty = WhPath::new("");
+        let mut basic_folder = WhPath::new("foo/");
+        let mut no_slash = WhPath::new("baz/bar");
+
+        assert_eq!(empty.remove_last_slash(), &WhPath::new(""));
+        assert_eq!(basic_folder.remove_last_slash(), &WhPath::new("foo"));
+        assert_eq!(no_slash.remove_last_slash(), &WhPath::new("baz/bar"));
+    }
+
+    #[test]
+    fn test_whpath_delete_double_slash() {
+        let mut empty = WhPath::new("");
+        let mut basic_folder = WhPath::new("foo/");
+        let mut mid_double_slash = WhPath::new("baz//bar");
+        let mut end_double_slash = WhPath::new("baz/bar//");
+
+        assert_eq!(empty.delete_double_slash(), &WhPath::new(""));
+        assert_eq!(basic_folder.delete_double_slash(), &WhPath::new("foo/"));
+        assert_eq!(
+            mid_double_slash.delete_double_slash(),
+            &WhPath::new("baz/bar")
+        );
+        assert_eq!(
+            end_double_slash.delete_double_slash(),
+            &WhPath::new("baz/bar/")
+        );
+    }
+
+    #[test]
+    fn test_whpath_convert_path() {
+        let mut path = WhPath::new("foo");
+        let mut relative = WhPath::new("./foo");
+        let mut no_prefix = WhPath::new("foo");
+        let mut absolute = WhPath::new("/foo");
+        let mut empty = WhPath::new("");
+
+        assert_eq!(relative.convert_path(PathType::NoPrefix), &no_prefix);
+        assert_eq!(no_prefix.convert_path(PathType::Absolute), &absolute);
+        assert_eq!(absolute.convert_path(PathType::Empty), &empty);
+        assert_eq!(empty.convert_path(PathType::Absolute), &WhPath::new(""));
+        assert_eq!(path.convert_path(PathType::Relative), &WhPath::new("./foo"));
     }
 }
