@@ -1,7 +1,5 @@
-use std::io;
-
 #[derive(Debug, Clone, PartialEq)]
-enum pathType {
+pub enum pathType {
     Absolute,
     Relative,
     NoPrefix,
@@ -9,9 +7,9 @@ enum pathType {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct MyPath {
-    inner: String,
-    kind: pathType,
+pub struct MyPath {
+    pub inner: String,
+    pub kind: pathType,
 }
 
 impl MyPath {
@@ -28,6 +26,7 @@ impl MyPath {
         }
     }
 
+    //TODO - Faire un join pour de MyPath
     //NOTE - join deux paths dans l'ordre indiqué, résoud le conflit si le second commence avec ./ ou / ou rien
     pub fn join<S: AsRef<str>>(&mut self, segment: S) -> &Self {
         self.inner =
