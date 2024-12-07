@@ -241,3 +241,16 @@ fn test_set_end() {
     assert_eq!(set_end_true.set_end(true), &WhPath::new("/foo/"));
     assert_eq!(set_end_false.set_end(false), &WhPath::new("/foo"));
 }
+
+#[test]
+fn test_isln() {
+    let path = WhPath::new("/foo/bar/baz.txt");
+    let empty = WhPath::new("");
+    assert_eq!(path.isln("/foo/bar"), true);
+    assert_eq!(path.isln("bar"), false);
+    assert_eq!(path.isln("peanuts"), false);
+    assert_eq!(empty.isln("peanuts"), false);
+    assert_eq!(empty.isln(""), true);
+}
+
+
