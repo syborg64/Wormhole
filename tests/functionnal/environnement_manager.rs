@@ -1,21 +1,29 @@
-use std::path::PathBuf;
+use std::{
+    os::{fd::AsFd, unix::net::UnixStream},
+    path::PathBuf,
+};
 
 use assert_fs::TempDir;
 use std::process::Stdio;
 use tokio::process::Command;
 
+pub struct Service {
+    pub instance: tokio::process::Child,
+    #[allow(dead_code)]
+    dir: TempDir,
+    #[allow(dead_code)]
+    stdin: UnixStream,
+    pub path: PathBuf,
+}
+
 pub struct EnvironnementManager {
-    pub service_instances: Vec<tokio::process::Child>,
-    temp_dirs: Vec<TempDir>,
-    pub paths: Vec<PathBuf>,
+    pub services: Vec<Service>,
 }
 
 impl EnvironnementManager {
     pub fn new() -> Self {
         return EnvironnementManager {
-            service_instances: Vec::new(),
-            temp_dirs: Vec::new(),
-            paths: Vec::new(),
+            services: Vec::new(),
         };
     }
 
@@ -31,31 +39,41 @@ impl EnvironnementManager {
         let temp_dir = assert_fs::TempDir::new()?;
 
         let new_path = temp_dir.path().to_string_lossy().to_string();
-        let new_index = self.paths.len();
+        let new_index = self.services.len();
         let snd_index = (new_index + 1) % 3;
         let third_index = (new_index + 2) % 3;
 
-        self.paths.push(temp_dir.path().to_owned());
-        self.temp_dirs.push(temp_dir);
         let mut command = Command::new("cargo");
 
+        // GHActions does'nt pipe a stdin so we have to make one ourselves from a FD
+        let (write, read) = std::os::unix::net::UnixStream::pair()?;
+
+        let stdio = Stdio::from(read.as_fd().try_clone_to_owned().unwrap());
         command.kill_on_drop(true);
-        self.service_instances.push(
-            command
-                .args(&[
-                    "run".to_string(),
-                    "--bin".to_string(),
-                    "service".to_string(),
-                    format!("127.0.0.{new_index}:8080"),
-                    format!("ws://127.0.0.{snd_index}:8080"),
-                    format!("ws://127.0.0.{third_index}:8080"),
-                    new_path.clone(),
-                    new_path,
-                ])
-                .stdout(Self::generate_pipe(pipe_output))
-                .stderr(Self::generate_pipe(pipe_output))
-                .spawn()?,
-        );
+
+        let instance = command
+            .args(&[
+                "run".to_string(),
+                "--bin".to_string(),
+                "service".to_string(),
+                format!("127.0.0.{new_index}:8080"),
+                format!("ws://127.0.0.{snd_index}:8080"),
+                format!("ws://127.0.0.{third_index}:8080"),
+                new_path.clone(),
+                new_path,
+            ])
+            .stdout(Self::generate_pipe(pipe_output))
+            .stderr(Self::generate_pipe(pipe_output))
+            .stdin(stdio)
+            .spawn()?;
+
+        self.services.push(Service {
+            instance,
+            path: temp_dir.path().to_owned(),
+            dir: temp_dir,
+            stdin: write,
+        });
+
         return Ok(());
     }
 }
