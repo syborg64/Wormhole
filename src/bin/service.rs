@@ -26,8 +26,8 @@ use std::{
 use tokio::sync::mpsc::{self};
 
 use wormhole::network::{
-    peers_operations::{all_peers_broadcast, peer_startup},
-    start_sync::request_arbo,
+    peers_operations::{contact_peers, peer_startup},
+    start_sync::request_filesystem,
     watchdogs::{incoming_connections_watchdog, local_cli_watchdog, network_file_actions},
 };
 use wormhole::{fuse::fuse_impl::mount_fuse, network::peer_ipc::PeerIPC};
@@ -85,8 +85,8 @@ async fn main() {
         peers.clone(),
     ));
 
-    request_arbo(peers.clone());
-    let peers_broadcast_handle = tokio::spawn(all_peers_broadcast(peers.clone(), local_fuse_rx));
+    request_filesystem(peers.clone());
+    let peers_broadcast_handle = tokio::spawn(contact_peers(peers.clone(), local_fuse_rx));
     // let remote_reception = tokio::spawn(all_peers_reception(connected_peers, nfa_tx));
 
     println!("started");

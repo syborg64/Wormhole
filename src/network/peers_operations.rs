@@ -10,7 +10,7 @@ use crate::network::message::{MessageContent, ToNetworkMessage};
 use super::message::FromNetworkMessage;
 
 // receive a message on user_rx and broadcast it to all peers
-pub async fn all_peers_broadcast(
+pub async fn contact_peers(
     peers_list: Arc<Mutex<Vec<PeerIPC>>>,
     mut rx: UnboundedReceiver<ToNetworkMessage>,
 ) {
@@ -30,18 +30,27 @@ pub async fn all_peers_broadcast(
             .collect();
 
         println!("broadcasting message to peers:\n{:?}", message);
-        let inner = match message {
-            ToNetworkMessage::BroadcastMessage(message_content) => message_content,
-            ToNetworkMessage::SpecificMessage(message_content, _) => message_content,
+        match message {
+            ToNetworkMessage::BroadcastMessage(message_content) => {
+                peer_tx.iter().for_each(|(channel, address)| {
+                    println!("peer: {}", address);
+                    channel
+                        .send(message_content.clone())
+                        .expect(&format!("failed to send message to peer {}", address))
+                });
+            }
+            ToNetworkMessage::SpecificMessage(message_content, origins) => {
+                peer_tx
+                    .iter()
+                    .filter(|&(_, address)| origins.contains(address))
+                    .for_each(|(channel, address)| {
+                        println!("peer: {}", address);
+                        channel
+                            .send(message_content.clone())
+                            .expect(&format!("failed to send message to peer {}", address))
+                    });
+            }
         };
-        peer_tx
-            .iter()
-            .for_each(|peer: &(UnboundedSender<MessageContent>, String)| {
-                println!("peer: {}", peer.1);
-                peer.0
-                    .send(inner.clone())
-                    .expect(&format!("failed to send message to peer {}", peer.1))
-            });
     }
 }
 
