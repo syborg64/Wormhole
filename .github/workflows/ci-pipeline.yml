@@ -31,7 +31,7 @@ jobs:
           override: true
 
       - name: Build the project
-        run: cargo build --verbose
+        run: cargo build
 
       - name: Run tests
-        run: cargo test --verbose -- --nocapture
+        run: cargo test -- --nocapture
