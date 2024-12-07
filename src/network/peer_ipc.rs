@@ -11,20 +11,20 @@ use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
 use crate::network::forward::{forward_read_to_sender, forward_receiver_to_write};
 
-use super::message::NetworkMessage;
+use super::message::MessageContent;
 
 pub struct PeerIPC {
     pub address: String,
     pub thread: tokio::task::JoinHandle<()>,
-    pub sender: mpsc::UnboundedSender<NetworkMessage>, // send a message to the peer
+    pub sender: mpsc::UnboundedSender<MessageContent>, // send a message to the peer
                                                        // pub receiver: mpsc::Receiver<NetworkMessage>, // receive a message from the peer
 }
 
 impl PeerIPC {
     async fn work(
         stream: WebSocketStream<MaybeTlsStream<TcpStream>>,
-        sender: mpsc::UnboundedSender<NetworkMessage>,
-        mut receiver: mpsc::UnboundedReceiver<NetworkMessage>,
+        sender: mpsc::UnboundedSender<MessageContent>,
+        mut receiver: mpsc::UnboundedReceiver<MessageContent>,
     ) {
         let (write, read) = stream.split();
         tokio::join!(
@@ -36,8 +36,8 @@ impl PeerIPC {
     async fn work_from_incomming(
         write: SplitSink<WebSocketStream<TcpStream>, Message>,
         read: SplitStream<WebSocketStream<TcpStream>>,
-        sender: mpsc::UnboundedSender<NetworkMessage>,
-        mut receiver: mpsc::UnboundedReceiver<NetworkMessage>,
+        sender: mpsc::UnboundedSender<MessageContent>,
+        mut receiver: mpsc::UnboundedReceiver<MessageContent>,
     ) {
         tokio::join!(
             forward_read_to_sender(read, sender),
@@ -47,7 +47,7 @@ impl PeerIPC {
 
     pub fn connect_from_incomming(
         address: String,
-        on_recept: UnboundedSender<NetworkMessage>,
+        on_recept: UnboundedSender<MessageContent>,
         write: SplitSink<WebSocketStream<TcpStream>, Message>,
         read: SplitStream<WebSocketStream<TcpStream>>,
     ) -> Self {
@@ -60,7 +60,7 @@ impl PeerIPC {
         }
     }
 
-    pub async fn connect(address: String, nfa_tx: UnboundedSender<NetworkMessage>) -> Option<Self> {
+    pub async fn connect(address: String, nfa_tx: UnboundedSender<MessageContent>) -> Option<Self> {
         let (peer_send, peer_recv) = mpsc::unbounded_channel();
 
         let thread = match tokio_tungstenite::connect_async(&address).await {

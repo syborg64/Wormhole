@@ -4,9 +4,9 @@ use std::fmt::Debug;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio_tungstenite::tungstenite::Message;
 
-use super::message::NetworkMessage;
+use super::message::MessageContent;
 
-pub async fn forward_receiver_to_write<T>(mut write: T, rx: &mut UnboundedReceiver<NetworkMessage>)
+pub async fn forward_receiver_to_write<T>(mut write: T, rx: &mut UnboundedReceiver<MessageContent>)
 where
     T: Sink<Message> + Unpin,
     <T as Sink<Message>>::Error: Debug,
@@ -21,10 +21,10 @@ pub async fn forward_read_to_sender<
     T: StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>,
 >(
     mut read: SplitStream<T>,
-    tx: UnboundedSender<NetworkMessage>,
+    tx: UnboundedSender<MessageContent>,
 ) {
     while let Ok(Message::Binary(message)) = read.next().await.unwrap() {
-        let deserialized = bincode::deserialize(&message).unwrap();
+        let deserialized: MessageContent = bincode::deserialize(&message).unwrap();
         println!("message from network {:?}", deserialized);
         tx.send(deserialized).unwrap();
     }

@@ -5,7 +5,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::network::peer_ipc::PeerIPC;
 
-use crate::network::message::NetworkMessage;
+use crate::network::message::{MessageContent, NetworkMessage};
 
 // receive a message on user_rx and broadcast it to all peers
 pub async fn all_peers_broadcast(
@@ -14,9 +14,13 @@ pub async fn all_peers_broadcast(
 ) {
     // on message reception, broadcast it to all peers senders
     while let Some(message) = rx.recv().await {
+        // match message {
+        //     NetworkMessage::BroadcastMessage(message) => todo!(),
+        //     NetworkMessage::SpecificMessage(message, vec) => todo!(),
+        // }
         //generating peers senders
         // REVIEW - should avoid locking peers in future versions, as it more or less locks the entire program
-        let peer_tx: Vec<(UnboundedSender<NetworkMessage>, String)> = peers_list
+        let peer_tx: Vec<(UnboundedSender<MessageContent>, String)> = peers_list
             .lock()
             .unwrap()
             .iter()
@@ -24,12 +28,16 @@ pub async fn all_peers_broadcast(
             .collect();
 
         println!("broadcasting message to peers:\n{:?}", message);
+        let inner = match message {
+            NetworkMessage::BroadcastMessage(message_content) => message_content,
+            NetworkMessage::SpecificMessage(message_content, _) => message_content,
+        };
         peer_tx
             .iter()
-            .for_each(|peer: &(UnboundedSender<NetworkMessage>, String)| {
+            .for_each(|peer: &(UnboundedSender<MessageContent>, String)| {
                 println!("peer: {}", peer.1);
                 peer.0
-                    .send(message.clone())
+                    .send(inner.clone())
                     .expect(&format!("failed to send message to peer {}", peer.1))
             });
     }
@@ -38,7 +46,7 @@ pub async fn all_peers_broadcast(
 // start connexions to peers
 pub async fn peer_startup(
     peers_ip_list: Vec<String>,
-    nfa_tx: UnboundedSender<NetworkMessage>,
+    nfa_tx: UnboundedSender<MessageContent>,
 ) -> Vec<PeerIPC> {
     join_all(
         peers_ip_list

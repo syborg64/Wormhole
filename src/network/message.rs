@@ -3,16 +3,29 @@ use serde::{Deserialize, Serialize};
 use crate::{data::metadata::MetaData, providers::Ino};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub enum NetworkMessage {
+pub enum MessageContent {
     Remove(Ino),
     File(File),
     Meta(MetaData),
     NewFolder(Folder),
     RequestFile(std::path::PathBuf),
-    RequestArborescence,
     Binary(Vec<u8>),
     Write(Ino, Vec<u8>),
+    RequestFs,
+    FileStructure(FileStructure),
 }
+
+pub type Adress = String;
+
+/// Networks Messages
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub enum NetworkMessage {
+    BroadcastMessage(MessageContent),
+    SpecificMessage(MessageContent, Vec<Adress>),
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct FileStructure {}
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct File {
