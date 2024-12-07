@@ -201,7 +201,7 @@ fn test_whpath_remove_prefix() {
 }
 
 #[test]
-fn test_is_relative() {
+fn test_whpath_is_relative() {
     let relative = WhPath::new("./foo");
     let not_relative = WhPath::new("foo");
 
@@ -210,7 +210,7 @@ fn test_is_relative() {
 }
 
 #[test]
-fn test_is_absolute() {
+fn test_whpath_is_absolute() {
     let absolute = WhPath::new("/foo");
     let not_absolute = WhPath::new("foo");
 
@@ -218,7 +218,7 @@ fn test_is_absolute() {
     assert_eq!(not_absolute.is_absolute(), false);
 }
 #[test]
-fn test_has_no_prefix() {
+fn test_whpath_has_no_prefix() {
     let no_prefix = WhPath::new("foo");
     let not_no_prefix = WhPath::new("/foo");
 
@@ -226,7 +226,7 @@ fn test_has_no_prefix() {
     assert_eq!(not_no_prefix.has_no_prefix(), false);
 }
 #[test]
-fn test_is_empty() {
+fn test_whpath_is_empty() {
     let empty = WhPath::new("");
     let not_empty = WhPath::new("foo");
 
@@ -235,7 +235,7 @@ fn test_is_empty() {
 }
 
 #[test]
-fn test_set_end() {
+fn test_whpath_set_end() {
     let mut set_end_true = WhPath::new("/foo");
     let mut set_end_false = WhPath::new("/foo/");
     assert_eq!(set_end_true.set_end(true), &WhPath::new("/foo/"));
@@ -243,7 +243,7 @@ fn test_set_end() {
 }
 
 #[test]
-fn test_isln() {
+fn test_whpath_isln() {
     let path = WhPath::new("/foo/bar/baz.txt");
     let empty = WhPath::new("");
     assert_eq!(path.isln("/foo/bar"), true);
@@ -252,5 +252,3 @@ fn test_isln() {
     assert_eq!(empty.isln("peanuts"), false);
     assert_eq!(empty.isln(""), true);
 }
-
-
