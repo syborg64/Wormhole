@@ -1,5 +1,5 @@
 #[derive(Debug, Clone, PartialEq)]
-pub enum pathType {
+pub enum PathType {
     Absolute,
     Relative,
     NoPrefix,
@@ -9,7 +9,7 @@ pub enum pathType {
 #[derive(Debug, Clone, PartialEq)]
 pub struct WhPath {
     pub inner: String,
-    pub kind: pathType,
+    pub kind: PathType,
 }
 
 impl WhPath {
@@ -17,7 +17,7 @@ impl WhPath {
         let p = String::from(path.as_ref());
         let kind = WhPath {
             inner: p.clone(),
-            kind: pathType::Empty,
+            kind: PathType::Empty,
         }
         .kind();
         WhPath {
@@ -39,7 +39,7 @@ impl WhPath {
         self.inner = self.inner.replace(delete_this_part.as_ref(), "");
         self.delete_double_slash();
         if self.is_empty() {
-            self.kind = pathType::Empty;
+            self.kind = PathType::Empty;
         }
         self.inner = Self::convert_path(&self.inner.clone(), self.kind.clone());
         return self;
@@ -64,24 +64,24 @@ impl WhPath {
         return self;
     }
 
-    pub fn kind(&self) -> pathType {
+    pub fn kind(&self) -> PathType {
         if self.is_empty() {
-            return pathType::Empty;
+            return PathType::Empty;
         }
         if self.inner.chars().next() == Some('.') {
-            return pathType::Relative;
+            return PathType::Relative;
         } else if self.inner.chars().next() == Some('/') {
-            return pathType::Absolute;
+            return PathType::Absolute;
         } else {
-            return pathType::NoPrefix;
+            return PathType::NoPrefix;
         }
     }
 
     //NOTE - changer le path pour "./path"
-    pub fn setRelative(&mut self) -> &Self {
+    pub fn set_relative(&mut self) -> &Self {
         if !self.is_empty() && !Self::is_relative(&self) {
-            self.inner = Self::convert_path(&self.inner, pathType::Relative);
-            self.kind = pathType::Relative;
+            self.inner = Self::convert_path(&self.inner, PathType::Relative);
+            self.kind = PathType::Relative;
         }
         return self;
     }
@@ -89,8 +89,8 @@ impl WhPath {
     //NOTE - changer le path pour "/path"
     pub fn set_absolute(&mut self) -> &Self {
         if !self.is_empty() && !Self::is_absolute(&self) {
-            self.inner = Self::convert_path(&self.inner, pathType::Absolute);
-            self.kind = pathType::Absolute;
+            self.inner = Self::convert_path(&self.inner, PathType::Absolute);
+            self.kind = PathType::Absolute;
         }
         return self;
     }
@@ -98,22 +98,22 @@ impl WhPath {
     //NOTE - changer le path pour "path"
     pub fn remove_prefix(&mut self) -> &Self {
         if !self.is_empty() && !Self::has_no_prefix(&self) {
-            self.inner = Self::convert_path(&self.inner, pathType::NoPrefix);
-            self.kind = pathType::NoPrefix;
+            self.inner = Self::convert_path(&self.inner, PathType::NoPrefix);
+            self.kind = PathType::NoPrefix;
         }
         return self;
     }
 
     pub fn is_relative(&self) -> bool {
-        return self.kind == pathType::Relative;
+        return self.kind == PathType::Relative;
     }
 
     pub fn is_absolute(&self) -> bool {
-        return self.kind == pathType::Absolute;
+        return self.kind == PathType::Absolute;
     }
 
     pub fn has_no_prefix(&self) -> bool {
-        return self.kind == pathType::NoPrefix;
+        return self.kind == PathType::NoPrefix;
     }
 
     pub fn is_empty(&self) -> bool {
@@ -201,14 +201,14 @@ impl WhPath {
     }
 
     ///!SECTION - Est-ce qu'il faudra modifier pour Windows en rajoutant le '\' ??
-    fn convert_path(segment: &str, pathtype: pathType) -> String {
-        if pathtype == pathType::Empty {
+    fn convert_path(segment: &str, pathtype: PathType) -> String {
+        if pathtype == PathType::Empty {
             return String::from("");
         }
         let seg = Self::remove_leading_slash(segment);
-        if pathtype == pathType::Absolute {
+        if pathtype == PathType::Absolute {
             return "/".to_string() + seg;
-        } else if pathtype == pathType::Relative {
+        } else if pathtype == PathType::Relative {
             return "./".to_string() + seg;
         } else {
             return seg.to_string();

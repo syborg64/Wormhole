@@ -1,29 +1,29 @@
 extern crate wormhole;
-use crate::wormhole::providers::whpath::{pathType, WhPath};
+use crate::wormhole::providers::whpath::{PathType, WhPath};
 
 #[test]
 fn test_whpath_kind() {
     let empty = WhPath {
         inner: String::from(""),
-        kind: pathType::Empty,
+        kind: PathType::Empty,
     };
     let absolute = WhPath {
         inner: String::from("/foo"),
-        kind: pathType::Empty,
+        kind: PathType::Empty,
     };
     let relative = WhPath {
         inner: String::from("./foo"),
-        kind: pathType::Empty,
+        kind: PathType::Empty,
     };
     let noprefix = WhPath {
         inner: String::from("foo"),
-        kind: pathType::Empty,
+        kind: PathType::Empty,
     };
 
-    assert_eq!(empty.kind(), pathType::Empty);
-    assert_eq!(absolute.kind(), pathType::Absolute);
-    assert_eq!(relative.kind(), pathType::Relative);
-    assert_eq!(noprefix.kind(), pathType::NoPrefix);
+    assert_eq!(empty.kind(), PathType::Empty);
+    assert_eq!(absolute.kind(), PathType::Absolute);
+    assert_eq!(relative.kind(), PathType::Relative);
+    assert_eq!(noprefix.kind(), PathType::NoPrefix);
 }
 
 #[test]
@@ -33,7 +33,7 @@ fn test_whpath_new() {
         path,
         WhPath {
             inner: String::from("./StarWars/A_New_Hope"),
-            kind: pathType::Relative
+            kind: PathType::Relative
         }
     );
 
@@ -42,7 +42,7 @@ fn test_whpath_new() {
         path,
         WhPath {
             inner: String::from("/HarryPotter/The_Goblet_of_Fire"),
-            kind: pathType::Absolute
+            kind: PathType::Absolute
         }
     );
 
@@ -51,7 +51,7 @@ fn test_whpath_new() {
         path,
         WhPath {
             inner: String::from("TheLordofTheRings/The_Two_Towers/"),
-            kind: pathType::NoPrefix
+            kind: PathType::NoPrefix
         }
     );
 
@@ -60,7 +60,7 @@ fn test_whpath_new() {
         path,
         WhPath {
             inner: String::from(""),
-            kind: pathType::Empty
+            kind: PathType::Empty
         }
     );
 }
@@ -165,4 +165,71 @@ fn test_whpath_rename() {
     assert_eq!(basic_folder.rename("bar"), &WhPath::new("./bar/"));
     assert_eq!(basic_file.rename("foo.rs"), &WhPath::new("foo/foo.rs"));
     assert_eq!(basic_subfolder.rename("sub"), &WhPath::new("foo/sub/"));
+}
+
+#[test]
+fn test_whpath_set_relative() {
+    let mut no_prefix = WhPath::new("foo");
+    let mut absolute = WhPath::new("/foo/");
+    let mut empty = WhPath::new("");
+
+    assert_eq!(no_prefix.set_relative(), &WhPath::new("./foo"));
+    assert_eq!(absolute.set_relative(), &WhPath::new("./foo/"));
+    assert_eq!(empty.set_relative(), &WhPath::new(""));
+}
+
+#[test]
+fn test_whpath_set_absolute() {
+    let mut no_prefix = WhPath::new("foo");
+    let mut relative = WhPath::new("./foo/");
+    let mut empty = WhPath::new("");
+
+    assert_eq!(no_prefix.set_absolute(), &WhPath::new("/foo"));
+    assert_eq!(relative.set_absolute(), &WhPath::new("/foo/"));
+    assert_eq!(empty.set_absolute(), &WhPath::new(""));
+}
+
+#[test]
+fn test_whpath_remove_prefix() {
+    let mut absolute = WhPath::new("/foo");
+    let mut relative = WhPath::new("./foo/");
+    let mut empty = WhPath::new("");
+
+    assert_eq!(absolute.remove_prefix(), &WhPath::new("foo"));
+    assert_eq!(relative.remove_prefix(), &WhPath::new("foo/"));
+    assert_eq!(empty.remove_prefix(), &WhPath::new(""));
+}
+
+#[test]
+fn test_is_relative() {
+    let relative = WhPath::new("./foo");
+    let not_relative = WhPath::new("foo");
+
+    assert_eq!(relative.is_relative(), true);
+    assert_eq!(not_relative.is_relative(), false);
+}
+
+#[test]
+fn test_is_absolute() {
+    let absolute = WhPath::new("/foo");
+    let not_absolute = WhPath::new("foo");
+
+    assert_eq!(absolute.is_absolute(), true);
+    assert_eq!(not_absolute.is_absolute(), false);
+}
+#[test]
+fn test_has_no_prefix() {
+    let no_prefix = WhPath::new("foo");
+    let not_no_prefix = WhPath::new("/foo");
+
+    assert_eq!(no_prefix.has_no_prefix(), true);
+    assert_eq!(not_no_prefix.has_no_prefix(), false);
+}
+#[test]
+fn test_is_empty() {
+    let empty = WhPath::new("");
+    let not_empty = WhPath::new("foo");
+
+    assert_eq!(empty.is_empty(), true);
+    assert_eq!(not_empty.is_empty(), false);
 }
