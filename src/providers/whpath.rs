@@ -140,11 +140,14 @@ impl WhPath {
         }
     }
 
-    pub fn remove_end(&mut self) {
+    pub fn remove_end(&mut self) -> &Self {
         self.remove_last_slash();
         if let Some(pos) = self.inner.rfind('/') {
-            self.inner = self.inner[..pos].to_string();
+            self.inner = self.inner[..(pos + 1)].to_string();
+        } else {
+            self.convert_path(PathType::Empty);
         }
+        return self;
     }
 
     ///!SECTION - Est-ce qu'il faudra modifier pour Windows en rajoutant le '\' ??

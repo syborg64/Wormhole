@@ -267,3 +267,18 @@ fn test_whpath_get_end() {
     assert_eq!(basic_subfolder.get_end(), String::from("bar"));
     assert_eq!(no_slash.get_end(), String::from("baz"));
 }
+
+#[test]
+fn test_whpath_remove_end() {
+    let mut empty = WhPath::new("");
+    let mut basic_folder = WhPath::new("foo/");
+    let mut basic_file = WhPath::new("foo/file.txt");
+    let mut basic_subfolder = WhPath::new("foo/bar/");
+    let mut no_slash = WhPath::new("baz");
+
+    assert_eq!(empty.remove_end(), &WhPath::new(""));
+    assert_eq!(basic_folder.remove_end(), &WhPath::new(""));
+    assert_eq!(basic_file.remove_end(), &WhPath::new("foo/"));
+    assert_eq!(basic_subfolder.remove_end(), &WhPath::new("foo/"));
+    assert_eq!(no_slash.remove_end(), &WhPath::new(""));
+}
