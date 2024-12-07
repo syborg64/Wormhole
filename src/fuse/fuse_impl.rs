@@ -303,7 +303,7 @@ pub fn mount_fuse(
     let options = vec![MountOption::RW, MountOption::FSName("wormhole".to_string())];
     let (handle, index) = match FuseController::index_folder(source) {
         Ok((handle, idx)) => (handle, idx),
-        Err(_) => todo!(),
+        Err(e) => todo!("{e:?}"),
     };
     println!("FUSE MOUNT, actual file index:\n{:#?}", index);
     let provider = Arc::new(Mutex::new(Provider {
