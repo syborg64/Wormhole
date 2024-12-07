@@ -46,12 +46,25 @@ impl WhPath {
     }
 
     //NOTE - Modifier le path pour que celui corresponde au nouveau nom demandé
+    // Ne peux modifier que le dernier élément du path
     pub fn rename<S: AsRef<str>>(&mut self, file_name: S) -> &Self {
-        self.inner = self.remove_end() + file_name.as_ref();
+        if let Some(pos) = self.inner.rfind('/') {
+            if pos == self.inner.len() - 1 {
+                // self.inner = Self::remove_last_slash(self.inner.clone());
+                self.inner.pop();
+                self.rename(file_name);
+                self.inner.push('/');
+                return self;
+            }
+            self.inner = format!("{}/{}", &self.inner[..pos], file_name.as_ref());
+        } else {
+            self.inner = file_name.as_ref().to_string();
+        }
+        self.kind = self.kind();
         return self;
     }
 
-    pub fn kind(self) -> pathType {
+    pub fn kind(&self) -> pathType {
         if self.is_empty() {
             return pathType::Empty;
         }

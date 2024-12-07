@@ -128,3 +128,16 @@ fn test_whpath_remove() {
         &WhPath::new("Film/Orson Welles/Chimes at Midnight")
     );
 }
+
+#[test]
+fn test_whpath_rename() {
+    let mut empty = WhPath::new("");
+    let mut basic_folder = WhPath::new("./foo/");
+    let mut basic_file = WhPath::new("foo/file.txt");
+    let mut basic_subfolder = WhPath::new("foo/bar/");
+
+    assert_eq!(empty.rename("baz"), &WhPath::new("baz"));
+    assert_eq!(basic_folder.rename("bar"), &WhPath::new("./bar/"));
+    assert_eq!(basic_file.rename("foo.rs"), &WhPath::new("foo/foo.rs"));
+    assert_eq!(basic_subfolder.rename("sub"), &WhPath::new("foo/sub/"));
+}
