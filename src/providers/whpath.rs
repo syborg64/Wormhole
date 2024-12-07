@@ -7,26 +7,26 @@ pub enum pathType {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct MyPath {
+pub struct WhPath {
     pub inner: String,
     pub kind: pathType,
 }
 
-impl MyPath {
+impl WhPath {
     pub fn new<S: AsRef<str>>(path: S) -> Self {
         let p = String::from(path.as_ref());
-        let kind = MyPath {
+        let kind = WhPath {
             inner: p.clone(),
             kind: pathType::Empty,
         }
         .kind();
-        MyPath {
+        WhPath {
             inner: p,
             kind: kind,
         }
     }
 
-    //TODO - Faire un join pour de MyPath
+    //TODO - Faire un join pour de WhPath
     //NOTE - join deux paths dans l'ordre indiqué, résoud le conflit si le second commence avec ./ ou / ou rien
     pub fn join<S: AsRef<str>>(&mut self, segment: S) -> &Self {
         self.inner =
@@ -37,9 +37,11 @@ impl MyPath {
     //NOTE - retire la partie demandée "/my/file/path/".remove("file/path") = "/my/"
     pub fn remove<S: AsRef<str>>(&mut self, delete_this_part: S) -> &Self {
         self.inner = self.inner.replace(delete_this_part.as_ref(), "");
+        self.delete_double_slash();
         if self.is_empty() {
             self.kind = pathType::Empty;
         }
+        self.inner = Self::convert_path(&self.inner.clone(), self.kind.clone());
         return self;
     }
 
@@ -166,8 +168,30 @@ impl MyPath {
         return segment;
     }
 
+    fn delete_double_slash(&mut self) {
+        let mut i = 0;
+        let mut index = 0;
+        while index < self.inner.len() {
+            i = if self.inner.as_bytes()[index] == b'/' {
+                i + 1
+            } else {
+                0
+            };
+            if i == 2 {
+                self.inner.remove(index);
+                i -= 1;
+                continue;
+            }
+
+            index += 1;
+        }
+    }
+
     ///!SECTION - Est-ce qu'il faudra modifier pour Windows en rajoutant le '\' ??
     fn convert_path(segment: &str, pathtype: pathType) -> String {
+        if pathtype == pathType::Empty {
+            return String::from("");
+        }
         let seg = Self::remove_leading_slash(segment);
         if pathtype == pathType::Absolute {
             return "/".to_string() + seg;
