@@ -7,7 +7,7 @@ use std::{
     path::PathBuf,
 };
 
-use crate::network::message::{self, Folder, MessageContent, NetworkMessage};
+use crate::network::message::{self, Folder, MessageContent, ToNetworkMessage};
 
 use super::{Ino, Provider, TEMPLATE_FILE_ATTR};
 
@@ -33,7 +33,7 @@ impl Provider {
         self.index
             .insert(self.next_inode, (FileType::RegularFile, new_path.clone()));
         self.tx
-            .send(NetworkMessage::BroadcastMessage(MessageContent::File(
+            .send(ToNetworkMessage::BroadcastMessage(MessageContent::File(
                 message::File {
                     path: new_path.into(),
                     ino: self.next_inode,
@@ -65,12 +65,12 @@ impl Provider {
 
         // send update to network
         self.tx
-            .send(NetworkMessage::BroadcastMessage(MessageContent::NewFolder(
-                Folder {
+            .send(ToNetworkMessage::BroadcastMessage(
+                MessageContent::NewFolder(Folder {
                     ino: self.next_inode,
                     path: new_path,
-                },
-            )))
+                }),
+            ))
             .expect("mkdir: unable to update modification on the network");
 
         // creating metadata to return
@@ -90,7 +90,7 @@ impl Provider {
             .and_then(|file_path| self.metal_handle.remove_file(&file_path))
             .map(|_| {
                 self.tx
-                    .send(NetworkMessage::BroadcastMessage(MessageContent::Remove(
+                    .send(ToNetworkMessage::BroadcastMessage(MessageContent::Remove(
                         file.0,
                     )))
                     .unwrap();
@@ -133,7 +133,7 @@ impl Provider {
                     .expect("can't write file");
                 // fs::write(path, data)?;
                 self.tx
-                    .send(NetworkMessage::BroadcastMessage(MessageContent::Write(
+                    .send(ToNetworkMessage::BroadcastMessage(MessageContent::Write(
                         ino,
                         data.to_owned(),
                     )))

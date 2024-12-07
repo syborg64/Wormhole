@@ -5,12 +5,14 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::network::peer_ipc::PeerIPC;
 
-use crate::network::message::{MessageContent, NetworkMessage};
+use crate::network::message::{MessageContent, ToNetworkMessage};
+
+use super::message::FromNetworkMessage;
 
 // receive a message on user_rx and broadcast it to all peers
 pub async fn all_peers_broadcast(
     peers_list: Arc<Mutex<Vec<PeerIPC>>>,
-    mut rx: UnboundedReceiver<NetworkMessage>,
+    mut rx: UnboundedReceiver<ToNetworkMessage>,
 ) {
     // on message reception, broadcast it to all peers senders
     while let Some(message) = rx.recv().await {
@@ -29,8 +31,8 @@ pub async fn all_peers_broadcast(
 
         println!("broadcasting message to peers:\n{:?}", message);
         let inner = match message {
-            NetworkMessage::BroadcastMessage(message_content) => message_content,
-            NetworkMessage::SpecificMessage(message_content, _) => message_content,
+            ToNetworkMessage::BroadcastMessage(message_content) => message_content,
+            ToNetworkMessage::SpecificMessage(message_content, _) => message_content,
         };
         peer_tx
             .iter()
@@ -46,7 +48,7 @@ pub async fn all_peers_broadcast(
 // start connexions to peers
 pub async fn peer_startup(
     peers_ip_list: Vec<String>,
-    nfa_tx: UnboundedSender<MessageContent>,
+    nfa_tx: UnboundedSender<FromNetworkMessage>,
 ) -> Vec<PeerIPC> {
     join_all(
         peers_ip_list

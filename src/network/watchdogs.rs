@@ -6,12 +6,12 @@ use tokio::{
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
 };
 
-use crate::network::{message::NetworkMessage, peer_ipc::PeerIPC};
+use crate::network::{message::ToNetworkMessage, peer_ipc::PeerIPC};
 use crate::providers::Provider;
 
 use crate::network::server::Server;
 
-use super::message::MessageContent;
+use super::message::{FromNetworkMessage, MessageContent};
 
 pub async fn local_cli_watchdog() {
     let mut stdin = tokio::io::stdin();
@@ -40,46 +40,74 @@ pub async fn local_cli_watchdog() {
  *  @provider: fuse instance
 */
 pub async fn network_file_actions(
-    mut nfa_rx: UnboundedReceiver<MessageContent>,
+    mut nfa_rx: UnboundedReceiver<FromNetworkMessage>,
     provider: Arc<Mutex<Provider>>,
 ) {
     loop {
         match nfa_rx.recv().await {
-            Some(MessageContent::Binary(bin)) => {
+            // Some(MessageContent::Binary(bin)) => {
+            Some(FromNetworkMessage {
+                origin: _,
+                content: MessageContent::Binary(bin),
+            }) => {
                 println!("peer: {:?}", String::from_utf8(bin).unwrap_or_default());
             }
-            Some(MessageContent::NewFolder(folder)) => {
+            Some(FromNetworkMessage {
+                origin: _,
+                content: MessageContent::NewFolder(folder),
+            }) => {
                 println!("peer: NEW FOLDER");
                 let mut provider = provider.lock().expect("failed to lock mutex");
                 provider.new_folder(folder.ino, folder.path);
             }
-            Some(MessageContent::File(file)) => {
+            Some(FromNetworkMessage {
+                origin: _,
+                content: MessageContent::File(file),
+            }) => {
                 println!("peer: NEW FILE");
                 let mut provider = provider.lock().expect("failed to lock mutex");
                 provider.new_file(file.ino, file.path);
             }
-            Some(MessageContent::Remove(ino)) => {
+            Some(FromNetworkMessage {
+                origin: _,
+                content: MessageContent::Remove(ino),
+            }) => {
                 println!("peer: REMOVE");
                 let mut provider = provider.lock().expect("failed to lock mutex");
                 provider.recpt_remove(ino);
             }
-            Some(MessageContent::Write(ino, data)) => {
+            Some(FromNetworkMessage {
+                origin: _,
+                content: MessageContent::Write(ino, data),
+            }) => {
                 println!("peer: WRITE");
                 let mut provider = provider.lock().expect("failed to lock mutex");
                 provider.recpt_write(ino, data);
             }
-            Some(MessageContent::Meta(_)) => {
+            Some(FromNetworkMessage {
+                origin: _,
+                content: MessageContent::Meta(_),
+            }) => {
                 println!("peer: META");
             }
-            Some(MessageContent::RequestFile(_)) => {
+            Some(FromNetworkMessage {
+                origin: _,
+                content: MessageContent::RequestFile(_),
+            }) => {
                 println!("peer: REQUEST FILE");
             }
-            Some(MessageContent::RequestFs) => {
-                //let mut provider = provider.lock().expect("failed to lock mutex");
-                //provider.tx.send(NetworkMessage(Bo));
+            Some(FromNetworkMessage {
+                origin: _,
+                content: MessageContent::RequestFs,
+            }) => {
+                let mut provider = provider.lock().expect("failed to lock mutex");
+                //provider.tx.send(ToNetworkMessage::SpecificMessage((), ()));
                 println!("Arbo requested");
             }
-            Some(MessageContent::FileStructure(_)) => {
+            Some(FromNetworkMessage {
+                origin: _,
+                content: MessageContent::FileStructure(_),
+            }) => {
                 //let mut provider = provider.lock().expect("failed to lock mutex");
                 println!("Arbo recieved");
             }
@@ -92,7 +120,7 @@ pub async fn network_file_actions(
 
 pub async fn incoming_connections_watchdog(
     server: Server,
-    nfa_tx: UnboundedSender<MessageContent>,
+    nfa_tx: UnboundedSender<FromNetworkMessage>,
     existing_peers: Arc<Mutex<Vec<PeerIPC>>>,
 ) {
     while let Ok((stream, _)) = server.listener.accept().await {

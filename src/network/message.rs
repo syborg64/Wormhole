@@ -17,9 +17,15 @@ pub enum MessageContent {
 
 pub type Adress = String;
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct FromNetworkMessage {
+    pub origin: Adress,
+    pub content: MessageContent,
+}
+
 /// Networks Messages
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub enum NetworkMessage {
+pub enum ToNetworkMessage {
     BroadcastMessage(MessageContent),
     SpecificMessage(MessageContent, Vec<Adress>),
 }

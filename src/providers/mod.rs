@@ -3,7 +3,7 @@ use openat::Dir;
 use std::{collections::HashMap, path::PathBuf, time::UNIX_EPOCH};
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::network::message::NetworkMessage;
+use crate::network::message::ToNetworkMessage;
 
 mod helpers;
 pub mod readers;
@@ -25,7 +25,7 @@ pub struct Provider {
     pub index: FsIndex,
     pub local_source: PathBuf,
     pub metal_handle: Dir,
-    pub tx: UnboundedSender<NetworkMessage>,
+    pub tx: UnboundedSender<ToNetworkMessage>,
 }
 
 // will soon be replaced once the dev continues
