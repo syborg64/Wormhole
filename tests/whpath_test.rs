@@ -71,6 +71,8 @@ fn test_whpath_join_with_str() {
         &WhPath::new("Kaamelott/Season 4"),
     );
 
+    whpath_join(path1.clone(), "", &WhPath::new("Kaamelott/"));
+
     whpath_join(
         path2.clone(),
         "./Season 1/",
@@ -91,6 +93,8 @@ fn test_whpath_join_with_str() {
         "Season 4",
         &WhPath::new("./Kaamelott/Season 4"),
     );
+
+    whpath_join(path2.clone(), "", &WhPath::new("./Kaamelott/"));
 }
 
 #[test]
