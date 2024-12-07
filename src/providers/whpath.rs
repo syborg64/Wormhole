@@ -29,8 +29,9 @@ impl WhPath {
     //TODO - Faire un join pour de WhPath
     //NOTE - join deux paths dans l'ordre indiqué, résoud le conflit si le second commence avec ./ ou / ou rien
     pub fn join<S: AsRef<str>>(&mut self, segment: S) -> &Self {
-        self.inner =
-            Self::add_last_slash(self.inner.clone()) + Self::remove_leading_slash(segment.as_ref());
+        self.add_last_slash();
+        let seg = Self::remove_leading_slash(segment.as_ref());
+        self.inner = format!("{}{}", self.inner, seg);
         return self;
     }
 
@@ -38,10 +39,7 @@ impl WhPath {
     pub fn remove<S: AsRef<str>>(&mut self, delete_this_part: S) -> &Self {
         self.inner = self.inner.replace(delete_this_part.as_ref(), "");
         self.delete_double_slash();
-        if self.is_empty() {
-            self.kind = PathType::Empty;
-        }
-        self.inner = Self::convert_path(&self.inner.clone(), self.kind.clone());
+        self.convert_path(self.kind.clone());
         return self;
     }
 
@@ -80,8 +78,7 @@ impl WhPath {
     //NOTE - changer le path pour "./path"
     pub fn set_relative(&mut self) -> &Self {
         if !self.is_empty() && !Self::is_relative(&self) {
-            self.inner = Self::convert_path(&self.inner, PathType::Relative);
-            self.kind = PathType::Relative;
+            self.convert_path(PathType::Relative);
         }
         return self;
     }
@@ -89,8 +86,7 @@ impl WhPath {
     //NOTE - changer le path pour "/path"
     pub fn set_absolute(&mut self) -> &Self {
         if !self.is_empty() && !Self::is_absolute(&self) {
-            self.inner = Self::convert_path(&self.inner, PathType::Absolute);
-            self.kind = PathType::Absolute;
+            self.convert_path(PathType::Absolute);
         }
         return self;
     }
@@ -98,8 +94,7 @@ impl WhPath {
     //NOTE - changer le path pour "path"
     pub fn remove_prefix(&mut self) -> &Self {
         if !self.is_empty() && !Self::has_no_prefix(&self) {
-            self.inner = Self::convert_path(&self.inner, PathType::NoPrefix);
-            self.kind = PathType::NoPrefix;
+            self.convert_path(PathType::NoPrefix);
         }
         return self;
     }
@@ -122,10 +117,10 @@ impl WhPath {
 
     //NOTE - fonctions pour mettre ou non un / à la fin
     pub fn set_end(&mut self, end: bool) -> &Self {
-        self.inner = if end {
-            Self::add_last_slash(self.inner.clone())
+        if end {
+            self.add_last_slash();
         } else {
-            Self::remove_last_slash(self.inner.clone())
+            self.remove_last_slash();
         };
         return self;
     }
@@ -137,18 +132,18 @@ impl WhPath {
 
     //NOTE - donne le dernier élément du path
     pub fn get_end(&self) -> String {
-        let str = Self::remove_last_slash(self.inner.clone());
-        match str.rsplit('/').next() {
+        let mut path = self.clone();
+        path.remove_last_slash();
+        match path.inner.rsplit('/').next() {
             Some(last) => last.to_string(),
             _none => String::from(""),
         }
     }
 
-    pub fn remove_end(&self) -> String {
-        let str = Self::remove_last_slash(self.inner.clone());
-        match str.rfind('/') {
-            Some(pos) => self.inner[..pos].to_string(),
-            _none => String::from(""),
+    pub fn remove_end(&mut self) {
+        self.remove_last_slash();
+        if let Some(pos) = self.inner.rfind('/') {
+            self.inner = self.inner[..pos].to_string();
         }
     }
 
@@ -166,19 +161,19 @@ impl WhPath {
     }
 
     ///!SECTION - Est-ce qu'il faudra modifier pour Windows en rajoutant le '\' ??
-    fn add_last_slash(segment: String) -> String {
-        if segment.chars().last() != Some('/') {
-            return segment + "/";
+    fn add_last_slash(&mut self) {
+        if self.inner.chars().last() != Some('/') {
+            self.inner = format!("{}/", self.inner);
         }
-        return segment;
     }
 
     ///!SECTION - Est-ce qu'il faudra modifier pour Windows en rajoutant le '\' ??
-    fn remove_last_slash(segment: String) -> String {
-        if segment.chars().last() == Some('/') {
-            return segment.trim_end().to_string();
+    fn remove_last_slash(&mut self) {
+        if let Some(pos) = self.inner.rfind('/') {
+            if pos == self.inner.len() - 1 {
+                self.inner.pop();
+            }
         }
-        return segment;
     }
 
     fn delete_double_slash(&mut self) {
@@ -201,17 +196,20 @@ impl WhPath {
     }
 
     ///!SECTION - Est-ce qu'il faudra modifier pour Windows en rajoutant le '\' ??
-    fn convert_path(segment: &str, pathtype: PathType) -> String {
-        if pathtype == PathType::Empty {
-            return String::from("");
+    fn convert_path(&mut self, pathtype: PathType) {
+        if pathtype == PathType::Empty || self.inner == String::from("") {
+            self.inner = String::from("");
+            self.kind = PathType::Empty;
+            return;
         }
-        let seg = Self::remove_leading_slash(segment);
+        self.inner = Self::remove_leading_slash(&self.inner.clone()).to_string();
         if pathtype == PathType::Absolute {
-            return "/".to_string() + seg;
-        } else if pathtype == PathType::Relative {
-            return "./".to_string() + seg;
-        } else {
-            return seg.to_string();
+            self.inner = format!("/{}", self.inner);
         }
+        if pathtype == PathType::Relative {
+            self.inner = format!("./{}", self.inner);
+        } else {
+        }
+        self.kind = self.kind();
     }
 }

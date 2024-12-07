@@ -233,3 +233,11 @@ fn test_is_empty() {
     assert_eq!(empty.is_empty(), true);
     assert_eq!(not_empty.is_empty(), false);
 }
+
+#[test]
+fn test_set_end() {
+    let mut set_end_true = WhPath::new("/foo");
+    let mut set_end_false = WhPath::new("/foo/");
+    assert_eq!(set_end_true.set_end(true), &WhPath::new("/foo/"));
+    assert_eq!(set_end_false.set_end(false), &WhPath::new("/foo"));
+}
