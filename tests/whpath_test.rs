@@ -2,6 +2,31 @@ extern crate wormhole;
 use crate::wormhole::providers::whpath::{pathType, WhPath};
 
 #[test]
+fn test_whpath_kind() {
+    let empty = WhPath {
+        inner: String::from(""),
+        kind: pathType::Empty,
+    };
+    let absolute = WhPath {
+        inner: String::from("/foo"),
+        kind: pathType::Empty,
+    };
+    let relative = WhPath {
+        inner: String::from("./foo"),
+        kind: pathType::Empty,
+    };
+    let noprefix = WhPath {
+        inner: String::from("foo"),
+        kind: pathType::Empty,
+    };
+
+    assert_eq!(empty.kind(), pathType::Empty);
+    assert_eq!(absolute.kind(), pathType::Absolute);
+    assert_eq!(relative.kind(), pathType::Relative);
+    assert_eq!(noprefix.kind(), pathType::NoPrefix);
+}
+
+#[test]
 fn test_whpath_new() {
     let path = WhPath::new("./StarWars/A_New_Hope");
     assert_eq!(
