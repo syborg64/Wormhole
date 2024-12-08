@@ -30,13 +30,11 @@ use wormhole::network::{
     watchdogs::{incoming_connections_watchdog, local_cli_watchdog, network_file_actions},
 };
 use wormhole::{fuse::fuse_impl::mount_fuse, network::peer_ipc::PeerIPC};
-
 use wormhole::network::server::Server;
 
 #[tokio::main]
 async fn main() {
     env_logger::init();
-
     // DOC - arguments: own_address other_addr1 other_addr2 mount_to source
     let own_addr = env::args().nth(1).unwrap_or("127.0.0.1:8080".to_string());
     let other_addr1 = env::args()
