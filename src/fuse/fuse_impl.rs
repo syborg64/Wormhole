@@ -37,7 +37,7 @@ const MOUNT_DIR_ATTR: FileAttr = FileAttr {
     blksize: 512,
 };
 
-const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
+pub const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
     ino: 2,
     size: 13,
     blocks: 1,

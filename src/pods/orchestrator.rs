@@ -10,12 +10,14 @@ use std::{
     path::PathBuf,
 };
 
-use crate::{network::message::NetworkMessage, providers::FsIndex};
+use crate::{
+    fuse::fuse_impl::TEMPLATE_FILE_ATTR, network::message::NetworkMessage, providers::FsIndex,
+};
 
 use super::{disk_manager::DiskManager, logical_manager::LogicalManager};
 
 pub struct Orchestrator {
-    pub logical_manager: Arc<LogicalManager>
+    pub logical_manager: Arc<LogicalManager>,
 }
 
 struct Helpers {}
@@ -49,9 +51,13 @@ impl Orchestrator {
     pub fn mkfile(&self, parent_ino: u64, name: &OsStr) -> io::Result<FileAttr> {
         self.check_file_type(parent_ino, FileType::Directory)?;
 
-        let new_path = Helpers::wh_path_from_ino(&self.logical_manager.arbo, &parent_ino)?.join(name);
+        let new_path =
+            Helpers::wh_path_from_ino(&self.logical_manager.arbo.lock().unwrap(), &parent_ino)?
+                .join(name);
 
-        if let Some(_) = Helpers::wh_path_exists(&self.logical_manager.arbo, &new_path) {
+        if let Some(_) =
+            Helpers::wh_path_exists(&self.logical_manager.arbo.lock().unwrap(), &new_path)
+        {
             return Err(io::Error::new(
                 io::ErrorKind::AlreadyExists,
                 "path already existing",
@@ -65,22 +71,15 @@ impl Orchestrator {
         };
 
         // add entry to the index
-        self.index
-            .insert(self.next_inode, (FileType::RegularFile, new_path.clone()));
-        self.tx
-            .send(NetworkMessage::File(message::File {
-                path: new_path.into(),
-                file: [].to_vec(), // REVIEW - why this field ? useful ?
-                ino: self.next_inode,
-            }))
-            .expect("mkfile: unable to update modification on the network");
+        let ino = self
+            .logical_manager
+            .register_new_file(FileType::RegularFile, new_path);
 
         // creating metadata to return
         let mut new_attr = TEMPLATE_FILE_ATTR;
-        new_attr.ino = self.next_inode;
+        new_attr.ino = ino;
         new_attr.kind = FileType::RegularFile;
         new_attr.size = 0;
-        self.next_inode += 1; // NOTE - ne jamais oublier d'incrémenter si besoin next_inode
         Ok(new_attr)
     }
 
