@@ -3,8 +3,7 @@
 -logical_manager: LogicalManager
 -mount_point: UniPath
 -peers: Vec&lt;PeerIPC&gt;
--podConfig: &lt;&lt;PodConf&gt;&gt;
--provider: Provider
+-pod_conf: &lt;&lt;PodConf&gt;&gt;
 -&lt;&lt;network thread&gt;&gt;
 --
 Connect()
