@@ -27,6 +27,7 @@ impl LogicalManager {
         available_inode
     }
 
+    /// Get a new inode, add the requested entry to the arbo and inform the network
     pub fn register_new_file(&self, ftype: FileType, path: PathBuf) -> u64 {
         let mut arbo = self.arbo.lock().expect("arbo lock error");
         let ino = self.get_next_inode();
