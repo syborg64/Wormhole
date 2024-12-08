@@ -6,10 +6,7 @@ use tokio::{
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
 };
 
-use crate::network::{
-    message::{FileStructure, ToNetworkMessage},
-    peer_ipc::PeerIPC,
-};
+use crate::network::peer_ipc::PeerIPC;
 use crate::providers::Provider;
 
 use crate::network::server::Server;
@@ -84,18 +81,14 @@ pub async fn network_file_actions(
             }
             MessageContent::RequestFs => {
                 let provider = provider.lock().expect("failed to lock mutex");
+                provider.send_file_system(origin);
                 print!("Arbo requested");
-                provider
-                    .tx
-                    .send(ToNetworkMessage::SpecificMessage(
-                        MessageContent::FileStructure(FileStructure {}),
-                        vec![origin],
-                    ))
-                    .expect("File system send failed");
+
                 println!(" and sent!");
             }
-            MessageContent::FileStructure(_) => {
-                //let mut provider = provider.lock().expect("failed to lock mutex");
+            MessageContent::FileStructure(fs) => {
+                let mut provider = provider.lock().expect("failed to lock mutex");
+                provider.merge_file_system(fs);
                 println!("Arbo recieved");
             }
         };

@@ -6,9 +6,59 @@ use std::{
 use fuser::{FileAttr, FileType};
 use std::ffi::OsStr;
 
+use crate::network::message::{FileSystemSerialized, MessageContent, ToNetworkMessage};
+
 use super::Provider;
 
 impl Provider {
+    pub fn send_file_system(&self, origin: String) {
+        let mut new_fs_index = self.index.clone();
+        new_fs_index.remove(&1u64); // remove "./"
+        let fs = FileSystemSerialized {
+            fs_index: new_fs_index,
+            next_inode: self.next_inode,
+        };
+        self.tx
+            .send(ToNetworkMessage::SpecificMessage(
+                MessageContent::FileStructure(fs),
+                vec![origin],
+            ))
+            .expect("File system send failed");
+    }
+
+    pub fn merge_file_system(&mut self, fs: FileSystemSerialized) {
+        println!("Importing other FS: own {:?} other {:?}", self.index, fs);
+        for (k, v) in fs.fs_index {
+            self.index.insert(k, v);
+            // Handling conflicts can be implemented here
+        }
+
+        self.next_inode = fs.next_inode;
+        for (_, (file_type, path)) in &self.index {
+            if path.to_str().unwrap() != "./" {
+                println!("Creating {:?}", path);
+
+                match file_type {
+                    fuser::FileType::NamedPipe => todo!(),
+                    fuser::FileType::CharDevice => todo!(),
+                    fuser::FileType::BlockDevice => todo!(),
+                    fuser::FileType::Directory => self
+                        .metal_handle
+                        .create_dir(path, libc::S_IWRITE | libc::S_IREAD)
+                        .expect("unable to create folder"),
+                    fuser::FileType::RegularFile => {
+                        self.metal_handle
+                            .new_file(path, libc::S_IWRITE | libc::S_IREAD)
+                            .expect("unable to create file");
+                    }
+                    fuser::FileType::Symlink => todo!(),
+                    fuser::FileType::Socket => todo!(),
+                };
+            }
+        }
+        println!("Finished Mergeing file systems");
+    }
+
     // find the path of the real file in the original folder
     pub fn mirror_path_from_inode(&self, ino: u64) -> io::Result<PathBuf> {
         println!("mirror path from inode");

@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 
-use crate::{data::metadata::MetaData, providers::Ino};
+use crate::{
+    data::metadata::MetaData,
+    providers::{FsIndex, Ino},
+};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum MessageContent {
@@ -12,7 +16,7 @@ pub enum MessageContent {
     Binary(Vec<u8>),
     Write(Ino, Vec<u8>),
     RequestFs,
-    FileStructure(FileStructure),
+    FileStructure(FileSystemSerialized),
 }
 
 pub type Adress = String;
@@ -30,8 +34,13 @@ pub enum ToNetworkMessage {
     SpecificMessage(MessageContent, Vec<Adress>),
 }
 
+#[serde_as]
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct FileStructure {}
+pub struct FileSystemSerialized {
+    #[serde_as(as = "Vec<(_, _)>")]
+    pub fs_index: FsIndex,
+    pub next_inode: Ino,
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct File {
