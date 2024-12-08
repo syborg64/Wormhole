@@ -6,6 +6,9 @@ use crate::{
     providers::{FsIndex, Ino},
 };
 
+/// Message Content
+/// Represent the content of the intern message but is also the struct sent
+/// through the network
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum MessageContent {
     Remove(Ino),
@@ -21,13 +24,16 @@ pub enum MessageContent {
 
 pub type Adress = String;
 
+/// Message Coming from Network
+/// Messages recived by peers, forwared to [crate::network::watchdogs::network_file_actions]
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct FromNetworkMessage {
     pub origin: Adress,
     pub content: MessageContent,
 }
 
-/// Networks Messages
+/// Message Going To Network
+/// Messages sent from fuser to process communicating to the peers
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ToNetworkMessage {
     BroadcastMessage(MessageContent),
