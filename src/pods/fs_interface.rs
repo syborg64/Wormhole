@@ -120,14 +120,27 @@ impl FsInterface {
     }
 
     pub fn rmfile(&mut self, parent_ino: u64, name: &OsStr) -> io::Result<()> {
-        let file = self.file_from_parent_ino_and_name(parent_ino, name)?;
+        let path =
+            Helpers::wh_path_from_ino(&self.network_interface.arbo.lock().unwrap(), &parent_ino)?
+                .join(name);
 
-        self.mirror_path_from_inode(file.0)
-            .and_then(|file_path| self.disk.remove_file(&file_path))
-            .map(|_| {
-                self.tx.send(NetworkMessage::Remove(file.0)).unwrap();
-                self.index.remove(&file.0);
-            })
+        if None == Helpers::wh_path_exists(&self.network_interface.arbo.lock().unwrap(), &path) {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "file not found",
+            ));
+        }
+
+        match (&self.network_interface.disk).remove_file(&path) {
+            Ok(_) => (),
+            Err(e) => {
+                return Err(e);
+            }
+        };
+
+        self.network_interface.unregister_file(path);
+
+        Ok(())
     }
 
     pub fn rmdir(&mut self, parent_ino: u64, name: &OsStr) -> Option<()> {
