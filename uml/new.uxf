@@ -1,6 +1,6 @@
 <diagram program="umletino" version="15.1"><zoom_level>10</zoom_level><help_text>Space for diagram notes</help_text><element><id>UMLClass</id><coordinates><x>510</x><y>810</y><w>210</w><h>170</h></coordinates><panel_attributes>Pod
 --
--logical_manager: LogicalManager
+-logical_manager: NetworkInterface
 -mount_point: UniPath
 -peers: Vec&lt;PeerIPC&gt;
 -pod_conf: &lt;&lt;PodConf&gt;&gt;
@@ -90,7 +90,7 @@ Manage logical operations like cache / replicas
 --
 
 network_airport(Arc&lt;Mutex&lt;Arborescence&gt;&gt; arbo, nw_rx)
-/!\ have an arc mutex on the LogicalManager's arbo
+/!\ have an arc mutex on the NetworkInterface's arbo
 
 
 
@@ -113,7 +113,7 @@ bg=blue</panel_attributes><additional_attributes></additional_attributes></eleme
 --
 implement all the functions requested by fuser
 --
-orchestrator: Arc&lt;Orchestrator&gt;
+orchestrator: Arc&lt;FsInterface&gt;
 --
 
 </panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>1340</x><y>830</y><w>370</w><h>380</h></coordinates><panel_attributes>FsInterface

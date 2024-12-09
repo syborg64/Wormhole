@@ -14,10 +14,10 @@ use crate::{
     fuse::fuse_impl::TEMPLATE_FILE_ATTR, network::message::NetworkMessage, providers::FsIndex,
 };
 
-use super::{disk_manager::DiskManager, logical_manager::LogicalManager};
+use super::{disk_manager::DiskManager, network_interface::NetworkInterface};
 
-pub struct Orchestrator {
-    pub logical_manager: Arc<LogicalManager>,
+pub struct FsInterface {
+    pub logical_manager: Arc<NetworkInterface>,
 }
 
 struct Helpers {}
@@ -47,7 +47,7 @@ impl Helpers {
 
 /// Provides functions to allow primitive handlers like Fuse & WinFSP to
 /// interract with the network.
-impl Orchestrator {
+impl FsInterface {
     pub fn mkfile(&self, parent_ino: u64, name: &OsStr) -> io::Result<FileAttr> {
         self.check_file_type(parent_ino, FileType::Directory)?;
 

@@ -10,7 +10,7 @@ use crate::{network::message::{self, NetworkMessage}, providers::FsIndex};
 
 use super::disk_manager::DiskManager;
 
-pub struct LogicalManager {
+pub struct NetworkInterface {
     pub arbo: Arc<Mutex<FsIndex>>,
     pub mount_point: PathBuf, // TODO - replace by Ludo's unipath
     pub disk: Arc<DiskManager>,
@@ -19,7 +19,7 @@ pub struct LogicalManager {
     pub network_airport_handle: JoinHandle<()>,
 }
 
-impl LogicalManager {
+impl NetworkInterface {
     pub fn get_next_inode(&self) -> u64 {
         let mut inode = self.next_inode.lock().expect("unable to lock inode mutex");
         let available_inode = *inode;
