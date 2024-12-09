@@ -1,6 +1,6 @@
 <diagram program="umletino" version="15.1"><zoom_level>10</zoom_level><help_text>Space for diagram notes</help_text><element><id>UMLClass</id><coordinates><x>510</x><y>810</y><w>210</w><h>170</h></coordinates><panel_attributes>Pod
 --
--logical_manager: NetworkInterface
+-network_interface: NetworkInterface
 -mount_point: UniPath
 -peers: Vec&lt;PeerIPC&gt;
 -pod_conf: &lt;&lt;PodConf&gt;&gt;

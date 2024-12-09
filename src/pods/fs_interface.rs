@@ -17,7 +17,7 @@ use crate::{
 use super::{disk_manager::DiskManager, network_interface::NetworkInterface};
 
 pub struct FsInterface {
-    pub logical_manager: Arc<NetworkInterface>,
+    pub network_interface: Arc<NetworkInterface>,
 }
 
 struct Helpers {}
@@ -52,18 +52,18 @@ impl FsInterface {
         self.check_file_type(parent_ino, FileType::Directory)?;
 
         let new_path =
-            Helpers::wh_path_from_ino(&self.logical_manager.arbo.lock().unwrap(), &parent_ino)?
+            Helpers::wh_path_from_ino(&self.network_interface.arbo.lock().unwrap(), &parent_ino)?
                 .join(name);
 
         if let Some(_) =
-            Helpers::wh_path_exists(&self.logical_manager.arbo.lock().unwrap(), &new_path)
+            Helpers::wh_path_exists(&self.network_interface.arbo.lock().unwrap(), &new_path)
         {
             return Err(io::Error::new(
                 io::ErrorKind::AlreadyExists,
                 "path already existing",
             ));
         }
-        match (&self.logical_manager.disk).new_file(&new_path) {
+        match (&self.network_interface.disk).new_file(&new_path) {
             Ok(_) => (),
             Err(e) => {
                 return Err(e);
@@ -72,7 +72,7 @@ impl FsInterface {
 
         // add entry to the index
         let ino = self
-            .logical_manager
+            .network_interface
             .register_new_file(FileType::RegularFile, new_path);
 
         // creating metadata to return
@@ -87,11 +87,11 @@ impl FsInterface {
         self.check_file_type(parent_ino, FileType::Directory)?;
 
         let new_path =
-            Helpers::wh_path_from_ino(&self.logical_manager.arbo.lock().unwrap(), &parent_ino)?
+            Helpers::wh_path_from_ino(&self.network_interface.arbo.lock().unwrap(), &parent_ino)?
                 .join(name);
 
         if let Some(_) =
-            Helpers::wh_path_exists(&self.logical_manager.arbo.lock().unwrap(), &new_path)
+            Helpers::wh_path_exists(&self.network_interface.arbo.lock().unwrap(), &new_path)
         {
             return Err(io::Error::new(
                 io::ErrorKind::AlreadyExists,
@@ -99,7 +99,7 @@ impl FsInterface {
             ));
         }
 
-        match (&self.logical_manager.disk).new_dir(&new_path) {
+        match (&self.network_interface.disk).new_dir(&new_path) {
             Ok(_) => (),
             Err(e) => {
                 return Err(e);
@@ -108,7 +108,7 @@ impl FsInterface {
 
         // adding path to the wormhole index
         let ino = self
-            .logical_manager
+            .network_interface
             .register_new_file(FileType::Directory, new_path);
 
         // creating metadata to return
