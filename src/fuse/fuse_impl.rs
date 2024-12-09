@@ -14,7 +14,7 @@ use std::time::{Duration, UNIX_EPOCH};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::network::message::ToNetworkMessage;
-use crate::providers::{FsIndex, Provider};
+use crate::providers::{FsEntry, FsIndex, Provider};
 
 // NOTE - placeholders
 const TTL: Duration = Duration::from_secs(1);
@@ -62,16 +62,6 @@ pub struct FuseController {
     pub provider: Arc<Mutex<Provider>>,
 }
 
-// Custom data (not directly linked to fuse)
-// create some data for us like the index or data provider
-
-fn simple_type_to_fuse_type(t: SimpleType) -> fuser::FileType {
-    match t {
-        SimpleType::Dir => fuser::FileType::Directory,
-        SimpleType::File => fuser::FileType::RegularFile,
-        _ => fuser::FileType::CharDevice, // NOTE - random because unsupported, should be handled
-    }
-}
 fn index_folder_recursive(
     arbo: &mut FsIndex,
     inode: &mut u64,
@@ -86,13 +76,14 @@ fn index_folder_recursive(
             let name = entry.file_name();
             let stype = entry.simple_type().unwrap();
 
-            // let mut generated_path = path.clone();
             let generated_path = path.join(name);
 
-            arbo.insert(
-                *inode,
-                (simple_type_to_fuse_type(stype), generated_path.clone()),
-            );
+            let new_entry = match stype {
+                SimpleType::Dir => FsEntry::Directory(generated_path.clone()),
+                SimpleType::File => FsEntry::File(generated_path.clone(), vec![]),
+                _ => return Ok(()),
+            };
+            arbo.insert(*inode, new_entry);
             println!("added entry to arbo {}:{:?}", inode, arbo.get(inode));
             *inode += 1;
 
@@ -118,7 +109,7 @@ impl FuseController {
         let mut arbo: FsIndex = HashMap::new();
         let mut inode: u64 = 2;
 
-        arbo.insert(1, (FileType::Directory, "./".into()));
+        arbo.insert(1, FsEntry::Directory("./".into()));
 
         index_folder_recursive(&mut arbo, &mut inode, &metal_mount_handle, ".".into())?;
         Ok((metal_mount_handle, arbo))
@@ -181,10 +172,15 @@ impl Filesystem for FuseController {
         let provider = self.provider.lock().unwrap();
         if let Ok(entries) = provider.fs_readdir(ino) {
             println!("....listing entries {:?}", entries);
-            for (i, entry) in entries.into_iter().enumerate().skip(offset as usize) {
+            for (i, (ino, entry)) in entries.into_iter().enumerate().skip(offset as usize) {
                 println!("....readdir entries : {:?}", entry);
                 // i + 1 means the index of the next entry
-                if reply.add(entry.0, (i + 1) as i64, entry.1, entry.2) {
+                if reply.add(
+                    ino,
+                    (i + 1) as i64,
+                    entry.get_filetype(),
+                    entry.get_name().unwrap(),
+                ) {
                     break;
                 }
             }

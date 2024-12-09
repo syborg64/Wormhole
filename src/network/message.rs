@@ -22,13 +22,13 @@ pub enum MessageContent {
     FileStructure(FileSystemSerialized),
 }
 
-pub type Adress = String;
+pub type Address = String;
 
 /// Message Coming from Network
 /// Messages recived by peers, forwared to [crate::network::watchdogs::network_file_actions]
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct FromNetworkMessage {
-    pub origin: Adress,
+    pub origin: Address,
     pub content: MessageContent,
 }
 
@@ -37,7 +37,7 @@ pub struct FromNetworkMessage {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ToNetworkMessage {
     BroadcastMessage(MessageContent),
-    SpecificMessage(MessageContent, Vec<Adress>),
+    SpecificMessage(MessageContent, Vec<Address>),
 }
 
 #[serde_as]

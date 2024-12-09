@@ -9,8 +9,8 @@ use log::info;
 use std::ffi::OsStr;
 use std::io;
 use std::io::Read;
-use std::path::Path;
 
+use super::FsEntry;
 use super::{Ino, Provider, TEMPLATE_FILE_ATTR};
 
 // should maybe be restructured, but
@@ -37,13 +37,15 @@ impl Provider {
     fn list_files(&self, parent_ino: Ino) -> io::Result<Vec<u64>> {
         println!("list files called on ino {}", parent_ino); // DEBUG
         match self.index.get(&parent_ino) {
-            Some((_, parent_path)) => {
+            Some(entry) => {
+                let parent_path = entry.get_path();
+
                 debug!("LISTING files in parent path {:?}", parent_path);
                 let ino_list = self
                     .index
                     .iter()
-                    .filter_map(|e| {
-                        let e_path = &e.1 .1;
+                    .filter_map(|(ino, entry)| {
+                        let e_path = entry.get_path();
                         let e_parent = e_path.parent()?;
 
                         if e_path == parent_path {
@@ -58,7 +60,7 @@ impl Provider {
                             );
                             if e_parent == parent_path {
                                 println!(">yes");
-                                Some(*e.0)
+                                Some(*ino)
                             } else {
                                 println!(">no");
                                 None
@@ -79,31 +81,16 @@ impl Provider {
         }
     }
 
-    // returns a small amount of data for a file (asked for readdir)
-    // -> (ino, type, name)
-    fn file_small_meta(&self, ino: Ino) -> io::Result<(u64, fuser::FileType, String)> {
-        println!("file_small_meta called on ino {}", ino); // DEBUG
-        match self.index.get(&ino) {
-            Some((file_type, file_path)) => {
-                let file_name = match Path::new(file_path).file_name() {
-                    Some(name) => name.to_string_lossy().to_string(),
-                    None => {
-                        return Err(io::Error::new(io::ErrorKind::Other, "Invalid path ending"))
-                    }
-                };
-                Ok((ino, file_type.clone(), file_name))
-            }
-            None => Err(io::Error::new(io::ErrorKind::NotFound, "Inode not found")),
-        }
-    }
-
     // used directly in FuseControler's readdir function
-    pub fn fs_readdir(&self, parent_ino: Ino) -> io::Result<Vec<(u64, fuser::FileType, String)>> {
+    pub fn fs_readdir(&self, parent_ino: Ino) -> io::Result<Vec<(Ino, &FsEntry)>> {
         println!("fs_readdir called on ino {}", parent_ino); // DEBUG
         match self.list_files(parent_ino) {
             Ok(list) => Ok(list
                 .into_iter()
-                .filter_map(|e| self.file_small_meta(e).ok())
+                .filter_map(|inode| match self.index.get(&inode) {
+                    Some(entry) => Some((inode, entry)),
+                    None => None,
+                })
                 .collect()),
             Err(e) => Err(e),
         }
@@ -152,10 +139,10 @@ impl Provider {
             Ok(datas) => {
                 let mut metadata: io::Result<FileAttr> =
                     Err(io::Error::new(io::ErrorKind::NotFound, "Path not found"));
-                for data in datas {
-                    println!("looping on {:?}", data);
-                    if data.2 == file_name {
-                        metadata = self.get_metadata(data.0);
+                for (ino, entry) in datas {
+                    println!("looping on {:?}", entry);
+                    if entry.get_name()?.to_string_lossy() == file_name {
+                        metadata = self.get_metadata(ino);
                     };
                 }
                 metadata
