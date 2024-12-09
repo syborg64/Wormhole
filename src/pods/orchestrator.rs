@@ -85,32 +85,37 @@ impl Orchestrator {
 
     pub fn mkdir(&mut self, parent_ino: u64, name: &OsStr) -> io::Result<FileAttr> {
         self.check_file_type(parent_ino, FileType::Directory)?;
-        // generation of the real path (of the mirror)
-        let new_path = PathBuf::from(self.mirror_path_from_inode(parent_ino).unwrap()).join(name);
 
-        // bare metal dir creation (on the mirror)
-        self.disk.create_dir(&new_path, 0o755)?; // REVIEW look more in c mode_t value
-        println!("creating dir at {}", new_path.display()); // DEBUG
+        let new_path =
+            Helpers::wh_path_from_ino(&self.logical_manager.arbo.lock().unwrap(), &parent_ino)?
+                .join(name);
+
+        if let Some(_) =
+            Helpers::wh_path_exists(&self.logical_manager.arbo.lock().unwrap(), &new_path)
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                "path already existing",
+            ));
+        }
+
+        match (&self.logical_manager.disk).new_dir(&new_path) {
+            Ok(_) => (),
+            Err(e) => {
+                return Err(e);
+            }
+        };
 
         // adding path to the wormhole index
-        self.index
-            .insert(self.next_inode, (FileType::Directory, new_path.clone()));
-
-        // send update to network
-        self.tx
-            .send(NetworkMessage::NewFolder(Folder {
-                ino: self.next_inode,
-                path: new_path,
-            }))
-            .expect("mkdir: unable to update modification on the network");
+        let ino = self
+            .logical_manager
+            .register_new_file(FileType::Directory, new_path);
 
         // creating metadata to return
         let mut new_attr = TEMPLATE_FILE_ATTR;
-        new_attr.ino = self.next_inode;
+        new_attr.ino = ino;
         new_attr.kind = FileType::Directory;
         new_attr.size = 0;
-        self.next_inode += 1; // NOTE - ne jamais oublier d'incrémenter si besoin next_inode
-
         Ok(new_attr)
     }
 
