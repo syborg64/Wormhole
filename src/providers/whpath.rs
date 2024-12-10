@@ -151,6 +151,17 @@ impl WhPath {
         return self;
     }
 
+    pub fn to_vector(&mut self) -> Vec<String> {
+        let mut elements: Vec<String> = vec![];
+
+        while !self.is_empty() {
+            elements.push(self.get_end());
+            self.remove_end();
+        }
+        let elements = elements.into_iter().rev().collect();
+        elements
+    }
+
     ///!SECTION - Est-ce qu'il faudra modifier pour Windows en rajoutant le '\' ??
     ///!SECTION- A modifier pour prendre en compte les fichiers cachés ?
     fn remove_leading_slash(segment: &str) -> &str {
@@ -290,5 +301,12 @@ mod tests {
         assert_eq!(absolute.convert_path(PathType::Empty), &empty);
         assert_eq!(empty.convert_path(PathType::Absolute), &WhPath::new(""));
         assert_eq!(path.convert_path(PathType::Relative), &WhPath::new("./foo"));
+    }
+
+    #[test]
+    fn test_whpath_to_vector() {
+        let mut path = WhPath::new("foo/pouet/lol");
+
+        assert_eq!(path.to_vector(), vec!["foo", "pouet", "lol"]);
     }
 }
