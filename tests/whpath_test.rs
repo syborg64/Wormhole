@@ -243,14 +243,14 @@ fn test_whpath_set_end() {
 }
 
 #[test]
-fn test_whpath_isln() {
+fn test_whpath_is_in() {
     let path = WhPath::new("/foo/bar/baz.txt");
     let empty = WhPath::new("");
-    assert_eq!(path.isln("/foo/bar"), true);
-    assert_eq!(path.isln("bar"), false);
-    assert_eq!(path.isln("peanuts"), false);
-    assert_eq!(empty.isln("peanuts"), false);
-    assert_eq!(empty.isln(""), true);
+    assert_eq!(path.is_in("/foo/bar"), true);
+    assert_eq!(path.is_in("bar"), false);
+    assert_eq!(path.is_in("peanuts"), false);
+    assert_eq!(empty.is_in("peanuts"), false);
+    assert_eq!(empty.is_in(""), true);
 }
 
 #[test]

@@ -15,15 +15,12 @@ pub struct WhPath {
 impl WhPath {
     pub fn new<S: AsRef<str>>(path: S) -> Self {
         let p = String::from(path.as_ref());
-        let kind = WhPath {
+        let mut pth = WhPath {
             inner: p.clone(),
             kind: PathType::Empty,
-        }
-        .kind();
-        WhPath {
-            inner: p,
-            kind: kind,
-        }
+        };
+        pth.update_kind();
+        pth
     }
 
     //TODO - Faire un join pour de WhPath
@@ -32,7 +29,7 @@ impl WhPath {
         self.add_last_slash();
         let seg = Self::remove_leading_slash(segment.as_ref());
         self.inner = format!("{}{}", self.inner, seg);
-        return self;
+        self
     }
 
     //NOTE - retire la partie demandée "/my/file/path/".remove("file/path") = "/my/"
@@ -40,11 +37,11 @@ impl WhPath {
         self.inner = self.inner.replace(delete_this_part.as_ref(), "");
         self.delete_double_slash();
         self.convert_path(self.kind.clone());
-        return self;
+        self
     }
 
     //NOTE - Modifier le path pour que celui corresponde au nouveau nom demandé
-    // Ne peux modifier que le dernier élément du path
+    // Ne peut modifier que le dernier élément du path
     pub fn rename<S: AsRef<str>>(&mut self, file_name: S) -> &Self {
         if let Some(pos) = self.inner.rfind('/') {
             if pos == self.inner.len() - 1 {
@@ -58,8 +55,8 @@ impl WhPath {
         } else {
             self.inner = file_name.as_ref().to_string();
         }
-        self.kind = self.kind();
-        return self;
+        self.update_kind();
+        self
     }
 
     pub fn kind(&self) -> PathType {
@@ -75,12 +72,16 @@ impl WhPath {
         }
     }
 
+    pub fn update_kind (&mut self) {
+        self.kind = self.kind();
+    }
+
     //NOTE - changer le path pour "./path"
     pub fn set_relative(&mut self) -> &Self {
         if !self.is_empty() && !Self::is_relative(&self) {
             self.convert_path(PathType::Relative);
         }
-        return self;
+        self
     }
 
     //NOTE - changer le path pour "/path"
@@ -88,7 +89,7 @@ impl WhPath {
         if !self.is_empty() && !Self::is_absolute(&self) {
             self.convert_path(PathType::Absolute);
         }
-        return self;
+        self
     }
 
     //NOTE - changer le path pour "path"
@@ -96,23 +97,23 @@ impl WhPath {
         if !self.is_empty() && !Self::has_no_prefix(&self) {
             self.convert_path(PathType::NoPrefix);
         }
-        return self;
+        self
     }
 
     pub fn is_relative(&self) -> bool {
-        return self.kind == PathType::Relative;
+        self.kind == PathType::Relative
     }
 
     pub fn is_absolute(&self) -> bool {
-        return self.kind == PathType::Absolute;
+        self.kind == PathType::Absolute
     }
 
     pub fn has_no_prefix(&self) -> bool {
-        return self.kind == PathType::NoPrefix;
+        self.kind == PathType::NoPrefix
     }
 
     pub fn is_empty(&self) -> bool {
-        return self.inner.is_empty();
+        self.inner.is_empty()
     }
 
     //NOTE - fonctions pour mettre ou non un / à la fin
@@ -122,12 +123,12 @@ impl WhPath {
         } else {
             self.remove_last_slash();
         };
-        return self;
+        self
     }
 
     //NOTE - true si le path demandé est dans le path original (comme tu gères des string c'est un startwith, en gros)
-    pub fn isln<S: AsRef<str>>(&self, segment: S) -> bool {
-        return self.inner.starts_with(segment.as_ref());
+    pub fn is_in<S: AsRef<str>>(&self, segment: S) -> bool {
+        self.inner.starts_with(segment.as_ref())
     }
 
     //NOTE - donne le dernier élément du path
@@ -217,10 +218,11 @@ impl WhPath {
             self.inner = format!("./{}", self.inner);
         } else {
         }
-        self.kind = self.kind();
+        self.update_kind();
         return self;
     }
 }
+
 
 #[cfg(test)]
 mod tests {
