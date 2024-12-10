@@ -55,7 +55,7 @@ impl EnvironnementManager {
             .args(&[
                 "run".to_string(),
                 "--bin".to_string(),
-                "service".to_string(),
+                "wormhole-service".to_string(),
                 format!("127.0.0.{}:8081", new_index + 100),
                 format!("ws://127.0.0.{}:8081", snd_index + 100),
                 format!("ws://127.0.0.{}:8081", third_index + 100),

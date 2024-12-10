@@ -9,7 +9,7 @@ use std::{
 
 use crate::network::message::{self, Folder, MessageContent, ToNetworkMessage};
 
-use super::{Ino, Provider, TEMPLATE_FILE_ATTR};
+use super::{FsEntry, Ino, Provider, TEMPLATE_FILE_ATTR};
 
 impl Provider {
     pub fn mkfile(&mut self, parent_ino: Ino, name: &OsStr) -> io::Result<FileAttr> {
@@ -31,7 +31,7 @@ impl Provider {
 
         // add entry to the index
         self.index
-            .insert(self.next_inode, (FileType::RegularFile, new_path.clone()));
+            .insert(self.next_inode, FsEntry::File(new_path.clone(), vec![]));
         self.tx
             .send(ToNetworkMessage::BroadcastMessage(MessageContent::File(
                 message::File {
@@ -61,7 +61,7 @@ impl Provider {
 
         // adding path to the wormhole index
         self.index
-            .insert(self.next_inode, (FileType::Directory, new_path.clone()));
+            .insert(self.next_inode, FsEntry::Directory(new_path.clone()));
 
         // send update to network
         self.tx
@@ -84,17 +84,17 @@ impl Provider {
     }
 
     pub fn rmfile(&mut self, parent_ino: Ino, name: &OsStr) -> io::Result<()> {
-        let file = self.file_from_parent_ino_and_name(parent_ino, name)?;
+        let (ino, _) = self.file_from_parent_ino_and_name(parent_ino, name)?;
 
-        self.mirror_path_from_inode(file.0)
+        self.mirror_path_from_inode(ino)
             .and_then(|file_path| self.metal_handle.remove_file(&file_path))
             .map(|_| {
                 self.tx
                     .send(ToNetworkMessage::BroadcastMessage(MessageContent::Remove(
-                        file.0,
+                        ino,
                     )))
                     .unwrap();
-                self.index.remove(&file.0);
+                self.index.remove(&ino);
             })
     }
 
@@ -125,9 +125,9 @@ impl Provider {
     // returns the writed size
     pub fn write(&self, ino: Ino, offset: i64, data: &[u8]) -> io::Result<u32> {
         match self.index.get(&ino) {
-            Some((FileType::RegularFile, _)) => {
-                let path = self.mirror_path_from_inode(ino)?;
-                let wrfile = self.metal_handle.write_file(&path, S_IWRITE | S_IREAD)?;
+            Some(FsEntry::File(path, _)) => {
+                //let path = self.mirror_path_from_inode(ino)?; // Absolute path
+                let wrfile = self.metal_handle.write_file(path, S_IWRITE | S_IREAD)?;
                 wrfile
                     .write_all_at(data, offset.try_into().unwrap())
                     .expect("can't write file");
@@ -154,7 +154,7 @@ impl Provider {
             .create_dir(&real_path, S_IWRITE | S_IREAD)
             .expect("unable to create folder");
         // fs::create_dir(&real_path).unwrap();
-        self.index.insert(ino, (FileType::Directory, path));
+        self.index.insert(ino, FsEntry::Directory(path));
     }
 
     pub fn new_file(&mut self, ino: Ino, path: PathBuf) {
@@ -164,32 +164,31 @@ impl Provider {
         self.metal_handle
             .new_file(&path, S_IWRITE | S_IREAD)
             .expect("unable to create file");
-        self.index.insert(ino, (FileType::RegularFile, path));
+        self.index.insert(ino, FsEntry::File(path, vec![]));
         self.next_inode = ino + 1;
         println!("created created created");
     }
 
     pub fn recpt_remove(&mut self, ino: Ino) {
-        let (file_type, path) = self.index.get(&ino).unwrap();
         // let real_path = PathBuf::from(self.local_source.clone()).join(&path);
-        println!("Provider remove object at: {:?}", path);
-        match file_type {
-            FileType::Directory => todo!(),
-            FileType::RegularFile => self.metal_handle.remove_file(path).unwrap(),
-            _ => todo!(),
+        match self.index.get(&ino).unwrap() {
+            FsEntry::Directory(path) => self.metal_handle.remove_dir(path).unwrap(),
+            FsEntry::File(path, _) => self.metal_handle.remove_file(path).unwrap(),
         }
         self.index.remove(&ino);
     }
 
     pub fn recpt_write(&mut self, ino: Ino, content: Vec<u8>) {
-        let (_, path) = self.index.get(&ino).unwrap();
-        // let real_path = PathBuf::from(self.local_source.clone()).join(&path);
-        println!("Provider write to file at: {:?}", path);
-        let mut file = self
-            .metal_handle
-            .write_file(path, S_IWRITE | S_IREAD)
-            .expect("can't write file");
-        file.write_all(&content).unwrap();
+        if let FsEntry::File(path, _) = self.index.get(&ino).unwrap() {
+            println!("Provider write to file at: {:?}", path);
+            let mut file = self
+                .metal_handle
+                .write_file(path, S_IWRITE | S_IREAD)
+                .expect("can't write file");
+            file.write_all(&content).unwrap();
+        } else {
+            panic!("Tried to write on not a file");
+        }
     }
 
     // pub fn recpt_rename(&mut self, ino: Ino, newparent_ino: Ino, newname: &OsStr) {
