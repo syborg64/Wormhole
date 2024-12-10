@@ -3,7 +3,6 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use fuser::FileType;
 use tokio::{sync::mpsc::UnboundedSender, task::JoinHandle};
 
 use crate::{

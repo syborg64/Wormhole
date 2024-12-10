@@ -11,7 +11,9 @@ use std::{
 };
 
 use crate::{
-    fuse::fuse_impl::TEMPLATE_FILE_ATTR, network::message::NetworkMessage, providers::FsIndex,
+    fuse::fuse_impl::TEMPLATE_FILE_ATTR,
+    network::message::ToNetworkMessage,
+    providers::{FsEntry, FsIndex},
 };
 
 use super::{disk_manager::DiskManager, network_interface::NetworkInterface};
@@ -22,9 +24,9 @@ pub struct FsInterface {
 
 struct Helpers {}
 impl Helpers {
-    pub fn wh_path_from_ino(arbo: &FsIndex, ino: &u64) -> io::Result<PathBuf> {
-        match arbo.get(ino) {
-            Some((_, path)) => Ok(path.to_path_buf()),
+    pub fn entry_from_ino(arbo: &FsIndex, ino: u64) -> io::Result<FsEntry> {
+        match arbo.get(&ino) {
+            Some(entry) => Ok(entry.clone()),
             None => Err(io::Error::new(
                 io::ErrorKind::NotFound,
                 "file not found in arbo",
@@ -52,7 +54,8 @@ impl FsInterface {
         self.check_file_type(parent_ino, FileType::Directory)?;
 
         let new_path =
-            Helpers::wh_path_from_ino(&self.network_interface.arbo.lock().unwrap(), &parent_ino)?
+            Helpers::entry_from_ino(&self.network_interface.arbo.lock().unwrap(), parent_ino)?
+                .get_path()
                 .join(name);
 
         if let Some(_) =
@@ -73,7 +76,7 @@ impl FsInterface {
         // add entry to the index
         let ino = self
             .network_interface
-            .register_new_file(FileType::RegularFile, new_path);
+            .register_new_file(FsEntry::File(new_path, vec![]));
 
         // creating metadata to return
         let mut new_attr = TEMPLATE_FILE_ATTR;
@@ -125,10 +128,7 @@ impl FsInterface {
                 .join(name);
 
         if None == Helpers::wh_path_exists(&self.network_interface.arbo.lock().unwrap(), &path) {
-            return Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                "file not found",
-            ));
+            return Err(io::Error::new(io::ErrorKind::NotFound, "file not found"));
         }
 
         match (&self.network_interface.disk).remove_file(&path) {
