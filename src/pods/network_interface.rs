@@ -17,7 +17,7 @@ pub struct NetworkInterface {
     pub mount_point: PathBuf, // TODO - replace by Ludo's unipath
     pub disk: Arc<DiskManager>,
     pub network_sender: UnboundedSender<ToNetworkMessage>,
-    pub next_inode: Arc<Mutex<u64>>, // TODO - replace with Ino type
+    pub next_inode: Arc<Mutex<u64>>, // TODO - replace with InodeIndex type
     pub network_airport_handle: JoinHandle<()>,
 }
 

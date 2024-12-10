@@ -17,20 +17,20 @@ pub mod readers;
 pub mod whpath;
 pub mod writers;
 
-/// Ino is represented by an u64
-pub type Ino = u64;
+/// InodeIndex is represented by an u64
+pub type InodeIndex = u64;
 
 pub type Hosts = Vec<Address>;
 
 /// Hashmap containing file system data
 /// (inode_number, (Type, Original path, Hosts))
-pub type FsIndex = HashMap<Ino, FsEntry>;
+pub type FsIndex = HashMap<InodeIndex, FsEntry>;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 /// Should be extended until meeting [fuser::FileType]
 pub enum FsEntry {
-    File(PathBuf, Hosts),
-    Directory(PathBuf),
+    File(Hosts),
+    Directory(Vec<Inode>),
 }
 
 impl FsEntry {
@@ -61,7 +61,7 @@ impl FsEntry {
 /// For now this is given to the fuse controler on creation and we do NOT have
 /// ownership during the runtime.
 pub struct Provider {
-    pub next_inode: Ino,
+    pub next_inode: InodeIndex,
     pub index: FsIndex,
     pub local_source: PathBuf,
     pub metal_handle: Dir,

@@ -1,4 +1,4 @@
-use std::{ffi::OsStr, sync::Arc};
+use std::{collections::HashMap, ffi::OsStr, sync::Arc};
 
 use fuser::{FileAttr, FileType};
 
@@ -9,7 +9,7 @@ use std::{
 
 use crate::{
     fuse::fuse_impl::TEMPLATE_FILE_ATTR,
-    providers::{FsEntry, FsIndex},
+    providers::{FsEntry, FsIndex, InodeIndex},
 };
 
 use super::network_interface::NetworkInterface;
@@ -135,3 +135,5 @@ impl FsInterface {
         Ok(new_attr)
     }
 }
+
+
