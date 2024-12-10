@@ -41,4 +41,5 @@ async fn sync_start_state() {
             ),
         }
     }
+    std::thread::sleep(std::time::Duration::from_secs_f32(1.));
 }
