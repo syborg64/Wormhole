@@ -10,51 +10,12 @@ use std::{
 };
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::network::message::{Address, ToNetworkMessage};
+use crate::{network::message::{Address, ToNetworkMessage}, pods::inode::Inode};
 
 mod helpers;
 pub mod readers;
 pub mod whpath;
 pub mod writers;
-
-/// InodeIndex is represented by an u64
-pub type InodeIndex = u64;
-
-pub type Hosts = Vec<Address>;
-
-/// Hashmap containing file system data
-/// (inode_number, (Type, Original path, Hosts))
-pub type FsIndex = HashMap<InodeIndex, FsEntry>;
-
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-/// Should be extended until meeting [fuser::FileType]
-pub enum FsEntry {
-    File(Hosts),
-    Directory(Vec<Inode>),
-}
-
-impl FsEntry {
-    pub fn get_path(&self) -> &PathBuf {
-        match self {
-            FsEntry::File(path, _) => path,
-            FsEntry::Directory(path) => path,
-        }
-    }
-
-    pub fn get_name(&self) -> io::Result<&OsStr> {
-        match Path::new(self.get_path()).file_name() {
-            Some(name) => Ok(name),
-            None => Err(io::Error::new(io::ErrorKind::Other, "Invalid path ending")),
-        }
-    }
-
-    pub fn get_filetype(&self) -> FileType {
-        match self {
-            FsEntry::File(_, _) => FileType::RegularFile,
-            FsEntry::Directory(_) => FileType::Directory,
-        }
-    }
-}
 
 /// Will keep all the necessary info to provide real
 /// data to the fuse lib
