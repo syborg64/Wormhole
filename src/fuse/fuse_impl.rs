@@ -13,8 +13,8 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, UNIX_EPOCH};
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::network::message::NetworkMessage;
-use crate::providers::{FsIndex, Provider};
+use crate::network::message::ToNetworkMessage;
+use crate::providers::{FsEntry, FsIndex, Provider};
 
 // NOTE - placeholders
 const TTL: Duration = Duration::from_secs(1);
@@ -62,16 +62,6 @@ pub struct FuseController {
     pub provider: Arc<Mutex<Provider>>,
 }
 
-// Custom data (not directly linked to fuse)
-// create some data for us like the index or data provider
-
-fn simple_type_to_fuse_type(t: SimpleType) -> fuser::FileType {
-    match t {
-        SimpleType::Dir => fuser::FileType::Directory,
-        SimpleType::File => fuser::FileType::RegularFile,
-        _ => fuser::FileType::CharDevice, // NOTE - random because unsupported, should be handled
-    }
-}
 fn index_folder_recursive(
     arbo: &mut FsIndex,
     inode: &mut u64,
@@ -86,16 +76,14 @@ fn index_folder_recursive(
             let name = entry.file_name();
             let stype = entry.simple_type().unwrap();
 
-            // let mut generated_path = path.clone();
             let generated_path = path.join(name);
 
-            arbo.insert(
-                *inode,
-                (
-                    simple_type_to_fuse_type(stype),
-                    generated_path.clone(),
-                ),
-            );
+            let new_entry = match stype {
+                SimpleType::Dir => FsEntry::Directory(generated_path.clone()),
+                SimpleType::File => FsEntry::File(generated_path.clone(), vec![]),
+                _ => return Ok(()),
+            };
+            arbo.insert(*inode, new_entry);
             println!("added entry to arbo {}:{:?}", inode, arbo.get(inode));
             *inode += 1;
 
@@ -121,7 +109,7 @@ impl FuseController {
         let mut arbo: FsIndex = HashMap::new();
         let mut inode: u64 = 2;
 
-        arbo.insert(1, (FileType::Directory, "./".into()));
+        arbo.insert(1, FsEntry::Directory("./".into()));
 
         index_folder_recursive(&mut arbo, &mut inode, &metal_mount_handle, ".".into())?;
         Ok((metal_mount_handle, arbo))
@@ -143,7 +131,7 @@ impl Filesystem for FuseController {
     }
 
     // TODO
-    fn getattr(&mut self, _req: &Request, ino: u64, reply: ReplyAttr) {
+    fn getattr(&mut self, _req: &Request, ino: u64, _: Option<u64>, reply: ReplyAttr) {
         debug!("getattr is called {}", ino);
         match ino {
             1 => reply.attr(&TTL, &MOUNT_DIR_ATTR),
@@ -184,10 +172,15 @@ impl Filesystem for FuseController {
         let provider = self.provider.lock().unwrap();
         if let Ok(entries) = provider.fs_readdir(ino) {
             println!("....listing entries {:?}", entries);
-            for (i, entry) in entries.into_iter().enumerate().skip(offset as usize) {
+            for (i, (ino, entry)) in entries.into_iter().enumerate().skip(offset as usize) {
                 println!("....readdir entries : {:?}", entry);
                 // i + 1 means the index of the next entry
-                if reply.add(entry.0, (i + 1) as i64, entry.1, entry.2) {
+                if reply.add(
+                    ino,
+                    (i + 1) as i64,
+                    entry.get_filetype(),
+                    entry.get_name().unwrap(),
+                ) {
                     break;
                 }
             }
@@ -301,12 +294,12 @@ impl Filesystem for FuseController {
 pub fn mount_fuse(
     source: &Path,
     mountpoint: &Path,
-    tx: UnboundedSender<NetworkMessage>,
+    tx: UnboundedSender<ToNetworkMessage>,
 ) -> (BackgroundSession, Arc<Mutex<Provider>>) {
     let options = vec![MountOption::RW, MountOption::FSName("wormhole".to_string())];
     let (handle, index) = match FuseController::index_folder(source) {
         Ok((handle, idx)) => (handle, idx),
-        Err(_) => todo!(),
+        Err(e) => todo!("{e:?}"),
     };
     println!("FUSE MOUNT, actual file index:\n{:#?}", index);
     let provider = Arc::new(Mutex::new(Provider {

@@ -2,10 +2,23 @@
 name = "wormhole"
 version = "0.1.0"
 edition = "2021"
+authors = ["Axel Denis <axel.denis@epitech.eu>", "Julian Scott <julian.scott@epitech.eu>", "Ludovic De Chavagnac <ludovic.de-chavagnac@epitech.eu>", "Arthur Aillet <arthur.aillet@epitech.eu>"]
+
+[lib]
+name = "wormhole"
+path = "src/lib.rs"
+
+[[bin]]
+name = "wormhole-cli"
+path = "src/bin/cli.rs"
+
+[[bin]]
+name = "wormhole-service"
+path = "src/bin/service.rs"
 
 [dependencies]
 clap = { version = "4.5.8", features = ["cargo", "derive"] }
-fuser = "0.14.0"
+fuser = { version = "0.15.1", features = ["serializable"] }
 libc = "0.2.155"
 pkg-config = "0.3.30"
 walkdir = "2.5.0"
@@ -20,3 +33,12 @@ notify = "6.1.1"
 bincode = "1.3.3"
 tokio-stream = "0.1.16"
 openat = "0.1.21"
+predicates = "3.1.2"
+serde_with = "3.11.0"
+
+[dev-dependencies]
+assert_fs = "1.1.2"
+dir-diff = "0.3.3"
+serial_test = "3.2.0"
+tokio = { version = "1.38.0", default-features = false, features = ["process"] }
+
