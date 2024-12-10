@@ -1,3 +1,6 @@
+use std::ffi::OsStr;
+use std::{fmt, path::Path};
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum PathType {
     Absolute,
@@ -12,54 +15,123 @@ pub struct WhPath {
     pub kind: PathType,
 }
 
-impl WhPath {
-    pub fn new<S: AsRef<str>>(path: S) -> Self {
-        let p = String::from(path.as_ref());
-        let kind = WhPath {
-            inner: p.clone(),
+pub trait JoinPath {
+    fn as_str(&self) -> &str;
+}
+
+impl JoinPath for OsStr {
+    fn as_str(&self) -> &str {
+        self.to_str().expect("OsStr conversion to str failed")
+    }
+}
+
+impl JoinPath for str {
+    fn as_str(&self) -> &str {
+        self
+    }
+}
+
+impl JoinPath for String {
+    fn as_str(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl JoinPath for Path {
+    fn as_str(&self) -> &str {
+        self.to_str().expect("Path conversion to str failed")
+    }
+}
+
+impl JoinPath for WhPath {
+    fn as_str(&self) -> &str {
+        &self.inner
+    }
+}
+
+impl fmt::Display for PathType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let path_type: &str = match self {
+            &PathType::Absolute => "Asbolute",
+            &PathType::Relative => "Relative",
+            &PathType::NoPrefix => "NoPrefix",
+            &PathType::Empty => "Empty",
+        };
+        write!(f, "{}", path_type)
+    }
+}
+
+impl fmt::Display for WhPath {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}: {}", self.kind, self.inner)
+    }
+}
+
+impl<T> From<&T> for WhPath
+where
+    T: JoinPath + ?Sized,
+{
+    fn from(path: &T) -> Self {
+        let mut wh_path = WhPath {
+            inner: path.as_str().to_string(),
             kind: PathType::Empty,
-        }
-        .kind();
+        };
+        wh_path.update_kind();
+        wh_path
+    }
+}
+
+impl WhPath {
+    pub fn new() -> Self {
         WhPath {
-            inner: p,
-            kind: kind,
+            inner: String::from(""),
+            kind: PathType::Empty,
         }
     }
 
     //TODO - Faire un join pour de WhPath
     //NOTE - join deux paths dans l'ordre indiqué, résoud le conflit si le second commence avec ./ ou / ou rien
-    pub fn join<S: AsRef<str>>(&mut self, segment: S) -> &Self {
+    pub fn join<T>(&mut self, segment: &T) -> &Self
+    where
+        T: JoinPath + ?Sized,
+    {
         self.add_last_slash();
-        let seg = Self::remove_leading_slash(segment.as_ref());
+        let seg = Self::remove_leading_slash(segment.as_str());
         self.inner = format!("{}{}", self.inner, seg);
-        return self;
+        self
     }
 
     //NOTE - retire la partie demandée "/my/file/path/".remove("file/path") = "/my/"
-    pub fn remove<S: AsRef<str>>(&mut self, delete_this_part: S) -> &Self {
-        self.inner = self.inner.replace(delete_this_part.as_ref(), "");
+    pub fn remove<T>(&mut self, delete_this_part: &T) -> &Self
+    where
+        T: JoinPath + ?Sized,
+    {
+        self.inner = self.inner.replace(delete_this_part.as_str(), "");
         self.delete_double_slash();
         self.convert_path(self.kind.clone());
-        return self;
+        self
     }
 
     //NOTE - Modifier le path pour que celui corresponde au nouveau nom demandé
-    // Ne peux modifier que le dernier élément du path
-    pub fn rename<S: AsRef<str>>(&mut self, file_name: S) -> &Self {
+    // Ne peut modifier que le dernier élément du path
+    pub fn rename<T>(&mut self, file_name: &T) -> &Self
+    where
+        T: JoinPath + ?Sized,
+    {
+        let file = Self::remove_leading_slash(file_name.as_str());
         if let Some(pos) = self.inner.rfind('/') {
             if pos == self.inner.len() - 1 {
-                // self.inner = Self::remove_last_slash(self.inner.clone());
                 self.inner.pop();
                 self.rename(file_name);
                 self.inner.push('/');
                 return self;
             }
-            self.inner = format!("{}/{}", &self.inner[..pos], file_name.as_ref());
+            self.inner = format!("{}/{}", &self.inner[..pos], file);
         } else {
-            self.inner = file_name.as_ref().to_string();
+            self.inner = file.to_string();
         }
-        self.kind = self.kind();
-        return self;
+        self.update_kind();
+        self
     }
 
     pub fn kind(&self) -> PathType {
@@ -75,12 +147,16 @@ impl WhPath {
         }
     }
 
+    pub fn update_kind(&mut self) {
+        self.kind = self.kind();
+    }
+
     //NOTE - changer le path pour "./path"
     pub fn set_relative(&mut self) -> &Self {
         if !self.is_empty() && !Self::is_relative(&self) {
             self.convert_path(PathType::Relative);
         }
-        return self;
+        self
     }
 
     //NOTE - changer le path pour "/path"
@@ -88,7 +164,7 @@ impl WhPath {
         if !self.is_empty() && !Self::is_absolute(&self) {
             self.convert_path(PathType::Absolute);
         }
-        return self;
+        self
     }
 
     //NOTE - changer le path pour "path"
@@ -96,23 +172,23 @@ impl WhPath {
         if !self.is_empty() && !Self::has_no_prefix(&self) {
             self.convert_path(PathType::NoPrefix);
         }
-        return self;
+        self
     }
 
     pub fn is_relative(&self) -> bool {
-        return self.kind == PathType::Relative;
+        self.kind == PathType::Relative
     }
 
     pub fn is_absolute(&self) -> bool {
-        return self.kind == PathType::Absolute;
+        self.kind == PathType::Absolute
     }
 
     pub fn has_no_prefix(&self) -> bool {
-        return self.kind == PathType::NoPrefix;
+        self.kind == PathType::NoPrefix
     }
 
     pub fn is_empty(&self) -> bool {
-        return self.inner.is_empty();
+        self.inner.is_empty()
     }
 
     //NOTE - fonctions pour mettre ou non un / à la fin
@@ -122,12 +198,15 @@ impl WhPath {
         } else {
             self.remove_last_slash();
         };
-        return self;
+        self
     }
 
     //NOTE - true si le path demandé est dans le path original (comme tu gères des string c'est un startwith, en gros)
-    pub fn isln<S: AsRef<str>>(&self, segment: S) -> bool {
-        return self.inner.starts_with(segment.as_ref());
+    pub fn is_in<T>(&self, segment: &T) -> bool
+    where
+        T: JoinPath + ?Sized,
+    {
+        self.inner.starts_with(segment.as_str())
     }
 
     //NOTE - donne le dernier élément du path
@@ -136,11 +215,11 @@ impl WhPath {
         path.remove_last_slash();
         match path.inner.rsplit('/').next() {
             Some(last) => last.to_string(),
-            _none => String::from(""),
+            _none => String::new(),
         }
     }
 
-    pub fn remove_end(&mut self) -> &Self {
+    pub fn pop(&mut self) -> &Self {
         self.remove_last_slash();
         if let Some(pos) = self.inner.rfind('/') {
             self.inner = self.inner[..(pos + 1)].to_string();
@@ -150,8 +229,8 @@ impl WhPath {
         return self;
     }
 
-    ///!SECTION - Est-ce qu'il faudra modifier pour Windows en rajoutant le '\' ??
-    ///!SECTION- A modifier pour prendre en compte les fichiers cachés ?
+    // !SECTION - Est-ce qu'il faudra modifier pour Windows en rajoutant le '\' ??
+    // !SECTION- A modifier pour prendre en compte les fichiers cachés ?
     fn remove_leading_slash(segment: &str) -> &str {
         let mut i = 0;
         for c in segment.chars() {
@@ -164,7 +243,7 @@ impl WhPath {
         return &segment[i..];
     }
 
-    ///!SECTION - Est-ce qu'il faudra modifier pour Windows en rajoutant le '\' ??
+    // !SECTION - Est-ce qu'il faudra modifier pour Windows en rajoutant le '\' ??
     fn add_last_slash(&mut self) -> &Self {
         if self.kind != PathType::Empty && self.inner.chars().last() != Some('/') {
             self.inner = format!("{}/", self.inner);
@@ -172,7 +251,7 @@ impl WhPath {
         return self;
     }
 
-    ///!SECTION - Est-ce qu'il faudra modifier pour Windows en rajoutant le '\' ??
+    // !SECTION - Est-ce qu'il faudra modifier pour Windows en rajoutant le '\' ??
     fn remove_last_slash(&mut self) -> &Self {
         if let Some(pos) = self.inner.rfind('/') {
             if pos == self.inner.len() - 1 {
@@ -202,10 +281,10 @@ impl WhPath {
         return self;
     }
 
-    ///!SECTION - Est-ce qu'il faudra modifier pour Windows en rajoutant le '\' ??
+    // !SECTION - Est-ce qu'il faudra modifier pour Windows en rajoutant le '\' ??
     fn convert_path(&mut self, pathtype: PathType) -> &Self {
-        if pathtype == PathType::Empty || self.inner == String::from("") {
-            self.inner = String::from("");
+        if pathtype == PathType::Empty || self.inner == String::new() {
+            self.inner = String::new();
             self.kind = PathType::Empty;
             return self;
         }
@@ -217,7 +296,7 @@ impl WhPath {
             self.inner = format!("./{}", self.inner);
         } else {
         }
-        self.kind = self.kind();
+        self.update_kind();
         return self;
     }
 }
@@ -236,57 +315,60 @@ mod tests {
 
     #[test]
     fn test_whpath_add_last_slash() {
-        let mut empty = WhPath::new("");
-        let mut basic_folder = WhPath::new("foo/");
-        let mut no_slash = WhPath::new("baz");
+        let mut empty = WhPath::new();
+        let mut basic_folder = WhPath::from("foo/");
+        let mut no_slash = WhPath::from("baz");
 
-        assert_eq!(empty.add_last_slash(), &WhPath::new(""));
-        assert_eq!(basic_folder.add_last_slash(), &WhPath::new("foo/"));
-        assert_eq!(no_slash.add_last_slash(), &WhPath::new("baz/"));
+        assert_eq!(empty.add_last_slash(), &WhPath::new());
+        assert_eq!(basic_folder.add_last_slash(), &WhPath::from("foo/"));
+        assert_eq!(no_slash.add_last_slash(), &WhPath::from("baz/"));
     }
 
     #[test]
     fn test_whpath_remove_last_slash() {
-        let mut empty = WhPath::new("");
-        let mut basic_folder = WhPath::new("foo/");
-        let mut no_slash = WhPath::new("baz/bar");
+        let mut empty = WhPath::new();
+        let mut basic_folder = WhPath::from("foo/");
+        let mut no_slash = WhPath::from("baz/bar");
 
-        assert_eq!(empty.remove_last_slash(), &WhPath::new(""));
-        assert_eq!(basic_folder.remove_last_slash(), &WhPath::new("foo"));
-        assert_eq!(no_slash.remove_last_slash(), &WhPath::new("baz/bar"));
+        assert_eq!(empty.remove_last_slash(), &WhPath::new());
+        assert_eq!(basic_folder.remove_last_slash(), &WhPath::from("foo"));
+        assert_eq!(no_slash.remove_last_slash(), &WhPath::from("baz/bar"));
     }
 
     #[test]
     fn test_whpath_delete_double_slash() {
-        let mut empty = WhPath::new("");
-        let mut basic_folder = WhPath::new("foo/");
-        let mut mid_double_slash = WhPath::new("baz//bar");
-        let mut end_double_slash = WhPath::new("baz/bar//");
+        let mut empty = WhPath::new();
+        let mut basic_folder = WhPath::from("foo/");
+        let mut mid_double_slash = WhPath::from("baz//bar");
+        let mut end_double_slash = WhPath::from("baz/bar//");
 
-        assert_eq!(empty.delete_double_slash(), &WhPath::new(""));
-        assert_eq!(basic_folder.delete_double_slash(), &WhPath::new("foo/"));
+        assert_eq!(empty.delete_double_slash(), &WhPath::new());
+        assert_eq!(basic_folder.delete_double_slash(), &WhPath::from("foo/"));
         assert_eq!(
             mid_double_slash.delete_double_slash(),
-            &WhPath::new("baz/bar")
+            &WhPath::from("baz/bar")
         );
         assert_eq!(
             end_double_slash.delete_double_slash(),
-            &WhPath::new("baz/bar/")
+            &WhPath::from("baz/bar/")
         );
     }
 
     #[test]
     fn test_whpath_convert_path() {
-        let mut path = WhPath::new("foo");
-        let mut relative = WhPath::new("./foo");
-        let mut no_prefix = WhPath::new("foo");
-        let mut absolute = WhPath::new("/foo");
-        let mut empty = WhPath::new("");
+        let mut path = WhPath::from("foo");
+        let mut relative = WhPath::from("./foo");
+        let mut no_prefix = WhPath::from("foo");
+        let mut absolute = WhPath::from("/foo");
+        let mut empty = WhPath::from("");
 
         assert_eq!(relative.convert_path(PathType::NoPrefix), &no_prefix);
         assert_eq!(no_prefix.convert_path(PathType::Absolute), &absolute);
         assert_eq!(absolute.convert_path(PathType::Empty), &empty);
-        assert_eq!(empty.convert_path(PathType::Absolute), &WhPath::new(""));
-        assert_eq!(path.convert_path(PathType::Relative), &WhPath::new("./foo"));
+        assert_eq!(empty.convert_path(PathType::Absolute), &WhPath::new());
+        assert_eq!(
+            path.convert_path(PathType::Relative),
+            &WhPath::from("./foo")
+        );
     }
 }

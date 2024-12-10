@@ -1,5 +1,8 @@
 extern crate wormhole;
-use crate::wormhole::providers::whpath::{PathType, WhPath};
+use crate::wormhole::providers::whpath::{JoinPath, PathType, WhPath};
+
+use std::ffi::OsStr;
+use std::{fmt, path::Path};
 
 #[test]
 fn test_whpath_kind() {
@@ -28,7 +31,7 @@ fn test_whpath_kind() {
 
 #[test]
 fn test_whpath_new() {
-    let path = WhPath::new("./StarWars/A_New_Hope");
+    let path = WhPath::from(OsStr::new("./StarWars/A_New_Hope"));
     assert_eq!(
         path,
         WhPath {
@@ -37,7 +40,7 @@ fn test_whpath_new() {
         }
     );
 
-    let path = WhPath::new("/HarryPotter/The_Goblet_of_Fire");
+    let path = WhPath::from(Path::new("/HarryPotter/The_Goblet_of_Fire"));
     assert_eq!(
         path,
         WhPath {
@@ -46,7 +49,7 @@ fn test_whpath_new() {
         }
     );
 
-    let path = WhPath::new("TheLordofTheRings/The_Two_Towers/");
+    let path = WhPath::from("TheLordofTheRings/The_Two_Towers/");
     assert_eq!(
         path,
         WhPath {
@@ -55,155 +58,173 @@ fn test_whpath_new() {
         }
     );
 
-    let path = WhPath::new("");
+    let path = WhPath::new();
     assert_eq!(
         path,
         WhPath {
-            inner: String::from(""),
+            inner: String::new(),
             kind: PathType::Empty
         }
     );
 }
 
-fn whpath_join(mut path: WhPath, join: &str, result: &WhPath) {
+fn whpath_join<T: JoinPath>(mut path: WhPath, join: &T, result: &WhPath)
+where
+    T: JoinPath + ?Sized,
+{
     let new_path = path.join(join);
     assert_eq!(new_path, result);
 }
 
 #[test]
 fn test_whpath_join_with_str() {
-    let path1 = WhPath::new("Kaamelott");
-    let path2 = WhPath::new("./Kaamelott/");
+    let path1 = WhPath::from("Kaamelott");
+    let path2 = WhPath::from("./Kaamelott/");
+    let path3 = WhPath::from("/Season 2/");
 
     whpath_join(
         path1.clone(),
         "./Season 1/",
-        &WhPath::new("Kaamelott/Season 1/"),
+        &WhPath::from("Kaamelott/Season 1/"),
+    );
+    whpath_join(path1.clone(), &path3, &WhPath::from("Kaamelott/Season 2/"));
+    whpath_join(
+        path1.clone(),
+        OsStr::new("Season 3/"),
+        &WhPath::from("Kaamelott/Season 3/"),
     );
     whpath_join(
         path1.clone(),
-        "/Season 2/",
-        &WhPath::new("Kaamelott/Season 2/"),
-    );
-    whpath_join(
-        path1.clone(),
-        "Season 3/",
-        &WhPath::new("Kaamelott/Season 3/"),
-    );
-    whpath_join(
-        path1.clone(),
-        "Season 4",
-        &WhPath::new("Kaamelott/Season 4"),
+        Path::new("Season 4"),
+        &WhPath::from("Kaamelott/Season 4"),
     );
 
-    whpath_join(path1.clone(), "", &WhPath::new("Kaamelott/"));
+    whpath_join(
+        path1.clone(),
+        &String::from("Season 5"),
+        &WhPath::from("Kaamelott/Season 5"),
+    );
+
+    whpath_join(path1.clone(), "", &WhPath::from("Kaamelott/"));
 
     whpath_join(
         path2.clone(),
         "./Season 1/",
-        &WhPath::new("./Kaamelott/Season 1/"),
+        &WhPath::from("./Kaamelott/Season 1/"),
     );
     whpath_join(
         path2.clone(),
-        "/Season 2/",
-        &WhPath::new("./Kaamelott/Season 2/"),
+        &path3,
+        &WhPath::from("./Kaamelott/Season 2/"),
     );
     whpath_join(
         path2.clone(),
-        "Season 3/",
-        &WhPath::new("./Kaamelott/Season 3/"),
+        &String::from("Season 3/"),
+        &WhPath::from("./Kaamelott/Season 3/"),
     );
     whpath_join(
         path2.clone(),
-        "Season 4",
-        &WhPath::new("./Kaamelott/Season 4"),
+        OsStr::new("Season 4"),
+        &WhPath::from("./Kaamelott/Season 4"),
     );
 
-    whpath_join(path2.clone(), "", &WhPath::new("./Kaamelott/"));
+    whpath_join(
+        path2.clone(),
+        Path::new("Season 5"),
+        &WhPath::from("./Kaamelott/Season 5"),
+    );
+
+    whpath_join(path2.clone(), "", &WhPath::from("./Kaamelott/"));
 }
 
 #[test]
 fn test_whpath_remove() {
-    let mut delete_all = WhPath::new("Film/Orson Welles/Citizen Kane");
-    let mut delete_end = WhPath::new("Film/Orson Welles/The Magnificent Ambersons");
-    let mut delete_middle = WhPath::new("Film/Orson Welles/The Lady from Shanghai");
-    let mut delete_start = WhPath::new("Film/Orson Welles/Touch of Evil");
-    let mut error = WhPath::new("Film/Orson Welles/Chimes at Midnight");
+    let mut delete_all = WhPath::from("Film/Orson Welles/Citizen Kane");
+    let mut delete_end = WhPath::from("Film/Orson Welles/The Magnificent Ambersons");
+    let mut delete_middle = WhPath::from("Film/Orson Welles/The Lady from Shanghai");
+    let mut delete_start = WhPath::from("Film/Orson Welles/Touch of Evil");
+    let mut error = WhPath::from("Film/Orson Welles/Chimes at Midnight");
 
+    assert_eq!(delete_all.remove(&delete_all.clone()), &WhPath::new());
     assert_eq!(
-        delete_all.remove("Film/Orson Welles/Citizen Kane"),
-        &WhPath::new("")
-    );
-    assert_eq!(
-        delete_end.remove("The Magnificent Ambersons"),
-        &WhPath::new("Film/Orson Welles/")
+        delete_end.remove(OsStr::new("The Magnificent Ambersons")),
+        &WhPath::from("Film/Orson Welles/")
     );
 
     assert_eq!(
-        delete_middle.remove("Orson Welles"),
-        &WhPath::new("Film/The Lady from Shanghai")
+        delete_middle.remove(Path::new("Orson Welles")),
+        &WhPath::from("Film/The Lady from Shanghai")
     );
     assert_eq!(
-        delete_start.remove("Film"),
-        &WhPath::new("Orson Welles/Touch of Evil")
+        delete_start.remove(&String::from("Film")),
+        &WhPath::from("Orson Welles/Touch of Evil")
     );
 
     assert_eq!(
         error.remove("Series"),
-        &WhPath::new("Film/Orson Welles/Chimes at Midnight")
+        &WhPath::from("Film/Orson Welles/Chimes at Midnight")
     );
 }
 
 #[test]
 fn test_whpath_rename() {
-    let mut empty = WhPath::new("");
-    let mut basic_folder = WhPath::new("./foo/");
-    let mut basic_file = WhPath::new("foo/file.txt");
-    let mut basic_subfolder = WhPath::new("foo/bar/");
+    let mut empty = WhPath::new();
+    let mut basic_folder = WhPath::from("./foo/");
+    let mut basic_file = WhPath::from("foo/file.txt");
+    let mut basic_subfolder = WhPath::from("foo/bar/");
+    let mut path = WhPath::from("path/exemple");
+    let modify_path = WhPath::from("/modifier");
 
-    assert_eq!(empty.rename("baz"), &WhPath::new("baz"));
-    assert_eq!(basic_folder.rename("bar"), &WhPath::new("./bar/"));
-    assert_eq!(basic_file.rename("foo.rs"), &WhPath::new("foo/foo.rs"));
-    assert_eq!(basic_subfolder.rename("sub"), &WhPath::new("foo/sub/"));
+    assert_eq!(empty.rename(OsStr::new("baz")), &WhPath::from("baz"));
+    assert_eq!(
+        basic_folder.rename(Path::new("bar")),
+        &WhPath::from("./bar/")
+    );
+    assert_eq!(
+        basic_file.rename(&String::from("foo.rs")),
+        &WhPath::from("foo/foo.rs")
+    );
+    assert_eq!(basic_subfolder.rename("sub"), &WhPath::from("foo/sub/"));
+    assert_eq!(path.rename(&modify_path), &WhPath::from("path/modifier"));
 }
 
 #[test]
 fn test_whpath_set_relative() {
-    let mut no_prefix = WhPath::new("foo");
-    let mut absolute = WhPath::new("/foo/");
-    let mut empty = WhPath::new("");
+    let mut no_prefix = WhPath::from("foo");
+    let mut absolute = WhPath::from("/foo/");
+    let mut empty = WhPath::new();
 
-    assert_eq!(no_prefix.set_relative(), &WhPath::new("./foo"));
-    assert_eq!(absolute.set_relative(), &WhPath::new("./foo/"));
-    assert_eq!(empty.set_relative(), &WhPath::new(""));
+    assert_eq!(no_prefix.set_relative(), &WhPath::from("./foo"));
+    assert_eq!(absolute.set_relative(), &WhPath::from("./foo/"));
+    assert_eq!(empty.set_relative(), &WhPath::new());
 }
 
 #[test]
 fn test_whpath_set_absolute() {
-    let mut no_prefix = WhPath::new("foo");
-    let mut relative = WhPath::new("./foo/");
-    let mut empty = WhPath::new("");
+    let mut no_prefix = WhPath::from("foo");
+    let mut relative = WhPath::from("./foo/");
+    let mut empty = WhPath::new();
 
-    assert_eq!(no_prefix.set_absolute(), &WhPath::new("/foo"));
-    assert_eq!(relative.set_absolute(), &WhPath::new("/foo/"));
-    assert_eq!(empty.set_absolute(), &WhPath::new(""));
+    assert_eq!(no_prefix.set_absolute(), &WhPath::from("/foo"));
+    assert_eq!(relative.set_absolute(), &WhPath::from("/foo/"));
+    assert_eq!(empty.set_absolute(), &WhPath::new());
 }
 
 #[test]
 fn test_whpath_remove_prefix() {
-    let mut absolute = WhPath::new("/foo");
-    let mut relative = WhPath::new("./foo/");
-    let mut empty = WhPath::new("");
+    let mut absolute = WhPath::from("/foo");
+    let mut relative = WhPath::from("./foo/");
+    let mut empty = WhPath::new();
 
-    assert_eq!(absolute.remove_prefix(), &WhPath::new("foo"));
-    assert_eq!(relative.remove_prefix(), &WhPath::new("foo/"));
-    assert_eq!(empty.remove_prefix(), &WhPath::new(""));
+    assert_eq!(absolute.remove_prefix(), &WhPath::from("foo"));
+    assert_eq!(relative.remove_prefix(), &WhPath::from("foo/"));
+    assert_eq!(empty.remove_prefix(), &WhPath::new());
 }
 
 #[test]
 fn test_whpath_is_relative() {
-    let relative = WhPath::new("./foo");
-    let not_relative = WhPath::new("foo");
+    let relative = WhPath::from("./foo");
+    let not_relative = WhPath::from("foo");
 
     assert_eq!(relative.is_relative(), true);
     assert_eq!(not_relative.is_relative(), false);
@@ -211,24 +232,24 @@ fn test_whpath_is_relative() {
 
 #[test]
 fn test_whpath_is_absolute() {
-    let absolute = WhPath::new("/foo");
-    let not_absolute = WhPath::new("foo");
+    let absolute = WhPath::from("/foo");
+    let not_absolute = WhPath::from("foo");
 
     assert_eq!(absolute.is_absolute(), true);
     assert_eq!(not_absolute.is_absolute(), false);
 }
 #[test]
 fn test_whpath_has_no_prefix() {
-    let no_prefix = WhPath::new("foo");
-    let not_no_prefix = WhPath::new("/foo");
+    let no_prefix = WhPath::from("foo");
+    let not_no_prefix = WhPath::from("/foo");
 
     assert_eq!(no_prefix.has_no_prefix(), true);
     assert_eq!(not_no_prefix.has_no_prefix(), false);
 }
 #[test]
 fn test_whpath_is_empty() {
-    let empty = WhPath::new("");
-    let not_empty = WhPath::new("foo");
+    let empty = WhPath::new();
+    let not_empty = WhPath::from("foo");
 
     assert_eq!(empty.is_empty(), true);
     assert_eq!(not_empty.is_empty(), false);
@@ -236,32 +257,35 @@ fn test_whpath_is_empty() {
 
 #[test]
 fn test_whpath_set_end() {
-    let mut set_end_true = WhPath::new("/foo");
-    let mut set_end_false = WhPath::new("/foo/");
-    assert_eq!(set_end_true.set_end(true), &WhPath::new("/foo/"));
-    assert_eq!(set_end_false.set_end(false), &WhPath::new("/foo"));
+    let mut set_end_true = WhPath::from("/foo");
+    let mut set_end_false = WhPath::from("/foo/");
+    assert_eq!(set_end_true.set_end(true), &WhPath::from("/foo/"));
+    assert_eq!(set_end_false.set_end(false), &WhPath::from("/foo"));
 }
 
 #[test]
-fn test_whpath_isln() {
-    let path = WhPath::new("/foo/bar/baz.txt");
-    let empty = WhPath::new("");
-    assert_eq!(path.isln("/foo/bar"), true);
-    assert_eq!(path.isln("bar"), false);
-    assert_eq!(path.isln("peanuts"), false);
-    assert_eq!(empty.isln("peanuts"), false);
-    assert_eq!(empty.isln(""), true);
+fn test_whpath_is_in() {
+    let path = WhPath::from("/foo/bar/baz.txt");
+    let empty = WhPath::new();
+    let path_into_path = WhPath::from("/foo/bar/");
+
+    assert_eq!(path.is_in(OsStr::new("/foo/bar")), true);
+    assert_eq!(path.is_in(Path::new("bar")), false);
+    assert_eq!(path.is_in(&String::from("peanuts")), false);
+    assert_eq!(path.is_in(&path_into_path), true);
+    assert_eq!(empty.is_in("peanuts"), false);
+    assert_eq!(empty.is_in(""), true);
 }
 
 #[test]
 fn test_whpath_get_end() {
-    let empty = WhPath::new("");
-    let basic_folder = WhPath::new("foo/");
-    let basic_file = WhPath::new("foo/file.txt");
-    let basic_subfolder = WhPath::new("foo/bar/");
-    let no_slash = WhPath::new("baz");
+    let empty = WhPath::new();
+    let basic_folder = WhPath::from("foo/");
+    let basic_file = WhPath::from("foo/file.txt");
+    let basic_subfolder = WhPath::from("foo/bar/");
+    let no_slash = WhPath::from("baz");
 
-    assert_eq!(empty.get_end(), String::from(""));
+    assert_eq!(empty.get_end(), String::new());
     assert_eq!(basic_folder.get_end(), String::from("foo"));
     assert_eq!(basic_file.get_end(), String::from("file.txt"));
     assert_eq!(basic_subfolder.get_end(), String::from("bar"));
@@ -269,17 +293,16 @@ fn test_whpath_get_end() {
 }
 
 #[test]
-fn test_whpath_remove_end() {
-    let mut empty = WhPath::new("");
-    let mut basic_folder = WhPath::new("foo/");
-    let mut basic_file = WhPath::new("foo/file.txt");
-    let mut basic_subfolder = WhPath::new("foo/bar/");
-    let mut no_slash = WhPath::new("baz");
+fn test_whpath_pop() {
+    let mut empty = WhPath::new();
+    let mut basic_folder = WhPath::from("foo/");
+    let mut basic_file = WhPath::from("foo/file.txt");
+    let mut basic_subfolder = WhPath::from("foo/bar/");
+    let mut no_slash = WhPath::from("baz");
 
-    assert_eq!(empty.remove_end(), &WhPath::new(""));
-    assert_eq!(basic_folder.remove_end(), &WhPath::new(""));
-    assert_eq!(basic_file.remove_end(), &WhPath::new("foo/"));
-    assert_eq!(basic_subfolder.remove_end(), &WhPath::new("foo/"));
-    assert_eq!(no_slash.remove_end(), &WhPath::new(""));
+    assert_eq!(empty.pop(), &WhPath::new());
+    assert_eq!(basic_folder.pop(), &WhPath::new());
+    assert_eq!(basic_file.pop(), &WhPath::from("foo/"));
+    assert_eq!(basic_subfolder.pop(), &WhPath::from("foo/"));
+    assert_eq!(no_slash.pop(), &WhPath::new());
 }
-

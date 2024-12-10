@@ -5,18 +5,24 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::network::peer_ipc::PeerIPC;
 
-use crate::network::message::NetworkMessage;
+use crate::network::message::{MessageContent, ToNetworkMessage};
+
+use super::message::FromNetworkMessage;
 
 // receive a message on user_rx and broadcast it to all peers
-pub async fn all_peers_broadcast(
+pub async fn contact_peers(
     peers_list: Arc<Mutex<Vec<PeerIPC>>>,
-    mut rx: UnboundedReceiver<NetworkMessage>,
+    mut rx: UnboundedReceiver<ToNetworkMessage>,
 ) {
     // on message reception, broadcast it to all peers senders
     while let Some(message) = rx.recv().await {
+        // match message {
+        //     NetworkMessage::BroadcastMessage(message) => todo!(),
+        //     NetworkMessage::SpecificMessage(message, vec) => todo!(),
+        // }
         //generating peers senders
         // REVIEW - should avoid locking peers in future versions, as it more or less locks the entire program
-        let peer_tx: Vec<(UnboundedSender<NetworkMessage>, String)> = peers_list
+        let peer_tx: Vec<(UnboundedSender<MessageContent>, String)> = peers_list
             .lock()
             .unwrap()
             .iter()
@@ -24,19 +30,34 @@ pub async fn all_peers_broadcast(
             .collect();
 
         println!("broadcasting message to peers:\n{:?}", message);
-        peer_tx.iter().for_each(|peer| {
-            println!("peer: {}", peer.1);
-            peer.0
-                .send(message.clone())
-                .expect(&format!("failed to send message to peer {}", peer.1))
-        });
+        match message {
+            ToNetworkMessage::BroadcastMessage(message_content) => {
+                peer_tx.iter().for_each(|(channel, address)| {
+                    println!("peer: {}", address);
+                    channel
+                        .send(message_content.clone())
+                        .expect(&format!("failed to send message to peer {}", address))
+                });
+            }
+            ToNetworkMessage::SpecificMessage(message_content, origins) => {
+                peer_tx
+                    .iter()
+                    .filter(|&(_, address)| origins.contains(address))
+                    .for_each(|(channel, address)| {
+                        println!("peer: {}", address);
+                        channel
+                            .send(message_content.clone())
+                            .expect(&format!("failed to send message to peer {}", address))
+                    });
+            }
+        };
     }
 }
 
 // start connexions to peers
 pub async fn peer_startup(
     peers_ip_list: Vec<String>,
-    nfa_tx: UnboundedSender<NetworkMessage>,
+    nfa_tx: UnboundedSender<FromNetworkMessage>,
 ) -> Vec<PeerIPC> {
     join_all(
         peers_ip_list
