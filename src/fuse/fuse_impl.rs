@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, UNIX_EPOCH};
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::network::message::NetworkMessage;
+use crate::network::message::ToNetworkMessage;
 use crate::providers::{FsIndex, Provider};
 
 // NOTE - placeholders
@@ -140,7 +140,7 @@ impl Filesystem for FuseController {
     }
 
     // TODO
-    fn getattr(&mut self, _req: &Request, ino: u64, reply: ReplyAttr) {
+    fn getattr(&mut self, _req: &Request, ino: u64, _: Option<u64>, reply: ReplyAttr) {
         debug!("getattr is called {}", ino);
         match ino {
             1 => reply.attr(&TTL, &MOUNT_DIR_ATTR),
@@ -298,7 +298,7 @@ impl Filesystem for FuseController {
 pub fn mount_fuse(
     source: &Path,
     mountpoint: &Path,
-    tx: UnboundedSender<NetworkMessage>,
+    tx: UnboundedSender<ToNetworkMessage>,
 ) -> (BackgroundSession, Arc<Mutex<Provider>>) {
     let options = vec![MountOption::RW, MountOption::FSName("wormhole".to_string())];
     let (handle, index) = match FuseController::index_folder(source) {
