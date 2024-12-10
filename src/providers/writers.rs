@@ -7,7 +7,10 @@ use std::{
     path::PathBuf,
 };
 
-use crate::network::message::{self, Folder, MessageContent, ToNetworkMessage};
+use crate::{
+    network::message::{self, File, Folder, MessageContent, ToNetworkMessage},
+    providers,
+};
 
 use super::{FsEntry, Ino, Provider, TEMPLATE_FILE_ATTR};
 
@@ -84,7 +87,7 @@ impl Provider {
     }
 
     pub fn rmfile(&mut self, parent_ino: Ino, name: &OsStr) -> io::Result<()> {
-        let (ino, _) = self.file_from_parent_ino_and_name(parent_ino, name)?;
+        let (ino, _) = self.filesystem_from_parent_ino_and_name(parent_ino, name)?;
 
         self.mirror_path_from_inode(ino)
             .and_then(|file_path| self.metal_handle.remove_file(&file_path))
@@ -98,12 +101,51 @@ impl Provider {
             })
     }
 
-    pub fn rmdir(&mut self, parent_ino: Ino, name: &OsStr) -> Option<()> {
-        let _ = name;
-        let _ = parent_ino;
-        // should only be called on empty folders
-        // if 404, not empty or file -> None
-        Some(())
+    fn rm_inside_dir(
+        &mut self,
+        parent_ino: u64,
+        files_system: Vec<(u64, &FsEntry)>,
+    ) -> io::Result<()> {
+        files_system.into_iter().try_for_each(|(_, file)| {
+            println!("FILE: {:?}", file);
+            match file {
+                providers::FsEntry::File(pth, _) => self.rmfile(parent_ino, &OsStr::new(pth)),
+                providers::FsEntry::Directory(pth) => self.rmdir(parent_ino, OsStr::new(pth)),
+            }
+        })
+    }
+
+    pub fn rmdir(&mut self, parent_ino: u64, name: &OsStr) -> io::Result<()> {
+        todo!()
+        // println!(
+        //     "================================> INTER IN RMDIR: {:?}",
+        //     name
+        // );
+        // let folder = self.filesystem_from_parent_ino_and_name(parent_ino, name)?;
+        // println!("FOLDER: {:?}", folder);
+        // match self.fs_readdir(folder.0) {
+        //     Ok(files_system) => {
+        //         println!("FILESSYSTEM: {:?}", files_system);
+        //         if files_system.len() > 0 {
+        //             self.rm_inside_dir(folder.0, files_system)?;
+        //         }
+        //         println!("===========> DELETE AN EMPTY FOLDER {:?}", folder);
+        //         self.mirror_path_from_inode(folder.0)
+        //             .and_then(|file_path| self.metal_handle.remove_dir(&file_path))
+        //             .map(|_| {
+        //                 self.tx
+        //                     .send(ToNetworkMessage::BroadcastMessage(MessageContent::Remove(
+        //                         folder.0,
+        //                     )))
+        //                     .unwrap();
+        //                 self.index.remove(&folder.0);
+        //             })
+        //     }
+        //     Err(e) => {
+        //         println!("ERROR DURING THE FS_READDIR IN RMDIR");
+        //         Err(e)
+        //     }
+        // }
     }
 
     pub fn rename(
