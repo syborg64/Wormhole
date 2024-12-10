@@ -18,19 +18,19 @@ pub trait Config: Sized {
 
 #[derive(Debug, Deserialize)]
 pub struct Metadata {
-    essential: EssentialConfig,
-    optional: Option<OptionalConfig>,
+    //essential: EssentialConfig,
+    //optional: Option<OptionalConfig>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct EssentialConfig {
-    name: String,
-    ip: String,
+    //name: String,
+    //ip: String,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct OptionalConfig {
-    redundancy: Option<bool>,
+    //redundancy: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]

@@ -6,15 +6,65 @@ use std::{
 use fuser::{FileAttr, FileType};
 use std::ffi::OsStr;
 
+use crate::{
+    network::message::{FileSystemSerialized, MessageContent, ToNetworkMessage},
+    providers::FsEntry,
+};
+
 use super::Provider;
 
 impl Provider {
+    pub fn send_file_system(&self, origin: String) {
+        let mut new_fs_index = self.index.clone();
+        new_fs_index.remove(&1u64); // remove "./"
+        let fs = FileSystemSerialized {
+            fs_index: new_fs_index,
+            next_inode: self.next_inode,
+        };
+        self.tx
+            .send(ToNetworkMessage::SpecificMessage(
+                MessageContent::FileStructure(fs),
+                vec![origin],
+            ))
+            .expect("File system send failed");
+    }
+
+    pub fn merge_file_system(&mut self, fs: FileSystemSerialized) {
+        println!("Importing other FS: own {:?} other {:?}", self.index, fs);
+        for (k, v) in fs.fs_index {
+            self.index.insert(k, v);
+            // Handling conflicts can be implemented here
+        }
+
+        self.next_inode = fs.next_inode;
+        for (_, entry) in &self.index {
+            if let FsEntry::Directory(path) = entry {
+                if path.to_str().unwrap() == "./" {
+                    continue;
+                }
+            };
+
+            match entry {
+                FsEntry::Directory(path) => self
+                    .metal_handle
+                    .create_dir(path, libc::S_IWRITE | libc::S_IREAD)
+                    .expect("unable to create folder"),
+                FsEntry::File(path, _) => {
+                    self.metal_handle
+                        .new_file(path, libc::S_IWRITE | libc::S_IREAD)
+                        .expect("unable to create file");
+                }
+            };
+        }
+        println!("Finished Mergeing file systems");
+    }
+
     // find the path of the real file in the original folder
     pub fn mirror_path_from_inode(&self, ino: u64) -> io::Result<PathBuf> {
         println!("mirror path from inode");
         if let Some(data) = self.index.get(&ino) {
-            println!("....>{}", data.1.display());
-            Ok(data.1.clone())
+            println!("....>{}", data.get_path().display());
+            Ok(data.get_path().clone())
         } else {
             println!("....inode NOT FOUND");
 
@@ -59,14 +109,20 @@ impl Provider {
         &self,
         parent_ino: u64,
         name: &OsStr,
-    ) -> io::Result<(u64, fuser::FileType, String)> {
+    ) -> io::Result<(u64, &FsEntry)> {
         match self.fs_readdir(parent_ino) {
             Ok(list) => {
-                if let Some(file) = list.into_iter().find(|(_, e_type, e_name)| {
-                    *e_name == name.to_string_lossy().to_string()
-                        && *e_type == FileType::RegularFile
-                }) {
-                    Ok(file)
+                if let Some((ino, _, entry)) = list
+                    .into_iter()
+                    .filter_map(|(ino, entry)| {
+                        let name = entry.get_name().ok();
+                        name.map(|file_name| (ino, file_name, entry))
+                    })
+                    .find(|&(_, file_name, entry)| {
+                        file_name == name && (matches!(entry, FsEntry::File(_, _)))
+                    })
+                {
+                    Ok((ino, entry))
                 } else {
                     Err(io::Error::new(
                         io::ErrorKind::NotFound,
