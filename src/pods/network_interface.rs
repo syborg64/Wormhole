@@ -10,10 +10,10 @@ use crate::{
     providers::{FsEntry, FsIndex},
 };
 
-use super::disk_manager::DiskManager;
+use super::{disk_manager::DiskManager, inode::Arbo};
 
 pub struct NetworkInterface {
-    pub arbo: Arc<Mutex<FsIndex>>,
+    pub arbo: Arc<Mutex<Arbo>>,
     pub mount_point: PathBuf, // TODO - replace by Ludo's unipath
     pub disk: Arc<DiskManager>,
     pub network_sender: UnboundedSender<ToNetworkMessage>,

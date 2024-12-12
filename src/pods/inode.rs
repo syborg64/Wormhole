@@ -9,8 +9,8 @@ pub const ROOT: InodeIndex = 0;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Inode {
-    parent_index: Arc<InodeIndex>,
-    index: Arc<InodeIndex>,
+    parent_index: InodeIndex,
+    index: InodeIndex,
     name: String,
     entry: FsEntry,
 }
@@ -71,6 +71,44 @@ impl FsEntry {
 }
 
 impl Arbo {
+    fn hashmap_insert(&mut self, key: InodeIndex, value: Arc<Inode>) -> io::Result<()> {
+        self.index.insert(key, value).is_some() {
+            Ok(())
+        } else {
+            Err(io::Error::new(io::ErrorKind::AddrNotAvailable, "inode already in use"))
+        }
+    }
+
+    fn tree_insert(&mut self, path: WhPath, inode: Arc<Inode>) -> io::Result<()> {
+        let insert_into = self.inode_from_path(path)?.index;
+        let insert_into = match self.index.get_mut(&insert_into) {
+            Some(insert_into) => insert_into,
+            None => return Err(io::Error::new(io::ErrorKind::NotFound, "tree_insert: path not found"))
+        };
+
+        match insert_into.entry {
+            FsEntry::File(_) => Err(io::Error::new(io::ErrorKind::NotFound, "tree_insert: path not found")),
+            FsEntry::Directory(children) => Ok(children.push(inode)),
+        }
+    }
+
+    pub fn add_inode(&mut self, mut path: WhPath, ino: u64, parent_ino: u64, entry: FsEntry) -> io::Result<()> {
+        if self.index.contains_key(&ino) {
+            Err(io::Error::new(io::ErrorKind::InvalidInput, "file already existing"))
+        } else {
+            let insertion = Arc::new(Inode {
+                parent_index: parent_ino,
+                index: ino.clone(),
+                name: path.get_end(),
+                entry: entry,
+            });
+
+            self.hashmap_insert(ino, insertion.clone());
+
+            // insertion in tree
+
+        }
+    }
     pub fn path_from_inode_index(&self, inode_index: InodeIndex) -> io::Result<WhPath> {
         if inode_index == ROOT {
             return Ok(WhPath::new("/"));
