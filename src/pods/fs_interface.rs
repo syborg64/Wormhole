@@ -34,7 +34,7 @@ impl FsInterface {
         };
 
         let new_inode: Inode = Inode::new(name, parent_ino, new_entry);
-        let new_inode_id = self.network_interface.register_new_file(new_inode)?;
+        let new_inode_id = self.network_interface.register_new_file(new_inode.clone())?;
 
         let new_path: WhPath = if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
             arbo.get_path_from_inode_id(new_inode_id)?
