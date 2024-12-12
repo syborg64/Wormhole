@@ -1,12 +1,27 @@
+// SECTION imports
 use std::{collections::HashMap, io, path::PathBuf, sync::Arc};
-
 use dashmap::DashMap;
 use fuser::FileType;
 use serde::{Deserialize, Serialize};
-
 use crate::{network::message::Address, providers::whpath::WhPath};
+// !SECTION
 
+// SECTION consts
 pub const ROOT: InodeId = 0;
+// !SECTION
+
+// SECTION types
+
+/// InodeId is represented by an u64
+pub type Hosts = Vec<Address>;
+pub type InodeId = u64;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+/// Should be extended until meeting [fuser::FileType]
+pub enum FsEntry {
+    File(Hosts),
+    Directory(Vec<InodeId>),
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Inode {
@@ -16,25 +31,14 @@ pub struct Inode {
     entry: FsEntry,
 }
 
-pub type InodeId = u64;
 pub type ArboIndex = HashMap<InodeId, Inode>;
 pub struct Arbo {
     entries: ArboIndex,
 }
 
-/// InodeId is represented by an u64
-pub type Hosts = Vec<Address>;
+// !SECTION
 
-/// Hashmap containing file system data
-/// (inode_number, (Type, Original path, Hosts))
-pub type FsIndex = HashMap<InodeId, FsEntry>;
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-/// Should be extended until meeting [fuser::FileType]
-pub enum FsEntry {
-    File(Hosts),
-    Directory(Vec<InodeId>),
-}
+// SECTION implementations
 
 impl FsEntry {
     // pub fn get_path(&self) -> &PathBuf {
@@ -179,3 +183,5 @@ impl Arbo {
         Ok(actual_inode)
     }
 }
+
+// !SECTION
