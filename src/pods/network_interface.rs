@@ -51,14 +51,16 @@ impl NetworkInterface {
             ));
         };
 
+        // TODO - add myself to hosts
+
         self.network_sender
             .send(ToNetworkMessage::BroadcastMessage(
-                message::MessageContent::File(entry, ino),
+                message::MessageContent::File(inode, new_inode_id),
             ))
             .expect("mkfile: unable to update modification on the network thread");
         // TODO - if unable to update for some reason, should be passed to the background worker
 
-        ino
+        Ok(new_inode_id)
     }
 
     /// remove the requested entry to the arbo and inform the network
