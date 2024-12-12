@@ -70,6 +70,24 @@ impl FsEntry {
 }
 
 impl Arbo {
+    pub fn new() -> Self {
+        let mut arbo: Self = Self {
+            entries: HashMap::new()
+        };
+
+        arbo.entries.insert(
+            ROOT,
+            Inode {
+                parent: ROOT,
+                id: ROOT,
+                name: "/".to_owned(),
+                entry: FsEntry::Directory(vec![]),
+            },
+        );
+
+        arbo
+    }
+
     pub fn add_inode(
         &mut self,
         name: String,
@@ -152,7 +170,7 @@ impl Arbo {
     }
 
     pub fn inode_from_path(&self, mut path: WhPath) -> io::Result<&Inode> {
-        let mut actual_inode= self.entries.get(&ROOT).expect("inode_from_path: NO ROOT");
+        let mut actual_inode = self.entries.get(&ROOT).expect("inode_from_path: NO ROOT");
 
         for name in path.to_vector().iter() {
             actual_inode = self.get_inode_child_by_name(&actual_inode, name)?;
