@@ -26,7 +26,6 @@ pub enum FsEntry {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Inode {
     pub parent: InodeId,
-    pub id: InodeId,
     pub name: String,
     pub entry: FsEntry,
 }
@@ -83,7 +82,6 @@ impl Arbo {
             ROOT,
             Inode {
                 parent: ROOT,
-                id: ROOT,
                 name: "/".to_owned(),
                 entry: FsEntry::Directory(vec![]),
             },
@@ -147,7 +145,7 @@ impl Arbo {
         }
     }
 
-    pub fn path_from_inode_id(&self, inode_index: InodeId) -> io::Result<WhPath> {
+    pub fn get_path_from_inode_id(&self, inode_index: InodeId) -> io::Result<WhPath> {
         if inode_index == ROOT {
             return Ok(WhPath::new("/"));
         }
@@ -181,7 +179,7 @@ impl Arbo {
         }
     }
 
-    pub fn inode_from_path(&self, mut path: WhPath) -> io::Result<&Inode> {
+    pub fn get_inode_from_path(&self, mut path: WhPath) -> io::Result<&Inode> {
         let mut actual_inode = self.entries.get(&ROOT).expect("inode_from_path: NO ROOT");
 
         for name in path.to_vector().iter() {
