@@ -2,8 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    data::metadata::MetaData,
-    providers::{FsIndex, InodeIndex},
+    data::metadata::MetaData, pods::inode::Inode, providers::{FsIndex, InodeIndex}
 };
 
 /// Message Content
@@ -12,7 +11,7 @@ use crate::{
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum MessageContent {
     Remove(InodeIndex),
-    File(File),
+    File(Inode, InodeIndex),
     Meta(MetaData),
     NewFolder(Folder),
     RequestFile(std::path::PathBuf),

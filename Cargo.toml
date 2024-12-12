@@ -22,6 +22,7 @@ tokio-stream = "0.1.16"
 openat = "0.1.21"
 predicates = "3.1.2"
 serde_with = "3.11.0"
+parking_lot = "0.12.3"
 
 [dev-dependencies]
 assert_fs = "1.1.2"

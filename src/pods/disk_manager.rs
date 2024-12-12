@@ -3,15 +3,17 @@ use std::{fs::File, path::PathBuf};
 use openat::Dir;
 use tokio::io;
 
+use crate::providers::whpath::WhPath;
+
 pub struct DiskManager {
     handle: Dir,
-    mount_point: PathBuf, // mountpoint on linux and mirror mountpoint on windows
+    mount_point: WhPath, // mountpoint on linux and mirror mountpoint on windows
 }
 
 
 /// always takes a WhPath and infers the real disk path
 impl DiskManager {
-    pub fn new_file(&self, path: &PathBuf) -> io::Result<File> {
+    pub fn new_file(&self, path: &WhPath) -> io::Result<File> {
         let path = self.mount_point.join(path);
         self.handle.new_file(&path, 0o644) // TODO look more in c mode_t value
     }

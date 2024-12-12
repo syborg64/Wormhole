@@ -1,13 +1,13 @@
-// SECTION imports
 use crate::{network::message::Address, providers::whpath::WhPath};
-use dashmap::DashMap;
 use fuser::FileType;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, io, path::PathBuf, sync::Arc};
-// !SECTION
+use std::{collections::HashMap, io, time::Duration};
 
 // SECTION consts
+
 pub const ROOT: InodeId = 0;
+pub const LOCK_TIMEOUT: Duration = Duration::new(5, 0);
+
 // !SECTION
 
 // SECTION types
@@ -23,7 +23,7 @@ pub enum FsEntry {
     Directory(Vec<InodeId>),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Inode {
     pub parent: InodeId,
     pub name: String,
@@ -72,6 +72,20 @@ impl FsEntry {
     }
 }
 
+impl Inode {
+    pub fn new(
+        name: String,
+        parent_ino: InodeId,
+        entry: FsEntry,
+    ) -> Self {
+        Self {
+            parent: parent_ino,
+            name: name,
+            entry: entry,
+        }
+    }
+}
+
 impl Arbo {
     pub fn new() -> Self {
         let mut arbo: Self = Self {
@@ -91,7 +105,7 @@ impl Arbo {
     }
 
     #[must_use]
-    pub fn add_inode(
+    pub fn add_inode_from_parameters(
         &mut self,
         name: String,
         ino: InodeId,
@@ -136,6 +150,10 @@ impl Arbo {
                 )),
             }
         }
+    }
+
+    pub fn add_inode(&mut self, id: InodeId, inode: Inode) -> io::Result<()> {
+        self.add_inode_from_parameters(inode.name, id, inode.parent, inode.entry)
     }
 
     pub fn get_inode(&self, ino: InodeId) -> io::Result<&Inode> {
