@@ -1,9 +1,9 @@
 // SECTION imports
-use std::{collections::HashMap, io, path::PathBuf, sync::Arc};
+use crate::{network::message::Address, providers::whpath::WhPath};
 use dashmap::DashMap;
 use fuser::FileType;
 use serde::{Deserialize, Serialize};
-use crate::{network::message::Address, providers::whpath::WhPath};
+use std::{collections::HashMap, io, path::PathBuf, sync::Arc};
 // !SECTION
 
 // SECTION consts
@@ -25,10 +25,10 @@ pub enum FsEntry {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Inode {
-    parent: InodeId,
-    id: InodeId,
-    name: String,
-    entry: FsEntry,
+    pub parent: InodeId,
+    pub id: InodeId,
+    pub name: String,
+    pub entry: FsEntry,
 }
 
 pub type ArboIndex = HashMap<InodeId, Inode>;
@@ -76,7 +76,7 @@ impl FsEntry {
 impl Arbo {
     pub fn new() -> Self {
         let mut arbo: Self = Self {
-            entries: HashMap::new()
+            entries: HashMap::new(),
         };
 
         arbo.entries.insert(
@@ -92,11 +92,12 @@ impl Arbo {
         arbo
     }
 
+    #[must_use]
     pub fn add_inode(
         &mut self,
         name: String,
-        ino: u64,
-        parent_ino: u64,
+        ino: InodeId,
+        parent_ino: InodeId,
         entry: FsEntry,
     ) -> io::Result<()> {
         if self.entries.contains_key(&ino) {
@@ -136,6 +137,13 @@ impl Arbo {
                     "parent not a folder",
                 )),
             }
+        }
+    }
+
+    pub fn get_inode(&self, ino: InodeId) -> io::Result<&Inode> {
+        match self.entries.get(&ino) {
+            Some(inode) => Ok(inode),
+            None => Err(io::Error::new(io::ErrorKind::NotFound, "entry not found")),
         }
     }
 
