@@ -1,40 +1,39 @@
 use std::{collections::HashMap, io, path::PathBuf, sync::Arc};
 
+use dashmap::DashMap;
 use fuser::FileType;
 use serde::{Deserialize, Serialize};
 
 use crate::{network::message::Address, providers::whpath::WhPath};
 
-pub const ROOT: InodeIndex = 0;
+pub const ROOT: InodeId = 0;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Inode {
-    parent_index: InodeIndex,
-    index: InodeIndex,
+    parent: InodeId,
+    id: InodeId,
     name: String,
     entry: FsEntry,
 }
+
+pub type InodeId = u64;
+pub type ArboIndex = HashMap<InodeId, Inode>;
 pub struct Arbo {
-    tree: Arc<Inode>, /* ROOT */
-    index: ArboIndex,
+    entries: ArboIndex,
 }
 
-pub type ArboIndex = HashMap<InodeIndex, Inode>;
-
-/// InodeIndex is represented by an u64
-pub type InodeIndex = u64;
-
+/// InodeId is represented by an u64
 pub type Hosts = Vec<Address>;
 
 /// Hashmap containing file system data
 /// (inode_number, (Type, Original path, Hosts))
-pub type FsIndex = HashMap<InodeIndex, FsEntry>;
+pub type FsIndex = HashMap<InodeId, FsEntry>;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 /// Should be extended until meeting [fuser::FileType]
 pub enum FsEntry {
     File(Hosts),
-    Directory(Vec<Arc<Inode>>),
+    Directory(Vec<InodeId>),
 }
 
 impl FsEntry {
@@ -59,7 +58,7 @@ impl FsEntry {
         }
     }
 
-    pub fn get_children(&self) -> io::Result<&Vec<Arc<Inode>>> {
+    pub fn get_children(&self) -> io::Result<&Vec<InodeId>> {
         match self {
             FsEntry::File(_) => Err(io::Error::new(
                 io::ErrorKind::Other,
@@ -71,65 +70,76 @@ impl FsEntry {
 }
 
 impl Arbo {
-    fn hashmap_insert(&mut self, key: InodeIndex, value: Arc<Inode>) -> io::Result<()> {
-        self.index.insert(key, value).is_some() {
-            Ok(())
+    pub fn add_inode(
+        &mut self,
+        name: String,
+        ino: u64,
+        parent_ino: u64,
+        entry: FsEntry,
+    ) -> io::Result<()> {
+        if self.entries.contains_key(&ino) {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "file already existing",
+            ))
+        } else if !self.entries.contains_key(&parent_ino) {
+            Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "parent not existing",
+            ))
         } else {
-            Err(io::Error::new(io::ErrorKind::AddrNotAvailable, "inode already in use"))
+            match self.entries.get_mut(&parent_ino) {
+                None => Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "parent not existing",
+                )),
+                Some(Inode {
+                    parent: _,
+                    id: _,
+                    name: _,
+                    entry: FsEntry::Directory(parent_children),
+                }) => {
+                    let new_entry = Inode {
+                        parent: parent_ino,
+                        id: ino.clone(),
+                        name: name,
+                        entry: entry,
+                    };
+                    parent_children.push(ino);
+                    self.entries.insert(ino, new_entry);
+                    Ok(())
+                }
+                Some(_) => Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "parent not a folder",
+                )),
+            }
         }
     }
 
-    fn tree_insert(&mut self, path: WhPath, inode: Arc<Inode>) -> io::Result<()> {
-        let insert_into = self.inode_from_path(path)?.index;
-        let insert_into = match self.index.get_mut(&insert_into) {
-            Some(insert_into) => insert_into,
-            None => return Err(io::Error::new(io::ErrorKind::NotFound, "tree_insert: path not found"))
-        };
-
-        match insert_into.entry {
-            FsEntry::File(_) => Err(io::Error::new(io::ErrorKind::NotFound, "tree_insert: path not found")),
-            FsEntry::Directory(children) => Ok(children.push(inode)),
-        }
-    }
-
-    pub fn add_inode(&mut self, mut path: WhPath, ino: u64, parent_ino: u64, entry: FsEntry) -> io::Result<()> {
-        if self.index.contains_key(&ino) {
-            Err(io::Error::new(io::ErrorKind::InvalidInput, "file already existing"))
-        } else {
-            let insertion = Arc::new(Inode {
-                parent_index: parent_ino,
-                index: ino.clone(),
-                name: path.get_end(),
-                entry: entry,
-            });
-
-            self.hashmap_insert(ino, insertion.clone());
-
-            // insertion in tree
-
-        }
-    }
-    pub fn path_from_inode_index(&self, inode_index: InodeIndex) -> io::Result<WhPath> {
+    pub fn path_from_inode_id(&self, inode_index: InodeId) -> io::Result<WhPath> {
         if inode_index == ROOT {
             return Ok(WhPath::new("/"));
         }
-        let inode = match self.index.get(&inode_index) {
+        let inode = match self.entries.get(&inode_index) {
             Some(inode) => inode,
             None => {
                 return Err(io::Error::new(io::ErrorKind::NotFound, "entry not found"));
             }
         };
 
-        let mut parent_path = self.path_from_inode_index(*inode.parent_index)?;
+        let mut parent_path = self.path_from_inode_id(inode.parent)?;
         parent_path.join(inode.name.clone());
         Ok(parent_path)
     }
 
-    pub fn get_inode_child_by_name(&self, inode: &Inode, name: &String) -> io::Result<Arc<Inode>> {
-        if let Ok(children) = inode.entry.get_children() {
+    pub fn get_inode_child_by_name(&self, parent: &Inode, name: &String) -> io::Result<&Inode> {
+        if let Ok(children) = parent.entry.get_children() {
             for child in children.iter() {
-                if *child.name == *name {
-                    return Ok(child.clone());
+                if let Some(child) = self.entries.get(child) {
+                    if child.name == *name {
+                        return Ok(child);
+                    }
                 }
             }
             Err(io::Error::new(io::ErrorKind::NotFound, "entry not found"))
