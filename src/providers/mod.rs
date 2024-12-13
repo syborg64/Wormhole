@@ -10,7 +10,7 @@ use std::{
 };
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{network::message::{Address, ToNetworkMessage}, pods::inode::Inode};
+use crate::{network::message::{Address, ToNetworkMessage}, pods::arbo::Inode};
 
 mod helpers;
 pub mod readers;

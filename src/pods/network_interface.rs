@@ -8,7 +8,7 @@ use crate::{
     providers::whpath::WhPath,
 };
 
-use super::inode::{Arbo, Inode, InodeId, LOCK_TIMEOUT};
+use super::arbo::{Arbo, Inode, InodeId, LOCK_TIMEOUT};
 
 pub struct NetworkInterface {
     pub arbo: Arc<RwLock<Arbo>>,

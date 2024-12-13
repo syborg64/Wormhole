@@ -9,7 +9,7 @@ use crate::{fuse::fuse_impl::TEMPLATE_FILE_ATTR, providers::whpath::WhPath};
 
 use super::{
     disk_manager::DiskManager,
-    inode::{Arbo, FsEntry, Inode, InodeId, LOCK_TIMEOUT},
+    arbo::{Arbo, FsEntry, Inode, InodeId, LOCK_TIMEOUT},
     network_interface::NetworkInterface,
 };
 
