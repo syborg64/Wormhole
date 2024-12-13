@@ -22,7 +22,7 @@ pub enum SimpleFileType {
 /// Provides functions to allow primitive handlers like Fuse & WinFSP to
 /// interract with wormhole.
 impl FsInterface {
-    pub fn mknod(
+    pub fn make_inode(
         &self,
         parent_ino: u64,
         name: String,
@@ -37,6 +37,28 @@ impl FsInterface {
         let new_inode_id = self
             .network_interface
             .register_new_file(new_inode.clone())?;
+
+        let new_path: WhPath = if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
+            arbo.get_path_from_inode_id(new_inode_id)?
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::Interrupted,
+                "mkfile: can't read lock arbo's RwLock",
+            ));
+        };
+
+        match self.disk.new_file(&new_path) {
+            Ok(_) => (),
+            Err(e) => {
+                return Err(e);
+            }
+        };
+
+        Ok((new_inode_id, new_inode))
+    }
+
+    pub fn recept_inode(&self, inode: Inode, id: InodeId) -> io::Result<()> {
+        let new_inode_id = self.network_interface.register_new_file(inode.clone())?;
 
         let new_path: WhPath = if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
             arbo.get_path_from_inode_id(new_inode_id)?

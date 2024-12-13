@@ -205,7 +205,7 @@ impl Filesystem for FuseController {
         _rdev: u32,
         reply: ReplyEntry,
     ) {
-        if let Ok((id, _)) = self.fs_interface.mknod(
+        if let Ok((id, _)) = self.fs_interface.make_inode(
             parent,
             name.to_string_lossy().to_string(),
             SimpleFileType::File,
@@ -231,7 +231,7 @@ impl Filesystem for FuseController {
         _umask: u32,
         reply: ReplyEntry,
     ) {
-        if let Ok((id, _)) = self.fs_interface.mknod(
+        if let Ok((id, _)) = self.fs_interface.make_inode(
             parent,
             name.to_string_lossy().to_string(),
             SimpleFileType::File,

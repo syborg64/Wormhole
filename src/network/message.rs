@@ -3,8 +3,7 @@ use serde_with::serde_as;
 
 use crate::{
     data::metadata::MetaData,
-    pods::arbo::Inode,
-    providers::{FsIndex, InodeIndex},
+    pods::arbo::{Inode, InodeId},
 };
 
 /// Message Content
@@ -12,13 +11,12 @@ use crate::{
 /// through the network
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum MessageContent {
-    Remove(InodeIndex),
-    File(Inode, InodeIndex),
+    Remove(InodeId),
+    Inode(Inode, InodeId),
     Meta(MetaData),
-    NewFolder(Folder),
     RequestFile(std::path::PathBuf),
     Binary(Vec<u8>),
-    Write(InodeIndex, Vec<u8>),
+    Write(InodeId, Vec<u8>),
     RequestFs,
     FileStructure(FileSystemSerialized),
 }
@@ -49,14 +47,3 @@ pub struct FileSystemSerialized {
     pub next_inode: InodeIndex,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct File {
-    pub path: std::path::PathBuf,
-    pub ino: InodeIndex,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Folder {
-    pub ino: InodeIndex,
-    pub path: std::path::PathBuf,
-}

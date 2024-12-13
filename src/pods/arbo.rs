@@ -146,10 +146,12 @@ impl Arbo {
         }
     }
 
+    #[must_use]
     pub fn add_inode(&mut self, id: InodeId, inode: Inode) -> io::Result<()> {
         self.add_inode_from_parameters(inode.name, id, inode.parent, inode.entry)
     }
 
+    #[must_use]
     pub fn remove_children(&mut self, parent: InodeId, child: InodeId) -> io::Result<()> {
         let parent = self.get_inode_mut(parent)?;
 
@@ -165,6 +167,7 @@ impl Arbo {
         Ok(())
     }
 
+    #[must_use]
     pub fn remove_inode(&mut self, id: InodeId) -> io::Result<Inode> {
         let removed = match self.entries.remove(&id) {
             Some(inode) => Ok(inode),
@@ -179,6 +182,7 @@ impl Arbo {
         Ok(removed)
     }
 
+    #[must_use]
     pub fn get_inode(&self, ino: InodeId) -> io::Result<&Inode> {
         match self.entries.get(&ino) {
             Some(inode) => Ok(inode),
@@ -187,6 +191,7 @@ impl Arbo {
     }
 
     // not public as the modifications are not automaticly propagated on other related inodes
+    #[must_use]
     fn get_inode_mut(&mut self, ino: InodeId) -> io::Result<&mut Inode> {
         match self.entries.get_mut(&ino) {
             Some(inode) => Ok(inode),
@@ -194,6 +199,7 @@ impl Arbo {
         }
     }
 
+    #[must_use]
     pub fn get_path_from_inode_id(&self, inode_index: InodeId) -> io::Result<WhPath> {
         if inode_index == ROOT {
             return Ok(WhPath::from("/"));
@@ -210,6 +216,7 @@ impl Arbo {
         Ok(parent_path)
     }
 
+    #[must_use]
     pub fn get_inode_child_by_name(&self, parent: &Inode, name: &String) -> io::Result<&Inode> {
         if let Ok(children) = parent.entry.get_children() {
             for child in children.iter() {
@@ -228,6 +235,7 @@ impl Arbo {
         }
     }
 
+    #[must_use]
     pub fn get_inode_from_path(&self, mut path: WhPath) -> io::Result<&Inode> {
         let mut actual_inode = self.entries.get(&ROOT).expect("inode_from_path: NO ROOT");
 
