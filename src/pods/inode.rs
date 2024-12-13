@@ -73,11 +73,7 @@ impl FsEntry {
 }
 
 impl Inode {
-    pub fn new(
-        name: String,
-        parent_ino: InodeId,
-        entry: FsEntry,
-    ) -> Self {
+    pub fn new(name: String, parent_ino: InodeId, entry: FsEntry) -> Self {
         Self {
             parent: parent_ino,
             name: name,
@@ -130,13 +126,11 @@ impl Arbo {
                 )),
                 Some(Inode {
                     parent: _,
-                    id: _,
                     name: _,
                     entry: FsEntry::Directory(parent_children),
                 }) => {
                     let new_entry = Inode {
                         parent: parent_ino,
-                        id: ino.clone(),
                         name: name,
                         entry: entry,
                     };
@@ -154,6 +148,16 @@ impl Arbo {
 
     pub fn add_inode(&mut self, id: InodeId, inode: Inode) -> io::Result<()> {
         self.add_inode_from_parameters(inode.name, id, inode.parent, inode.entry)
+    }
+
+    pub fn remove_inode(&mut self, id: InodeId) -> io::Result<Inode> {
+        match self.entries.remove(&id) {
+            Some(inode) => Ok(inode),
+            None => Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "remove_inode: specified inode not found",
+            )),
+        }
     }
 
     pub fn get_inode(&self, ino: InodeId) -> io::Result<&Inode> {
@@ -174,7 +178,7 @@ impl Arbo {
             }
         };
 
-        let mut parent_path = self.path_from_inode_id(inode.parent)?;
+        let mut parent_path = self.get_path_from_inode_id(inode.parent)?;
         parent_path.join(inode.name.clone());
         Ok(parent_path)
     }
