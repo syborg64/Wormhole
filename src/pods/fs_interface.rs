@@ -54,16 +54,6 @@ impl FsInterface {
             }
         };
 
-        // // creating metadata to return
-        // let mut new_attr = TEMPLATE_FILE_ATTR;
-        // new_attr.ino = new_inode_id;
-        // new_attr.kind = match kind {
-        //     SimpleFileType::File => FileType::RegularFile,
-        //     SimpleFileType::Directory => FileType::Directory,
-        // };
-        // new_attr.size = 0;
-        // Ok(new_attr)
-
         Ok((new_inode_id, new_inode))
     }
 }
