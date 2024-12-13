@@ -1,5 +1,7 @@
-use std::ffi::OsStr;
+use std::ffi::{CString, OsStr};
 use std::{fmt, path::Path};
+
+use openat::AsPath;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum PathType {
@@ -46,6 +48,14 @@ impl JoinPath for Path {
 impl JoinPath for WhPath {
     fn as_str(&self) -> &str {
         &self.inner
+    }
+}
+
+impl AsPath for WhPath {
+    type Buffer = CString;
+
+    fn to_path(self) -> Option<Self::Buffer> {
+        CString::new(self.inner).ok()
     }
 }
 
