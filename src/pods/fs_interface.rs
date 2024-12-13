@@ -76,6 +76,6 @@ impl FsInterface {
             }
         };
 
-        Ok((new_inode_id, new_inode))
+        Ok(())
     }
 }

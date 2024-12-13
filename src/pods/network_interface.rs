@@ -1,6 +1,6 @@
 use std::{io, sync::Arc};
 
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 use tokio::{
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
     task::JoinHandle,
@@ -13,29 +13,36 @@ use crate::{
 
 use super::{
     arbo::{Arbo, Inode, InodeId, LOCK_TIMEOUT},
-    fs_interface::{FsInterface, SimpleFileType},
+    fs_interface::FsInterface,
 };
 
 pub struct NetworkInterface {
     pub arbo: Arc<RwLock<Arbo>>,
     pub mount_point: WhPath, // TODO - replace by Ludo's unipath
     pub network_sender: UnboundedSender<ToNetworkMessage>,
-    pub next_inode: InodeId, // TODO - replace with InodeIndex type
+    pub next_inode: Mutex<InodeId>, // TODO - replace with InodeIndex type
     pub network_airport_handle: JoinHandle<()>,
 }
 
 impl NetworkInterface {
-    fn get_next_inode(&mut self) -> u64 {
-        let available_inode = self.next_inode;
-        self.next_inode += 1;
+    fn get_next_inode(&self) -> io::Result<u64> {
+        let mut next_inode = match self.next_inode.try_lock_for(LOCK_TIMEOUT) {
+            Some(lock) => Ok(lock),
+            None => Err(io::Error::new(
+                io::ErrorKind::Interrupted,
+                "get_next_inode: can't lock next_inode",
+            )),
+        }?;
+        let available_inode = *next_inode;
+        *next_inode += 1;
 
-        available_inode
+        Ok(available_inode)
     }
 
     #[must_use]
     /// Get a new inode, add the requested entry to the arbo and inform the network
-    pub fn register_new_file(&mut self, inode: Inode) -> io::Result<u64> {
-        let new_inode_id = self.get_next_inode();
+    pub fn register_new_file(&self, inode: Inode) -> io::Result<u64> {
+        let new_inode_id = self.get_next_inode()?;
 
         if let Some(mut arbo) = self.arbo.try_write_for(LOCK_TIMEOUT) {
             arbo.add_inode(new_inode_id, inode.clone())?;
@@ -99,6 +106,27 @@ impl NetworkInterface {
 
         Ok(removed_inode)
     }
+
+    pub fn acknowledge_unregister_file(&self, id: InodeId) -> io::Result<Inode> {
+        if let Some(mut arbo) = self.arbo.try_write_for(LOCK_TIMEOUT) {
+            removed_inode = arbo.remove_inode(id)?;
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::Interrupted,
+                "mkfile: can't write-lock arbo's RwLock",
+            ));
+        };
+
+        self.network_sender
+            .send(ToNetworkMessage::BroadcastMessage(
+                message::MessageContent::Remove(id),
+            ))
+            .expect("mkfile: unable to update modification on the network thread");
+
+        // TODO - if unable to update for some reason, should be passed to the background worker
+
+        Ok(removed_inode)
+    }
 }
 
 pub async fn netowrk_airport(
@@ -122,7 +150,8 @@ pub async fn netowrk_airport(
                 let mut provider = provider.lock().expect("failed to lock mutex");
                 provider.recpt_remove(ino);
             }
-            MessageContent::Write(ino, data) => { // deprecated ?
+            MessageContent::Write(ino, data) => {
+                // deprecated ?
                 let mut provider = provider.lock().expect("failed to lock mutex");
                 provider.recpt_write(ino, data);
             }
