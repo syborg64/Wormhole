@@ -25,6 +25,27 @@ pub struct NetworkInterface {
 }
 
 impl NetworkInterface {
+    fn new(
+        arbo: Arbo,
+        mount_point: WhPath,
+        network_sender: UnboundedSender<ToNetworkMessage>,
+        network_reception: UnboundedReceiver<FromNetworkMessage>,
+        next_inode: InodeId,
+        fs_interface: Arc<FsInterface>,
+    ) -> Self {
+        let arbo = Arc::new(RwLock::new(arbo));
+        let next_inode = Mutex::new(next_inode);
+        let network_airport_handle = tokio::spawn(network_airport(network_reception, fs_interface));
+
+        Self {
+            arbo,
+            mount_point,
+            network_sender,
+            next_inode,
+            network_airport_handle,
+        }
+    }
+
     fn get_next_inode(&self) -> io::Result<u64> {
         let mut next_inode = match self.next_inode.try_lock_for(LOCK_TIMEOUT) {
             Some(lock) => Ok(lock),
@@ -118,17 +139,17 @@ impl NetworkInterface {
                 "mkfile: can't write-lock arbo's RwLock",
             ));
         };
-        
+
         Ok(removed_inode)
     }
 }
 
-pub async fn netowrk_airport(
-    mut nfa_rx: UnboundedReceiver<FromNetworkMessage>,
+pub async fn network_airport(
+    mut network_reception: UnboundedReceiver<FromNetworkMessage>,
     fs_interface: Arc<FsInterface>,
 ) {
     loop {
-        let FromNetworkMessage { origin, content } = match nfa_rx.recv().await {
+        let FromNetworkMessage { origin, content } = match network_reception.recv().await {
             Some(message) => message,
             None => continue,
         };

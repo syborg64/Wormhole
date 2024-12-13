@@ -10,4 +10,5 @@ pub struct Pod {
     mount_point: WhPath, // TODO - replace by Ludo's unipath
     peers: Vec<PeerIPC>,
     pod_conf: PodConfig,
+    fuse_handle: fuser::BackgroundSession,
 }

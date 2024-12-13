@@ -12,6 +12,13 @@ pub struct DiskManager {
 
 /// always takes a WhPath and infers the real disk path
 impl DiskManager {
+    pub fn new(mount_point: WhPath) -> io::Result<Self> {
+        Ok(Self {
+            handle: Dir::open(mount_point.clone())?,
+            mount_point,
+        })
+    }
+
     pub fn new_file(&self, path: &WhPath) -> io::Result<File> {
         let path: WhPath = self.mount_point.join(path);
         self.handle.new_file(path, 0o644) // TODO look more in c mode_t value

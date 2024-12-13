@@ -1,7 +1,7 @@
 use super::{
     arbo::{Arbo, FsEntry, Inode, InodeId, LOCK_TIMEOUT},
-    disk_manager::DiskManager,
-    network_interface::NetworkInterface,
+    disk_manager::{self, DiskManager},
+    network_interface::{self, NetworkInterface},
 };
 use crate::providers::whpath::WhPath;
 use parking_lot::RwLock;
@@ -10,8 +10,8 @@ use std::sync::Arc;
 
 pub struct FsInterface {
     pub network_interface: Arc<NetworkInterface>,
-    pub disk: Arc<DiskManager>,
-    pub arbo: Arc<RwLock<Arbo>>,
+    pub disk: DiskManager,
+    pub arbo: Arc<RwLock<Arbo>>, // here only to read, as most write are made by network_interface
 }
 
 pub enum SimpleFileType {
@@ -22,6 +22,18 @@ pub enum SimpleFileType {
 /// Provides functions to allow primitive handlers like Fuse & WinFSP to
 /// interract with wormhole.
 impl FsInterface {
+    pub fn new(
+        network_interface: Arc<NetworkInterface>,
+        disk_manager: DiskManager,
+        arbo: Arc<RwLock<Arbo>>,
+    ) -> Self {
+        Self {
+            network_interface,
+            disk: disk_manager,
+            arbo,
+        }
+    }
+
     pub fn make_inode(
         &self,
         parent_ino: u64,
@@ -88,7 +100,7 @@ impl FsInterface {
                 "mkfile: can't read lock arbo's RwLock",
             ));
         };
-        
+
         match self.disk.remove_file(&to_remove_path) {
             Ok(_) => (),
             Err(e) => {
