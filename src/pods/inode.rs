@@ -150,18 +150,45 @@ impl Arbo {
         self.add_inode_from_parameters(inode.name, id, inode.parent, inode.entry)
     }
 
+    pub fn remove_children(&mut self, parent: InodeId, child: InodeId) -> io::Result<()> {
+        let parent = self.get_inode_mut(parent)?;
+
+        let children = match &mut parent.entry {
+            FsEntry::File(_) => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "remove_children: specified parent is not a folder",
+            )),
+            FsEntry::Directory(children) => Ok(children),
+        }?;
+
+        children.retain(|v| *v != child);
+        Ok(())
+    }
+
     pub fn remove_inode(&mut self, id: InodeId) -> io::Result<Inode> {
-        match self.entries.remove(&id) {
+        let removed = match self.entries.remove(&id) {
             Some(inode) => Ok(inode),
             None => Err(io::Error::new(
                 io::ErrorKind::NotFound,
                 "remove_inode: specified inode not found",
             )),
-        }
+        }?;
+
+        self.remove_children(removed.parent, id)?;
+
+        Ok(removed)
     }
 
     pub fn get_inode(&self, ino: InodeId) -> io::Result<&Inode> {
         match self.entries.get(&ino) {
+            Some(inode) => Ok(inode),
+            None => Err(io::Error::new(io::ErrorKind::NotFound, "entry not found")),
+        }
+    }
+
+    // not public as the modifications are not automaticly propagated on other related inodes
+    fn get_inode_mut(&mut self, ino: InodeId) -> io::Result<&mut Inode> {
+        match self.entries.get_mut(&ino) {
             Some(inode) => Ok(inode),
             None => Err(io::Error::new(io::ErrorKind::NotFound, "entry not found")),
         }
