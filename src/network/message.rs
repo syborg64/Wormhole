@@ -2,7 +2,9 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    data::metadata::MetaData, pods::arbo::Inode, providers::{FsIndex, InodeIndex}
+    data::metadata::MetaData,
+    pods::arbo::Inode,
+    providers::{FsIndex, InodeIndex},
 };
 
 /// Message Content

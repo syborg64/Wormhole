@@ -118,7 +118,7 @@ impl WhPath {
         T: JoinPath + ?Sized,
     {
         let mut pth = self.clone();
-        
+
         pth.add_last_slash();
         let seg = Self::remove_leading_slash(segment.as_str());
         pth.inner = format!("{}{}", self.inner, seg);

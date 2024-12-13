@@ -25,13 +25,13 @@ use std::{
 
 use tokio::sync::mpsc::{self};
 
+use wormhole::network::server::Server;
 use wormhole::network::{
     peers_operations::{contact_peers, peer_startup},
     request_filesystem::request_filesystem,
     watchdogs::{incoming_connections_watchdog, local_cli_watchdog, network_file_actions},
 };
 use wormhole::{fuse::fuse_impl::mount_fuse, network::peer_ipc::PeerIPC};
-use wormhole::network::server::Server;
 
 #[tokio::main]
 async fn main() {

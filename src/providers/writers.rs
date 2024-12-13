@@ -118,11 +118,11 @@ impl Provider {
                             .unwrap();
                         self.index.remove(&ino);
                     })
-            },
+            }
             Err(e) => {
                 println!("ERROR DURING THE FS_READDIR IN RMDIR");
                 Err(e)
-            },
+            }
         }
     }
 
