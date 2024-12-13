@@ -1,8 +1,4 @@
-use std::{
-    io,
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
+use std::{io, sync::Arc};
 
 use parking_lot::RwLock;
 use tokio::{sync::mpsc::UnboundedSender, task::JoinHandle};
@@ -12,10 +8,7 @@ use crate::{
     providers::whpath::WhPath,
 };
 
-use super::{
-    disk_manager::DiskManager,
-    inode::{Arbo, FsEntry, Inode, InodeId, LOCK_TIMEOUT},
-};
+use super::inode::{Arbo, Inode, InodeId, LOCK_TIMEOUT};
 
 pub struct NetworkInterface {
     pub arbo: Arc<RwLock<Arbo>>,
@@ -35,10 +28,7 @@ impl NetworkInterface {
 
     #[must_use]
     /// Get a new inode, add the requested entry to the arbo and inform the network
-    pub fn register_new_file(
-        &self,
-        inode: Inode,
-    ) -> io::Result<u64> {
+    pub fn register_new_file(&self, inode: Inode) -> io::Result<u64> {
         let new_inode_id = self.get_next_inode();
 
         if let Some(mut arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
