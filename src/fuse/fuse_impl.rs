@@ -14,7 +14,7 @@ use std::time::{Duration, UNIX_EPOCH};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::network::message::ToNetworkMessage;
-use crate::providers::{FsEntry, FsIndex, Provider};
+use crate::pods::fs_interface::{FsInterface, SimpleFileType};
 
 // NOTE - placeholders
 const TTL: Duration = Duration::from_secs(1);
@@ -59,7 +59,7 @@ pub const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
 // const MIRROR_PTH: &str = "./wh_mirror/";
 
 pub struct FuseController {
-    pub provider: Arc<Mutex<Provider>>,
+    pub fs_interface: Arc<FsInterface>,
 }
 
 fn index_folder_recursive(
@@ -205,9 +205,18 @@ impl Filesystem for FuseController {
         _rdev: u32,
         reply: ReplyEntry,
     ) {
-        let mut provider = self.provider.lock().unwrap();
-        if let Ok(attr) = provider.mkfile(parent, name) {
-            reply.entry(&TTL, &attr, 0)
+        if let Ok((id, _)) = self.fs_interface.mknod(
+            parent,
+            name.to_string_lossy().to_string(),
+            SimpleFileType::File,
+        ) {
+            // creating metadata to return
+            let mut new_attr = TEMPLATE_FILE_ATTR;
+            new_attr.ino = id;
+            new_attr.kind = FileType::RegularFile;
+            new_attr.size = 0;
+    
+            reply.entry(&TTL, &new_attr, 0)
         } else {
             reply.error(ENOSYS)
         }
@@ -222,9 +231,18 @@ impl Filesystem for FuseController {
         _umask: u32,
         reply: ReplyEntry,
     ) {
-        let mut provider = self.provider.lock().unwrap();
-        if let Ok(attr) = provider.mkdir(parent, name) {
-            reply.entry(&TTL, &attr, 0)
+        if let Ok((id, _)) = self.fs_interface.mknod(
+            parent,
+            name.to_string_lossy().to_string(),
+            SimpleFileType::File,
+        ) {
+            // creating metadata to return
+            let mut new_attr = TEMPLATE_FILE_ATTR;
+            new_attr.ino = id;
+            new_attr.kind = FileType::Directory;
+            new_attr.size = 0;
+    
+            reply.entry(&TTL, &new_attr, 0)
         } else {
             reply.error(ENOSYS)
         }
