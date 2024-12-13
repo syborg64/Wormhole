@@ -196,7 +196,7 @@ impl Arbo {
 
     pub fn get_path_from_inode_id(&self, inode_index: InodeId) -> io::Result<WhPath> {
         if inode_index == ROOT {
-            return Ok(WhPath::new("/"));
+            return Ok(WhPath::from("/"));
         }
         let inode = match self.entries.get(&inode_index) {
             Some(inode) => inode,
@@ -206,7 +206,7 @@ impl Arbo {
         };
 
         let mut parent_path = self.get_path_from_inode_id(inode.parent)?;
-        parent_path.join(inode.name.clone());
+        parent_path.push(&inode.name.clone());
         Ok(parent_path)
     }
 
