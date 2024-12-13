@@ -58,10 +58,10 @@ impl FsInterface {
     }
 
     pub fn recept_inode(&self, inode: Inode, id: InodeId) -> io::Result<()> {
-        let new_inode_id = self.network_interface.register_new_file(inode.clone())?;
+        self.network_interface.acknowledge_new_file(inode, id)?;
 
         let new_path: WhPath = if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
-            arbo.get_path_from_inode_id(new_inode_id)?
+            arbo.get_path_from_inode_id(id)?
         } else {
             return Err(io::Error::new(
                 io::ErrorKind::Interrupted,
@@ -75,6 +75,28 @@ impl FsInterface {
                 return Err(e);
             }
         };
+
+        Ok(())
+    }
+
+    pub fn recept_remove_inode(&self, id: InodeId) -> io::Result<()> {
+        let to_remove_path: WhPath = if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
+            arbo.get_path_from_inode_id(id)?
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::Interrupted,
+                "mkfile: can't read lock arbo's RwLock",
+            ));
+        };
+        
+        match self.disk.remove_file(&to_remove_path) {
+            Ok(_) => (),
+            Err(e) => {
+                return Err(e);
+            }
+        };
+
+        self.network_interface.acknowledge_unregister_file(id)?;
 
         Ok(())
     }

@@ -108,6 +108,8 @@ impl NetworkInterface {
     }
 
     pub fn acknowledge_unregister_file(&self, id: InodeId) -> io::Result<Inode> {
+        let removed_inode: Inode;
+
         if let Some(mut arbo) = self.arbo.try_write_for(LOCK_TIMEOUT) {
             removed_inode = arbo.remove_inode(id)?;
         } else {
@@ -116,15 +118,7 @@ impl NetworkInterface {
                 "mkfile: can't write-lock arbo's RwLock",
             ));
         };
-
-        self.network_sender
-            .send(ToNetworkMessage::BroadcastMessage(
-                message::MessageContent::Remove(id),
-            ))
-            .expect("mkfile: unable to update modification on the network thread");
-
-        // TODO - if unable to update for some reason, should be passed to the background worker
-
+        
         Ok(removed_inode)
     }
 }
