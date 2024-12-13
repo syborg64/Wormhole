@@ -2,6 +2,13 @@
 // In code we trust
 // AgarthaSoftware - 2024
 
+//! Wormhole
+//!
+//! Checkout the [CLI](../wormhole_cli/index.html)
+//!
+//! Checkout the [Service](../wormhole_service/index.html)
+//!
+
 pub mod commands;
 pub mod config;
 pub mod data;
