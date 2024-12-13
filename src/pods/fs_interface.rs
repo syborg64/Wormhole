@@ -1,15 +1,10 @@
-use std::{ffi::OsStr, sync::Arc};
-
-use fuser::{FileAttr, FileType};
+use std::sync::Arc;
 use parking_lot::RwLock;
-
 use std::io::{self};
-
-use crate::{fuse::fuse_impl::TEMPLATE_FILE_ATTR, providers::whpath::WhPath};
-
+use crate::providers::whpath::WhPath;
 use super::{
-    disk_manager::DiskManager,
     arbo::{Arbo, FsEntry, Inode, InodeId, LOCK_TIMEOUT},
+    disk_manager::DiskManager,
     network_interface::NetworkInterface,
 };
 
@@ -27,14 +22,21 @@ pub enum SimpleFileType {
 /// Provides functions to allow primitive handlers like Fuse & WinFSP to
 /// interract with wormhole.
 impl FsInterface {
-    pub fn mknod(&self, parent_ino: u64, name: String, kind: SimpleFileType) -> io::Result<(InodeId, Inode)> {
+    pub fn mknod(
+        &self,
+        parent_ino: u64,
+        name: String,
+        kind: SimpleFileType,
+    ) -> io::Result<(InodeId, Inode)> {
         let new_entry = match kind {
             SimpleFileType::File => FsEntry::File(Vec::new()),
             SimpleFileType::Directory => FsEntry::Directory(Vec::new()),
         };
 
         let new_inode: Inode = Inode::new(name, parent_ino, new_entry);
-        let new_inode_id = self.network_interface.register_new_file(new_inode.clone())?;
+        let new_inode_id = self
+            .network_interface
+            .register_new_file(new_inode.clone())?;
 
         let new_path: WhPath = if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
             arbo.get_path_from_inode_id(new_inode_id)?
@@ -45,10 +47,7 @@ impl FsInterface {
             ));
         };
 
-        match self
-            .disk
-            .new_file(&new_path)
-        {
+        match self.disk.new_file(&new_path) {
             Ok(_) => (),
             Err(e) => {
                 return Err(e);
