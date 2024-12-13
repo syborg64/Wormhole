@@ -25,7 +25,7 @@ pub struct NetworkInterface {
 }
 
 impl NetworkInterface {
-    fn new(
+    pub fn new(
         arbo: Arbo,
         mount_point: WhPath,
         network_sender: UnboundedSender<ToNetworkMessage>,

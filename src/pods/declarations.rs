@@ -1,6 +1,8 @@
-use crate::{network::peer_ipc::PeerIPC, providers::whpath::WhPath};
+use tokio::sync::mpsc;
 
-use super::network_interface::NetworkInterface;
+use crate::{network::{message::Address, peer_ipc::PeerIPC}, providers::whpath::WhPath};
+
+use super::{arbo::Arbo, network_interface::NetworkInterface};
 
 // TODO
 pub type PodConfig = u64;
@@ -11,4 +13,19 @@ pub struct Pod {
     peers: Vec<PeerIPC>,
     pod_conf: PodConfig,
     fuse_handle: fuser::BackgroundSession,
+}
+
+impl Pod {
+    pub fn new(mount_point: WhPath, config: PodConfig, peers: Vec<Address>) -> Self {
+        let arbo: Arbo;
+        let (network_sender, network_reception) = mpsc::unbounded_channel();
+
+        let network_interface = NetworkInterface::new(
+            arbo,
+            mount_point.clone(),
+            network_sender,
+            network_reception,
+            0,
+            fs_interface)
+    }
 }

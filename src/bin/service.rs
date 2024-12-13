@@ -52,7 +52,6 @@ async fn main() {
     println!("own address: {}", own_addr);
     println!("peer1 address: {}", other_addr1);
     println!("peer2 address: {}", other_addr2);
-
     println!("\nstarting");
 
     let (nfa_tx, nfa_rx) = mpsc::unbounded_channel();
