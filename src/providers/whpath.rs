@@ -101,7 +101,7 @@ impl WhPath {
 
     //TODO - Faire un join pour de WhPath
     //NOTE - join deux paths dans l'ordre indiqué, résoud le conflit si le second commence avec ./ ou / ou rien
-    pub fn join<T>(&mut self, segment: &T) -> &Self
+    pub fn push<T>(&mut self, segment: &T) -> &Self
     where
         T: JoinPath + ?Sized,
     {
@@ -109,6 +109,20 @@ impl WhPath {
         let seg = Self::remove_leading_slash(segment.as_str());
         self.inner = format!("{}{}", self.inner, seg);
         self
+    }
+
+    //TODO - Faire un join pour de WhPath
+    //NOTE - join deux paths dans l'ordre indiqué, résoud le conflit si le second commence avec ./ ou / ou rien
+    pub fn join<T>(&self, segment: &T) -> Self
+    where
+        T: JoinPath + ?Sized,
+    {
+        let mut pth = self.clone();
+        
+        pth.add_last_slash();
+        let seg = Self::remove_leading_slash(segment.as_str());
+        pth.inner = format!("{}{}", self.inner, seg);
+        pth
     }
 
     //NOTE - retire la partie demandée "/my/file/path/".remove("file/path") = "/my/"
