@@ -106,38 +106,38 @@ impl Provider {
     }
 
     // use real fs metadata and traduct part of it to the fuse FileAttr metadata
-    fn modify_metadata_template(data: openat::Metadata, ino: Ino) -> FileAttr {
-        let mut attr = TEMPLATE_FILE_ATTR;
-        attr.ino = ino;
-        attr.kind = if data.is_dir() {
-            fuser::FileType::Directory
-        } else if data.is_file() {
-            fuser::FileType::RegularFile
-        } else {
-            fuser::FileType::CharDevice // random to detect unsupported
-        };
-        attr.size = data.len();
-        attr
-    }
+    // fn modify_metadata_template(data: openat::Metadata, ino: Ino) -> FileAttr {
+    //     let mut attr = TEMPLATE_FILE_ATTR;
+    //     attr.ino = ino;
+    //     attr.kind = if data.is_dir() {
+    //         fuser::FileType::Directory
+    //     } else if data.is_file() {
+    //         fuser::FileType::RegularFile
+    //     } else {
+    //         fuser::FileType::CharDevice // random to detect unsupported
+    //     };
+    //     attr.size = data.len();
+    //     attr
+    // }
 
     // get the metadata of a file from it's inode
     //NOTE - Replae by fs_get_attr()
-    pub fn get_metadata(&self, ino: Ino) -> io::Result<FileAttr> {
-        println!("get_metadata called on ino {}", ino); // DEBUG
-        match self.mirror_path_from_inode(ino) {
-            Ok(path) => {
-                println!("....GET METADATA FOR PATH MIRROR {:?}", path);
-                match self.metal_handle.metadata(&path) {
-                    Ok(data) => Ok(Self::modify_metadata_template(data, ino)),
-                    Err(e) => Err(e),
-                }
-            }
-            Err(e) => {
-                println!("....mirror path from inode FAILED");
-                Err(e)
-            }
-        }
-    }
+    // pub fn get_metadata(&self, ino: Ino) -> io::Result<FileAttr> {
+    //     println!("get_metadata called on ino {}", ino); // DEBUG
+    //     match self.mirror_path_from_inode(ino) {
+    //         Ok(path) => {
+    //             println!("....GET METADATA FOR PATH MIRROR {:?}", path);
+    //             match self.metal_handle.metadata(&path) {
+    //                 Ok(data) => Ok(Self::modify_metadata_template(data, ino)),
+    //                 Err(e) => Err(e),
+    //             }
+    //         }
+    //         Err(e) => {
+    //             println!("....mirror path from inode FAILED");
+    //             Err(e)
+    //         }
+    //     }
+    // }
 
     pub fn fs_lookup(&self, parent_ino: Ino, file_name: &OsStr) -> io::Result<FileAttr> {
         println!(

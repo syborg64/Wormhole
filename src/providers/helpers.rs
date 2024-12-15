@@ -74,7 +74,7 @@ impl Provider {
 
     pub fn check_file_type(&self, ino: u64, wanted_type: FileType) -> io::Result<FileAttr> {
         println!("check_file_type called");
-        match self.get_metadata(ino) {
+        match self.fs_get_attr(&ino) {
             Ok(meta) => {
                 if meta.kind == wanted_type {
                     println!("file of good type");
