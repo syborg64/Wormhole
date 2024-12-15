@@ -14,7 +14,8 @@ use std::time::{Duration, UNIX_EPOCH};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::network::message::ToNetworkMessage;
-use crate::pods::fs_interface::{FsInterface, SimpleFileType};
+use crate::pods::fs_interface::{self, FsInterface, SimpleFileType};
+use crate::providers::whpath::WhPath;
 
 // NOTE - placeholders
 const TTL: Duration = Duration::from_secs(1);
@@ -215,7 +216,7 @@ impl Filesystem for FuseController {
             new_attr.ino = id;
             new_attr.kind = FileType::RegularFile;
             new_attr.size = 0;
-    
+
             reply.entry(&TTL, &new_attr, 0)
         } else {
             reply.error(ENOSYS)
@@ -241,7 +242,7 @@ impl Filesystem for FuseController {
             new_attr.ino = id;
             new_attr.kind = FileType::Directory;
             new_attr.size = 0;
-    
+
             reply.entry(&TTL, &new_attr, 0)
         } else {
             reply.error(ENOSYS)
@@ -310,27 +311,22 @@ impl Filesystem for FuseController {
 }
 
 pub fn mount_fuse(
-    mountpoint: &Path,
-    tx: UnboundedSender<ToNetworkMessage>,
-) -> (BackgroundSession, Arc<Mutex<Provider>>) {
+    mount_point: &WhPath,
+    fs_interface: Arc<FsInterface>,
+) -> io::Result<BackgroundSession> {
+    // let (handle, index) = match FuseController::index_folder(mountpoint) {
+    //     Ok((handle, idx)) => (handle, idx),
+    //     Err(e) => todo!("{e:?}"),
+    // };
+    // println!("FUSE MOUNT, actual file index:\n{:#?}", index);
+    // let provider = Arc::new(Mutex::new(Provider {
+    //     next_inode: (index.len() + 2) as u64,
+    //     index,
+    //     metal_handle: handle,
+    //     local_source: mountpoint.to_path_buf(),
+    //     tx,
+    // }));
     let options = vec![MountOption::RW, MountOption::FSName("wormhole".to_string())];
-    let (handle, index) = match FuseController::index_folder(mountpoint) {
-        Ok((handle, idx)) => (handle, idx),
-        Err(e) => todo!("{e:?}"),
-    };
-    println!("FUSE MOUNT, actual file index:\n{:#?}", index);
-    let provider = Arc::new(Mutex::new(Provider {
-        next_inode: (index.len() + 2) as u64,
-        index,
-        metal_handle: handle,
-        local_source: mountpoint.to_path_buf(),
-        tx,
-    }));
-    let ctrl = FuseController {
-        provider: provider.clone(),
-    };
-    (
-        fuser::spawn_mount2(ctrl, mountpoint, &options).unwrap(),
-        provider,
-    )
+    let ctrl = FuseController { fs_interface };
+    fuser::spawn_mount2(ctrl, mount_point.to_string(), &options)
 }

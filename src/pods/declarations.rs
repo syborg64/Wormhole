@@ -4,7 +4,9 @@ use parking_lot::RwLock;
 use tokio::sync::mpsc;
 
 use crate::{
-    fuse::fuse_impl::mount_fuse, network::{message::Address, peer_ipc::PeerIPC, server::Server}, providers::whpath::WhPath
+    fuse::fuse_impl::mount_fuse,
+    network::{message::Address, peer_ipc::PeerIPC, server::Server},
+    providers::whpath::WhPath,
 };
 
 use super::{
@@ -62,11 +64,11 @@ impl Pod {
 
         Ok(Self {
             network_interface,
-            fs_interface,
-            mount_point,
+            fs_interface: fs_interface.clone(),
+            mount_point: mount_point.clone(),
             peers: vec![],
-            pod_conf: 0,
-            fuse_handle: mount_fuse(mount_point),
+            pod_conf: config,
+            fuse_handle: mount_fuse(&mount_point, fs_interface.clone())?,
         })
     }
 }
