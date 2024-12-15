@@ -23,7 +23,7 @@ use super::{
 pub struct NetworkInterface {
     pub arbo: Arc<RwLock<Arbo>>,
     pub mount_point: WhPath, // TODO - replace by Ludo's unipath
-    pub network_sender: UnboundedSender<ToNetworkMessage>,
+    pub to_network_message_tx: UnboundedSender<ToNetworkMessage>,
     pub next_inode: Mutex<InodeId>, // TODO - replace with InodeIndex type
     network_airport_handle: Option<JoinHandle<()>>,
     peer_broadcast_handle: Option<JoinHandle<()>>,
@@ -35,7 +35,7 @@ impl NetworkInterface {
     pub fn new(
         arbo: Arc<RwLock<Arbo>>,
         mount_point: WhPath,
-        network_sender: UnboundedSender<ToNetworkMessage>,
+        to_network_message_tx: UnboundedSender<ToNetworkMessage>,
         next_inode: InodeId,
     ) -> Self {
         let next_inode = Mutex::new(next_inode);
@@ -43,7 +43,7 @@ impl NetworkInterface {
         Self {
             arbo,
             mount_point,
-            network_sender,
+            to_network_message_tx,
             next_inode,
             network_airport_handle: None,
             peer_broadcast_handle: None,
@@ -55,22 +55,22 @@ impl NetworkInterface {
     pub fn start_network_airport(
         &self,
         fs_interface: Arc<FsInterface>,
-        from_external_rx: UnboundedReceiver<FromNetworkMessage>,
-        from_external_tx: UnboundedSender<FromNetworkMessage>,
-        from_fuse_rx: UnboundedReceiver<ToNetworkMessage>,
+        from_network_message_rx: UnboundedReceiver<FromNetworkMessage>,
+        from_network_message_tx: UnboundedSender<FromNetworkMessage>,
+        to_network_message_rx: UnboundedReceiver<ToNetworkMessage>,
         server: Arc<Server>,
     ) {
         self.network_airport_handle = Some(tokio::spawn(Self::network_airport(
-            from_external_rx,
+            from_network_message_rx,
             fs_interface,
         )));
         self.peer_broadcast_handle = Some(tokio::spawn(Self::contact_peers(
             self.peers.clone(),
-            from_fuse_rx,
+            to_network_message_rx,
         )));
         self.new_peer_handle = Some(tokio::spawn(Self::incoming_connections_watchdog(
             server,
-            from_external_tx.clone(),
+            from_network_message_tx.clone(),
             self.peers.clone(),
         )));
     }
@@ -105,7 +105,7 @@ impl NetworkInterface {
 
         // TODO - add myself to hosts
 
-        self.network_sender
+        self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
                 message::MessageContent::Inode(inode, new_inode_id),
             ))
@@ -146,7 +146,7 @@ impl NetworkInterface {
             ));
         };
 
-        self.network_sender
+        self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
                 message::MessageContent::Remove(id),
             ))
@@ -190,23 +190,27 @@ impl NetworkInterface {
                     fs_interface.recept_inode(inode, id);
                 }
                 MessageContent::Remove(ino) => {
-                    let mut provider = provider.lock().expect("failed to lock mutex");
-                    provider.recpt_remove(ino);
+                    todo!();
+                    //let mut provider = provider.lock().expect("failed to lock mutex");
+                    //provider.recpt_remove(ino);
                 }
                 MessageContent::Write(ino, data) => {
+                    todo!();
                     // deprecated ?
-                    let mut provider = provider.lock().expect("failed to lock mutex");
-                    provider.recpt_write(ino, data);
+                    //let mut provider = provider.lock().expect("failed to lock mutex");
+                    //provider.recpt_write(ino, data);
                 }
                 MessageContent::Meta(_) => {}
                 MessageContent::RequestFile(_) => {}
                 MessageContent::RequestFs => {
-                    let provider = provider.lock().expect("failed to lock mutex");
-                    provider.send_file_system(origin);
+                    todo!();
+                    //let provider = provider.lock().expect("failed to lock mutex");
+                    //provider.send_file_system(origin);
                 }
                 MessageContent::FileStructure(fs) => {
-                    let mut provider = provider.lock().expect("failed to lock mutex");
-                    provider.merge_file_system(fs);
+                    todo!();
+                    //let mut provider = provider.lock().expect("failed to lock mutex");
+                    //provider.merge_file_system(fs);
                 }
             };
         }
