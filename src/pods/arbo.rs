@@ -26,6 +26,7 @@ pub enum FsEntry {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Inode {
     pub parent: InodeId,
+    pub id: InodeId,
     pub name: String,
     pub entry: FsEntry,
 }
@@ -73,9 +74,10 @@ impl FsEntry {
 }
 
 impl Inode {
-    pub fn new(name: String, parent_ino: InodeId, entry: FsEntry) -> Self {
+    pub fn new(name: String, parent_ino: InodeId, id: InodeId, entry: FsEntry) -> Self {
         Self {
             parent: parent_ino,
+            id: id,
             name: name,
             entry: entry,
         }
@@ -92,6 +94,7 @@ impl Arbo {
             ROOT,
             Inode {
                 parent: ROOT,
+                id: ROOT,
                 name: "/".to_owned(),
                 entry: FsEntry::Directory(vec![]),
             },
@@ -126,11 +129,13 @@ impl Arbo {
                 )),
                 Some(Inode {
                     parent: _,
+                    id: _,
                     name: _,
                     entry: FsEntry::Directory(parent_children),
                 }) => {
                     let new_entry = Inode {
                         parent: parent_ino,
+                        id: ino,
                         name: name,
                         entry: entry,
                     };
