@@ -1,3 +1,4 @@
+use fs_attr::FsAttr;
 use fuser::{FileAttr, FileType};
 use openat::Dir;
 use serde::{Deserialize, Serialize};
@@ -16,6 +17,7 @@ mod helpers;
 pub mod readers;
 pub mod whpath;
 pub mod writers;
+pub mod fs_attr;
 
 /// Ino is represented by an u64
 pub type Ino = u64;
@@ -24,7 +26,7 @@ pub type Hosts = Vec<Address>;
 
 /// Hashmap containing file system data
 /// (inode_number, (Type, Original path, Hosts))
-pub type FsIndex = HashMap<Ino, FsEntry>;
+pub type FsIndex = HashMap<Ino, (FsAttr, FsEntry)>;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 /// Should be extended until meeting [fuser::FileType]
