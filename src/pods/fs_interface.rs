@@ -45,8 +45,9 @@ impl FsInterface {
             SimpleFileType::Directory => FsEntry::Directory(Vec::new()),
         };
 
-        let new_inode: Inode = Inode::new(name, parent_ino, new_entry);
-        let new_inode_id = self
+        let new_inode_id = self.network_interface.get_next_inode()?;
+        let new_inode: Inode = Inode::new(name, parent_ino, new_inode_id, new_entry);
+        self
             .network_interface
             .register_new_file(new_inode.clone())?;
 
@@ -91,6 +92,28 @@ impl FsInterface {
         Ok(())
     }
 
+    pub fn remove_inode(&self, id: InodeId) -> io::Result<()> {
+        let to_remove_path: WhPath = if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
+            arbo.get_path_from_inode_id(id)?
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::Interrupted,
+                "mkfile: can't read lock arbo's RwLock",
+            ));
+        };
+
+        match self.disk.remove_file(&to_remove_path) {
+            Ok(_) => (),
+            Err(e) => {
+                return Err(e);
+            }
+        };
+
+        self.network_interface.unregister_file(id)?;
+
+        Ok(())
+    }
+
     pub fn recept_remove_inode(&self, id: InodeId) -> io::Result<()> {
         let to_remove_path: WhPath = if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
             arbo.get_path_from_inode_id(id)?
@@ -111,5 +134,20 @@ impl FsInterface {
         self.network_interface.acknowledge_unregister_file(id)?;
 
         Ok(())
+    }
+
+    // Adapters 
+
+    pub fn fuse_remove_inode(&self, parent: InodeId, name: &std::ffi::OsStr) -> io::Result<()> {
+        let target = if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
+            let parent = arbo.get_inode(parent)?;
+            arbo.get_inode_child_by_name(parent, &name.to_string_lossy().to_string())?.id
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::Interrupted,
+                "mkfile: can't read lock arbo's RwLock",
+            ));
+        };
+        self.remove_inode(target)
     }
 }

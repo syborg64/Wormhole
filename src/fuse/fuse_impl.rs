@@ -14,6 +14,7 @@ use std::time::{Duration, UNIX_EPOCH};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::network::message::ToNetworkMessage;
+use crate::pods::arbo::Inode;
 use crate::pods::fs_interface::{self, FsInterface, SimpleFileType};
 use crate::providers::whpath::WhPath;
 
@@ -250,8 +251,7 @@ impl Filesystem for FuseController {
     }
 
     fn unlink(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: fuser::ReplyEmpty) {
-        let mut provider = self.provider.lock().unwrap();
-        if let Ok(()) = provider.rmfile(parent, name) {
+        if let Ok(()) = self.fs_interface.fuse_remove_inode(parent, name) {
             reply.ok()
         } else {
             reply.error(ENOENT)
