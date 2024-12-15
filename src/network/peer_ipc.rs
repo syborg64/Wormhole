@@ -40,7 +40,7 @@ impl PeerIPC {
         sender: mpsc::UnboundedSender<FromNetworkMessage>,
         mut receiver: mpsc::UnboundedReceiver<MessageContent>,
         address: Address,
-    ) { 
+    ) {
         tokio::join!(
             forward_read_to_sender(read, sender, address),
             forward_receiver_to_write(write, &mut receiver)
@@ -87,5 +87,21 @@ impl PeerIPC {
             sender: peer_send,
             // receiver: inbound_recv,
         })
+    }
+
+    // start connexions to peers
+    pub async fn peer_startup(
+        peers_ip_list: Vec<Address>,
+        from_network_message_tx: UnboundedSender<FromNetworkMessage>,
+    ) -> Vec<PeerIPC> {
+        futures_util::future::join_all(
+            peers_ip_list
+                .into_iter()
+                .map(|ip| PeerIPC::connect(ip, from_network_message_tx.clone())), // .filter(|peer| !peer.thread.is_finished())
+        )
+        .await
+        .into_iter()
+        .flatten()
+        .collect()
     }
 }

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, io, sync::Arc};
+use std::{io, sync::Arc};
 
 use parking_lot::RwLock;
 use tokio::sync::mpsc;
@@ -29,7 +29,7 @@ pub struct Pod {
 }
 
 impl Pod {
-    pub fn new(
+    pub async fn new(
         mount_point: WhPath,
         config: PodConfig,
         peers: Vec<Address>,
@@ -57,7 +57,7 @@ impl Pod {
         network_interface.start_network_airport(
             fs_interface.clone(),
             from_network_message_rx,
-            from_network_message_tx,
+            from_network_message_tx.clone(),
             to_network_message_rx,
             server,
         );
@@ -66,7 +66,7 @@ impl Pod {
             network_interface,
             fs_interface: fs_interface.clone(),
             mount_point: mount_point.clone(),
-            peers: vec![],
+            peers: PeerIPC::peer_startup(peers, from_network_message_tx).await,
             pod_conf: config,
             fuse_handle: mount_fuse(&mount_point, fs_interface.clone())?,
         })
