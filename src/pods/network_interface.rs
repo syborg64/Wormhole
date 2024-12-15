@@ -8,7 +8,9 @@ use tokio::{
 
 use crate::{
     network::{
-        message::{self, FromNetworkMessage, MessageContent, ToNetworkMessage}, peer_ipc::PeerIPC, peers_operations::contact_peers
+        message::{self, FromNetworkMessage, MessageContent, ToNetworkMessage},
+        peer_ipc::PeerIPC,
+        server::Server,
     },
     providers::whpath::WhPath,
 };
@@ -25,6 +27,8 @@ pub struct NetworkInterface {
     pub next_inode: Mutex<InodeId>, // TODO - replace with InodeIndex type
     network_airport_handle: Option<JoinHandle<()>>,
     peer_broadcast_handle: Option<JoinHandle<()>>,
+    new_peer_handle: Option<JoinHandle<()>>,
+    peers: Arc<RwLock<Vec<PeerIPC>>>,
 }
 
 impl NetworkInterface {
@@ -43,6 +47,8 @@ impl NetworkInterface {
             next_inode,
             network_airport_handle: None,
             peer_broadcast_handle: None,
+            new_peer_handle: None,
+            peers: Arc::new(RwLock::new(vec![])),
         }
     }
 
@@ -50,14 +56,23 @@ impl NetworkInterface {
         &self,
         fs_interface: Arc<FsInterface>,
         from_external_rx: UnboundedReceiver<FromNetworkMessage>,
+        from_external_tx: UnboundedSender<FromNetworkMessage>,
         from_fuse_rx: UnboundedReceiver<ToNetworkMessage>,
+        server: Arc<Server>,
     ) {
         self.network_airport_handle = Some(tokio::spawn(Self::network_airport(
             from_external_rx,
             fs_interface,
         )));
-        self.peer_broadcast_handle =
-            Some(tokio::spawn(contact_peers(peers.clone(), from_fuse_rx)));
+        self.peer_broadcast_handle = Some(tokio::spawn(Self::contact_peers(
+            self.peers.clone(),
+            from_fuse_rx,
+        )));
+        self.new_peer_handle = Some(tokio::spawn(Self::incoming_connections_watchdog(
+            server,
+            from_external_tx.clone(),
+            self.peers.clone(),
+        )));
     }
 
     fn get_next_inode(&self) -> io::Result<u64> {
@@ -198,20 +213,14 @@ impl NetworkInterface {
     }
 
     async fn contact_peers(
-        peers_list: Arc<Mutex<Vec<PeerIPC>>>,
+        peers_list: Arc<RwLock<Vec<PeerIPC>>>,
         mut rx: UnboundedReceiver<ToNetworkMessage>,
     ) {
         // on message reception, broadcast it to all peers senders
         while let Some(message) = rx.recv().await {
-            // match message {
-            //     NetworkMessage::BroadcastMessage(message) => todo!(),
-            //     NetworkMessage::SpecificMessage(message, vec) => todo!(),
-            // }
-            //generating peers senders
-            // REVIEW - should avoid locking peers in future versions, as it more or less locks the entire program
             let peer_tx: Vec<(UnboundedSender<MessageContent>, String)> = peers_list
-                .lock()
-                .unwrap()
+                .try_read_for(LOCK_TIMEOUT)
+                .unwrap() // TODO - handle timeout
                 .iter()
                 .map(|peer| (peer.sender.clone(), peer.address.clone()))
                 .collect();
@@ -238,6 +247,27 @@ impl NetworkInterface {
                         });
                 }
             };
+        }
+    }
+
+    async fn incoming_connections_watchdog(
+        server: Arc<Server>,
+        nfa_tx: UnboundedSender<FromNetworkMessage>,
+        existing_peers: Arc<RwLock<Vec<PeerIPC>>>,
+    ) {
+        while let Ok((stream, _)) = server.listener.accept().await {
+            let ws_stream = tokio_tungstenite::accept_async(stream)
+                .await
+                .expect("Error during the websocket handshake occurred");
+            let addr = ws_stream.get_ref().peer_addr().unwrap().to_string();
+            let (write, read) = futures_util::StreamExt::split(ws_stream);
+            let new_peer = PeerIPC::connect_from_incomming(addr, nfa_tx.clone(), write, read);
+            {
+                existing_peers
+                    .try_write_for(LOCK_TIMEOUT)
+                    .unwrap() // TODO - handle timeout
+                    .push(new_peer);
+            }
         }
     }
 }
