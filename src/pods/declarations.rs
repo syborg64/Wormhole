@@ -48,7 +48,7 @@ impl Pod {
             arbo.clone(),
         ));
 
-        network_interface.start_network_airport(fs_interface.clone(), from_external_rx);
+        network_interface.start_network_airport(fs_interface.clone(), from_external_rx, to_external_rx);
 
         Ok(Self {
             network_interface,

@@ -7,7 +7,9 @@ use tokio::{
 };
 
 use crate::{
-    network::message::{self, FromNetworkMessage, MessageContent, ToNetworkMessage},
+    network::{
+        message::{self, FromNetworkMessage, MessageContent, ToNetworkMessage}, peer_ipc::PeerIPC, peers_operations::contact_peers
+    },
     providers::whpath::WhPath,
 };
 
@@ -22,6 +24,7 @@ pub struct NetworkInterface {
     pub network_sender: UnboundedSender<ToNetworkMessage>,
     pub next_inode: Mutex<InodeId>, // TODO - replace with InodeIndex type
     network_airport_handle: Option<JoinHandle<()>>,
+    peer_broadcast_handle: Option<JoinHandle<()>>,
 }
 
 impl NetworkInterface {
@@ -39,6 +42,7 @@ impl NetworkInterface {
             network_sender,
             next_inode,
             network_airport_handle: None,
+            peer_broadcast_handle: None,
         }
     }
 
@@ -46,8 +50,14 @@ impl NetworkInterface {
         &self,
         fs_interface: Arc<FsInterface>,
         from_external_rx: UnboundedReceiver<FromNetworkMessage>,
+        from_fuse_rx: UnboundedReceiver<ToNetworkMessage>,
     ) {
-        self.network_airport_handle = Some(tokio::spawn(network_airport(from_external_rx, fs_interface)));
+        self.network_airport_handle = Some(tokio::spawn(Self::network_airport(
+            from_external_rx,
+            fs_interface,
+        )));
+        self.peer_broadcast_handle =
+            Some(tokio::spawn(contact_peers(peers.clone(), from_fuse_rx)));
     }
 
     fn get_next_inode(&self) -> io::Result<u64> {
@@ -146,44 +156,88 @@ impl NetworkInterface {
 
         Ok(removed_inode)
     }
-}
 
-pub async fn network_airport(
-    mut network_reception: UnboundedReceiver<FromNetworkMessage>,
-    fs_interface: Arc<FsInterface>,
-) {
-    loop {
-        let FromNetworkMessage { origin, content } = match network_reception.recv().await {
-            Some(message) => message,
-            None => continue,
-        };
+    async fn network_airport(
+        mut network_reception: UnboundedReceiver<FromNetworkMessage>,
+        fs_interface: Arc<FsInterface>,
+    ) {
+        loop {
+            let FromNetworkMessage { origin, content } = match network_reception.recv().await {
+                Some(message) => message,
+                None => continue,
+            };
 
-        match content {
-            MessageContent::Binary(bin) => {
-                println!("peer: {:?}", String::from_utf8(bin).unwrap_or_default());
-            }
-            MessageContent::Inode(inode, id) => {
-                fs_interface.recept_inode(inode, id);
-            }
-            MessageContent::Remove(ino) => {
-                let mut provider = provider.lock().expect("failed to lock mutex");
-                provider.recpt_remove(ino);
-            }
-            MessageContent::Write(ino, data) => {
-                // deprecated ?
-                let mut provider = provider.lock().expect("failed to lock mutex");
-                provider.recpt_write(ino, data);
-            }
-            MessageContent::Meta(_) => {}
-            MessageContent::RequestFile(_) => {}
-            MessageContent::RequestFs => {
-                let provider = provider.lock().expect("failed to lock mutex");
-                provider.send_file_system(origin);
-            }
-            MessageContent::FileStructure(fs) => {
-                let mut provider = provider.lock().expect("failed to lock mutex");
-                provider.merge_file_system(fs);
-            }
-        };
+            match content {
+                MessageContent::Binary(bin) => {
+                    println!("peer: {:?}", String::from_utf8(bin).unwrap_or_default());
+                }
+                MessageContent::Inode(inode, id) => {
+                    fs_interface.recept_inode(inode, id);
+                }
+                MessageContent::Remove(ino) => {
+                    let mut provider = provider.lock().expect("failed to lock mutex");
+                    provider.recpt_remove(ino);
+                }
+                MessageContent::Write(ino, data) => {
+                    // deprecated ?
+                    let mut provider = provider.lock().expect("failed to lock mutex");
+                    provider.recpt_write(ino, data);
+                }
+                MessageContent::Meta(_) => {}
+                MessageContent::RequestFile(_) => {}
+                MessageContent::RequestFs => {
+                    let provider = provider.lock().expect("failed to lock mutex");
+                    provider.send_file_system(origin);
+                }
+                MessageContent::FileStructure(fs) => {
+                    let mut provider = provider.lock().expect("failed to lock mutex");
+                    provider.merge_file_system(fs);
+                }
+            };
+        }
+    }
+
+    async fn contact_peers(
+        peers_list: Arc<Mutex<Vec<PeerIPC>>>,
+        mut rx: UnboundedReceiver<ToNetworkMessage>,
+    ) {
+        // on message reception, broadcast it to all peers senders
+        while let Some(message) = rx.recv().await {
+            // match message {
+            //     NetworkMessage::BroadcastMessage(message) => todo!(),
+            //     NetworkMessage::SpecificMessage(message, vec) => todo!(),
+            // }
+            //generating peers senders
+            // REVIEW - should avoid locking peers in future versions, as it more or less locks the entire program
+            let peer_tx: Vec<(UnboundedSender<MessageContent>, String)> = peers_list
+                .lock()
+                .unwrap()
+                .iter()
+                .map(|peer| (peer.sender.clone(), peer.address.clone()))
+                .collect();
+
+            println!("broadcasting message to peers:\n{:?}", message);
+            match message {
+                ToNetworkMessage::BroadcastMessage(message_content) => {
+                    peer_tx.iter().for_each(|(channel, address)| {
+                        println!("peer: {}", address);
+                        channel
+                            .send(message_content.clone())
+                            .expect(&format!("failed to send message to peer {}", address))
+                    });
+                }
+                ToNetworkMessage::SpecificMessage(message_content, origins) => {
+                    peer_tx
+                        .iter()
+                        .filter(|&(_, address)| origins.contains(address))
+                        .for_each(|(channel, address)| {
+                            println!("peer: {}", address);
+                            channel
+                                .send(message_content.clone())
+                                .expect(&format!("failed to send message to peer {}", address))
+                        });
+                }
+            };
+        }
     }
 }
