@@ -21,29 +21,33 @@ pub struct NetworkInterface {
     pub mount_point: WhPath, // TODO - replace by Ludo's unipath
     pub network_sender: UnboundedSender<ToNetworkMessage>,
     pub next_inode: Mutex<InodeId>, // TODO - replace with InodeIndex type
-    pub network_airport_handle: JoinHandle<()>,
+    network_airport_handle: Option<JoinHandle<()>>,
 }
 
 impl NetworkInterface {
     pub fn new(
-        arbo: Arbo,
+        arbo: Arc<RwLock<Arbo>>,
         mount_point: WhPath,
         network_sender: UnboundedSender<ToNetworkMessage>,
-        network_reception: UnboundedReceiver<FromNetworkMessage>,
         next_inode: InodeId,
-        fs_interface: Arc<FsInterface>,
     ) -> Self {
-        let arbo = Arc::new(RwLock::new(arbo));
         let next_inode = Mutex::new(next_inode);
-        let network_airport_handle = tokio::spawn(network_airport(network_reception, fs_interface));
 
         Self {
             arbo,
             mount_point,
             network_sender,
             next_inode,
-            network_airport_handle,
+            network_airport_handle: None,
         }
+    }
+
+    pub fn start_network_airport(
+        &self,
+        fs_interface: Arc<FsInterface>,
+        from_external_rx: UnboundedReceiver<FromNetworkMessage>,
+    ) {
+        self.network_airport_handle = Some(tokio::spawn(network_airport(from_external_rx, fs_interface)));
     }
 
     fn get_next_inode(&self) -> io::Result<u64> {
