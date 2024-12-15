@@ -7,7 +7,7 @@ use std::{
     path::PathBuf,
 };
 
-use crate::network::message::{self, Folder, MessageContent, ToNetworkMessage};
+use crate::{network::message::{self, Folder, MessageContent, ToNetworkMessage}, providers::Fs};
 
 use super::{FsEntry, Ino, Provider, TEMPLATE_FILE_ATTR};
 
@@ -31,7 +31,7 @@ impl Provider {
 
         // add entry to the index
         self.index
-            .insert(self.next_inode, FsEntry::File(new_path.clone(), vec![]));
+            .insert(self.next_inode, Fs::new(FsEntry::File(new_path.clone(), vec![])));
         self.tx
             .send(ToNetworkMessage::BroadcastMessage(MessageContent::File(
                 message::File {
@@ -61,7 +61,7 @@ impl Provider {
 
         // adding path to the wormhole index
         self.index
-            .insert(self.next_inode, FsEntry::Directory(new_path.clone()));
+            .insert(self.next_inode, Fs::new(FsEntry::Directory(new_path.clone())));
 
         // send update to network
         self.tx
@@ -142,7 +142,7 @@ impl Provider {
     // returns the writed size
     pub fn write(&self, ino: Ino, offset: i64, data: &[u8]) -> io::Result<u32> {
         match self.index.get(&ino) {
-            Some(FsEntry::File(path, _)) => {
+            Some(Fs { entry: FsEntry::File(path, _), attr: _ }) => {
                 //let path = self.mirror_path_from_inode(ino)?; // Absolute path
                 let wrfile = self.metal_handle.write_file(path, S_IWRITE | S_IREAD)?;
                 wrfile
@@ -171,7 +171,7 @@ impl Provider {
             .create_dir(&real_path, S_IWRITE | S_IREAD)
             .expect("unable to create folder");
         // fs::create_dir(&real_path).unwrap();
-        self.index.insert(ino, FsEntry::Directory(path));
+        self.index.insert(ino, Fs::new(FsEntry::Directory(path)));
     }
 
     pub fn new_file(&mut self, ino: Ino, path: PathBuf) {
@@ -181,14 +181,14 @@ impl Provider {
         self.metal_handle
             .new_file(&path, S_IWRITE | S_IREAD)
             .expect("unable to create file");
-        self.index.insert(ino, FsEntry::File(path, vec![]));
+        self.index.insert(ino, Fs::new(FsEntry::File(path, vec![])));
         self.next_inode = ino + 1;
         println!("created created created");
     }
 
     pub fn recpt_remove(&mut self, ino: Ino) {
         // let real_path = PathBuf::from(self.local_source.clone()).join(&path);
-        match self.index.get(&ino).unwrap() {
+        match &self.index.get(&ino).unwrap().entry {
             FsEntry::Directory(path) => self.metal_handle.remove_dir(path).unwrap(),
             FsEntry::File(path, _) => self.metal_handle.remove_file(path).unwrap(),
         }
@@ -196,7 +196,7 @@ impl Provider {
     }
 
     pub fn recpt_write(&mut self, ino: Ino, content: Vec<u8>) {
-        if let FsEntry::File(path, _) = self.index.get(&ino).unwrap() {
+        if let FsEntry::File(path, _) = &self.index.get(&ino).unwrap().entry {
             println!("Provider write to file at: {:?}", path);
             let mut file = self
                 .metal_handle

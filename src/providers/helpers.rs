@@ -37,14 +37,14 @@ impl Provider {
         }
 
         self.next_inode = fs.next_inode;
-        for (_, entry) in &self.index {
-            if let FsEntry::Directory(path) = entry {
+        for (_, fs) in &self.index {
+            if let FsEntry::Directory(path) = &fs.entry {
                 if path.to_str().unwrap() == "./" {
                     continue;
                 }
             };
 
-            match entry {
+            match &fs.entry {
                 FsEntry::Directory(path) => self
                     .metal_handle
                     .create_dir(path, libc::S_IWRITE | libc::S_IREAD)
@@ -63,8 +63,8 @@ impl Provider {
     pub fn mirror_path_from_inode(&self, ino: u64) -> io::Result<PathBuf> {
         println!("mirror path from inode");
         if let Some(data) = self.index.get(&ino) {
-            println!("....>{}", data.get_path().display());
-            Ok(data.get_path().clone())
+            println!("....>{}", data.entry.get_path().display());
+            Ok(data.entry.get_path().clone())
         } else {
             println!("....inode NOT FOUND");
 
@@ -114,9 +114,9 @@ impl Provider {
             Ok(list) => {
                 if let Some((ino, _, entry)) = list
                     .into_iter()
-                    .filter_map(|(ino, entry)| {
-                        let name = entry.get_name().ok();
-                        name.map(|file_name| (ino, file_name, entry))
+                    .filter_map(|(ino, fs)| {
+                        let name = fs.entry.get_name().ok();
+                        name.map(|file_name| (ino, file_name, &fs.entry))
                     })
                     .find(|&(_, file_name, entry)| {
                         file_name == name && (matches!(entry, FsEntry::File(_, _)))

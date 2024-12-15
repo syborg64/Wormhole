@@ -14,7 +14,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::network::message::ToNetworkMessage;
-use crate::providers::{FsEntry, FsIndex, Provider};
+use crate::providers::{fs_attr::FsAttr, Fs, FsEntry, FsIndex, Provider};
 
 // NOTE - placeholders
 const TTL: Duration = Duration::from_secs(1);
@@ -83,7 +83,8 @@ fn index_folder_recursive(
                 SimpleType::File => FsEntry::File(generated_path.clone(), vec![]),
                 _ => return Ok(()),
             };
-            arbo.insert(*inode, new_entry);
+
+            arbo.insert(*inode, Fs::new(new_entry));
             println!("added entry to arbo {}:{:?}", inode, arbo.get(inode));
             *inode += 1;
 
@@ -109,7 +110,7 @@ impl FuseController {
         let mut arbo: FsIndex = HashMap::new();
         let mut inode: u64 = 2;
 
-        arbo.insert(1, FsEntry::Directory("./".into()));
+        arbo.insert(1, Fs::new(FsEntry::Directory("./".into())));
 
         index_folder_recursive(&mut arbo, &mut inode, &metal_mount_handle, ".".into())?;
         Ok((metal_mount_handle, arbo))
@@ -201,14 +202,14 @@ impl Filesystem for FuseController {
         let provider = self.provider.lock().unwrap();
         if let Ok(entries) = provider.fs_readdir(ino) {
             println!("....listing entries {:?}", entries);
-            for (i, (ino, entry)) in entries.into_iter().enumerate().skip(offset as usize) {
-                println!("....readdir entries : {:?}", entry);
+            for (i, (ino, fs)) in entries.into_iter().enumerate().skip(offset as usize) {
+                println!("....readdir entries : {:?}", fs.entry);
                 // i + 1 means the index of the next entry
                 if reply.add(
                     ino,
                     (i + 1) as i64,
-                    entry.get_filetype(),
-                    entry.get_name().unwrap(),
+                    fs.entry.get_filetype(),
+                    fs.entry.get_name().unwrap(),
                 ) {
                     break;
                 }

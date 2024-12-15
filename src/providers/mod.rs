@@ -13,7 +13,7 @@ use std::{
 };
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::network::message::{Address, ToNetworkMessage};
+use crate::network::message::{Address, File, ToNetworkMessage};
 
 pub mod fs_attr;
 mod helpers;
@@ -34,11 +34,21 @@ pub type FsIndex = HashMap<Ino, Fs>;
 /// Should be extended until meeting [fuser::FileType]
 
 pub struct Fs {
-    entry: FsEntry,
+    pub entry: FsEntry,
     attr: FsAttr,
 }
 
 impl Fs {
+    pub fn new(entry: FsEntry) -> Fs {
+        let file_type = match entry {
+            FsEntry::File(_, _) => FileType::RegularFile,
+            FsEntry::Directory(_) => FileType::Directory,
+        };
+
+        let attr = FsAttr::new(file_type);
+        Fs { entry, attr }
+    }
+
     pub fn set_fs_attr(
         &mut self,
         mode: Option<u32>,

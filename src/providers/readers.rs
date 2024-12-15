@@ -10,6 +10,7 @@ use std::ffi::OsStr;
 use std::io;
 use std::io::Read;
 
+use super::Fs;
 use super::FsEntry;
 use super::{Ino, Provider, TEMPLATE_FILE_ATTR};
 
@@ -38,14 +39,14 @@ impl Provider {
         println!("list files called on ino {}", parent_ino); // DEBUG
         match self.index.get(&parent_ino) {
             Some(entry) => {
-                let parent_path = entry.get_path();
+                let parent_path = entry.entry.get_path();
 
                 debug!("LISTING files in parent path {:?}", parent_path);
                 let ino_list = self
                     .index
                     .iter()
                     .filter_map(|(ino, entry)| {
-                        let e_path = entry.get_path();
+                        let e_path = entry.entry.get_path();
                         let e_parent = e_path.parent()?;
 
                         if e_path == parent_path {
@@ -82,13 +83,13 @@ impl Provider {
     }
 
     // used directly in FuseControler's readdir function
-    pub fn fs_readdir(&self, parent_ino: Ino) -> io::Result<Vec<(Ino, &FsEntry)>> {
+    pub fn fs_readdir(&self, parent_ino: Ino) -> io::Result<Vec<(Ino, &Fs)>> {
         println!("fs_readdir called on ino {}", parent_ino); // DEBUG
         match self.list_files(parent_ino) {
             Ok(list) => Ok(list
                 .into_iter()
                 .filter_map(|inode| match self.index.get(&inode) {
-                    Some(entry) => Some((inode, entry)),
+                    Some(fs) => Some((inode, fs)),
                     None => None,
                 })
                 .collect()),
@@ -139,9 +140,9 @@ impl Provider {
             Ok(datas) => {
                 let mut metadata: io::Result<FileAttr> =
                     Err(io::Error::new(io::ErrorKind::NotFound, "Path not found"));
-                for (ino, entry) in datas {
-                    println!("looping on {:?}", entry);
-                    if entry.get_name()?.to_string_lossy() == file_name {
+                for (ino, fs) in datas {
+                    println!("looping on {:?}", fs.entry);
+                    if fs.entry.get_name()?.to_string_lossy() == file_name {
                         metadata = self.get_metadata(ino);
                     };
                 }
