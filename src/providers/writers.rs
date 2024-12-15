@@ -42,12 +42,14 @@ impl Provider {
             .expect("mkfile: unable to update modification on the network");
 
         // creating metadata to return
-        let mut new_attr = TEMPLATE_FILE_ATTR;
-        new_attr.ino = self.next_inode;
-        new_attr.kind = FileType::RegularFile;
-        new_attr.size = 0;
-        self.next_inode += 1; // NOTE - ne jamais oublier d'incrémenter si besoin next_inode
-        Ok(new_attr)
+        match self.fs_get_attr(&self.next_inode) {
+            Ok(mut attr) => {
+                attr.ino = self.next_inode;
+                self.next_inode += 1; // NOTE - ne jamais oublier d'incrémenter si besoin next_inode
+                Ok(attr)
+            },
+            Err(e) => Err(e)
+        }
     }
 
     pub fn mkdir(&mut self, parent_ino: Ino, name: &OsStr) -> io::Result<FileAttr> {
@@ -74,13 +76,14 @@ impl Provider {
             .expect("mkdir: unable to update modification on the network");
 
         // creating metadata to return
-        let mut new_attr = TEMPLATE_FILE_ATTR;
-        new_attr.ino = self.next_inode;
-        new_attr.kind = FileType::Directory;
-        new_attr.size = 0;
-        self.next_inode += 1; // NOTE - ne jamais oublier d'incrémenter si besoin next_inode
-
-        Ok(new_attr)
+        match self.fs_get_attr(&self.next_inode) {
+            Ok(mut attr) => {
+                attr.ino = self.next_inode;
+                self.next_inode += 1; // NOTE - ne jamais oublier d'incrémenter si besoin next_inode
+                Ok(attr)
+            },
+            Err(e) => Err(e)
+        }
     }
 
     pub fn rmfile(&mut self, parent_ino: Ino, name: &OsStr) -> io::Result<()> {
