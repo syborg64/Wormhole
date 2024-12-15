@@ -1,5 +1,7 @@
+use clap::builder::TypedValueParser;
 use fs_attr::FsAttr;
-use fuser::{FileAttr, FileType};
+use fuser::{FileAttr, FileType, TimeOrNow};
+use futures_util::TryFutureExt;
 use openat::Dir;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -7,17 +9,17 @@ use std::{
     ffi::OsStr,
     io,
     path::{Path, PathBuf},
-    time::UNIX_EPOCH,
+    time::{SystemTime, UNIX_EPOCH},
 };
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::network::message::{Address, ToNetworkMessage};
 
+pub mod fs_attr;
 mod helpers;
 pub mod readers;
 pub mod whpath;
 pub mod writers;
-pub mod fs_attr;
 
 /// Ino is represented by an u64
 pub type Ino = u64;
@@ -26,10 +28,56 @@ pub type Hosts = Vec<Address>;
 
 /// Hashmap containing file system data
 /// (inode_number, (Type, Original path, Hosts))
-pub type FsIndex = HashMap<Ino, (FsAttr, FsEntry)>;
+pub type FsIndex = HashMap<Ino, Fs>;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 /// Should be extended until meeting [fuser::FileType]
+
+pub struct Fs {
+    entry: FsEntry,
+    attr: FsAttr,
+}
+
+impl Fs {
+    pub fn set_fs_attr(
+        &mut self,
+        mode: Option<u32>,
+        uid: Option<u32>,
+        gid: Option<u32>,
+        size: Option<u64>,
+        _atime: Option<TimeOrNow>,
+        _mtime: Option<TimeOrNow>,
+        _ctime: Option<SystemTime>,
+        _crtime: Option<SystemTime>,
+        flags: Option<u32>,
+    ) {
+        let kind = mode.unwrap_or(self.attr.get_allpermission());
+        let uid = uid.unwrap_or(self.attr.get_uid());
+        let gid = gid.unwrap_or(self.attr.get_gid());
+        let size = size.unwrap_or(self.attr.get_size_in_bytes());
+        let ctime = _ctime.unwrap_or(self.attr.get_last_change());
+        let crtime = _crtime.unwrap_or(self.attr.get_creation_time());
+        let flags = flags.unwrap_or(self.attr.get_flags());
+        let atime = match _atime {
+            Some(TimeOrNow::Now) => SystemTime::now(),
+            Some(TimeOrNow::SpecificTime(time)) => time,
+            None => self.attr.get_last_access(),
+        };
+        let mtime = match _mtime {
+            Some(TimeOrNow::Now) => SystemTime::now(),
+            Some(TimeOrNow::SpecificTime(time)) => time,
+            None => self.attr.get_last_modif(),
+        };
+        self.attr
+            .set_file_attr(kind, uid, gid, size, atime, mtime, ctime, crtime, flags);
+    }
+
+    pub fn get_fs_attr(&self) -> FileAttr {
+        self.attr.get_file_attr()
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum FsEntry {
     File(PathBuf, Hosts),
     Directory(PathBuf),

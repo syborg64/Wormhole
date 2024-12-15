@@ -130,17 +130,18 @@ impl Filesystem for FuseController {
         }
     }
 
-    // TODO
+    // FIXME
     fn getattr(&mut self, _req: &Request, ino: u64, _: Option<u64>, reply: ReplyAttr) {
         debug!("getattr is called {}", ino);
-        match ino {
-            1 => reply.attr(&TTL, &MOUNT_DIR_ATTR),
-            2 => reply.attr(&TTL, &TEMPLATE_FILE_ATTR),
-            _ => reply.error(ENOENT),
+        let mut provide = self.provider.lock().expect("Failed to lock provivder");
+        if let Some(fs) = provide.index.get_mut(&ino) {
+            reply.attr(&TTL, &fs.get_fs_attr())
+        } else {
+            reply.error(ENOENT)
         }
     }
 
-    //TODO
+    //FIXME
     fn setattr(
         &mut self,
         _req: &Request<'_>,
@@ -149,16 +150,23 @@ impl Filesystem for FuseController {
         uid: Option<u32>,
         gid: Option<u32>,
         size: Option<u64>,
-        _atime: Option<TimeOrNow>,
-        _mtime: Option<TimeOrNow>,
-        _ctime: Option<SystemTime>,
-        fh: Option<u64>,
-        _crtime: Option<SystemTime>,
+        atime: Option<TimeOrNow>,
+        mtime: Option<TimeOrNow>,
+        ctime: Option<SystemTime>,
+        _fh: Option<u64>,
+        crtime: Option<SystemTime>,
         _chgtime: Option<SystemTime>,
         _bkuptime: Option<SystemTime>,
         flags: Option<u32>,
         reply: ReplyAttr,
     ) {
+        let mut provide = self.provider.lock().expect("Failed to lock provivder");
+        if let Some(fs) = provide.index.get_mut(&ino) {
+            fs.set_fs_attr(mode, uid, gid, size, atime, mtime, ctime, crtime, flags);
+            reply.attr(&TTL, &fs.get_fs_attr());
+        } else {
+            reply.error(ENOENT);
+        }
     }
 
     fn read(
