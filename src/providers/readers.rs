@@ -97,6 +97,14 @@ impl Provider {
         }
     }
 
+    pub fn fs_get_attr(&self, ino: &Ino) -> io::Result<FileAttr> {
+        if let Some(fs) = self.index.get(ino) {
+            Ok(fs.get_fs_attr())
+        } else {
+            Err(io::Error::new(io::ErrorKind::NotFound, "Inode not found"))
+        }
+    }
+
     // use real fs metadata and traduct part of it to the fuse FileAttr metadata
     fn modify_metadata_template(data: openat::Metadata, ino: Ino) -> FileAttr {
         let mut attr = TEMPLATE_FILE_ATTR;
@@ -113,6 +121,7 @@ impl Provider {
     }
 
     // get the metadata of a file from it's inode
+    //NOTE - Replae by fs_get_attr()
     pub fn get_metadata(&self, ino: Ino) -> io::Result<FileAttr> {
         println!("get_metadata called on ino {}", ino); // DEBUG
         match self.mirror_path_from_inode(ino) {
@@ -143,7 +152,7 @@ impl Provider {
                 for (ino, fs) in datas {
                     println!("looping on {:?}", fs.entry);
                     if fs.entry.get_name()?.to_string_lossy() == file_name {
-                        metadata = self.get_metadata(ino);
+                        metadata = self.fs_get_attr(&ino);
                     };
                 }
                 metadata

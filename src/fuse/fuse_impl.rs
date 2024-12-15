@@ -134,9 +134,9 @@ impl Filesystem for FuseController {
     // FIXME
     fn getattr(&mut self, _req: &Request, ino: u64, _: Option<u64>, reply: ReplyAttr) {
         debug!("getattr is called {}", ino);
-        let mut provide = self.provider.lock().expect("Failed to lock provivder");
-        if let Some(fs) = provide.index.get_mut(&ino) {
-            reply.attr(&TTL, &fs.get_fs_attr())
+        let provide = self.provider.lock().expect("Failed to lock provivder");
+        if let Ok(attr) = provide.fs_get_attr(&ino) {
+            reply.attr(&TTL, &attr)
         } else {
             reply.error(ENOENT)
         }
@@ -164,7 +164,9 @@ impl Filesystem for FuseController {
         let mut provide = self.provider.lock().expect("Failed to lock provivder");
         if let Some(fs) = provide.index.get_mut(&ino) {
             fs.set_fs_attr(mode, uid, gid, size, atime, mtime, ctime, crtime, flags);
-            reply.attr(&TTL, &fs.get_fs_attr());
+            let mut attr = fs.get_fs_attr();
+            attr.ino = ino;
+            reply.attr(&TTL, &attr);
         } else {
             reply.error(ENOENT);
         }
@@ -200,10 +202,10 @@ impl Filesystem for FuseController {
     ) {
         println!("readdir is called for ino {}", ino);
         let provider = self.provider.lock().unwrap();
-        if let Ok(entries) = provider.fs_readdir(ino) {
-            println!("....listing entries {:?}", entries);
-            for (i, (ino, fs)) in entries.into_iter().enumerate().skip(offset as usize) {
-                println!("....readdir entries : {:?}", fs.entry);
+        if let Ok(fs_index) = provider.fs_readdir(ino) {
+            println!("....listing fs_index {:?}", fs_index);
+            for (i, (ino, fs)) in fs_index.into_iter().enumerate().skip(offset as usize) {
+                println!("....readdir fs_index : {:?}", fs.entry);
                 // i + 1 means the index of the next entry
                 if reply.add(
                     ino,
