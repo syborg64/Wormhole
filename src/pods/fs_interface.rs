@@ -1,7 +1,7 @@
 use super::{
     arbo::{Arbo, FsEntry, Inode, InodeId, LOCK_TIMEOUT},
-    disk_manager::{self, DiskManager},
-    network_interface::{self, NetworkInterface},
+    disk_manager::DiskManager,
+    network_interface::NetworkInterface,
 };
 use crate::providers::whpath::WhPath;
 use parking_lot::RwLock;

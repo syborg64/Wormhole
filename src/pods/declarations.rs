@@ -10,9 +10,7 @@ use crate::{
 };
 
 use super::{
-    arbo::Arbo,
-    disk_manager::{self, DiskManager},
-    fs_interface::{self, FsInterface},
+    arbo::Arbo, disk_manager::DiskManager, fs_interface::FsInterface,
     network_interface::NetworkInterface,
 };
 

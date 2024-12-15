@@ -314,19 +314,8 @@ pub fn mount_fuse(
     mount_point: &WhPath,
     fs_interface: Arc<FsInterface>,
 ) -> io::Result<BackgroundSession> {
-    // let (handle, index) = match FuseController::index_folder(mountpoint) {
-    //     Ok((handle, idx)) => (handle, idx),
-    //     Err(e) => todo!("{e:?}"),
-    // };
-    // println!("FUSE MOUNT, actual file index:\n{:#?}", index);
-    // let provider = Arc::new(Mutex::new(Provider {
-    //     next_inode: (index.len() + 2) as u64,
-    //     index,
-    //     metal_handle: handle,
-    //     local_source: mountpoint.to_path_buf(),
-    //     tx,
-    // }));
     let options = vec![MountOption::RW, MountOption::FSName("wormhole".to_string())];
     let ctrl = FuseController { fs_interface };
+
     fuser::spawn_mount2(ctrl, mount_point.to_string(), &options)
 }
