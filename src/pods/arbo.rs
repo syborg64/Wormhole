@@ -1,7 +1,8 @@
 use crate::{network::message::Address, providers::whpath::WhPath};
 use fuser::FileType;
+use openat::AsPath;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, io, time::Duration};
+use std::{collections::HashMap, fs, io, time::Duration};
 
 // SECTION consts
 
@@ -152,8 +153,8 @@ impl Arbo {
     }
 
     #[must_use]
-    pub fn add_inode(&mut self, id: InodeId, inode: Inode) -> io::Result<()> {
-        self.add_inode_from_parameters(inode.name, id, inode.parent, inode.entry)
+    pub fn add_inode(&mut self, inode: Inode) -> io::Result<()> {
+        self.add_inode_from_parameters(inode.name, inode.id, inode.parent, inode.entry)
     }
 
     #[must_use]
@@ -256,41 +257,33 @@ impl Arbo {
 
 fn index_folder_recursive(
     arbo: &mut Arbo,
-    inode: &mut u64,
+    parent: InodeId,
+    ino: &mut InodeId,
     path: &WhPath,
 ) -> io::Result<()> {
-    let errors_nb = root_fd
-        .list_dir(&path)?
-        .map(|entry| -> io::Result<()> {
-            let entry = entry?;
+    fs::read_dir(path.to_string())?.map(|entry| {
+        let entry = entry.expect("error in filesystem indexion (1)");
+        let ftype = entry.file_type().expect("error in filesystem indexion (2)");
+        let fname = entry.file_name().to_string_lossy().to_string();
 
-            let name = entry.file_name();
-            let stype = entry.simple_type().unwrap();
+        arbo.add_inode(
+            Inode::new(
+                fname.clone(),
+                parent,
+                *ino,
+                if ftype.is_file() {
+                    FsEntry::File(Vec::new())
+                } else {
+                    FsEntry::Directory(Vec::new())
+                },
+            ),
+        );
+        *ino += 1;
 
-            let generated_path = path.join(name);
-
-            let new_entry = match stype {
-                SimpleType::Dir => FsEntry::Directory(generated_path.clone()),
-                SimpleType::File => FsEntry::File(generated_path.clone(), vec![]),
-                _ => return Ok(()),
-            };
-            arbo.insert(*inode, new_entry);
-            println!("added entry to arbo {}:{:?}", inode, arbo.get(inode));
-            *inode += 1;
-
-            if stype == SimpleType::Dir {
-                index_folder_recursive(arbo, inode, root_fd, generated_path)?;
-            }
-            Ok(())
-        })
-        .filter(|e| e.is_err())
-        .collect::<Vec<Result<(), io::Error>>>()
-        .len();
-    println!(
-        "indexing: {} error(s) in folder {}",
-        errors_nb,
-        path.display()
-    );
+        if ftype.is_dir() {
+            index_folder_recursive(arbo, *ino - 1, ino, &path.join(&fname));
+        }
+    });
     Ok(())
 }
 
@@ -299,7 +292,6 @@ pub fn index_folder(path: &WhPath) -> io::Result<Arbo> {
     let mut inode: u64 = 2;
 
     arbo.add_inode(
-        1,
         Inode::new("".to_owned(), 1, 1, FsEntry::Directory(Vec::new())),
     );
     index_folder_recursive(&mut arbo, &mut inode, path)?;
