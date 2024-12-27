@@ -9,13 +9,9 @@ use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::{Duration, UNIX_EPOCH};
-use tokio::sync::mpsc::UnboundedSender;
-
-use crate::network::message::ToNetworkMessage;
-use crate::pods::arbo::Inode;
-use crate::pods::fs_interface::{self, FsInterface, SimpleFileType};
+use crate::pods::fs_interface::{FsInterface, SimpleFileType};
 use crate::providers::whpath::WhPath;
 
 // NOTE - placeholders
