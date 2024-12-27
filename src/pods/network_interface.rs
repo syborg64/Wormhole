@@ -90,12 +90,12 @@ impl NetworkInterface {
     }
 
     #[must_use]
-    /// Get a new inode, add the requested entry to the arbo and inform the network
+    /// add the requested entry to the arbo and inform the network
     pub fn register_new_file(&self, inode: Inode) -> io::Result<u64> {
         let new_inode_id = inode.id;
 
         if let Some(mut arbo) = self.arbo.try_write_for(LOCK_TIMEOUT) {
-            arbo.add_inode(new_inode_id, inode.clone())?;
+            arbo.add_inode(inode.clone())?;
         } else {
             return Err(io::Error::new(
                 io::ErrorKind::Interrupted,
@@ -119,7 +119,7 @@ impl NetworkInterface {
     /// Get a new inode, add the requested entry to the arbo and inform the network
     pub fn acknowledge_new_file(&self, inode: Inode, id: InodeId) -> io::Result<()> {
         if let Some(mut arbo) = self.arbo.try_write_for(LOCK_TIMEOUT) {
-            match arbo.add_inode(id, inode) {
+            match arbo.add_inode(inode) {
                 Ok(()) => (),
                 Err(_) => todo!("acknowledge_new_file: file already existing: conflict"), // TODO
             };
