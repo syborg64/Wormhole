@@ -266,23 +266,22 @@ fn index_folder_recursive(
         let ftype = entry.file_type().expect("error in filesystem indexion (2)");
         let fname = entry.file_name().to_string_lossy().to_string();
 
-        arbo.add_inode(
-            Inode::new(
-                fname.clone(),
-                parent,
-                *ino,
-                if ftype.is_file() {
-                    FsEntry::File(Vec::new())
-                } else {
-                    FsEntry::Directory(Vec::new())
-                },
-            ),
-        );
+        arbo.add_inode(Inode::new(
+            fname.clone(),
+            parent,
+            *ino,
+            if ftype.is_file() {
+                FsEntry::File(Vec::new())
+            } else {
+                FsEntry::Directory(Vec::new())
+            },
+        ));
         *ino += 1;
 
         if ftype.is_dir() {
-            index_folder_recursive(arbo, *ino - 1, ino, &path.join(&fname));
-        }
+            index_folder_recursive(arbo, *ino - 1, ino, &path.join(&fname))
+                .expect("error in filesystem indexion (1)");
+        };
     });
     Ok(())
 }
@@ -291,9 +290,12 @@ pub fn index_folder(path: &WhPath) -> io::Result<Arbo> {
     let mut arbo = Arbo::new();
     let mut inode: u64 = 2;
 
-    arbo.add_inode(
-        Inode::new("".to_owned(), 1, 1, FsEntry::Directory(Vec::new())),
-    );
-    index_folder_recursive(&mut arbo, &mut inode, path)?;
+    arbo.add_inode(Inode::new(
+        "".to_owned(),
+        1,
+        1,
+        FsEntry::Directory(Vec::new()),
+    ));
+    index_folder_recursive(&mut arbo, 1, &mut inode, path)?;
     Ok(arbo)
 }

@@ -10,7 +10,9 @@ use crate::{
 };
 
 use super::{
-    arbo::Arbo, disk_manager::DiskManager, fs_interface::FsInterface,
+    arbo::{index_folder, Arbo},
+    disk_manager::DiskManager,
+    fs_interface::FsInterface,
     network_interface::NetworkInterface,
 };
 
@@ -33,7 +35,7 @@ impl Pod {
         peers: Vec<Address>,
         server: Arc<Server>,
     ) -> io::Result<Self> {
-        let arbo: Arc<RwLock<Arbo>> = Arc::new(RwLock::new(Arbo::new()));
+        let arbo: Arc<RwLock<Arbo>> = Arc::new(RwLock::new(index_folder(&mount_point)?));
         let (to_network_message_tx, to_network_message_rx) = mpsc::unbounded_channel();
         let (from_network_message_tx, from_network_message_rx) = mpsc::unbounded_channel();
 
