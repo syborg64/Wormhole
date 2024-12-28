@@ -35,7 +35,8 @@ impl Pod {
         peers: Vec<Address>,
         server: Arc<Server>,
     ) -> io::Result<Self> {
-        let arbo: Arc<RwLock<Arbo>> = Arc::new(RwLock::new(index_folder(&mount_point)?));
+        let (arbo, next_inode) = index_folder(&mount_point)?;
+        let arbo: Arc<RwLock<Arbo>> = Arc::new(RwLock::new(arbo));
         let (to_network_message_tx, to_network_message_rx) = mpsc::unbounded_channel();
         let (from_network_message_tx, from_network_message_rx) = mpsc::unbounded_channel();
 
@@ -43,7 +44,7 @@ impl Pod {
             arbo.clone(),
             mount_point.clone(),
             to_network_message_tx,
-            0,
+            next_inode,
         ));
 
         let disk_manager = DiskManager::new(mount_point.clone())?;

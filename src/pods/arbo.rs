@@ -286,9 +286,9 @@ fn index_folder_recursive(
     Ok(())
 }
 
-pub fn index_folder(path: &WhPath) -> io::Result<Arbo> {
+pub fn index_folder(path: &WhPath) -> io::Result<(Arbo, InodeId)> {
     let mut arbo = Arbo::new();
-    let mut inode: u64 = 2;
+    let mut ino: u64 = 2;
 
     arbo.add_inode(Inode::new(
         "".to_owned(),
@@ -296,6 +296,6 @@ pub fn index_folder(path: &WhPath) -> io::Result<Arbo> {
         1,
         FsEntry::Directory(Vec::new()),
     ));
-    index_folder_recursive(&mut arbo, 1, &mut inode, path)?;
-    Ok(arbo)
+    index_folder_recursive(&mut arbo, 1, &mut ino, path)?;
+    Ok((arbo, ino))
 }
