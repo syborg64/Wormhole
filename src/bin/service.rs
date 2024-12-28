@@ -25,16 +25,55 @@ use std::{
 
 use tokio::sync::mpsc::{self};
 
-use wormhole::network::server::Server;
 use wormhole::network::{
     peers_operations::{contact_peers, peer_startup},
     request_filesystem::request_filesystem,
     watchdogs::{incoming_connections_watchdog, local_cli_watchdog, network_file_actions},
 };
 use wormhole::{fuse::fuse_impl::mount_fuse, network::peer_ipc::PeerIPC};
+use wormhole::{network::server::Server, pods::declarations::Pod};
 
 #[tokio::main]
 async fn main() {
+    let mut pods: Vec<Pod> = Vec::new();
+
+    env_logger::init();
+    // DOC - arguments: own_address other_addr1 other_addr2 mount_to source
+    let own_addr = env::args().nth(1).unwrap_or("127.0.0.1:8080".to_string());
+    let other_addr1 = env::args()
+        .nth(2)
+        .unwrap_or("ws://127.0.0.2:8080".to_string());
+    let other_addr2 = env::args()
+        .nth(3)
+        .unwrap_or("ws://127.0.0.3:8080".to_string());
+    let mount: PathBuf = env::args()
+        .nth(4)
+        .unwrap_or("./virtual/".to_string())
+        .into();
+
+    println!("own address: {}", own_addr);
+    println!("peer1 address: {}", other_addr1);
+    println!("peer2 address: {}", other_addr2);
+    println!("\nstarting");
+
+    let server = Arc::new(Server::setup(&own_addr).await);
+
+    pods.push(Pod::new(
+        mount,
+        1,
+        vec![other_addr1, other_addr2],
+        server.clone(),
+    ));
+
+    let local_cli_handle = tokio::spawn(local_cli_watchdog());
+    println!("started");
+    local_cli_handle.await.unwrap(); // keeps the main process alive until interruption from this watchdog;
+    println!("stopping");
+
+}
+
+#[tokio::main]
+async fn main2() {
     env_logger::init();
     // DOC - arguments: own_address other_addr1 other_addr2 mount_to source
     let own_addr = env::args().nth(1).unwrap_or("127.0.0.1:8080".to_string());
