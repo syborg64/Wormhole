@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, UNIX_EPOCH};
 use crate::pods::fs_interface::{FsInterface, SimpleFileType};
-use crate::providers::whpath::WhPath;
+use crate::pods::whpath::WhPath;
 
 // NOTE - placeholders
 const TTL: Duration = Duration::from_secs(1);

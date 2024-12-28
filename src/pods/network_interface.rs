@@ -6,13 +6,11 @@ use tokio::{
     task::JoinHandle,
 };
 
-use crate::{
-    network::{
-        message::{self, FromNetworkMessage, MessageContent, ToNetworkMessage},
-        peer_ipc::PeerIPC,
-        server::Server,
-    },
-    providers::whpath::WhPath,
+use super::whpath::WhPath;
+use crate::network::{
+    message::{self, FromNetworkMessage, MessageContent, ToNetworkMessage},
+    peer_ipc::PeerIPC,
+    server::Server,
 };
 
 use super::{

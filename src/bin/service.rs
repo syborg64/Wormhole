@@ -72,6 +72,7 @@ async fn main() {
 
 }
 
+/*
 #[tokio::main]
 async fn main2() {
     env_logger::init();
@@ -132,3 +133,4 @@ async fn main2() {
     peers_broadcast_handle.abort();
     println!("stopped");
 }
+*/

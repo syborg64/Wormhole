@@ -258,7 +258,7 @@ impl WhPath {
 
         while !self.is_empty() {
             elements.push(self.get_end());
-            self.remove_end();
+            self.pop(); // REVIEW - replaced "remove_end()" with pop
         }
         let elements = elements.into_iter().rev().collect();
         elements

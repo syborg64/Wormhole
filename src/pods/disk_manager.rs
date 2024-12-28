@@ -3,7 +3,7 @@ use std::fs::File;
 use openat::Dir;
 use tokio::io;
 
-use crate::providers::whpath::WhPath;
+use super::whpath::WhPath;
 
 pub struct DiskManager {
     handle: Dir,

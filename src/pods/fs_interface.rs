@@ -3,7 +3,7 @@ use super::{
     disk_manager::DiskManager,
     network_interface::NetworkInterface,
 };
-use crate::providers::whpath::WhPath;
+use super::whpath::WhPath;
 use parking_lot::RwLock;
 use std::io::{self};
 use std::sync::Arc;

@@ -1,8 +1,10 @@
-use crate::{network::message::Address, providers::whpath::WhPath};
+use crate::network::message::Address;
 use fuser::FileType;
 use openat::AsPath;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs, io, time::Duration};
+
+use super::whpath::WhPath;
 
 // SECTION consts
 

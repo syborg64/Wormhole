@@ -6,14 +6,13 @@ use tokio::sync::mpsc;
 use crate::{
     fuse::fuse_impl::mount_fuse,
     network::{message::Address, peer_ipc::PeerIPC, server::Server},
-    providers::whpath::WhPath,
 };
 
 use super::{
     arbo::{index_folder, Arbo},
     disk_manager::DiskManager,
     fs_interface::FsInterface,
-    network_interface::NetworkInterface,
+    network_interface::NetworkInterface, whpath::WhPath,
 };
 
 // TODO
