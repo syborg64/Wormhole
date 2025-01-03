@@ -34,6 +34,8 @@ impl FsInterface {
         }
     }
 
+    // SECTION - local -> write
+
     pub fn make_inode(
         &self,
         parent_ino: u64,
@@ -70,6 +72,23 @@ impl FsInterface {
         Ok((new_inode_id, new_inode))
     }
 
+    // !SECTION
+
+    // SECTION - local -> read
+
+    pub fn get_entry_from_name(&self, parent: InodeId, name: String) -> io::Result<Inode> {
+        if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
+            arbo.get_inode_child_by_name(arbo.get_inode(parent)?, &name).cloned()
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::Interrupted,
+                "lookup: can't read lock arbo's RwLock",
+            ))
+        }
+    }
+    // !SECTION
+
+    // SECTION - remote -> write
     pub fn recept_inode(&self, inode: Inode, id: InodeId) -> io::Result<()> {
         self.network_interface.acknowledge_new_file(inode, id)?;
 
@@ -136,7 +155,10 @@ impl FsInterface {
         Ok(())
     }
 
-    // Adapters 
+    // !SECTION
+
+    // SECTION - Adapters
+    // NOTE - system specific (fuse/winfsp) code that need access to arbo or other classes
 
     pub fn fuse_remove_inode(&self, parent: InodeId, name: &std::ffi::OsStr) -> io::Result<()> {
         let target = if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
@@ -150,4 +172,6 @@ impl FsInterface {
         };
         self.remove_inode(target)
     }
+
+    // !SECTION
 }

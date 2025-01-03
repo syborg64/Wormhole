@@ -11,6 +11,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, UNIX_EPOCH};
+use crate::pods::arbo::{FsEntry, Inode};
 use crate::pods::fs_interface::{FsInterface, SimpleFileType};
 use crate::pods::whpath::WhPath;
 
@@ -60,18 +61,30 @@ pub struct FuseController {
     pub fs_interface: Arc<FsInterface>,
 }
 
+// NOTE for dev purpose while all metadata is not supported
+fn inode_to_fuse_fileattr(inode: Inode) -> FileAttr {
+    let mut attr = TEMPLATE_FILE_ATTR;
+    attr.ino = inode.id;
+    attr.kind = match inode.entry {
+        FsEntry::Directory(_) => fuser::FileType::Directory,
+        FsEntry::File(_) => fuser::FileType::RegularFile,
+    };
+    attr
+}
+
 // REVIEW - should later invest in proper error handling
 impl Filesystem for FuseController {
     // READING
 
     fn lookup(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEntry) {
-        debug!("lookup is called {} {:?}", parent, name);
-        let provider = self.provider.lock().unwrap();
-        if let Ok(file_attr) = provider.fs_lookup(parent, name) {
-            reply.entry(&TTL, &file_attr, 0)
-        } else {
-            reply.error(ENOENT)
-        }
+        match self.fs_interface.get_entry_from_name(parent, name.to_string_lossy().to_string()) {
+            Ok(inode) => {
+                reply.entry(&TTL, &inode_to_fuse_fileattr(inode), 0);
+            },
+            Err(_) => {
+                reply.error(ENOENT);
+            }
+        };
     }
 
     // TODO
