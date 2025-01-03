@@ -51,7 +51,7 @@ impl NetworkInterface {
     }
 
     pub fn start_network_airport(
-        &self,
+        &mut self,
         fs_interface: Arc<FsInterface>,
         from_network_message_rx: UnboundedReceiver<FromNetworkMessage>,
         from_network_message_tx: UnboundedSender<FromNetworkMessage>,
