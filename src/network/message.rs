@@ -3,13 +3,13 @@ use serde_with::serde_as;
 
 use crate::{
     data::metadata::MetaData,
-    pods::arbo::{Inode, InodeId},
+    pods::arbo::{Arbo, Inode, InodeId},
 };
 
 /// Message Content
 /// Represent the content of the intern message but is also the struct sent
 /// through the network
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize)]
 pub enum MessageContent {
     Remove(InodeId),
     Inode(Inode, InodeId),
@@ -25,7 +25,7 @@ pub type Address = String;
 
 /// Message Coming from Network
 /// Messages recived by peers, forwared to [crate::network::watchdogs::network_file_actions]
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct FromNetworkMessage {
     pub origin: Address,
     pub content: MessageContent,
@@ -33,17 +33,16 @@ pub struct FromNetworkMessage {
 
 /// Message Going To Network
 /// Messages sent from fuser to process communicating to the peers
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize)]
 pub enum ToNetworkMessage {
     BroadcastMessage(MessageContent),
     SpecificMessage(MessageContent, Vec<Address>),
 }
 
 #[serde_as]
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct FileSystemSerialized {
-    #[serde_as(as = "Vec<(_, _)>")]
-    pub fs_index: FsIndex,
-    pub next_inode: InodeIndex,
+    pub fs_index: Arbo,
+    pub next_inode: InodeId,
 }
 
