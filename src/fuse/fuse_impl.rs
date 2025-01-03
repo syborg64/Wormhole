@@ -60,60 +60,6 @@ pub struct FuseController {
     pub fs_interface: Arc<FsInterface>,
 }
 
-fn index_folder_recursive(
-    arbo: &mut FsIndex,
-    inode: &mut u64,
-    root_fd: &Dir,
-    path: PathBuf,
-) -> io::Result<()> {
-    let errors_nb = root_fd
-        .list_dir(&path)?
-        .map(|entry| -> io::Result<()> {
-            let entry = entry?;
-
-            let name = entry.file_name();
-            let stype = entry.simple_type().unwrap();
-
-            let generated_path = path.join(name);
-
-            let new_entry = match stype {
-                SimpleType::Dir => FsEntry::Directory(generated_path.clone()),
-                SimpleType::File => FsEntry::File(generated_path.clone(), vec![]),
-                _ => return Ok(()),
-            };
-            arbo.insert(*inode, new_entry);
-            println!("added entry to arbo {}:{:?}", inode, arbo.get(inode));
-            *inode += 1;
-
-            if stype == SimpleType::Dir {
-                index_folder_recursive(arbo, inode, root_fd, generated_path)?;
-            }
-            Ok(())
-        })
-        .filter(|e| e.is_err())
-        .collect::<Vec<Result<(), io::Error>>>()
-        .len();
-    println!(
-        "indexing: {} error(s) in folder {}",
-        errors_nb,
-        path.display()
-    );
-    Ok(())
-}
-
-impl FuseController {
-    fn index_folder(path: &Path) -> io::Result<(openat::Dir, FsIndex)> {
-        let metal_mount_handle = Dir::open(path)?;
-        let mut arbo: FsIndex = HashMap::new();
-        let mut inode: u64 = 2;
-
-        arbo.insert(1, FsEntry::Directory("./".into()));
-
-        index_folder_recursive(&mut arbo, &mut inode, &metal_mount_handle, ".".into())?;
-        Ok((metal_mount_handle, arbo))
-    }
-}
-
 // REVIEW - should later invest in proper error handling
 impl Filesystem for FuseController {
     // READING
