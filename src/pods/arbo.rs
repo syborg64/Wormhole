@@ -36,7 +36,7 @@ pub struct Inode {
 
 pub type ArboIndex = HashMap<InodeId, Inode>;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Arbo {
     entries: ArboIndex,
 }
