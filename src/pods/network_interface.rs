@@ -23,7 +23,7 @@ pub struct NetworkInterface {
     pub mount_point: WhPath, // TODO - replace by Ludo's unipath
     pub to_network_message_tx: UnboundedSender<ToNetworkMessage>,
     pub next_inode: Mutex<InodeId>, // TODO - replace with InodeIndex type
-    waiting_download: RwLock<HashMap<InodeId, UnboundedSender<InodeId>>>,
+    pub waiting_download: RwLock<HashMap<InodeId, UnboundedSender<bool>>>,
     network_airport_handle: Option<JoinHandle<()>>,
     peer_broadcast_handle: Option<JoinHandle<()>>,
     new_peer_handle: Option<JoinHandle<()>>,
@@ -172,13 +172,13 @@ impl NetworkInterface {
         Ok(removed_inode)
     }
 
-    pub fn pull_file(&self, file: InodeId) -> io::Result<UnboundedReceiver<InodeId>> {
+    pub fn pull_file(&self, file: InodeId) -> io::Result<UnboundedReceiver<bool>> {
         if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
             if let FsEntry::File(hosts) = &arbo.get_inode(file)?.entry {
-                let (callback_tx, callback_rx) = mpsc::unbounded_channel::<InodeId>();
+                let (callback_tx, callback_rx) = mpsc::unbounded_channel::<bool>();
                 if hosts.contains(&self.self_addr) {
                     callback_tx
-                        .send(file)  // directly completes the callback
+                        .send(file) // directly completes the callback
                         .expect("pull_file: unable to callback");
                     return Ok(callback_rx);
                 }
@@ -189,7 +189,9 @@ impl NetworkInterface {
                     ))
                     .expect("pull_file: unable to request on the network thread");
                 if let Some(mut waiting_dl) = self.waiting_download.try_write_for(LOCK_TIMEOUT) {
-                    waiting_dl.insert(file, callback_tx);
+                    if let Some(old_callback_tx) = waiting_dl.insert(file, callback_tx) {
+                        old_callback_tx.send(false); // TODO - actually the old callback is droped on fail. not optimal
+                    }
                     Ok(callback_rx)
                 } else {
                     Err(io::Error::new(
@@ -211,9 +213,21 @@ impl NetworkInterface {
         }
     }
 
+    pub fn resolve_pull(&self, id: InodeId, status: bool) {
+        if let Some(callback_tx) = self
+            .waiting_download
+            .try_write_for(LOCK_TIMEOUT)
+            .expect("can't lock waiting_download and resolve pull") // TODO - manage
+            .remove(&id)
+        {
+            callback_tx.send(status);
+        }
+    }
+
     async fn network_airport(
         mut network_reception: UnboundedReceiver<FromNetworkMessage>,
         fs_interface: Arc<FsInterface>,
+        network_interface: Arc<NetworkInterface>,
     ) {
         loop {
             let FromNetworkMessage { origin, content } = match network_reception.recv().await {
@@ -223,8 +237,7 @@ impl NetworkInterface {
 
             match content {
                 MessageContent::PullAnswer(id, binary) => {
-                    let status = fs_interface.recept_binary(id, binary).is_ok();
-                    // TODO - resolve callback
+                    fs_interface.recept_binary(id, binary);
                 }
                 MessageContent::Binary(bin) => {
                     println!("peer: {:?}", String::from_utf8(bin).unwrap_or_default());

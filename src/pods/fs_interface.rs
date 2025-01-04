@@ -87,7 +87,9 @@ impl FsInterface {
         }
     }
 
-    pub fn read_file(&self, file: InodeId, offset: u64, len: u64) {}
+    pub fn read_file(&self, file: InodeId, offset: u64, len: u64) {
+        
+    }
     // !SECTION
 
     // SECTION - remote -> write
@@ -113,9 +115,16 @@ impl FsInterface {
         Ok(())
     }
 
-    pub fn recept_binary(&self, id: InodeId, binary: Vec<u8>) -> io::Result<()> {
-        let path = Arbo::read_lock(&self.arbo, "recept_binary")?.get_path_from_inode_id(id)?;
-        self.disk.write_file(&path, binary)
+    pub fn recept_binary(&self, id: InodeId, binary: Vec<u8>) {
+        let arbo = Arbo::read_lock(&self.arbo, "recept_binary").expect("recept_binary: can't read lock arbo");
+
+        let path = match arbo.get_path_from_inode_id(id) {
+            Ok(path) => path,
+            Err(_) => return self.network_interface.resolve_pull(id, false)
+        };
+
+        let status = self.disk.write_file(&path, binary).is_ok();
+        self.network_interface.resolve_pull(id, status);
     }
 
     pub fn remove_inode(&self, id: InodeId) -> io::Result<()> {
