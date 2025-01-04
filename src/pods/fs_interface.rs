@@ -113,9 +113,9 @@ impl FsInterface {
         Ok(())
     }
 
-    pub fn recept_binary(&self, id: InodeId) -> io::Result<()> {
-        let path = Arbo::read_lock(&self.arbo, "coucou")?.get_path_from_inode_id(id)?;
-        Ok(())
+    pub fn recept_binary(&self, id: InodeId, binary: Vec<u8>) -> io::Result<()> {
+        let path = Arbo::read_lock(&self.arbo, "recept_binary")?.get_path_from_inode_id(id)?;
+        self.disk.write_file(&path, binary)
     }
 
     pub fn remove_inode(&self, id: InodeId) -> io::Result<()> {

@@ -1,4 +1,4 @@
-use std::fs::File;
+use std::{fs::File, io::Write};
 
 use openat::Dir;
 use tokio::io;
@@ -26,7 +26,13 @@ impl DiskManager {
 
     pub fn remove_file(&self, path: &WhPath) -> io::Result<()> {
         let path = self.mount_point.join(path);
-        self.handle.remove_file(path) // TODO look more in c mode_t value
+        self.handle.remove_file(path)
+    }
+
+    pub fn write_file(&self, path: &WhPath, binary: Vec<u8>) -> io::Result<()> {
+        let path = self.mount_point.join(path);
+        let mut file = self.handle.write_file(path, 0o600)?;
+        file.write_all(&binary)
     }
 
     pub fn new_dir(&self, path: &WhPath) -> io::Result<()> {

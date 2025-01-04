@@ -223,7 +223,8 @@ impl NetworkInterface {
 
             match content {
                 MessageContent::PullAnswer(id, binary) => {
-                    fs_interface.write_from_binary();
+                    let status = fs_interface.recept_binary(id, binary).is_ok();
+                    // TODO - resolve callback
                 }
                 MessageContent::Binary(bin) => {
                     println!("peer: {:?}", String::from_utf8(bin).unwrap_or_default());
