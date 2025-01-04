@@ -14,7 +14,7 @@ pub enum MessageContent {
     Remove(InodeId),
     Inode(Inode, InodeId),
     Meta(MetaData),
-    RequestFile(std::path::PathBuf),
+    RequestFile(InodeId),
     Binary(Vec<u8>),
     Write(InodeId, Vec<u8>),
     RequestFs,

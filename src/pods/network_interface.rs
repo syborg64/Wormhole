@@ -6,9 +6,9 @@ use tokio::{
     task::JoinHandle,
 };
 
-use super::whpath::WhPath;
+use super::{arbo::FsEntry, whpath::WhPath};
 use crate::network::{
-    message::{self, FromNetworkMessage, MessageContent, ToNetworkMessage},
+    message::{self, Address, FromNetworkMessage, MessageContent, ToNetworkMessage},
     peer_ipc::PeerIPC,
     server::Server,
 };
@@ -27,6 +27,7 @@ pub struct NetworkInterface {
     peer_broadcast_handle: Option<JoinHandle<()>>,
     new_peer_handle: Option<JoinHandle<()>>,
     peers: Arc<RwLock<Vec<PeerIPC>>>,
+    self_addr: Address,
 }
 
 impl NetworkInterface {
@@ -168,6 +169,33 @@ impl NetworkInterface {
         };
 
         Ok(removed_inode)
+    }
+
+    pub fn pull_file(&self, file: InodeId) -> io::Result<()> {
+        if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
+            if let FsEntry::File(hosts) = &arbo.get_inode(file)?.entry {
+                if hosts.contains(&self.self_addr) {
+                    return Ok(());
+                }
+                self.to_network_message_tx
+                    .send(ToNetworkMessage::SpecificMessage(
+                        message::MessageContent::RequestFile(file),
+                        vec![hosts[0].clone()],
+                    ))
+                    .expect("pull_file: unable to request on the network thread");
+                Ok(())
+            } else {
+                Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "pull_file: can't pull folder",
+                ))
+            }
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::Interrupted,
+                "pull_file: can't read lock arbo's RwLock",
+            ))
+        }
     }
 
     async fn network_airport(

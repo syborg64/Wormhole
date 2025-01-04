@@ -86,6 +86,10 @@ impl FsInterface {
             ))
         }
     }
+
+    pub fn read_file(&self, file: InodeId, offset: u64, len: u64) {
+
+    }
     // !SECTION
 
     // SECTION - remote -> write
