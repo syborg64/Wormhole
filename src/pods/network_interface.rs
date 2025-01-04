@@ -1,8 +1,8 @@
-use std::{io, sync::Arc};
+use std::{collections::HashMap, io, sync::Arc};
 
 use parking_lot::{Mutex, RwLock};
 use tokio::{
-    sync::mpsc::{UnboundedReceiver, UnboundedSender},
+    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
     task::JoinHandle,
 };
 
@@ -23,6 +23,7 @@ pub struct NetworkInterface {
     pub mount_point: WhPath, // TODO - replace by Ludo's unipath
     pub to_network_message_tx: UnboundedSender<ToNetworkMessage>,
     pub next_inode: Mutex<InodeId>, // TODO - replace with InodeIndex type
+    waiting_download: RwLock<HashMap<InodeId, UnboundedSender<InodeId>>>,
     network_airport_handle: Option<JoinHandle<()>>,
     peer_broadcast_handle: Option<JoinHandle<()>>,
     new_peer_handle: Option<JoinHandle<()>>,
@@ -171,23 +172,35 @@ impl NetworkInterface {
         Ok(removed_inode)
     }
 
-    pub fn pull_file(&self, file: InodeId) -> io::Result<()> {
+    pub fn pull_file(&self, file: InodeId) -> io::Result<UnboundedReceiver<InodeId>> {
         if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
             if let FsEntry::File(hosts) = &arbo.get_inode(file)?.entry {
+                let (callback_tx, callback_rx) = mpsc::unbounded_channel::<InodeId>();
                 if hosts.contains(&self.self_addr) {
-                    return Ok(());
+                    callback_tx
+                        .send(file)
+                        .expect("pull_file: unable to callback");
+                    return Ok(callback_rx);
                 }
                 self.to_network_message_tx
                     .send(ToNetworkMessage::SpecificMessage(
                         message::MessageContent::RequestFile(file),
-                        vec![hosts[0].clone()],
+                        vec![hosts[0].clone()], // NOTE - dumb choice for now
                     ))
                     .expect("pull_file: unable to request on the network thread");
-                Ok(())
+                if let Some(mut waiting_dl) = self.waiting_download.try_write_for(LOCK_TIMEOUT) {
+                    waiting_dl.insert(file, callback_tx);
+                    Ok(callback_rx)
+                } else {
+                    Err(io::Error::new(
+                        io::ErrorKind::Interrupted,
+                        "pull_file: can't write lock self.waiting_download",
+                    ))
+                }
             } else {
                 Err(io::Error::new(
                     io::ErrorKind::InvalidData,
-                    "pull_file: can't pull folder",
+                    "pull_file: can't pull a folder",
                 ))
             }
         } else {
