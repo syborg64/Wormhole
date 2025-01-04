@@ -16,6 +16,7 @@ pub enum MessageContent {
     Meta(MetaData),
     RequestFile(InodeId),
     Binary(Vec<u8>),
+    PullAnswer(InodeId, Vec<u8>),
     Write(InodeId, Vec<u8>),
     RequestFs,
     FileStructure(FileSystemSerialized),

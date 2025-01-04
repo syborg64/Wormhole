@@ -1,9 +1,9 @@
+use super::whpath::WhPath;
 use super::{
     arbo::{Arbo, FsEntry, Inode, InodeId, LOCK_TIMEOUT},
     disk_manager::DiskManager,
     network_interface::NetworkInterface,
 };
-use super::whpath::WhPath;
 use parking_lot::RwLock;
 use std::io::{self};
 use std::sync::Arc;
@@ -49,8 +49,7 @@ impl FsInterface {
 
         let new_inode_id = self.network_interface.get_next_inode()?;
         let new_inode: Inode = Inode::new(name, parent_ino, new_inode_id, new_entry);
-        self
-            .network_interface
+        self.network_interface
             .register_new_file(new_inode.clone())?;
 
         let new_path: WhPath = if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
@@ -78,7 +77,8 @@ impl FsInterface {
 
     pub fn get_entry_from_name(&self, parent: InodeId, name: String) -> io::Result<Inode> {
         if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
-            arbo.get_inode_child_by_name(arbo.get_inode(parent)?, &name).cloned()
+            arbo.get_inode_child_by_name(arbo.get_inode(parent)?, &name)
+                .cloned()
         } else {
             Err(io::Error::new(
                 io::ErrorKind::Interrupted,
@@ -87,9 +87,7 @@ impl FsInterface {
         }
     }
 
-    pub fn read_file(&self, file: InodeId, offset: u64, len: u64) {
-
-    }
+    pub fn read_file(&self, file: InodeId, offset: u64, len: u64) {}
     // !SECTION
 
     // SECTION - remote -> write
@@ -112,6 +110,11 @@ impl FsInterface {
             }
         };
 
+        Ok(())
+    }
+
+    pub fn recept_binary(&self, id: InodeId) -> io::Result<()> {
+        let path = Arbo::read_lock(&self.arbo, "coucou")?.get_path_from_inode_id(id)?;
         Ok(())
     }
 
@@ -167,7 +170,8 @@ impl FsInterface {
     pub fn fuse_remove_inode(&self, parent: InodeId, name: &std::ffi::OsStr) -> io::Result<()> {
         let target = if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
             let parent = arbo.get_inode(parent)?;
-            arbo.get_inode_child_by_name(parent, &name.to_string_lossy().to_string())?.id
+            arbo.get_inode_child_by_name(parent, &name.to_string_lossy().to_string())?
+                .id
         } else {
             return Err(io::Error::new(
                 io::ErrorKind::Interrupted,

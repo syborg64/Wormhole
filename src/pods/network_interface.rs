@@ -178,7 +178,7 @@ impl NetworkInterface {
                 let (callback_tx, callback_rx) = mpsc::unbounded_channel::<InodeId>();
                 if hosts.contains(&self.self_addr) {
                     callback_tx
-                        .send(file)
+                        .send(file)  // directly completes the callback
                         .expect("pull_file: unable to callback");
                     return Ok(callback_rx);
                 }
@@ -222,6 +222,9 @@ impl NetworkInterface {
             };
 
             match content {
+                MessageContent::PullAnswer(id, binary) => {
+                    fs_interface.write_from_binary();
+                }
                 MessageContent::Binary(bin) => {
                     println!("peer: {:?}", String::from_utf8(bin).unwrap_or_default());
                 }

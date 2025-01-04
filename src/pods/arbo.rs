@@ -1,8 +1,9 @@
 use crate::network::message::Address;
 use fuser::FileType;
 use openat::AsPath;
+use parking_lot::{RwLock, RwLockReadGuard};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs, io, time::Duration};
+use std::{collections::HashMap, fs, io, sync::Arc, time::Duration};
 
 use super::whpath::WhPath;
 
@@ -108,6 +109,18 @@ impl Arbo {
         arbo
     }
 
+    #[must_use]
+    pub fn read_lock<'a>(arbo: &'a Arc<RwLock<Arbo>>, error_message: &'a str) -> io::Result<RwLockReadGuard<'a, Arbo>> {
+        if let Some(arbo) = arbo.try_read_for(LOCK_TIMEOUT) {
+            Ok(arbo)
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::WouldBlock,
+                error_message,
+            ))
+        }
+    }
+    
     #[must_use]
     pub fn add_inode_from_parameters(
         &mut self,
