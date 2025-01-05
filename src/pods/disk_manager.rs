@@ -1,8 +1,4 @@
-use std::{
-    fs::File,
-    io::{Read, Write},
-    os::unix::fs::FileExt,
-};
+use std::{fs::File, io::Write, os::unix::fs::FileExt};
 
 use openat::Dir;
 use tokio::io;

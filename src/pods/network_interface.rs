@@ -18,12 +18,17 @@ use super::{
     fs_interface::FsInterface,
 };
 
+#[derive(Eq, Hash, PartialEq)]
+pub enum Callback {
+    Pull(InodeId),
+}
+
 pub struct NetworkInterface {
     pub arbo: Arc<RwLock<Arbo>>,
     pub mount_point: WhPath, // TODO - replace by Ludo's unipath
     pub to_network_message_tx: UnboundedSender<ToNetworkMessage>,
     pub next_inode: Mutex<InodeId>, // TODO - replace with InodeIndex type
-    pub waiting_download: RwLock<HashMap<InodeId, UnboundedSender<bool>>>,
+    pub callbacks: RwLock<HashMap<Callback, UnboundedSender<bool>>>,
     network_airport_handle: Option<JoinHandle<()>>,
     peer_broadcast_handle: Option<JoinHandle<()>>,
     new_peer_handle: Option<JoinHandle<()>>,
@@ -46,7 +51,7 @@ impl NetworkInterface {
             mount_point,
             to_network_message_tx,
             next_inode,
-            waiting_download: RwLock::new(HashMap::new()),
+            callbacks: RwLock::new(HashMap::new()),
             network_airport_handle: None,
             peer_broadcast_handle: None,
             new_peer_handle: None,
@@ -191,15 +196,15 @@ impl NetworkInterface {
                         vec![hosts[0].clone()], // NOTE - dumb choice for now
                     ))
                     .expect("pull_file: unable to request on the network thread");
-                if let Some(mut waiting_dl) = self.waiting_download.try_write_for(LOCK_TIMEOUT) {
-                    if let Some(old_callback_tx) = waiting_dl.insert(file, callback_tx) {
+                if let Some(mut waiting_dl) = self.callbacks.try_write_for(LOCK_TIMEOUT) {
+                    if let Some(old_callback_tx) = waiting_dl.insert(Callback::Pull(file), callback_tx) {
                         old_callback_tx.send(false); // TODO - actually the old callback is droped on fail. not optimal
                     }
                     Ok(callback_rx)
                 } else {
                     Err(io::Error::new(
                         io::ErrorKind::Interrupted,
-                        "pull_file: can't write lock self.waiting_download",
+                        "pull_file: can't write lock self.callbacks",
                     ))
                 }
             } else {
@@ -218,10 +223,10 @@ impl NetworkInterface {
 
     pub fn resolve_pull(&self, id: InodeId, status: bool) {
         if let Some(callback_tx) = self
-            .waiting_download
+            .callbacks
             .try_write_for(LOCK_TIMEOUT)
-            .expect("can't lock waiting_download and resolve pull") // TODO - manage
-            .remove(&id)
+            .expect("can't lock callbacks and resolve pull") // TODO - manage
+            .remove(&Callback::Pull(id))
         {
             callback_tx.send(status);
         }
