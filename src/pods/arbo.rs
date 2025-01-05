@@ -110,13 +110,13 @@ impl Arbo {
     }
 
     #[must_use]
-    pub fn read_lock<'a>(arbo: &'a Arc<RwLock<Arbo>>, prefix: &'a str) -> io::Result<RwLockReadGuard<'a, Arbo>> {
+    pub fn read_lock<'a>(arbo: &'a Arc<RwLock<Arbo>>, called_from: &'a str) -> io::Result<RwLockReadGuard<'a, Arbo>> {
         if let Some(arbo) = arbo.try_read_for(LOCK_TIMEOUT) {
             Ok(arbo)
         } else {
             Err(io::Error::new(
                 io::ErrorKind::WouldBlock,
-                format!("{}: unable to read_lock arbo", prefix),
+                format!("{}: unable to read_lock arbo", called_from),
             ))
         }
     }
