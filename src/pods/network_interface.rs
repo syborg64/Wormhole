@@ -178,7 +178,7 @@ impl NetworkInterface {
                 let (callback_tx, callback_rx) = mpsc::unbounded_channel::<bool>();
                 if hosts.contains(&self.self_addr) {
                     callback_tx
-                        .send(file) // directly completes the callback
+                        .send(true) // directly completes the callback
                         .expect("pull_file: unable to callback");
                     return Ok(callback_rx);
                 }

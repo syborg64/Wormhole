@@ -87,8 +87,25 @@ impl FsInterface {
         }
     }
 
-    pub fn read_file(&self, file: InodeId, offset: u64, len: u64) {
-        
+    pub fn read_file(&self, file: InodeId, offset: u64, len: u64) -> io::Result<Vec<u8>> {
+        let status = self
+            .network_interface
+            .pull_file(file)?
+            .blocking_recv() // NOTE - blocking_recv doc does not indicate in what case None is returned
+            .expect("read_file: blocking_recev returned None");
+
+        if status == false {
+            return Err(io::Error::new(
+                io::ErrorKind::BrokenPipe,
+                "file already waiting for pull or unable to write pulled to disk",
+            ));
+        }
+
+        self.disk.read_file(
+            &Arbo::read_lock(&self.arbo, "read_file")?.get_path_from_inode_id(file)?,
+            offset,
+            len,
+        )
     }
     // !SECTION
 
@@ -116,11 +133,12 @@ impl FsInterface {
     }
 
     pub fn recept_binary(&self, id: InodeId, binary: Vec<u8>) {
-        let arbo = Arbo::read_lock(&self.arbo, "recept_binary").expect("recept_binary: can't read lock arbo");
+        let arbo = Arbo::read_lock(&self.arbo, "recept_binary")
+            .expect("recept_binary: can't read lock arbo");
 
         let path = match arbo.get_path_from_inode_id(id) {
             Ok(path) => path,
-            Err(_) => return self.network_interface.resolve_pull(id, false)
+            Err(_) => return self.network_interface.resolve_pull(id, false),
         };
 
         let status = self.disk.write_file(&path, binary).is_ok();
