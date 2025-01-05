@@ -37,6 +37,7 @@ impl NetworkInterface {
         mount_point: WhPath,
         to_network_message_tx: UnboundedSender<ToNetworkMessage>,
         next_inode: InodeId,
+        self_addr: Address,
     ) -> Self {
         let next_inode = Mutex::new(next_inode);
 
@@ -45,10 +46,12 @@ impl NetworkInterface {
             mount_point,
             to_network_message_tx,
             next_inode,
+            waiting_download: RwLock::new(HashMap::new()),
             network_airport_handle: None,
             peer_broadcast_handle: None,
             new_peer_handle: None,
             peers: Arc::new(RwLock::new(vec![])),
+            self_addr,
         }
     }
 
@@ -227,7 +230,6 @@ impl NetworkInterface {
     async fn network_airport(
         mut network_reception: UnboundedReceiver<FromNetworkMessage>,
         fs_interface: Arc<FsInterface>,
-        network_interface: Arc<NetworkInterface>,
     ) {
         loop {
             let FromNetworkMessage { origin, content } = match network_reception.recv().await {

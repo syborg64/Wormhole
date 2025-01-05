@@ -34,6 +34,7 @@ impl Pod {
         config: PodConfig,
         peers: Vec<Address>,
         server: Arc<Server>,
+        server_address: Address,
     ) -> io::Result<Self> {
         let (arbo, next_inode) = index_folder(&mount_point)?;
         let arbo: Arc<RwLock<Arbo>> = Arc::new(RwLock::new(arbo));
@@ -45,6 +46,7 @@ impl Pod {
             mount_point.clone(),
             to_network_message_tx,
             next_inode,
+            server_address
         ));
 
         let disk_manager = DiskManager::new(mount_point.clone())?;
