@@ -1,3 +1,6 @@
+use crate::pods::arbo::{FsEntry, Inode};
+use crate::pods::fs_interface::{FsInterface, SimpleFileType};
+use crate::pods::whpath::WhPath;
 use fuser::{
     BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData,
     ReplyDirectory, ReplyEntry, Request,
@@ -11,9 +14,6 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, UNIX_EPOCH};
-use crate::pods::arbo::{FsEntry, Inode};
-use crate::pods::fs_interface::{FsInterface, SimpleFileType};
-use crate::pods::whpath::WhPath;
 
 // NOTE - placeholders
 const TTL: Duration = Duration::from_secs(1);
@@ -77,10 +77,13 @@ impl Filesystem for FuseController {
     // READING
 
     fn lookup(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEntry) {
-        match self.fs_interface.get_entry_from_name(parent, name.to_string_lossy().to_string()) {
+        match self
+            .fs_interface
+            .get_entry_from_name(parent, name.to_string_lossy().to_string())
+        {
             Ok(inode) => {
                 reply.entry(&TTL, &inode_to_fuse_fileattr(inode), 0);
-            },
+            }
             Err(_) => {
                 reply.error(ENOENT);
             }
@@ -103,17 +106,20 @@ impl Filesystem for FuseController {
         ino: u64,
         _fh: u64,
         offset: i64,
-        _size: u32,
+        size: u32,
         _flags: i32,
         _lock: Option<u64>,
         reply: ReplyData,
     ) {
-        debug!("read is called");
-        let provider = self.provider.lock().unwrap();
-        if let Ok(content) = provider.read(ino) {
-            reply.data(&content[offset as usize..])
-        } else {
-            reply.error(ENOENT);
+        let content = self.fs_interface.read_file(
+            ino,
+            offset.try_into().expect("fuse_impl::read offset negative"),
+            size.try_into().expect("fuse_impl::read size too large"),
+        );
+
+        match content {
+            Ok(content) => reply.data(&content),
+            Err(_) => reply.error(ENOENT),
         }
     }
 
