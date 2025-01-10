@@ -129,6 +129,20 @@ impl FsInterface {
             len,
         )
     }
+
+    pub fn read_dir(&self, ino: InodeId) -> io::Result<Vec<&Inode>> {
+        let arbo = Arbo::read_lock(&self.arbo, "fs_interface.read_dir")?;
+        let dir = arbo.get_inode(ino)?;
+        
+        if let FsEntry::Directory(children) = &dir.entry {
+            Ok(children.iter().map(|entry| arbo.get_inode(*entry)?).collect())
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "read_dir: asked inode is not a dir",
+            ))
+        }
+    } 
     // !SECTION
 
     // SECTION - remote -> write
