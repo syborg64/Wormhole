@@ -239,13 +239,13 @@ impl Filesystem for FuseController {
         _flags: u32,
         reply: fuser::ReplyEmpty,
     ) {
-        // comment sont gérés les dossiers et sous fichiers ?
-        let mut provider = self.provider.lock().unwrap();
-        if let Some(()) = provider.rename(parent, name, newparent, newname) {
-            reply.ok()
-        } else {
-            reply.error(ENOENT)
-        }
+        reply.error(ENOENT)
+        // let mut provider = self.provider.lock().unwrap();
+        // if let Some(()) = provider.rename(parent, name, newparent, newname) {
+        //     reply.ok()
+        // } else {
+        //     reply.error(ENOENT)
+        // }
     }
 
     fn write(
