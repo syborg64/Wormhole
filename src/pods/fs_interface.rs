@@ -71,6 +71,28 @@ impl FsInterface {
         Ok((new_inode_id, new_inode))
     }
 
+    pub fn remove_inode(&self, id: InodeId) -> io::Result<()> {
+        let to_remove_path: WhPath = if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
+            arbo.get_path_from_inode_id(id)?
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::Interrupted,
+                "mkfile: can't read lock arbo's RwLock",
+            ));
+        };
+
+        match self.disk.remove_file(&to_remove_path) {
+            Ok(_) => (),
+            Err(e) => {
+                return Err(e);
+            }
+        };
+
+        self.network_interface.unregister_file(id)?;
+
+        Ok(())
+    }
+
     // !SECTION
 
     // SECTION - local -> read
@@ -145,28 +167,6 @@ impl FsInterface {
         self.network_interface.resolve_pull(id, status);
     }
 
-    pub fn remove_inode(&self, id: InodeId) -> io::Result<()> {
-        let to_remove_path: WhPath = if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
-            arbo.get_path_from_inode_id(id)?
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::Interrupted,
-                "mkfile: can't read lock arbo's RwLock",
-            ));
-        };
-
-        match self.disk.remove_file(&to_remove_path) {
-            Ok(_) => (),
-            Err(e) => {
-                return Err(e);
-            }
-        };
-
-        self.network_interface.unregister_file(id)?;
-
-        Ok(())
-    }
-
     pub fn recept_remove_inode(&self, id: InodeId) -> io::Result<()> {
         let to_remove_path: WhPath = if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
             arbo.get_path_from_inode_id(id)?
@@ -177,6 +177,7 @@ impl FsInterface {
             ));
         };
 
+        // REVIEW - should be ok that file is not on disk
         match self.disk.remove_file(&to_remove_path) {
             Ok(_) => (),
             Err(e) => {
