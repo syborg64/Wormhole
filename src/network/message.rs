@@ -19,6 +19,7 @@ pub enum MessageContent {
     PullAnswer(InodeId, Vec<u8>),
     Write(InodeId, Vec<u8>),
     RequestFs,
+    EditHosts(InodeId, Vec<Address>),
     FileStructure(FileSystemSerialized),
 }
 

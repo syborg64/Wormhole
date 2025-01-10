@@ -25,7 +25,7 @@ pub enum Callback {
 
 pub struct NetworkInterface {
     pub arbo: Arc<RwLock<Arbo>>,
-    pub mount_point: WhPath, // TODO - replace by Ludo's unipath
+    pub mount_point: WhPath,
     pub to_network_message_tx: UnboundedSender<ToNetworkMessage>,
     pub next_inode: Mutex<InodeId>, // TODO - replace with InodeIndex type
     pub callbacks: RwLock<HashMap<Callback, UnboundedSender<bool>>>,
@@ -180,6 +180,9 @@ impl NetworkInterface {
         Ok(removed_inode)
     }
 
+    pub fn acknowledge_hosts_edition(&self, id: InodeId, hosts: Vec<Address>) {
+        
+    }
     // REVIEW - recheck and simplify this if possible
     pub fn pull_file(&self, file: InodeId) -> io::Result<UnboundedReceiver<bool>> {
         if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
@@ -198,7 +201,9 @@ impl NetworkInterface {
                     ))
                     .expect("pull_file: unable to request on the network thread");
                 if let Some(mut waiting_dl) = self.callbacks.try_write_for(LOCK_TIMEOUT) {
-                    if let Some(old_callback_tx) = waiting_dl.insert(Callback::Pull(file), callback_tx) {
+                    if let Some(old_callback_tx) =
+                        waiting_dl.insert(Callback::Pull(file), callback_tx)
+                    {
                         old_callback_tx.send(false); // TODO - actually the old callback is droped on fail. not optimal
                     }
                     Ok(callback_rx)
@@ -234,8 +239,19 @@ impl NetworkInterface {
     }
 
     pub fn revoke_remote_hosts(&self, id: InodeId) -> io::Result<()> {
-        
+        self.to_network_message_tx
+            .send(ToNetworkMessage::BroadcastMessage(
+                MessageContent::EditHosts(id, vec![self.self_addr.clone()]),
+            ))
+            .expect("revoke_remote_hosts: unable to update modification on the network thread");
         Ok(())
+        /* REVIEW
+        * This system (and others broadcasts systems) should be reviewed as they don't check success.
+        * In this case, if another host misses this order, it will not update it's file.
+        * We could create a "broadcast" callback with the number of awaited confirmations and a timeout
+        * before resend or fail declaration.
+        * Or send a bunch of Specific messages
+        */
     }
 
     async fn network_airport(
@@ -257,6 +273,9 @@ impl NetworkInterface {
                 }
                 MessageContent::Inode(inode, id) => {
                     fs_interface.recept_inode(inode, id);
+                }
+                MessageContent::EditHosts(id, hosts ) => {
+                    fs_interface.recept_edit_hosts(id, hosts);
                 }
                 MessageContent::Remove(ino) => {
                     todo!();

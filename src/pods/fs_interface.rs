@@ -1,3 +1,5 @@
+use crate::network::message::Address;
+
 use super::whpath::WhPath;
 use super::{
     arbo::{Arbo, FsEntry, Inode, InodeId, LOCK_TIMEOUT},
@@ -12,6 +14,7 @@ pub struct FsInterface {
     pub network_interface: Arc<NetworkInterface>,
     pub disk: DiskManager,
     pub arbo: Arc<RwLock<Arbo>>, // here only to read, as most write are made by network_interface
+    // REVIEW - check self.arbo usage to be only reading
 }
 
 pub enum SimpleFileType {
@@ -216,6 +219,9 @@ impl FsInterface {
         Ok(())
     }
 
+    pub fn recept_edit_hosts(&self, id: InodeId, hosts: Vec<Address>) {
+        self.network_interface.acknowledge_hosts_edition(id, hosts);
+    }
     // !SECTION
 
     // SECTION - Adapters
