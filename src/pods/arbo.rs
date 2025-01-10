@@ -1,7 +1,7 @@
 use crate::network::message::Address;
 use fuser::FileType;
 use openat::AsPath;
-use parking_lot::{RwLock, RwLockReadGuard};
+use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs, io, sync::Arc, time::Duration};
 
@@ -117,6 +117,18 @@ impl Arbo {
             Err(io::Error::new(
                 io::ErrorKind::WouldBlock,
                 format!("{}: unable to read_lock arbo", called_from),
+            ))
+        }
+    }
+
+    #[must_use]
+    pub fn write_lock<'a>(arbo: &'a Arc<RwLock<Arbo>>, called_from: &'a str) -> io::Result<RwLockWriteGuard<'a, Arbo>> {
+        if let Some(arbo) = arbo.try_write_for(LOCK_TIMEOUT) {
+            Ok(arbo)
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::WouldBlock,
+                format!("{}: unable to write_lock arbo", called_from),
             ))
         }
     }
