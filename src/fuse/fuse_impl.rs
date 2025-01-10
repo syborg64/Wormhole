@@ -131,27 +131,27 @@ impl Filesystem for FuseController {
         offset: i64,
         mut reply: ReplyDirectory,
     ) {
-        println!("readdir is called for ino {}", ino);
-        let provider = self.provider.lock().unwrap();
-        if let Ok(entries) = provider.fs_readdir(ino) {
-            println!("....listing entries {:?}", entries);
-            for (i, (ino, entry)) in entries.into_iter().enumerate().skip(offset as usize) {
-                println!("....readdir entries : {:?}", entry);
-                // i + 1 means the index of the next entry
-                if reply.add(
-                    ino,
-                    (i + 1) as i64,
-                    entry.get_filetype(),
-                    entry.get_name().unwrap(),
-                ) {
-                    break;
-                }
-            }
-            reply.ok()
+        let entries = if let Ok(entries) = self.fs_interface.read_dir(ino) {
+            entries
         } else {
-            println!("/!\\ readdir EONENT ");
-            reply.error(ENOENT)
+            reply.error(ENOENT);
+            return;
+        };
+
+        let mut i = offset;
+        for entry in entries.into_iter().skip(offset as usize) {
+            println!("....readdir entries : {:?}", entry);
+            if reply.add(
+                ino,
+                (i) as i64, // NOTE - in case of error, try i + 1
+                entry.entry.get_filetype(),
+                entry.name,
+            ) {
+                break;
+            }
+            i += 1;
         }
+        reply.ok();
     }
 
     // ^ READING
