@@ -180,6 +180,7 @@ impl NetworkInterface {
         Ok(removed_inode)
     }
 
+    // REVIEW - recheck and simplify this if possible
     pub fn pull_file(&self, file: InodeId) -> io::Result<UnboundedReceiver<bool>> {
         if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
             if let FsEntry::File(hosts) = &arbo.get_inode(file)?.entry {
@@ -230,6 +231,11 @@ impl NetworkInterface {
         {
             callback_tx.send(status);
         }
+    }
+
+    pub fn revoke_remote_hosts(&self, id: InodeId) -> io::Result<()> {
+        
+        Ok(())
     }
 
     async fn network_airport(

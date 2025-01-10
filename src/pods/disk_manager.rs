@@ -29,10 +29,10 @@ impl DiskManager {
         self.handle.remove_file(path)
     }
 
-    pub fn write_file(&self, path: &WhPath, binary: Vec<u8>) -> io::Result<()> {
+    pub fn write_file(&self, path: &WhPath, binary: Vec<u8>, offset: u64) -> io::Result<u64> {
         let path = self.mount_point.join(path);
-        let mut file = self.handle.write_file(path, 0o600)?;
-        file.write_all(&binary)
+        let file = self.handle.write_file(path, 0o600)?;
+        Ok(file.write_at(&binary, offset)? as u64) // NOTE - used "as" because into() is not supported
     }
 
     pub fn read_file(&self, path: &WhPath, offset: u64, len: u64) -> io::Result<Vec<u8>> {
