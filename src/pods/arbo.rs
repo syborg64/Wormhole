@@ -303,7 +303,7 @@ fn index_folder_recursive(
     ino: &mut InodeId,
     path: &WhPath,
 ) -> io::Result<()> {
-    fs::read_dir(path.to_string())?.map(|entry| {
+    for entry in fs::read_dir(path.to_string())? {
         let entry = entry.expect("error in filesystem indexion (1)");
         let ftype = entry.file_type().expect("error in filesystem indexion (2)");
         let fname = entry.file_name().to_string_lossy().to_string();
@@ -317,14 +317,14 @@ fn index_folder_recursive(
             } else {
                 FsEntry::Directory(Vec::new())
             },
-        ));
+        ))?;
         *ino += 1;
 
         if ftype.is_dir() {
             index_folder_recursive(arbo, *ino - 1, ino, &path.join(&fname))
                 .expect("error in filesystem indexion (1)");
         };
-    });
+    };
     Ok(())
 }
 
@@ -337,7 +337,7 @@ pub fn index_folder(path: &WhPath) -> io::Result<(Arbo, InodeId)> {
         1,
         1,
         FsEntry::Directory(Vec::new()),
-    ));
+    ))?;
     index_folder_recursive(&mut arbo, 1, &mut ino, path)?;
     Ok((arbo, ino))
 }
