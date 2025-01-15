@@ -16,7 +16,7 @@ impl DiskManager {
     pub fn new(mount_point: WhPath) -> io::Result<Self> {
         debug!("DiskManager opening dir at {}", mount_point);
         Ok(Self {
-            handle: Dir::open("./test")?,
+            handle: Dir::open(mount_point.clone())?,
             mount_point,
         })
     }
