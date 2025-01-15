@@ -280,6 +280,19 @@ impl Arbo {
 
         Ok(actual_inode)
     }
+
+    pub fn set_inode_hosts(&mut self, ino: InodeId, hosts: Vec<Address>) -> io::Result<()> {
+        let inode = self.get_inode_mut(ino)?;
+
+        inode.entry = match &inode.entry {
+            FsEntry::File(_) => FsEntry::File(hosts),
+            _ => return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "can't edit hosts on folder",
+            )),
+        };
+        Ok(())
+    }
 }
 
 // !SECTION
