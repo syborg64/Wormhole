@@ -180,9 +180,12 @@ impl NetworkInterface {
         Ok(removed_inode)
     }
 
-    pub fn acknowledge_hosts_edition(&self, id: InodeId, hosts: Vec<Address>) {
-        
+    pub fn acknowledge_hosts_edition(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
+        let mut arbo = Arbo::write_lock(&self.arbo, "acknowledge_hosts_edition")?;
+
+        arbo.set_inode_hosts(id, hosts) // TODO - if unable to update for some reason, should be passed to the background worker
     }
+
     // REVIEW - recheck and simplify this if possible
     pub fn pull_file(&self, file: InodeId) -> io::Result<UnboundedReceiver<bool>> {
         if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
@@ -246,12 +249,12 @@ impl NetworkInterface {
             .expect("revoke_remote_hosts: unable to update modification on the network thread");
         Ok(())
         /* REVIEW
-        * This system (and others broadcasts systems) should be reviewed as they don't check success.
-        * In this case, if another host misses this order, it will not update it's file.
-        * We could create a "broadcast" callback with the number of awaited confirmations and a timeout
-        * before resend or fail declaration.
-        * Or send a bunch of Specific messages
-        */
+         * This system (and others broadcasts systems) should be reviewed as they don't check success.
+         * In this case, if another host misses this order, it will not update it's file.
+         * We could create a "broadcast" callback with the number of awaited confirmations and a timeout
+         * before resend or fail declaration.
+         * Or send a bunch of Specific messages
+         */
     }
 
     async fn network_airport(
@@ -274,7 +277,7 @@ impl NetworkInterface {
                 MessageContent::Inode(inode, id) => {
                     fs_interface.recept_inode(inode, id);
                 }
-                MessageContent::EditHosts(id, hosts ) => {
+                MessageContent::EditHosts(id, hosts) => {
                     fs_interface.recept_edit_hosts(id, hosts);
                 }
                 MessageContent::Remove(ino) => {
