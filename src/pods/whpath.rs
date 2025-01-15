@@ -74,7 +74,7 @@ impl fmt::Display for PathType {
 
 impl fmt::Display for WhPath {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}: {}", self.kind, self.inner)
+        write!(f, "{}", self.inner)
     }
 }
 
@@ -91,7 +91,6 @@ where
         wh_path
     }
 }
-
 
 impl WhPath {
     pub fn new() -> Self {

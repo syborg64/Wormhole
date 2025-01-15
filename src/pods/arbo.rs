@@ -1,5 +1,6 @@
 use crate::network::message::Address;
 use fuser::FileType;
+use log::debug;
 use openat::AsPath;
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use serde::{Deserialize, Serialize};
@@ -144,18 +145,13 @@ impl Arbo {
         if self.entries.contains_key(&ino) {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "file already existing",
-            ))
-        } else if !self.entries.contains_key(&parent_ino) {
-            Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                "parent not existing",
+                "add_inode_from_parameters: file already existing",
             ))
         } else {
             match self.entries.get_mut(&parent_ino) {
                 None => Err(io::Error::new(
                     io::ErrorKind::NotFound,
-                    "parent not existing",
+                    "add_inode_from_parameters: parent not existing",
                 )),
                 Some(Inode {
                     parent: _,
@@ -303,7 +299,9 @@ fn index_folder_recursive(
     ino: &mut InodeId,
     path: &WhPath,
 ) -> io::Result<()> {
-    for entry in fs::read_dir(path.to_string())? {
+    let str_path = path.to_string();
+    debug!("reading dir on path ```{}```", str_path);
+    for entry in fs::read_dir(str_path)? {
         let entry = entry.expect("error in filesystem indexion (1)");
         let ftype = entry.file_type().expect("error in filesystem indexion (2)");
         let fname = entry.file_name().to_string_lossy().to_string();
@@ -332,12 +330,6 @@ pub fn index_folder(path: &WhPath) -> io::Result<(Arbo, InodeId)> {
     let mut arbo = Arbo::new();
     let mut ino: u64 = 2;
 
-    arbo.add_inode(Inode::new(
-        "".to_owned(),
-        1,
-        1,
-        FsEntry::Directory(Vec::new()),
-    ))?;
     index_folder_recursive(&mut arbo, 1, &mut ino, path)?;
     Ok((arbo, ino))
 }
