@@ -1,5 +1,6 @@
 use std::{fs::File, io::Write, os::unix::fs::FileExt};
 
+use log::debug;
 use openat::Dir;
 use tokio::io;
 
@@ -13,8 +14,9 @@ pub struct DiskManager {
 /// always takes a WhPath and infers the real disk path
 impl DiskManager {
     pub fn new(mount_point: WhPath) -> io::Result<Self> {
+        debug!("DiskManager opening dir at {}", mount_point);
         Ok(Self {
-            handle: Dir::open(mount_point.clone())?,
+            handle: Dir::open("./test")?,
             mount_point,
         })
     }

@@ -305,6 +305,7 @@ fn index_folder_recursive(
         let entry = entry.expect("error in filesystem indexion (1)");
         let ftype = entry.file_type().expect("error in filesystem indexion (2)");
         let fname = entry.file_name().to_string_lossy().to_string();
+        debug!("indexing {}", fname);
 
         arbo.add_inode(Inode::new(
             fname.clone(),
@@ -328,8 +329,8 @@ fn index_folder_recursive(
 
 pub fn index_folder(path: &WhPath) -> io::Result<(Arbo, InodeId)> {
     let mut arbo = Arbo::new();
-    let mut ino: u64 = 2;
+    let mut ino: u64 = 1;
 
-    index_folder_recursive(&mut arbo, 1, &mut ino, path)?;
+    index_folder_recursive(&mut arbo, 0, &mut ino, path)?;
     Ok((arbo, ino))
 }
