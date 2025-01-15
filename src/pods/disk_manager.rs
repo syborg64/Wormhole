@@ -29,6 +29,11 @@ impl DiskManager {
         self.handle.remove_file(path)
     }
 
+    pub fn remove_dir(&self, path: &WhPath) -> io::Result<()> {
+        let path = self.mount_point.join(path);
+        self.handle.remove_dir(path)
+    }
+
     pub fn write_file(&self, path: &WhPath, binary: Vec<u8>, offset: u64) -> io::Result<u64> {
         let path = self.mount_point.join(path);
         let file = self.handle.write_file(path, 0o600)?;

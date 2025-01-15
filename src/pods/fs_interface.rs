@@ -75,17 +75,27 @@ impl FsInterface {
     }
 
     pub fn remove_inode(&self, id: InodeId) -> io::Result<()> {
-        let to_remove_path = {
+        let (to_remove_path, entry) = {
             let arbo = Arbo::read_lock(&self.arbo, "fs_interface::remove_inode")?;
-            arbo.get_path_from_inode_id(id)?
+            (
+                arbo.get_path_from_inode_id(id)?,
+                arbo.get_inode(id)?.entry.clone(),
+            )
         };
 
-        match self.disk.remove_file(&to_remove_path) {
-            Ok(_) => (),
-            Err(e) => {
-                return Err(e);
+        match entry {
+            FsEntry::File(_) => self.disk.remove_file(&to_remove_path),
+            FsEntry::Directory(children) => {
+                if children.is_empty() {
+                    self.disk.remove_dir(&to_remove_path)
+                } else {
+                    Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "remove_inode: can't remove non-empty dir",
+                    ))
+                }
             }
-        };
+        }?;
 
         self.network_interface.unregister_file(id)?;
 
