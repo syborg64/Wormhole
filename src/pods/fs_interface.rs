@@ -99,9 +99,8 @@ impl FsInterface {
     pub fn write(&self, id: InodeId, data: Vec<u8>, offset: u64) -> io::Result<u64> {
         let arbo = Arbo::read_lock(&self.arbo, "fs_interface.write")?;
         let written = self.disk.write_file(&arbo.get_path_from_inode_id(id)?, data, offset)?;
-        // REVIEW - above error handling should be reviewed, to be sure that a write can't be half done (would cause desync between local and remote)
 
-        // TODO - cancel ownership
+        self.network_interface.revoke_remote_hosts(id)?; // TODO - manage this error to prevent remote/local desync
         Ok(written)
     }
     // !SECTION

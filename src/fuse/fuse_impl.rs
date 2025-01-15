@@ -239,13 +239,13 @@ impl Filesystem for FuseController {
         _flags: u32,
         reply: fuser::ReplyEmpty,
     ) {
-        reply.error(ENOENT)
-        // let mut provider = self.provider.lock().unwrap();
-        // if let Some(()) = provider.rename(parent, name, newparent, newname) {
-        //     reply.ok()
-        // } else {
-        //     reply.error(ENOENT)
-        // }
+        reply.error(ENOENT) // TODO
+                            // let mut provider = self.provider.lock().unwrap();
+                            // if let Some(()) = provider.rename(parent, name, newparent, newname) {
+                            //     reply.ok()
+                            // } else {
+                            //     reply.error(ENOENT)
+                            // }
     }
 
     fn write(
@@ -260,9 +260,16 @@ impl Filesystem for FuseController {
         _lock_owner: Option<u64>,
         reply: fuser::ReplyWrite,
     ) {
-        let provider = self.provider.lock().unwrap();
-        if let Ok(written) = provider.write(ino, offset, data) {
-            reply.written(written)
+        let offset = offset
+            .try_into()
+            .expect("fuser write: can't convert i64 to u64");
+
+        if let Ok(written) = self.fs_interface.write(ino, data.to_vec(), offset) {
+            reply.written(
+                written
+                    .try_into()
+                    .expect("fuser write: can't convert u64 to u32"),
+            )
         } else {
             reply.error(ENOENT)
         }
