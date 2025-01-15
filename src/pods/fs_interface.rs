@@ -14,7 +14,7 @@ pub struct FsInterface {
     pub network_interface: Arc<NetworkInterface>,
     pub disk: DiskManager,
     pub arbo: Arc<RwLock<Arbo>>, // here only to read, as most write are made by network_interface
-    // REVIEW - check self.arbo usage to be only reading
+                                 // REVIEW - check self.arbo usage to be only reading
 }
 
 pub enum SimpleFileType {
@@ -93,8 +93,11 @@ impl FsInterface {
     }
 
     pub fn write(&self, id: InodeId, data: Vec<u8>, offset: u64) -> io::Result<u64> {
-        let arbo = Arbo::read_lock(&self.arbo, "fs_interface.write")?;
-        let written = self.disk.write_file(&arbo.get_path_from_inode_id(id)?, data, offset)?;
+        let written = {
+            let arbo = Arbo::read_lock(&self.arbo, "fs_interface.write")?;
+            self.disk
+                .write_file(&arbo.get_path_from_inode_id(id)?, data, offset)?
+        };
 
         self.network_interface.revoke_remote_hosts(id)?; // TODO - manage this error to prevent remote/local desync
         Ok(written)
@@ -104,15 +107,9 @@ impl FsInterface {
     // SECTION - local -> read
 
     pub fn get_entry_from_name(&self, parent: InodeId, name: String) -> io::Result<Inode> {
-        if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
-            arbo.get_inode_child_by_name(arbo.get_inode(parent)?, &name)
-                .cloned()
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::Interrupted,
-                "lookup: can't read lock arbo's RwLock",
-            ))
-        }
+        let arbo = Arbo::read_lock(&self.arbo, "fs_interface.get_entry_from_name")?;
+        arbo.get_inode_child_by_name(arbo.get_inode(parent)?, &name)
+            .cloned()
     }
 
     pub fn read_file(&self, file: InodeId, offset: u64, len: u64) -> io::Result<Vec<u8>> {
@@ -144,7 +141,7 @@ impl FsInterface {
         if let FsEntry::Directory(children) = &dir.entry {
             for entry in children {
                 entries.push(arbo.get_inode(*entry)?.clone());
-            };
+            }
             Ok(entries)
         } else {
             Err(io::Error::new(
@@ -159,13 +156,9 @@ impl FsInterface {
     pub fn recept_inode(&self, inode: Inode, id: InodeId) -> io::Result<()> {
         self.network_interface.acknowledge_new_file(inode, id)?;
 
-        let new_path: WhPath = if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
+        let new_path = {
+            let arbo = Arbo::read_lock(&self.arbo, "fs_interface.write")?;
             arbo.get_path_from_inode_id(id)?
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::Interrupted,
-                "mkfile: can't read lock arbo's RwLock",
-            ));
         };
 
         match self.disk.new_file(&new_path) {
@@ -179,26 +172,23 @@ impl FsInterface {
     }
 
     pub fn recept_binary(&self, id: InodeId, binary: Vec<u8>) {
-        let arbo = Arbo::read_lock(&self.arbo, "recept_binary")
-            .expect("recept_binary: can't read lock arbo");
+        let path = {
+            let arbo = Arbo::read_lock(&self.arbo, "recept_binary")
+                .expect("recept_binary: can't read lock arbo");
 
-        let path = match arbo.get_path_from_inode_id(id) {
-            Ok(path) => path,
-            Err(_) => return self.network_interface.resolve_pull(id, false),
+            match arbo.get_path_from_inode_id(id) {
+                Ok(path) => path,
+                Err(_) => return self.network_interface.resolve_pull(id, false),
+            }
         };
-
         let status = self.disk.write_file(&path, binary, 0).is_ok();
         self.network_interface.resolve_pull(id, status);
     }
 
     pub fn recept_remove_inode(&self, id: InodeId) -> io::Result<()> {
-        let to_remove_path: WhPath = if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
+        let to_remove_path = {
+            let arbo = Arbo::read_lock(&self.arbo, "cecept_remove_inode")?;
             arbo.get_path_from_inode_id(id)?
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::Interrupted,
-                "mkfile: can't read lock arbo's RwLock",
-            ));
         };
 
         // REVIEW - should be ok that file is not on disk
@@ -223,16 +213,13 @@ impl FsInterface {
     // NOTE - system specific (fuse/winfsp) code that need access to arbo or other classes
 
     pub fn fuse_remove_inode(&self, parent: InodeId, name: &std::ffi::OsStr) -> io::Result<()> {
-        let target = if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
+        let target = {
+            let arbo = Arbo::read_lock(&self.arbo, "fs_interface::fuse_remove_inode")?;
             let parent = arbo.get_inode(parent)?;
             arbo.get_inode_child_by_name(parent, &name.to_string_lossy().to_string())?
                 .id
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::Interrupted,
-                "mkfile: can't read lock arbo's RwLock",
-            ));
         };
+
         self.remove_inode(target)
     }
 
