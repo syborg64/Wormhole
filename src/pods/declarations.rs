@@ -2,6 +2,7 @@ use std::{io, sync::Arc};
 
 use parking_lot::RwLock;
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 
 use crate::{
     fuse::fuse_impl::mount_fuse,
@@ -26,6 +27,9 @@ pub struct Pod {
     peers: Vec<PeerIPC>,
     pod_conf: PodConfig,
     fuse_handle: fuser::BackgroundSession,
+    network_airport_handle: Option<JoinHandle<()>>,
+    peer_broadcast_handle: Option<JoinHandle<()>>,
+    new_peer_handle: Option<JoinHandle<()>>,
 }
 
 impl Pod {
@@ -41,7 +45,7 @@ impl Pod {
         let (to_network_message_tx, to_network_message_rx) = mpsc::unbounded_channel();
         let (from_network_message_tx, from_network_message_rx) = mpsc::unbounded_channel();
 
-        let mut network_interface = Arc::new(NetworkInterface::new(
+        let network_interface = Arc::new(NetworkInterface::new(
             arbo.clone(),
             mount_point.clone(),
             to_network_message_tx,
@@ -57,22 +61,19 @@ impl Pod {
             arbo.clone(),
         ));
 
-        let mut_nwi =
-            Arc::get_mut(&mut network_interface).expect("error in declarations.rs (arc)");
-        /* NOTE
-            If the Arc::get_mut does not work, the best options is probably to use Arc::get_mut_unchecked
-            in an unsafe block.
-            If not unsafe block are allowed, then we must use a mutex for the whole lifetime of network_interface
-            even though this will never be mutated again
-        */
-
-        mut_nwi.start_network_airport(
-            fs_interface.clone(),
+        let network_airport_handle = Some(tokio::spawn(NetworkInterface::network_airport(
             from_network_message_rx,
-            from_network_message_tx.clone(),
+            fs_interface.clone(),
+        )));
+        let peer_broadcast_handle = Some(tokio::spawn(NetworkInterface::contact_peers(
+            network_interface.peers.clone(),
             to_network_message_rx,
+        )));
+        let new_peer_handle = Some(tokio::spawn(NetworkInterface::incoming_connections_watchdog(
             server,
-        );
+            from_network_message_tx.clone(),
+            network_interface.peers.clone(),
+        )));
 
         Ok(Self {
             network_interface,
@@ -81,6 +82,9 @@ impl Pod {
             peers: PeerIPC::peer_startup(peers, from_network_message_tx).await,
             pod_conf: config,
             fuse_handle: mount_fuse(&mount_point, fs_interface.clone())?,
+            network_airport_handle,
+            peer_broadcast_handle,
+            new_peer_handle,
         })
     }
 }
