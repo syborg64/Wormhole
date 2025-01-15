@@ -75,8 +75,10 @@ impl FsInterface {
     }
 
     pub fn remove_inode(&self, id: InodeId) -> io::Result<()> {
-        let arbo = Arbo::read_lock(&self.arbo, "fs_interface::remove_inode")?;
-        let to_remove_path = arbo.get_path_from_inode_id(id)?;
+        let to_remove_path = {
+            let arbo = Arbo::read_lock(&self.arbo, "fs_interface::remove_inode")?;
+            arbo.get_path_from_inode_id(id)?
+        };
 
         match self.disk.remove_file(&to_remove_path) {
             Ok(_) => (),
