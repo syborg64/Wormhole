@@ -75,14 +75,8 @@ impl FsInterface {
     }
 
     pub fn remove_inode(&self, id: InodeId) -> io::Result<()> {
-        let to_remove_path: WhPath = if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
-            arbo.get_path_from_inode_id(id)?
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::Interrupted,
-                "mkfile: can't read lock arbo's RwLock",
-            ));
-        };
+        let arbo = Arbo::read_lock(&self.arbo, "fs_interface::remove_inode")?;
+        let to_remove_path = arbo.get_path_from_inode_id(id)?;
 
         match self.disk.remove_file(&to_remove_path) {
             Ok(_) => (),
