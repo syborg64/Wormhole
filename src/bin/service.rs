@@ -17,20 +17,9 @@
  *  reads a message (supposely emitted by a peer) related to files actions
  *  and execute instructions on the disk
  */
-use std::{
-    env,
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
+use std::{env, path::PathBuf, sync::Arc};
 
-use tokio::sync::mpsc::{self};
-
-use wormhole::network::{
-    peers_operations::{contact_peers, peer_startup},
-    request_filesystem::request_filesystem,
-    watchdogs::{incoming_connections_watchdog, local_cli_watchdog, network_file_actions},
-};
-use wormhole::{fuse::fuse_impl::mount_fuse, network::peer_ipc::PeerIPC};
+use wormhole::pods::whpath::WhPath;
 use wormhole::{network::server::Server, pods::declarations::Pod};
 
 #[tokio::main]
@@ -58,18 +47,41 @@ async fn main() {
 
     let server = Arc::new(Server::setup(&own_addr).await);
 
-    pods.push(Pod::new(
-        mount,
-        1,
-        vec![other_addr1, other_addr2],
-        server.clone(),
-    ));
+    pods.push(
+        Pod::new(
+            WhPath::from(mount.as_path()),
+            1,
+            vec![other_addr1, other_addr2],
+            server.clone(),
+            own_addr,
+        )
+        .await
+        .expect("failed to create the pod"),
+    );
 
     let local_cli_handle = tokio::spawn(local_cli_watchdog());
     println!("started");
     local_cli_handle.await.unwrap(); // keeps the main process alive until interruption from this watchdog;
     println!("stopping");
+}
 
+// NOTE - old watchdog brought here for debug purposes
+pub async fn local_cli_watchdog() {
+    let mut stdin = tokio::io::stdin();
+    let mut buf = vec![0; 1024];
+
+    loop {
+        let read = tokio::io::AsyncReadExt::read(&mut stdin, &mut buf).await;
+
+        // NOTE -  on ctrl-D -> quit
+        match read {
+            Err(_) | Ok(0) => {
+                println!("Quiting!");
+                break;
+            }
+            _ => (),
+        };
+    }
 }
 
 /*

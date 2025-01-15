@@ -1,4 +1,5 @@
 use std::ffi::{CString, OsStr};
+use std::path::PathBuf;
 use std::{fmt, path::Path};
 
 use openat::AsPath;
@@ -90,6 +91,7 @@ where
         wh_path
     }
 }
+
 
 impl WhPath {
     pub fn new() -> Self {
