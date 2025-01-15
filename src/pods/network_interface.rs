@@ -1,10 +1,7 @@
 use std::{collections::HashMap, io, sync::Arc};
 
 use parking_lot::{Mutex, RwLock};
-use tokio::{
-    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
-    task::JoinHandle,
-};
+use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
 use super::{arbo::FsEntry, whpath::WhPath};
 use crate::network::{
@@ -29,10 +26,7 @@ pub struct NetworkInterface {
     pub to_network_message_tx: UnboundedSender<ToNetworkMessage>,
     pub next_inode: Mutex<InodeId>, // TODO - replace with InodeIndex type
     pub callbacks: RwLock<HashMap<Callback, UnboundedSender<bool>>>,
-    network_airport_handle: Option<JoinHandle<()>>,
-    peer_broadcast_handle: Option<JoinHandle<()>>,
-    new_peer_handle: Option<JoinHandle<()>>,
-    peers: Arc<RwLock<Vec<PeerIPC>>>,
+    pub peers: Arc<RwLock<Vec<PeerIPC>>>,
     self_addr: Address,
 }
 
@@ -52,35 +46,9 @@ impl NetworkInterface {
             to_network_message_tx,
             next_inode,
             callbacks: RwLock::new(HashMap::new()),
-            network_airport_handle: None,
-            peer_broadcast_handle: None,
-            new_peer_handle: None,
             peers: Arc::new(RwLock::new(vec![])),
             self_addr,
         }
-    }
-
-    pub fn start_network_airport(
-        &mut self,
-        fs_interface: Arc<FsInterface>,
-        from_network_message_rx: UnboundedReceiver<FromNetworkMessage>,
-        from_network_message_tx: UnboundedSender<FromNetworkMessage>,
-        to_network_message_rx: UnboundedReceiver<ToNetworkMessage>,
-        server: Arc<Server>,
-    ) {
-        self.network_airport_handle = Some(tokio::spawn(Self::network_airport(
-            from_network_message_rx,
-            fs_interface,
-        )));
-        self.peer_broadcast_handle = Some(tokio::spawn(Self::contact_peers(
-            self.peers.clone(),
-            to_network_message_rx,
-        )));
-        self.new_peer_handle = Some(tokio::spawn(Self::incoming_connections_watchdog(
-            server,
-            from_network_message_tx.clone(),
-            self.peers.clone(),
-        )));
     }
 
     pub fn get_next_inode(&self) -> io::Result<u64> {
@@ -254,7 +222,7 @@ impl NetworkInterface {
         */
     }
 
-    async fn network_airport(
+    pub async fn network_airport(
         mut network_reception: UnboundedReceiver<FromNetworkMessage>,
         fs_interface: Arc<FsInterface>,
     ) {
@@ -304,7 +272,7 @@ impl NetworkInterface {
         }
     }
 
-    async fn contact_peers(
+    pub async fn contact_peers(
         peers_list: Arc<RwLock<Vec<PeerIPC>>>,
         mut rx: UnboundedReceiver<ToNetworkMessage>,
     ) {
@@ -342,7 +310,7 @@ impl NetworkInterface {
         }
     }
 
-    async fn incoming_connections_watchdog(
+    pub async fn incoming_connections_watchdog(
         server: Arc<Server>,
         nfa_tx: UnboundedSender<FromNetworkMessage>,
         existing_peers: Arc<RwLock<Vec<PeerIPC>>>,
