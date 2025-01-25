@@ -9,28 +9,28 @@ use serde::{Deserialize, Serialize};
  * the section name is the same as the name of the value of your new struct in Metadata
  */
 
-pub trait Config : Sized {
+pub trait Config: Sized {
     #[must_use]
-    fn write<S:  AsRef<std::path::Path>>(&self, path: S) -> Result<(), Box<dyn std::error::Error>>;
+    fn write<S: AsRef<std::path::Path>>(&self, path: S) -> Result<(), Box<dyn std::error::Error>>;
     #[must_use]
     fn read<S: AsRef<std::path::Path>>(path: S) -> Result<Self, Box<dyn std::error::Error>>;
 }
 
 #[derive(Debug, Deserialize)]
 pub struct Metadata {
-    essential: EssentialConfig,
-    optional: Option<OptionalConfig>,
+    //essential: EssentialConfig,
+    //optional: Option<OptionalConfig>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct EssentialConfig {
-    name: String,
-    ip: String,
+    //name: String,
+    //ip: String,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct OptionalConfig {
-    redundancy: Option<bool>,
+    //redundancy: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
@@ -41,10 +41,7 @@ pub struct Network {
 
 impl Network {
     pub fn new(peers: Vec<String>, name: String) -> Self {
-        Self {
-            name,
-            peers,
-        }
+        Self { name, peers }
     }
 }
 

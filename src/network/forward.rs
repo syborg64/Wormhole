@@ -1,13 +1,14 @@
 use futures_util::SinkExt;
 use futures_util::{stream::SplitStream, Sink, StreamExt};
-use tokio::sync::mpsc::{Receiver, Sender};
 use std::fmt::Debug;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio_tungstenite::tungstenite::Message;
 
-use super::message::NetworkMessage;
+use crate::network::message::MessageContent;
 
-pub async fn forward_receiver_to_write<T>(mut write: T, rx: &mut UnboundedReceiver<NetworkMessage>)
+use super::message::FromNetworkMessage;
+
+pub async fn forward_receiver_to_write<T>(mut write: T, rx: &mut UnboundedReceiver<MessageContent>)
 where
     T: Sink<Message> + Unpin,
     <T as Sink<Message>>::Error: Debug,
@@ -22,33 +23,16 @@ pub async fn forward_read_to_sender<
     T: StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>,
 >(
     mut read: SplitStream<T>,
-    tx: UnboundedSender<NetworkMessage>,
+    tx: UnboundedSender<FromNetworkMessage>,
+    address: String,
 ) {
     while let Ok(Message::Binary(message)) = read.next().await.unwrap() {
-        let deserialized = bincode::deserialize(&message).unwrap();
-        tx.send(deserialized).unwrap();
-    }
-}
-
-pub async fn forward_receiver_to_write2<T>(mut write: T, rx: &mut Receiver<NetworkMessage>)
-where
-    T: Sink<Message> + Unpin,
-    <T as Sink<Message>>::Error: Debug,
-{
-    while let Some(message) = rx.recv().await {
-        let serialized = bincode::serialize(&message).unwrap();
-        write.send(Message::binary(serialized)).await.unwrap();
-    }
-}
-
-pub async fn forward_read_to_sender2<
-    T: StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>,
->(
-    mut read: SplitStream<T>,
-    tx: Sender<NetworkMessage>,
-) {
-    while let Ok(Message::Binary(message)) = read.next().await.unwrap() {
-        let deserialized = bincode::deserialize(&message).unwrap();
-        tx.send(deserialized).await.unwrap();
+        let deserialized: MessageContent = bincode::deserialize(&message).unwrap();
+        println!("message from network {:?}", deserialized);
+        tx.send(FromNetworkMessage {
+            origin: address.clone(),
+            content: deserialized,
+        })
+        .unwrap();
     }
 }

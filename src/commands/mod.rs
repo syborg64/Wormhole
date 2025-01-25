@@ -1,11 +1,11 @@
-mod join;
 mod init;
-mod remove;
+mod join;
 mod register;
+mod remove;
 mod unregister;
 
-pub use join::join;
 pub use init::init;
+pub use join::join;
 pub use register::register;
 pub use remove::remove;
 pub use remove::Mode;

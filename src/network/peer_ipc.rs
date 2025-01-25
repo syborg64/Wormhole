@@ -1,36 +1,91 @@
-use futures_util::StreamExt;
-use tokio::sync::mpsc;
+use futures_util::{
+    stream::{SplitSink, SplitStream},
+    StreamExt,
+};
+use tokio::{
+    net::TcpStream,
+    sync::mpsc::{self, UnboundedSender},
+};
+use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
-use crate::network::forward::{forward_read_to_sender2, forward_receiver_to_write2};
+use crate::network::forward::{forward_read_to_sender, forward_receiver_to_write};
 
-use super::message::NetworkMessage;
+use super::message::{FromNetworkMessage, MessageContent};
 
 pub struct PeerIPC {
     pub address: String,
     pub thread: tokio::task::JoinHandle<()>,
-    pub sender: mpsc::Sender<NetworkMessage>,
-    pub receiver: mpsc::Receiver<NetworkMessage>,
+    pub sender: mpsc::UnboundedSender<MessageContent>, // send a message to the peer
+                                                       // pub receiver: mpsc::Receiver<NetworkMessage>, // receive a message from the peer
 }
 
 impl PeerIPC {
-    pub async fn work(address: String, sender: mpsc::Sender<NetworkMessage>, mut receiver: mpsc::Receiver<NetworkMessage>) {
-        if let Ok((stream, _)) = tokio_tungstenite::connect_async(&address).await {
-            let (write, read) = stream.split();
-            tokio::join!(
-                forward_read_to_sender2(read, sender),
-                forward_receiver_to_write2(write, &mut receiver)
-            );
+    async fn work(
+        stream: WebSocketStream<MaybeTlsStream<TcpStream>>,
+        sender: mpsc::UnboundedSender<FromNetworkMessage>,
+        mut receiver: mpsc::UnboundedReceiver<MessageContent>,
+        address: String,
+    ) {
+        let (write, read) = stream.split();
+        tokio::join!(
+            forward_read_to_sender(read, sender, address),
+            forward_receiver_to_write(write, &mut receiver)
+        );
+    }
+
+    async fn work_from_incomming(
+        write: SplitSink<WebSocketStream<TcpStream>, Message>,
+        read: SplitStream<WebSocketStream<TcpStream>>,
+        sender: mpsc::UnboundedSender<FromNetworkMessage>,
+        mut receiver: mpsc::UnboundedReceiver<MessageContent>,
+        address: String,
+    ) {
+        tokio::join!(
+            forward_read_to_sender(read, sender, address),
+            forward_receiver_to_write(write, &mut receiver)
+        );
+    }
+
+    pub fn connect_from_incomming(
+        address: String,
+        on_recept: UnboundedSender<FromNetworkMessage>,
+        write: SplitSink<WebSocketStream<TcpStream>, Message>,
+        read: SplitStream<WebSocketStream<TcpStream>>,
+    ) -> Self {
+        let (peer_send, peer_recv) = mpsc::unbounded_channel();
+
+        Self {
+            thread: tokio::spawn(Self::work_from_incomming(
+                write,
+                read,
+                on_recept,
+                peer_recv,
+                address.clone(),
+            )),
+            address,
+            sender: peer_send,
         }
     }
 
-    pub fn connect(address: String) -> Self {
-        let (outbound_send, outbound_recv) = mpsc::channel(16);
-        let (inbound_send, inbound_recv) = mpsc::channel(16);
-        Self {
-            thread: tokio::spawn(Self::work(address.clone(), inbound_send, outbound_recv)),
+    pub async fn connect(
+        address: String,
+        nfa_tx: UnboundedSender<FromNetworkMessage>,
+    ) -> Option<Self> {
+        let (peer_send, peer_recv) = mpsc::unbounded_channel();
+
+        let thread = match tokio_tungstenite::connect_async(&address).await {
+            Ok((stream, _)) => tokio::spawn(Self::work(stream, nfa_tx, peer_recv, address.clone())),
+            Err(e) => {
+                println!("failed to connect to {}. Error: {}", address, e);
+                return None;
+            }
+        };
+        Some(Self {
+            thread,
             address,
-            sender: outbound_send,
-            receiver: inbound_recv,
-        }
+            sender: peer_send,
+            // receiver: inbound_recv,
+        })
     }
 }

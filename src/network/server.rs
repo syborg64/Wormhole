@@ -8,9 +8,9 @@ use tokio::{
     sync::mpsc::UnboundedReceiver,
 };
 
-use super::message::NetworkMessage;
+use super::message::ToNetworkMessage;
 
-pub type Tx = UnboundedReceiver<NetworkMessage>;
+pub type Tx = UnboundedReceiver<ToNetworkMessage>;
 pub type PeerMap = Arc<Mutex<HashMap<SocketAddr, Tx>>>;
 
 pub struct Server {
