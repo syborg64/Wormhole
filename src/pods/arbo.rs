@@ -320,8 +320,9 @@ fn index_folder_recursive(
         *ino += 1;
 
         if ftype.is_dir() {
+            debug!("ftype is dir: path `{}` and fname is `{}`", path, fname);
             index_folder_recursive(arbo, *ino - 1, ino, &path.join(&fname))
-                .expect("error in filesystem indexion (1)");
+                .expect("error in filesystem indexion (3)");
         };
     };
     Ok(())

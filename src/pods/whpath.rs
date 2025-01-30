@@ -122,7 +122,7 @@ impl WhPath {
 
         pth.add_last_slash();
         let seg = Self::remove_leading_slash(segment.as_str());
-        pth.inner = format!("{}{}", self.inner, seg);
+        pth.inner = format!("{}{}", pth.inner, seg);
         pth
     }
 

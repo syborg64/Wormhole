@@ -1,5 +1,6 @@
 use std::{collections::HashMap, io, sync::Arc};
 
+use log::debug;
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
@@ -319,6 +320,7 @@ impl NetworkInterface {
         existing_peers: Arc<RwLock<Vec<PeerIPC>>>,
     ) {
         while let Ok((stream, _)) = server.listener.accept().await {
+        debug!("new connection received by incoming_connections_watchdog");
             let ws_stream = tokio_tungstenite::accept_async(stream)
                 .await
                 .expect("Error during the websocket handshake occurred");
@@ -332,5 +334,6 @@ impl NetworkInterface {
                     .push(new_peer);
             }
         }
+        debug!("closing incoming_connections_watchdog");
     }
 }
