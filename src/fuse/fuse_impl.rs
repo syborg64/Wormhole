@@ -77,14 +77,22 @@ impl Filesystem for FuseController {
     // READING
 
     fn lookup(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEntry) {
+        debug!(
+            "called lookup: {} > {}",
+            parent,
+            name.to_string_lossy().to_string()
+        );
+        
         match self
             .fs_interface
             .get_entry_from_name(parent, name.to_string_lossy().to_string())
         {
             Ok(inode) => {
+                // debug!("yes entry for name {} - {}", parent, name.to_string_lossy().to_string());
                 reply.entry(&TTL, &inode_to_fuse_fileattr(inode), 0);
             }
             Err(_) => {
+                // debug!("no entry for name {} - {}", parent, name.to_string_lossy().to_string());
                 reply.error(ENOENT);
             }
         };
@@ -92,7 +100,7 @@ impl Filesystem for FuseController {
 
     // TODO
     fn getattr(&mut self, _req: &Request, ino: u64, _: Option<u64>, reply: ReplyAttr) {
-        debug!("getattr is called {}", ino);
+        debug!("called getattr ino:{}", ino);
         match ino {
             1 => reply.attr(&TTL, &MOUNT_DIR_ATTR),
             2 => reply.attr(&TTL, &TEMPLATE_FILE_ATTR),
@@ -111,6 +119,7 @@ impl Filesystem for FuseController {
         _lock: Option<u64>,
         reply: ReplyData,
     ) {
+        debug!("called read ino:{}", ino);
         let content = self.fs_interface.read_file(
             ino,
             offset.try_into().expect("fuse_impl::read offset negative"),
@@ -131,6 +140,7 @@ impl Filesystem for FuseController {
         offset: i64,
         mut reply: ReplyDirectory,
     ) {
+        debug!("called readdir ino:{} offset:{}", ino, offset);
         let entries = if let Ok(entries) = self.fs_interface.read_dir(ino) {
             entries
         } else {
@@ -138,9 +148,9 @@ impl Filesystem for FuseController {
             return;
         };
 
-        let mut i = offset;
+        let mut i = 0; //offset;
         for entry in entries.into_iter().skip(offset as usize) {
-            println!("....readdir entries : {:?}", entry);
+            debug!("....readdir entries : {:?}", entry);
             if reply.add(
                 ino,
                 (i) as i64, // NOTE - in case of error, try i + 1

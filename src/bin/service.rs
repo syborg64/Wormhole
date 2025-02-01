@@ -19,6 +19,7 @@
  */
 use std::{env, path::PathBuf, sync::Arc};
 
+use log::info;
 use wormhole::pods::whpath::WhPath;
 use wormhole::{network::server::Server, pods::declarations::Pod};
 
@@ -40,10 +41,10 @@ async fn main() {
         .unwrap_or("./virtual/".to_string())
         .into();
 
-    println!("own address: {}", own_addr);
-    println!("peer1 address: {}", other_addr1);
-    println!("peer2 address: {}", other_addr2);
-    println!("\nstarting");
+    info!("own address: {}", own_addr);
+    info!("peer1 address: {}", other_addr1);
+    info!("peer2 address: {}", other_addr2);
+    info!("\nstarting");
 
     let server = Arc::new(Server::setup(&own_addr).await);
 
@@ -60,9 +61,9 @@ async fn main() {
     );
 
     let local_cli_handle = tokio::spawn(local_cli_watchdog());
-    println!("started");
+    info!("started");
     local_cli_handle.await.unwrap(); // keeps the main process alive until interruption from this watchdog;
-    println!("stopping");
+    info!("stopping");
 }
 
 // NOTE - old watchdog brought here for debug purposes

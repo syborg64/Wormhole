@@ -40,7 +40,6 @@ impl Provider {
             Some(entry) => {
                 let parent_path = entry.get_path();
 
-                debug!("LISTING files in parent path {:?}", parent_path);
                 let ino_list = self
                     .index
                     .iter()

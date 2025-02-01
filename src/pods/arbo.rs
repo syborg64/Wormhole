@@ -10,7 +10,10 @@ use super::whpath::WhPath;
 
 // SECTION consts
 
-pub const ROOT: InodeId = 0;
+/*  NOTE - fuse root folder inode is 1.
+    other inodes can start wherever we want
+*/
+pub const ROOT: InodeId = 1;
 pub const LOCK_TIMEOUT: Duration = Duration::new(5, 0);
 
 // !SECTION
@@ -289,6 +292,10 @@ impl Arbo {
         };
         Ok(())
     }
+
+    pub fn log(&self) {
+        debug!("{:#?}", self.entries);
+    }
 }
 
 // !SECTION
@@ -300,12 +307,10 @@ fn index_folder_recursive(
     path: &WhPath,
 ) -> io::Result<()> {
     let str_path = path.to_string();
-    debug!("reading dir on path ```{}```", str_path);
     for entry in fs::read_dir(str_path)? {
         let entry = entry.expect("error in filesystem indexion (1)");
         let ftype = entry.file_type().expect("error in filesystem indexion (2)");
         let fname = entry.file_name().to_string_lossy().to_string();
-        debug!("indexing {}", fname);
 
         arbo.add_inode(Inode::new(
             fname.clone(),
@@ -320,7 +325,6 @@ fn index_folder_recursive(
         *ino += 1;
 
         if ftype.is_dir() {
-            debug!("ftype is dir: path `{}` and fname is `{}`", path, fname);
             index_folder_recursive(arbo, *ino - 1, ino, &path.join(&fname))
                 .expect("error in filesystem indexion (3)");
         };
@@ -330,8 +334,8 @@ fn index_folder_recursive(
 
 pub fn index_folder(path: &WhPath) -> io::Result<(Arbo, InodeId)> {
     let mut arbo = Arbo::new();
-    let mut ino: u64 = 1;
+    let mut ino: u64 = 11; // NOTE - will be the first registered inode after root
 
-    index_folder_recursive(&mut arbo, 0, &mut ino, path)?;
+    index_folder_recursive(&mut arbo, ROOT, &mut ino, path)?;
     Ok((arbo, ino))
 }
