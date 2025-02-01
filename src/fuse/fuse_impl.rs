@@ -148,18 +148,17 @@ impl Filesystem for FuseController {
             return;
         };
 
-        let mut i = 0; //offset;
-        for entry in entries.into_iter().skip(offset as usize) {
+        for (i, entry) in entries.into_iter().enumerate().skip(offset as usize) {
             debug!("....readdir entries : {:?}", entry);
             if reply.add(
                 ino,
-                (i) as i64, // NOTE - in case of error, try i + 1
+                // i + 1 means offset of the next entry
+                (i + 1) as i64, // NOTE - in case of error, try i + 1
                 entry.entry.get_filetype(),
                 entry.name,
             ) {
                 break;
             }
-            i += 1;
         }
         reply.ok();
     }
