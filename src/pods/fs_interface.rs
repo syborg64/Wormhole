@@ -1,5 +1,6 @@
 use crate::network::message::{Address, FileSystemSerialized};
 
+use super::network_interface::Callback;
 use super::whpath::WhPath;
 use super::{
     arbo::{Arbo, FsEntry, Inode, InodeId, LOCK_TIMEOUT},
@@ -123,16 +124,19 @@ impl FsInterface {
     }
 
     pub fn read_file(&self, file: InodeId, offset: u64, len: u64) -> io::Result<Vec<u8>> {
-        let status = self
+        let cb = self
             .network_interface
-            .pull_file(file)?
-            .blocking_recv() // NOTE - blocking_recv doc does not indicate in what case None is returned
-            .expect("read_file: blocking_recev returned None");
+            .pull_file(file)?;
 
-        if status == false {
+        let status = match cb {
+            None => true,
+            Some(call) => self.network_interface.callbacks.wait_for(call)?,
+        };
+
+        if !status {
             return Err(io::Error::new(
                 io::ErrorKind::BrokenPipe,
-                "file already waiting for pull or unable to write pulled to disk",
+                "unable to pull file",
             ));
         }
 
@@ -193,11 +197,18 @@ impl FsInterface {
 
             match arbo.get_path_from_inode_id(id) {
                 Ok(path) => path,
-                Err(_) => return self.network_interface.resolve_pull(id, false),
+                Err(_) => {
+                    self.network_interface
+                        .callbacks
+                        .resolve(Callback::Pull(id), false);
+                    return;
+                }
             }
         };
         let status = self.disk.write_file(&path, binary, 0).is_ok();
-        self.network_interface.resolve_pull(id, status);
+        self.network_interface
+            .callbacks
+            .resolve(Callback::Pull(id), status);
     }
 
     pub fn recept_remove_inode(&self, id: InodeId) -> io::Result<()> {
@@ -246,7 +257,6 @@ impl FsInterface {
 
     // !SECTION
 }
-
 
 /* NOTE - old providers functions to share filesystem :
 

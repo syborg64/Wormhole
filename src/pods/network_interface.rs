@@ -7,7 +7,10 @@ use tokio::sync::{
     mpsc::{self, UnboundedReceiver, UnboundedSender},
 };
 
-use super::{arbo::FsEntry, whpath::WhPath};
+use super::{
+    arbo::{self, FsEntry},
+    whpath::WhPath,
+};
 use crate::network::{
     message::{
         self, Address, FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
@@ -95,7 +98,7 @@ pub struct NetworkInterface {
     pub mount_point: WhPath,
     pub to_network_message_tx: UnboundedSender<ToNetworkMessage>,
     pub next_inode: Mutex<InodeId>, // TODO - replace with InodeIndex type
-    pub callbacks: RwLock<HashMap<Callback, UnboundedSender<bool>>>,
+    pub callbacks: Callbacks,
     pub peers: Arc<RwLock<Vec<PeerIPC>>>,
     self_addr: Address,
 }
@@ -115,7 +118,9 @@ impl NetworkInterface {
             mount_point,
             to_network_message_tx,
             next_inode,
-            callbacks: RwLock::new(HashMap::new()),
+            callbacks: Callbacks {
+                callbacks: HashMap::new().into(),
+            },
             peers: Arc::new(RwLock::new(vec![])),
             self_addr,
         }
@@ -225,60 +230,30 @@ impl NetworkInterface {
     }
 
     // REVIEW - recheck and simplify this if possible
-    pub fn pull_file(&self, file: InodeId) -> io::Result<UnboundedReceiver<bool>> {
-        if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
+    pub fn pull_file(&self, file: InodeId) -> io::Result<Option<Callback>> {
+        let hosts = {
+            let arbo = Arbo::read_lock(&self.arbo, "pull_file")?;
             if let FsEntry::File(hosts) = &arbo.get_inode(file)?.entry {
-                let (callback_tx, callback_rx) = mpsc::unbounded_channel::<bool>();
-                if hosts.contains(&self.self_addr) {
-                    // if the asked file is already on disk
-                    callback_tx
-                        .send(true) // directly completes the callback
-                        .expect("pull_file: unable to callback");
-                    return Ok(callback_rx);
-                }
-                self.to_network_message_tx
-                    .send(ToNetworkMessage::SpecificMessage(
-                        message::MessageContent::RequestFile(file),
-                        vec![hosts[0].clone()], // NOTE - naive choice for now
-                    ))
-                    .expect("pull_file: unable to request on the network thread");
-                if let Some(mut callbacks) = self.callbacks.try_write_for(LOCK_TIMEOUT) {
-                    // inserting a callback in self to allow other functions (probably network_airport) to resolve it
-                    if let Some(old_callback_tx) =
-                        callbacks.insert(Callback::Pull(file), callback_tx)
-                    {
-                        // entering this if is a callback for the same file was already present
-                        old_callback_tx.send(false); // TODO - currently the old callback is droped on fail. not optimal
-                    }
-                    Ok(callback_rx)
-                } else {
-                    Err(io::Error::new(
-                        io::ErrorKind::Interrupted,
-                        "pull_file: can't write lock self.callbacks",
-                    ))
-                }
+                hosts.clone()
             } else {
-                Err(io::Error::new(
+                return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     "pull_file: can't pull a folder",
-                ))
+                ));
             }
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::Interrupted,
-                "pull_file: can't read lock arbo's RwLock",
-            ))
-        }
-    }
+        };
 
-    pub fn resolve_pull(&self, id: InodeId, status: bool) {
-        if let Some(callback_tx) = self
-            .callbacks
-            .try_write_for(LOCK_TIMEOUT)
-            .expect("can't lock callbacks and resolve pull") // TODO - manage
-            .remove(&Callback::Pull(id))
-        {
-            callback_tx.send(status);
+        if hosts.contains(&self.self_addr) {
+            // if the asked file is already on disk
+            Ok(None)
+        } else {
+            self.to_network_message_tx
+                .send(ToNetworkMessage::SpecificMessage(
+                    message::MessageContent::RequestFile(file),
+                    vec![hosts[0].clone()], // NOTE - naive choice for now
+                ))
+                .expect("pull_file: unable to request on the network thread");
+            Ok(Some(self.callbacks.create(Callback::Pull(file))?))
         }
     }
 
@@ -336,14 +311,7 @@ impl NetworkInterface {
         *next_inode = new.next_inode;
 
         // resolve callback :
-        if let Some(callback_tx) = self
-            .callbacks
-            .try_write_for(LOCK_TIMEOUT)
-            .expect("can't lock callbacks and resolve PullFs") // TODO - manage
-            .remove(&Callback::PullFs)
-        {
-            callback_tx.send(true);
-        }
+        self.callbacks.resolve(Callback::PullFs, true);
         Ok(())
     }
 
