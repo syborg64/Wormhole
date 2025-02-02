@@ -1,6 +1,7 @@
 use std::{collections::HashMap, io, sync::Arc};
 
-use log::debug;
+use clap::error;
+use log::{debug, error};
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::{
     broadcast,
@@ -133,6 +134,7 @@ impl NetworkInterface {
         mount_point: WhPath,
         to_network_message_tx: UnboundedSender<ToNetworkMessage>,
         next_inode: InodeId,
+        peers: Arc<RwLock<Vec<PeerIPC>>>,
         self_addr: Address,
     ) -> Self {
         let next_inode = Mutex::new(next_inode);
@@ -145,7 +147,7 @@ impl NetworkInterface {
             callbacks: Callbacks {
                 callbacks: HashMap::new().into(),
             },
-            peers: Arc::new(RwLock::new(vec![])),
+            peers,
             self_addr,
         }
     }
@@ -353,6 +355,7 @@ impl NetworkInterface {
                 Some(message) => message,
                 None => continue,
             };
+            log::error!("airport {:#?}", content);
 
             match content {
                 MessageContent::PullAnswer(id, binary) => {
@@ -394,6 +397,7 @@ impl NetworkInterface {
         peers_list: Arc<RwLock<Vec<PeerIPC>>>,
         mut rx: UnboundedReceiver<ToNetworkMessage>,
     ) {
+
         // on message reception, broadcast it to all peers senders
         while let Some(message) = rx.recv().await {
             let peer_tx: Vec<(UnboundedSender<MessageContent>, String)> = peers_list
@@ -414,6 +418,7 @@ impl NetworkInterface {
                     });
                 }
                 ToNetworkMessage::SpecificMessage(message_content, origins) => {
+                    error!("here 55 {:?}", peer_tx);
                     peer_tx
                         .iter()
                         .filter(|&(_, address)| origins.contains(address))
