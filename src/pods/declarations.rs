@@ -1,7 +1,7 @@
 use std::{io, sync::Arc};
 
 use futures_util::future::join;
-use log::info;
+use log::{debug, info};
 use parking_lot::RwLock;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -47,6 +47,7 @@ impl Pod {
         let (to_network_message_tx, to_network_message_rx) = mpsc::unbounded_channel();
         let (from_network_message_tx, from_network_message_rx) = mpsc::unbounded_channel();
 
+        let peers = PeerIPC::peer_startup(peers, from_network_message_tx.clone()).await;
         let network_interface = Arc::new(NetworkInterface::new(
             arbo.clone(),
             mount_point.clone(),
@@ -54,6 +55,17 @@ impl Pod {
             next_inode,
             server_address,
         ));
+
+        if peers.len() >= 1 {
+            info!("Will pull filesystem from remote...");
+            network_interface
+                .request_arbo(peers[0].address.clone()).await?;
+
+            info!("Pull completed");
+            debug!("arbo: {:#?}", network_interface.arbo);
+        } else {
+            info!("Created fresh new filesystem");
+        }
 
         let disk_manager = DiskManager::new(mount_point.clone())?;
 
@@ -79,30 +91,16 @@ impl Pod {
             ),
         ));
 
-        let created_pod = Self {
+        Ok(Self {
             network_interface,
             fs_interface: fs_interface.clone(),
             mount_point: mount_point.clone(),
-            peers: PeerIPC::peer_startup(peers, from_network_message_tx).await,
+            peers: peers,
             pod_conf: config,
             fuse_handle: mount_fuse(&mount_point, fs_interface.clone())?,
             network_airport_handle,
             peer_broadcast_handle,
             new_peer_handle,
-        };
-
-        // if peers to connect to, pull their arbo
-        if created_pod.peers.len() >= 1 {
-            info!("Will pull filesystem from remote...");
-            created_pod
-                .network_interface
-                .request_arbo(created_pod.peers[0].address.clone()).await?;
-
-            info!("Pull completed");
-            Ok(created_pod)
-        } else {
-            info!("Created fresh new filesystem");
-            Ok(created_pod)
-        }
+        })
     }
 }
