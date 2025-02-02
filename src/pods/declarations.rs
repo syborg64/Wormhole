@@ -75,7 +75,7 @@ impl Pod {
             network_interface.peers.clone(),
         )));
 
-        Ok(Self {
+        let created_pod = Self {
             network_interface,
             fs_interface: fs_interface.clone(),
             mount_point: mount_point.clone(),
@@ -85,6 +85,12 @@ impl Pod {
             network_airport_handle,
             peer_broadcast_handle,
             new_peer_handle,
-        })
+        };
+        // if peers to connect to, should pull their arbo (for v1)
+
+        if created_pod.peers.len() >= 1 {
+            
+        };
+        Ok(created_pod)
     }
 }

@@ -16,9 +16,64 @@ use super::{
     fs_interface::FsInterface,
 };
 
-#[derive(Eq, Hash, PartialEq)]
-pub enum Callback {
+#[derive(Eq, Hash, PartialEq, Clone, Copy)]
+pub enum CallbackType {
     Pull(InodeId),
+    PullFs,
+}
+
+struct Callback {
+    sender: UnboundedSender<bool>,
+    receiver: UnboundedReceiver<bool>,
+    remaining: usize,
+}
+
+pub struct Callbacks {
+    callbacks: RwLock<HashMap<CallbackType, Callback>>,
+}
+
+impl Callbacks {
+    pub fn create(&self, call: CallbackType) -> io::Result<CallbackType> {
+        if let Some(mut callbacks) = self.callbacks.try_write_for(LOCK_TIMEOUT) {
+            if let Some(cb) = callbacks.get_mut(&call) {
+                cb.remaining += 1;
+            } else {
+                let (callback_tx, callback_rx) = mpsc::unbounded_channel::<bool>();
+
+                let new_cb = Callback {
+                    sender: callback_tx,
+                    receiver: callback_rx,
+                    remaining: 1,
+                };
+                callbacks.insert(call, new_cb);
+            };
+            Ok(call)
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::WouldBlock,
+                "unable to write_lock callbacks",
+            ))
+        }
+    }
+
+    pub fn wait_for(&self, call: CallbackType) -> io::Result<bool> {
+        let waiter = if let Some(callbacks) = self.callbacks.try_read_for(LOCK_TIMEOUT) {
+            if let Some(cb) = callbacks.get(&call) {
+                cb
+            } else {
+                return Err(io::Error::new(
+                    io::ErrorKind::WouldBlock,
+                    "no such callback active",
+                ))
+            }
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::WouldBlock,
+                "unable to read_lock callbacks",
+            ))
+        };
+        Ok(true)
+    }
 }
 
 pub struct NetworkInterface {
@@ -161,6 +216,7 @@ impl NetworkInterface {
             if let FsEntry::File(hosts) = &arbo.get_inode(file)?.entry {
                 let (callback_tx, callback_rx) = mpsc::unbounded_channel::<bool>();
                 if hosts.contains(&self.self_addr) {
+                    // if the asked file is already on disk
                     callback_tx
                         .send(true) // directly completes the callback
                         .expect("pull_file: unable to callback");
@@ -169,14 +225,16 @@ impl NetworkInterface {
                 self.to_network_message_tx
                     .send(ToNetworkMessage::SpecificMessage(
                         message::MessageContent::RequestFile(file),
-                        vec![hosts[0].clone()], // NOTE - dumb choice for now
+                        vec![hosts[0].clone()], // NOTE - naive choice for now
                     ))
                     .expect("pull_file: unable to request on the network thread");
-                if let Some(mut waiting_dl) = self.callbacks.try_write_for(LOCK_TIMEOUT) {
+                if let Some(mut callbacks) = self.callbacks.try_write_for(LOCK_TIMEOUT) {
+                    // inserting a callback in self to allow other functions (probably network_airport) to resolve it
                     if let Some(old_callback_tx) =
-                        waiting_dl.insert(Callback::Pull(file), callback_tx)
+                        callbacks.insert(Callback::Pull(file), callback_tx)
                     {
-                        old_callback_tx.send(false); // TODO - actually the old callback is droped on fail. not optimal
+                        // entering this if is a callback for the same file was already present
+                        old_callback_tx.send(false); // TODO - currently the old callback is droped on fail. not optimal
                     }
                     Ok(callback_rx)
                 } else {
