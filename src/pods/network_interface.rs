@@ -2,7 +2,10 @@ use std::{collections::HashMap, io, sync::Arc};
 
 use log::debug;
 use parking_lot::{Mutex, RwLock};
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use tokio::sync::{
+    broadcast,
+    mpsc::{self, UnboundedReceiver, UnboundedSender},
+};
 
 use super::{arbo::FsEntry, whpath::WhPath};
 use crate::network::{
@@ -18,10 +21,75 @@ use super::{
     fs_interface::FsInterface,
 };
 
-#[derive(Eq, Hash, PartialEq)]
+#[derive(Eq, Hash, PartialEq, Clone, Copy)]
 pub enum Callback {
     Pull(InodeId),
     PullFs,
+}
+
+pub struct Callbacks {
+    callbacks: RwLock<HashMap<Callback, broadcast::Sender<bool>>>,
+}
+
+impl Callbacks {
+    pub fn create(&self, call: Callback) -> io::Result<broadcast::Receiver<bool>> {
+        if let Some(mut callbacks) = self.callbacks.try_write_for(LOCK_TIMEOUT) {
+            if let Some(cb) = callbacks.get_mut(&call) {
+                Ok(cb.subscribe())
+            } else {
+                let (tx, rx) = broadcast::channel(1);
+
+                callbacks.insert(call, tx);
+                Ok(rx)
+            }
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::WouldBlock,
+                "unable to write_lock callbacks",
+            ))
+        }
+    }
+
+    pub fn resolve(&self, call: Callback, status: bool) -> io::Result<()> {
+        if let Some(callbacks) = self.callbacks.try_read_for(LOCK_TIMEOUT) {
+            if let Some(cb) = callbacks.get(&call) {
+                cb.send(status);
+                return Ok(());
+            } else {
+                return Err(io::Error::new(
+                    io::ErrorKind::WouldBlock,
+                    "no such callback active",
+                ));
+            };
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::WouldBlock,
+                "unable to read_lock callbacks",
+            ));
+        };
+    }
+
+    pub fn wait_for(&self, call: Callback) -> io::Result<bool> {
+        let mut waiter = if let Some(callbacks) = self.callbacks.try_read_for(LOCK_TIMEOUT) {
+            if let Some(cb) = callbacks.get(&call) {
+                cb.subscribe()
+            } else {
+                return Err(io::Error::new(
+                    io::ErrorKind::WouldBlock,
+                    "no such callback active",
+                ));
+            }
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::WouldBlock,
+                "unable to read_lock callbacks",
+            ));
+        };
+        match waiter.blocking_recv() {
+            Ok(status) => Ok(status),
+            Err(_) => Ok(false), // maybe change to a better handling
+        }
+    }
 }
 
 pub struct NetworkInterface {
@@ -164,6 +232,7 @@ impl NetworkInterface {
             if let FsEntry::File(hosts) = &arbo.get_inode(file)?.entry {
                 let (callback_tx, callback_rx) = mpsc::unbounded_channel::<bool>();
                 if hosts.contains(&self.self_addr) {
+                    // if the asked file is already on disk
                     callback_tx
                         .send(true) // directly completes the callback
                         .expect("pull_file: unable to callback");
@@ -172,14 +241,16 @@ impl NetworkInterface {
                 self.to_network_message_tx
                     .send(ToNetworkMessage::SpecificMessage(
                         message::MessageContent::RequestFile(file),
-                        vec![hosts[0].clone()], // NOTE - dumb choice for now
+                        vec![hosts[0].clone()], // NOTE - naive choice for now
                     ))
                     .expect("pull_file: unable to request on the network thread");
-                if let Some(mut waiting_dl) = self.callbacks.try_write_for(LOCK_TIMEOUT) {
+                if let Some(mut callbacks) = self.callbacks.try_write_for(LOCK_TIMEOUT) {
+                    // inserting a callback in self to allow other functions (probably network_airport) to resolve it
                     if let Some(old_callback_tx) =
-                        waiting_dl.insert(Callback::Pull(file), callback_tx)
+                        callbacks.insert(Callback::Pull(file), callback_tx)
                     {
-                        old_callback_tx.send(false); // TODO - actually the old callback is droped on fail. not optimal
+                        // entering this if is a callback for the same file was already present
+                        old_callback_tx.send(false); // TODO - currently the old callback is droped on fail. not optimal
                     }
                     Ok(callback_rx)
                 } else {
@@ -260,7 +331,8 @@ impl NetworkInterface {
         let mut arbo = Arbo::write_lock(&self.arbo, "replace_arbo")?;
         arbo.overwrite_self(new.fs_index);
 
-        let mut next_inode = self.next_inode
+        let mut next_inode = self
+            .next_inode
             .try_lock_for(LOCK_TIMEOUT)
             .expect("couldn't lock next_inode");
         *next_inode = new.next_inode;
