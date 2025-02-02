@@ -50,7 +50,7 @@ impl Pod {
             mount_point.clone(),
             to_network_message_tx,
             next_inode,
-            server_address
+            server_address,
         ));
 
         let disk_manager = DiskManager::new(mount_point.clone())?;
@@ -69,11 +69,13 @@ impl Pod {
             network_interface.peers.clone(),
             to_network_message_rx,
         )));
-        let new_peer_handle = Some(tokio::spawn(NetworkInterface::incoming_connections_watchdog(
-            server,
-            from_network_message_tx.clone(),
-            network_interface.peers.clone(),
-        )));
+        let new_peer_handle = Some(tokio::spawn(
+            NetworkInterface::incoming_connections_watchdog(
+                server,
+                from_network_message_tx.clone(),
+                network_interface.peers.clone(),
+            ),
+        ));
 
         let created_pod = Self {
             network_interface,
@@ -86,11 +88,19 @@ impl Pod {
             peer_broadcast_handle,
             new_peer_handle,
         };
-        // if peers to connect to, should pull their arbo (for v1)
-
-        if created_pod.peers.len() >= 1 {
-            created_pod.network_interface.request_arbo();
-        };
-        Ok(created_pod)
+        
+        // if peers to connect to, pull their arbo
+        if created_pod.peers.len() >= 1
+            && created_pod
+                .network_interface
+                .request_arbo(created_pod.peers[0].address.clone())?
+        {
+            Ok(created_pod)
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::WouldBlock,
+                "unable to create pod by pulling remote filesystem",
+            ))
+        }
     }
 }

@@ -20,7 +20,7 @@ pub enum MessageContent {
     Write(InodeId, Vec<u8>),
     RequestFs,
     EditHosts(InodeId, Vec<Address>),
-    FileStructure(FileSystemSerialized),
+    FsAnswer(FileSystemSerialized),
 }
 
 pub type Address = String;

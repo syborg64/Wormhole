@@ -170,6 +170,7 @@ impl FsInterface {
 
     pub fn replace_arbo(&self, new: FileSystemSerialized) {
         self.network_interface.replace_arbo(new);
+        self.network_interface.callbacks.resolve(Callback::PullFs, true);
     }
 
     pub fn recept_inode(&self, inode: Inode, id: InodeId) -> io::Result<()> {
@@ -257,51 +258,3 @@ impl FsInterface {
 
     // !SECTION
 }
-
-/* NOTE - old providers functions to share filesystem :
-
-pub fn send_file_system(&self, origin: String) {
-        let mut new_fs_index = self.index.clone();
-        new_fs_index.remove(&1u64); // remove "./"
-        let fs = FileSystemSerialized {
-            fs_index: new_fs_index,
-            next_inode: self.next_inode,
-        };
-        self.tx
-            .send(ToNetworkMessage::SpecificMessage(
-                MessageContent::FileStructure(fs),
-                vec![origin],
-            ))
-            .expect("File system send failed");
-    }
-
-    pub fn merge_file_system(&mut self, fs: FileSystemSerialized) {
-        println!("Importing other FS: own {:?} other {:?}", self.index, fs);
-        for (k, v) in fs.fs_index {
-            self.index.insert(k, v);
-            // Handling conflicts can be implemented here
-        }
-
-        self.next_inode = fs.next_inode;
-        for (_, entry) in &self.index {
-            if let FsEntry::Directory(path) = entry {
-                if path.to_str().unwrap() == "./" {
-                    continue;
-                }
-            };
-
-            match entry {
-                FsEntry::Directory(path) => self
-                    .metal_handle
-                    .create_dir(path, libc::S_IWRITE | libc::S_IREAD)
-                    .expect("unable to create folder"),
-                FsEntry::File(path, _) => {
-                    self.metal_handle
-                        .new_file(path, libc::S_IWRITE | libc::S_IREAD)
-                        .expect("unable to create file");
-                }
-            };
-        }
-        println!("Finished Mergeing file systems");
-    }
-*/

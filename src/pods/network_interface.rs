@@ -247,13 +247,16 @@ impl NetworkInterface {
             // if the asked file is already on disk
             Ok(None)
         } else {
+            let callback = self.callbacks.create(Callback::Pull(file))?;
+
             self.to_network_message_tx
                 .send(ToNetworkMessage::SpecificMessage(
                     message::MessageContent::RequestFile(file),
                     vec![hosts[0].clone()], // NOTE - naive choice for now
                 ))
                 .expect("pull_file: unable to request on the network thread");
-            Ok(Some(self.callbacks.create(Callback::Pull(file))?))
+
+            Ok(Some(callback))
         }
     }
 
@@ -273,7 +276,9 @@ impl NetworkInterface {
          */
     }
 
-    pub fn request_arbo(&self, to: Address) {
+    pub fn request_arbo(&self, to: Address) -> io::Result<bool> {
+        let callback = self.callbacks.create(Callback::PullFs)?;
+
         self.to_network_message_tx
             .send(ToNetworkMessage::SpecificMessage(
                 MessageContent::RequestFs,
@@ -281,14 +286,14 @@ impl NetworkInterface {
             ))
             .expect("request_arbo: unable to update modification on the network thread");
 
-        // todo callback
+        self.callbacks.wait_for(callback)
     }
 
     pub fn send_arbo(&self, to: Address) -> io::Result<()> {
         let arbo = Arbo::read_lock(&self.arbo, "send_arbo")?;
         self.to_network_message_tx
             .send(ToNetworkMessage::SpecificMessage(
-                MessageContent::FileStructure(FileSystemSerialized {
+                MessageContent::FsAnswer(FileSystemSerialized {
                     fs_index: arbo.get_raw_entries(),
                     next_inode: self.get_next_inode()?,
                 }),
@@ -354,7 +359,7 @@ impl NetworkInterface {
                 MessageContent::RequestFs => {
                     fs_interface.send_filesystem(origin);
                 }
-                MessageContent::FileStructure(fs) => {
+                MessageContent::FsAnswer(fs) => {
                     fs_interface.replace_arbo(fs);
                 }
             };
