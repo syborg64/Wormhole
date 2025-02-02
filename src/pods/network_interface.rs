@@ -32,16 +32,14 @@ pub struct Callbacks {
 }
 
 impl Callbacks {
-    pub fn create(&self, call: Callback) -> io::Result<broadcast::Receiver<bool>> {
+    pub fn create(&self, call: Callback) -> io::Result<Callback> {
         if let Some(mut callbacks) = self.callbacks.try_write_for(LOCK_TIMEOUT) {
-            if let Some(cb) = callbacks.get_mut(&call) {
-                Ok(cb.subscribe())
-            } else {
-                let (tx, rx) = broadcast::channel(1);
+            if !callbacks.contains_key(&call) {
+                let (tx, _) = broadcast::channel(1);
 
                 callbacks.insert(call, tx);
-                Ok(rx)
-            }
+            };
+            Ok(call)
         } else {
             Err(io::Error::new(
                 io::ErrorKind::WouldBlock,
@@ -51,8 +49,8 @@ impl Callbacks {
     }
 
     pub fn resolve(&self, call: Callback, status: bool) -> io::Result<()> {
-        if let Some(callbacks) = self.callbacks.try_read_for(LOCK_TIMEOUT) {
-            if let Some(cb) = callbacks.get(&call) {
+        if let Some(mut callbacks) = self.callbacks.try_write_for(LOCK_TIMEOUT) {
+            if let Some(cb) = callbacks.remove(&call) {
                 cb.send(status);
                 return Ok(());
             } else {
