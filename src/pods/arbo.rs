@@ -113,8 +113,19 @@ impl Arbo {
         arbo
     }
 
+    pub fn overwrite_self(&mut self, entries: ArboIndex) {
+        self.entries = entries;
+    }
+
+    pub fn get_raw_entries(&self) -> ArboIndex {
+        self.entries.clone()
+    }
+
     #[must_use]
-    pub fn read_lock<'a>(arbo: &'a Arc<RwLock<Arbo>>, called_from: &'a str) -> io::Result<RwLockReadGuard<'a, Arbo>> {
+    pub fn read_lock<'a>(
+        arbo: &'a Arc<RwLock<Arbo>>,
+        called_from: &'a str,
+    ) -> io::Result<RwLockReadGuard<'a, Arbo>> {
         if let Some(arbo) = arbo.try_read_for(LOCK_TIMEOUT) {
             Ok(arbo)
         } else {
@@ -126,7 +137,10 @@ impl Arbo {
     }
 
     #[must_use]
-    pub fn write_lock<'a>(arbo: &'a Arc<RwLock<Arbo>>, called_from: &'a str) -> io::Result<RwLockWriteGuard<'a, Arbo>> {
+    pub fn write_lock<'a>(
+        arbo: &'a Arc<RwLock<Arbo>>,
+        called_from: &'a str,
+    ) -> io::Result<RwLockWriteGuard<'a, Arbo>> {
         if let Some(arbo) = arbo.try_write_for(LOCK_TIMEOUT) {
             Ok(arbo)
         } else {
@@ -285,10 +299,12 @@ impl Arbo {
 
         inode.entry = match &inode.entry {
             FsEntry::File(_) => FsEntry::File(hosts),
-            _ => return Err(io::Error::new(
-                io::ErrorKind::Other,
-                "can't edit hosts on folder",
-            )),
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    "can't edit hosts on folder",
+                ))
+            }
         };
         Ok(())
     }
@@ -328,7 +344,7 @@ fn index_folder_recursive(
             index_folder_recursive(arbo, *ino - 1, ino, &path.join(&fname))
                 .expect("error in filesystem indexion (3)");
         };
-    };
+    }
     Ok(())
 }
 

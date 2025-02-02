@@ -3,7 +3,7 @@ use serde_with::serde_as;
 
 use crate::{
     data::metadata::MetaData,
-    pods::arbo::{Arbo, Inode, InodeId},
+    pods::arbo::{Arbo, ArboIndex, Inode, InodeId},
 };
 
 /// Message Content
@@ -44,7 +44,7 @@ pub enum ToNetworkMessage {
 #[serde_as]
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct FileSystemSerialized {
-    pub fs_index: Arbo,
+    pub fs_index: ArboIndex,
     pub next_inode: InodeId,
 }
 

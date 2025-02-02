@@ -1,4 +1,4 @@
-use crate::network::message::Address;
+use crate::network::message::{Address, FileSystemSerialized};
 
 use super::whpath::WhPath;
 use super::{
@@ -163,6 +163,11 @@ impl FsInterface {
     // !SECTION
 
     // SECTION - remote -> write
+
+    pub fn replace_arbo(&self, new: FileSystemSerialized) {
+        self.network_interface.replace_arbo(new);
+    }
+
     pub fn recept_inode(&self, inode: Inode, id: InodeId) -> io::Result<()> {
         self.network_interface.acknowledge_new_file(inode, id)?;
 
@@ -216,6 +221,12 @@ impl FsInterface {
 
     pub fn recept_edit_hosts(&self, id: InodeId, hosts: Vec<Address>) {
         self.network_interface.acknowledge_hosts_edition(id, hosts);
+    }
+    // !SECTION
+
+    // SECTION remote -> read
+    pub fn send_filesystem(&self, to: Address) {
+        self.network_interface.send_arbo(to);
     }
     // !SECTION
 

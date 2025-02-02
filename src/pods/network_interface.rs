@@ -6,7 +6,9 @@ use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
 use super::{arbo::FsEntry, whpath::WhPath};
 use crate::network::{
-    message::{self, Address, FromNetworkMessage, MessageContent, ToNetworkMessage},
+    message::{
+        self, Address, FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
+    },
     peer_ipc::PeerIPC,
     server::Server,
 };
@@ -19,6 +21,7 @@ use super::{
 #[derive(Eq, Hash, PartialEq)]
 pub enum Callback {
     Pull(InodeId),
+    PullFs,
 }
 
 pub struct NetworkInterface {
@@ -226,6 +229,54 @@ impl NetworkInterface {
          */
     }
 
+    pub fn request_arbo(&self, to: Address) {
+        self.to_network_message_tx
+            .send(ToNetworkMessage::SpecificMessage(
+                MessageContent::RequestFs,
+                vec![to],
+            ))
+            .expect("request_arbo: unable to update modification on the network thread");
+
+        // todo callback
+    }
+
+    pub fn send_arbo(&self, to: Address) -> io::Result<()> {
+        let arbo = Arbo::read_lock(&self.arbo, "send_arbo")?;
+        self.to_network_message_tx
+            .send(ToNetworkMessage::SpecificMessage(
+                MessageContent::FileStructure(FileSystemSerialized {
+                    fs_index: arbo.get_raw_entries(),
+                    next_inode: self.get_next_inode()?,
+                }),
+                vec![to],
+            ))
+            .expect("send_arbo: unable to update modification on the network thread");
+        Ok(())
+    }
+
+    // NOTE - meant only for pulling the arbo at startup !
+    // Does not care for currently ongoing business when called
+    pub fn replace_arbo(&self, new: FileSystemSerialized) -> io::Result<()> {
+        let mut arbo = Arbo::write_lock(&self.arbo, "replace_arbo")?;
+        arbo.overwrite_self(new.fs_index);
+
+        let mut next_inode = self.next_inode
+            .try_lock_for(LOCK_TIMEOUT)
+            .expect("couldn't lock next_inode");
+        *next_inode = new.next_inode;
+
+        // resolve callback :
+        if let Some(callback_tx) = self
+            .callbacks
+            .try_write_for(LOCK_TIMEOUT)
+            .expect("can't lock callbacks and resolve PullFs") // TODO - manage
+            .remove(&Callback::PullFs)
+        {
+            callback_tx.send(true);
+        }
+        Ok(())
+    }
+
     pub async fn network_airport(
         mut network_reception: UnboundedReceiver<FromNetworkMessage>,
         fs_interface: Arc<FsInterface>,
@@ -263,14 +314,10 @@ impl NetworkInterface {
                 MessageContent::Meta(_) => {}
                 MessageContent::RequestFile(_) => {}
                 MessageContent::RequestFs => {
-                    todo!();
-                    //let provider = provider.lock().expect("failed to lock mutex");
-                    //provider.send_file_system(origin);
+                    fs_interface.send_filesystem(origin);
                 }
                 MessageContent::FileStructure(fs) => {
-                    todo!();
-                    //let mut provider = provider.lock().expect("failed to lock mutex");
-                    //provider.merge_file_system(fs);
+                    fs_interface.replace_arbo(fs);
                 }
             };
         }
