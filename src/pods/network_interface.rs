@@ -86,7 +86,31 @@ impl Callbacks {
                 "unable to read_lock callbacks",
             ));
         };
+
         match waiter.blocking_recv() {
+            Ok(status) => Ok(status),
+            Err(_) => Ok(false), // maybe change to a better handling
+        }
+    }
+
+    pub async fn async_wait_for(&self, call: Callback) -> io::Result<bool> {
+        let mut waiter = if let Some(callbacks) = self.callbacks.try_read_for(LOCK_TIMEOUT) {
+            if let Some(cb) = callbacks.get(&call) {
+                cb.subscribe()
+            } else {
+                return Err(io::Error::new(
+                    io::ErrorKind::WouldBlock,
+                    "no such callback active",
+                ));
+            }
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::WouldBlock,
+                "unable to read_lock callbacks",
+            ));
+        };
+
+        match waiter.recv().await {
             Ok(status) => Ok(status),
             Err(_) => Ok(false), // maybe change to a better handling
         }
@@ -276,7 +300,7 @@ impl NetworkInterface {
          */
     }
 
-    pub fn request_arbo(&self, to: Address) -> io::Result<bool> {
+    pub async fn request_arbo(&self, to: Address) -> io::Result<bool> {
         let callback = self.callbacks.create(Callback::PullFs)?;
 
         self.to_network_message_tx
@@ -286,7 +310,7 @@ impl NetworkInterface {
             ))
             .expect("request_arbo: unable to update modification on the network thread");
 
-        self.callbacks.wait_for(callback)
+        self.callbacks.async_wait_for(callback).await
     }
 
     pub fn send_arbo(&self, to: Address) -> io::Result<()> {

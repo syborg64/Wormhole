@@ -1,5 +1,7 @@
 use std::{io, sync::Arc};
 
+use futures_util::future::join;
+use log::info;
 use parking_lot::RwLock;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -88,19 +90,19 @@ impl Pod {
             peer_broadcast_handle,
             new_peer_handle,
         };
-        
+
         // if peers to connect to, pull their arbo
-        if created_pod.peers.len() >= 1
-            && created_pod
+        if created_pod.peers.len() >= 1 {
+            info!("Will pull filesystem from remote...");
+            created_pod
                 .network_interface
-                .request_arbo(created_pod.peers[0].address.clone())?
-        {
+                .request_arbo(created_pod.peers[0].address.clone()).await?;
+
+            info!("Pull completed");
             Ok(created_pod)
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::WouldBlock,
-                "unable to create pod by pulling remote filesystem",
-            ))
+            info!("Created fresh new filesystem");
+            Ok(created_pod)
         }
     }
 }
