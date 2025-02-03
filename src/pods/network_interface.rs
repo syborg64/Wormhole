@@ -1,7 +1,7 @@
 use std::{collections::HashMap, io, sync::Arc};
 
 use clap::error;
-use log::{debug, error};
+use log::{debug, error, info, warn};
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::{
     broadcast,
@@ -53,6 +53,7 @@ impl Callbacks {
     }
 
     pub fn resolve(&self, call: Callback, status: bool) -> io::Result<()> {
+        log::error!("RESOLVING CALLBACK");
         if let Some(mut callbacks) = self.callbacks.try_write_for(LOCK_TIMEOUT) {
             if let Some(cb) = callbacks.remove(&call) {
                 cb.send(status);
@@ -332,6 +333,7 @@ impl NetworkInterface {
     // NOTE - meant only for pulling the arbo at startup !
     // Does not care for currently ongoing business when called
     pub fn replace_arbo(&self, new: FileSystemSerialized) -> io::Result<()> {
+        log::error!("REPLACE ARBO");
         let mut arbo = Arbo::write_lock(&self.arbo, "replace_arbo")?;
         arbo.overwrite_self(new.fs_index);
 
@@ -342,6 +344,7 @@ impl NetworkInterface {
         *next_inode = new.next_inode;
 
         // resolve callback :
+        log::error!("REPLACE ARBO2");
         self.callbacks.resolve(Callback::PullFs, true);
         Ok(())
     }
@@ -387,6 +390,7 @@ impl NetworkInterface {
                     fs_interface.send_filesystem(origin);
                 }
                 MessageContent::FsAnswer(fs) => {
+                    log::error!("MSGCONTENT FSANSWER");
                     fs_interface.replace_arbo(fs);
                 }
             };
@@ -397,7 +401,6 @@ impl NetworkInterface {
         peers_list: Arc<RwLock<Vec<PeerIPC>>>,
         mut rx: UnboundedReceiver<ToNetworkMessage>,
     ) {
-
         // on message reception, broadcast it to all peers senders
         while let Some(message) = rx.recv().await {
             let peer_tx: Vec<(UnboundedSender<MessageContent>, String)> = peers_list
@@ -408,6 +411,14 @@ impl NetworkInterface {
                 .collect();
 
             println!("broadcasting message to peers:\n{:?}", message);
+            info!(
+                "peers list {:#?}",
+                peers_list
+                    .read()
+                    .iter()
+                    .map(|peer| peer.address.clone())
+                    .collect::<Vec<String>>()
+            );
             match message {
                 ToNetworkMessage::BroadcastMessage(message_content) => {
                     peer_tx.iter().for_each(|(channel, address)| {
@@ -418,12 +429,11 @@ impl NetworkInterface {
                     });
                 }
                 ToNetworkMessage::SpecificMessage(message_content, origins) => {
-                    error!("here 55 {:?}", peer_tx);
                     peer_tx
                         .iter()
                         .filter(|&(_, address)| origins.contains(address))
                         .for_each(|(channel, address)| {
-                            println!("peer: {}", address);
+                            error!("here to {:?}", address);
                             channel
                                 .send(message_content.clone())
                                 .expect(&format!("failed to send message to peer {}", address))
@@ -443,12 +453,14 @@ impl NetworkInterface {
                 .await
                 .expect("Error during the websocket handshake occurred");
             let addr = ws_stream.get_ref().peer_addr().unwrap().to_string();
+            log::error!("new connected peer addr is {}", addr);
+
             let (write, read) = futures_util::StreamExt::split(ws_stream);
             let new_peer = PeerIPC::connect_from_incomming(addr, nfa_tx.clone(), write, read);
             {
                 existing_peers
                     .try_write_for(LOCK_TIMEOUT)
-                    .unwrap() // TODO - handle timeout
+                    .expect("incoming_connections_watchdog: can't lock existing peers")
                     .push(new_peer);
             }
         }
