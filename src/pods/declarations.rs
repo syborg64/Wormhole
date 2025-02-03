@@ -26,7 +26,7 @@ pub struct Pod {
     network_interface: Arc<NetworkInterface>,
     fs_interface: Arc<FsInterface>,
     mount_point: WhPath,
-    peers: Vec<PeerIPC>,
+    peers: Arc<RwLock<Vec<PeerIPC>>>,
     pod_conf: PodConfig,
     fuse_handle: fuser::BackgroundSession,
     network_airport_handle: Option<JoinHandle<()>>,
@@ -94,11 +94,13 @@ impl Pod {
             ),
         ));
 
+        let peers = network_interface.peers.clone();
+
         Ok(Self {
             network_interface,
             fs_interface: fs_interface.clone(),
             mount_point: mount_point.clone(),
-            peers: peers,
+            peers,
             pod_conf: config,
             fuse_handle: mount_fuse(&mount_point, fs_interface.clone())?,
             network_airport_handle,
