@@ -3,7 +3,7 @@ use serde_with::serde_as;
 
 use crate::{
     data::metadata::MetaData,
-    providers::{FsIndex, Ino},
+    pods::arbo::{Arbo, ArboIndex, Inode, InodeId},
 };
 
 /// Message Content
@@ -11,15 +11,16 @@ use crate::{
 /// through the network
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum MessageContent {
-    Remove(Ino),
-    File(File),
+    Remove(InodeId),
+    Inode(Inode, InodeId),
     Meta(MetaData),
-    NewFolder(Folder),
-    RequestFile(std::path::PathBuf),
+    RequestFile(InodeId),
     Binary(Vec<u8>),
-    Write(Ino, Vec<u8>),
+    PullAnswer(InodeId, Vec<u8>),
+    Write(InodeId, Vec<u8>),
     RequestFs,
-    FileStructure(FileSystemSerialized),
+    EditHosts(InodeId, Vec<Address>),
+    FsAnswer(FileSystemSerialized),
 }
 
 pub type Address = String;
@@ -43,19 +44,7 @@ pub enum ToNetworkMessage {
 #[serde_as]
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct FileSystemSerialized {
-    #[serde_as(as = "Vec<(_, _)>")]
-    pub fs_index: FsIndex,
-    pub next_inode: Ino,
+    pub fs_index: ArboIndex,
+    pub next_inode: InodeId,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct File {
-    pub path: std::path::PathBuf,
-    pub ino: Ino,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Folder {
-    pub ino: Ino,
-    pub path: std::path::PathBuf,
-}
