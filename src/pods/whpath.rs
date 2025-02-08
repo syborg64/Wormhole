@@ -254,7 +254,7 @@ impl WhPath {
         }
     }
 
-    pub fn split_fodler_file(&self) -> (String, String) {
+    pub fn split_folder_file(&self) -> (String, String) {
         let mut path = self.clone();
         path.remove_last_slash();
         match path.inner.rsplit_once('/') {
