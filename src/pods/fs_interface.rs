@@ -241,6 +241,13 @@ impl FsInterface {
     pub fn send_filesystem(&self, to: Address) -> io::Result<()> {
         self.network_interface.send_arbo(to)
     }
+
+    pub fn send_file(&self, inode: InodeId, to: Address) -> io::Result<()> {
+        let arbo = Arbo::read_lock(&self.arbo, "send_arbo")?;
+        let path = arbo.get_path_from_inode_id(inode)?;
+        let data = self.disk.read_file(path, 0 , u64::max_value())?;
+        self.network_interface.send_file(inode, data, to)
+    }
     // !SECTION
 
     // SECTION - Adapters

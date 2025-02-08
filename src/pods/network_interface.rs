@@ -287,6 +287,16 @@ impl NetworkInterface {
         }
     }
 
+    pub fn send_file(&self, inode: InodeId, data: Vec<u8>, to: Address) -> io::Result<()> {
+        self.to_network_message_tx
+            .send(ToNetworkMessage::SpecificMessage(
+                MessageContent::PullAnswer(inode, data),
+                vec![to],
+            ))
+            .expect("send_file: unable to update modification on the network thread");
+        Ok(())
+    }
+
     pub fn revoke_remote_hosts(&self, id: InodeId) -> io::Result<()> {
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
@@ -362,7 +372,7 @@ impl NetworkInterface {
                 MessageContent::EditHosts(id, hosts) => fs_interface.recept_edit_hosts(id, hosts),
                 MessageContent::Remove(id) => fs_interface.recept_remove_inode(id),
                 MessageContent::Meta(_) => todo!(),
-                MessageContent::RequestFile(_) => todo!(),
+                MessageContent::RequestFile(inode) => fs_interface.send_file(inode, origin),
                 MessageContent::RequestFs => fs_interface.send_filesystem(origin),
                 MessageContent::FsAnswer(fs) => fs_interface.replace_arbo(fs),
             };
