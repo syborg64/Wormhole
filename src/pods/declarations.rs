@@ -63,6 +63,22 @@ impl Pod {
             to_network_message_rx,
         )));
 
+        
+
+        let disk_manager = DiskManager::new(mount_point.clone())?;
+
+        // TODO - maybe not mount fuse until remote arbo is pulled
+        let fs_interface = Arc::new(FsInterface::new(
+            network_interface.clone(),
+            disk_manager,
+            arbo.clone(),
+        ));
+
+        let network_airport_handle = Some(tokio::spawn(NetworkInterface::network_airport(
+            from_network_message_rx,
+            fs_interface.clone(),
+        )));
+
         if peers_addrs.len() >= 1 {
             info!("Will pull filesystem from remote...");
             network_interface
@@ -74,22 +90,10 @@ impl Pod {
             info!("Created fresh new filesystem");
         }
 
-        let disk_manager = DiskManager::new(mount_point.clone())?;
-
-        let fs_interface = Arc::new(FsInterface::new(
-            network_interface.clone(),
-            disk_manager,
-            arbo.clone(),
-        ));
-
-        let network_airport_handle = Some(tokio::spawn(NetworkInterface::network_airport(
-            from_network_message_rx,
-            fs_interface.clone(),
-        )));
         let new_peer_handle = Some(tokio::spawn(
             NetworkInterface::incoming_connections_watchdog(
                 server,
-                from_network_message_tx.clone(),
+                from_network_message_tx,
                 network_interface.peers.clone(),
             ),
         ));
