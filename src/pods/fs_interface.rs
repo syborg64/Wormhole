@@ -113,6 +113,8 @@ impl FsInterface {
         self.network_interface.revoke_remote_hosts(id)?; // TODO - manage this error to prevent remote/local desync
         Ok(written)
     }
+
+    //pub fn rename(&self, id: InodeId, )
     // !SECTION
 
     // SECTION - local -> read
