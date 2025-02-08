@@ -65,7 +65,7 @@ impl FsInterface {
             ));
         };
 
-        match self.disk.new_file(&new_path) {
+        match self.disk.new_file(new_path) {
             Ok(_) => (),
             Err(e) => {
                 return Err(e);
@@ -85,10 +85,10 @@ impl FsInterface {
         };
 
         match entry {
-            FsEntry::File(_) => self.disk.remove_file(&to_remove_path),
+            FsEntry::File(_) => self.disk.remove_file(to_remove_path),
             FsEntry::Directory(children) => {
                 if children.is_empty() {
-                    self.disk.remove_dir(&to_remove_path)
+                    self.disk.remove_dir(to_remove_path)
                 } else {
                     Err(io::Error::new(
                         io::ErrorKind::InvalidData,
@@ -107,7 +107,7 @@ impl FsInterface {
         let written = {
             let arbo = Arbo::read_lock(&self.arbo, "fs_interface.write")?;
             self.disk
-                .write_file(&arbo.get_path_from_inode_id(id)?, data, offset)?
+                .write_file(arbo.get_path_from_inode_id(id)?, data, offset)?
         };
 
         self.network_interface.revoke_remote_hosts(id)?; // TODO - manage this error to prevent remote/local desync
@@ -141,7 +141,7 @@ impl FsInterface {
         }
 
         self.disk.read_file(
-            &Arbo::read_lock(&self.arbo, "read_file")?.get_path_from_inode_id(file)?,
+            Arbo::read_lock(&self.arbo, "read_file")?.get_path_from_inode_id(file)?,
             offset,
             len,
         )
@@ -181,7 +181,7 @@ impl FsInterface {
             arbo.get_path_from_inode_id(id)?
         };
 
-        match self.disk.new_file(&new_path) {
+        match self.disk.new_file(new_path) {
             Ok(_) => (),
             Err(e) => {
                 return Err(e);
@@ -206,7 +206,7 @@ impl FsInterface {
                 }
             }
         };
-        let status = self.disk.write_file(&path, binary, 0).is_ok();
+        let status = self.disk.write_file(path, binary, 0).is_ok();
         self.network_interface
             .callbacks
             .resolve(Callback::Pull(id), status);
@@ -219,7 +219,7 @@ impl FsInterface {
         };
 
         // REVIEW - should be ok that file is not on disk
-        match self.disk.remove_file(&to_remove_path) {
+        match self.disk.remove_file(to_remove_path) {
             Ok(_) => (),
             Err(e) => {
                 return Err(e);

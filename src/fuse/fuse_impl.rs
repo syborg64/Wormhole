@@ -82,7 +82,7 @@ impl Filesystem for FuseController {
             parent,
             name.to_string_lossy().to_string()
         );
-        
+
         match self
             .fs_interface
             .get_entry_from_name(parent, name.to_string_lossy().to_string())
@@ -290,7 +290,11 @@ pub fn mount_fuse(
     mount_point: &WhPath,
     fs_interface: Arc<FsInterface>,
 ) -> io::Result<BackgroundSession> {
-    let options = vec![MountOption::RW, MountOption::FSName("wormhole".to_string())];
+    let options = vec![
+        MountOption::RW,
+        // MountOption::DefaultPermissions,
+        MountOption::FSName("wormhole".to_string()),
+    ];
     let ctrl = FuseController { fs_interface };
 
     fuser::spawn_mount2(ctrl, mount_point.to_string(), &options)
