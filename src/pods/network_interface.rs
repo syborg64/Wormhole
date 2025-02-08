@@ -369,10 +369,8 @@ impl NetworkInterface {
                 MessageContent::EditHosts(id, hosts) => {
                     fs_interface.recept_edit_hosts(id, hosts);
                 }
-                MessageContent::Remove(ino) => {
-                    todo!();
-                    //let mut provider = provider.lock().expect("failed to lock mutex");
-                    //provider.recpt_remove(ino);
+                MessageContent::Remove(id) => {
+                    fs_interface.recept_remove_inode(id);
                 }
                 MessageContent::Write(ino, data) => {
                     todo!();
