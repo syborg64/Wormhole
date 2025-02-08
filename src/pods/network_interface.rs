@@ -1,17 +1,12 @@
 use std::{collections::HashMap, io, sync::Arc};
 
-use clap::error;
-use log::{debug, error, info, warn};
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::{
     broadcast,
-    mpsc::{self, UnboundedReceiver, UnboundedSender},
+    mpsc::{UnboundedReceiver, UnboundedSender},
 };
 
-use super::{
-    arbo::{self, FsEntry},
-    whpath::WhPath,
-};
+use super::{arbo::FsEntry, whpath::WhPath};
 use crate::network::{
     message::{
         self, Address, FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
@@ -53,23 +48,23 @@ impl Callbacks {
     }
 
     pub fn resolve(&self, call: Callback, status: bool) -> io::Result<()> {
-        log::error!("RESOLVING CALLBACK");
         if let Some(mut callbacks) = self.callbacks.try_write_for(LOCK_TIMEOUT) {
             if let Some(cb) = callbacks.remove(&call) {
-                cb.send(status);
-                return Ok(());
+                cb.send(status).map(|_| ()).map_err(|send_error| {
+                    io::Error::new(io::ErrorKind::Other, send_error.to_string())
+                })
             } else {
-                return Err(io::Error::new(
+                Err(io::Error::new(
                     io::ErrorKind::WouldBlock,
                     "no such callback active",
-                ));
-            };
+                ))
+            }
         } else {
-            return Err(io::Error::new(
+            Err(io::Error::new(
                 io::ErrorKind::WouldBlock,
                 "unable to read_lock callbacks",
-            ));
-        };
+            ))
+        }
     }
 
     pub fn wait_for(&self, call: Callback) -> io::Result<bool> {
@@ -195,7 +190,7 @@ impl NetworkInterface {
 
     #[must_use]
     /// Get a new inode, add the requested entry to the arbo and inform the network
-    pub fn acknowledge_new_file(&self, inode: Inode, id: InodeId) -> io::Result<()> {
+    pub fn acknowledge_new_file(&self, inode: Inode, _id: InodeId) -> io::Result<()> {
         if let Some(mut arbo) = self.arbo.try_write_for(LOCK_TIMEOUT) {
             match arbo.add_inode(inode) {
                 Ok(()) => (),
@@ -333,7 +328,6 @@ impl NetworkInterface {
     // NOTE - meant only for pulling the arbo at startup !
     // Does not care for currently ongoing business when called
     pub fn replace_arbo(&self, new: FileSystemSerialized) -> io::Result<()> {
-        log::error!("REPLACE ARBO");
         let mut arbo = Arbo::write_lock(&self.arbo, "replace_arbo")?;
         arbo.overwrite_self(new.fs_index);
 
@@ -344,9 +338,7 @@ impl NetworkInterface {
         *next_inode = new.next_inode;
 
         // resolve callback :
-        log::error!("REPLACE ARBO2");
-        self.callbacks.resolve(Callback::PullFs, true);
-        Ok(())
+        self.callbacks.resolve(Callback::PullFs, true)
     }
 
     pub async fn network_airport(
@@ -358,42 +350,20 @@ impl NetworkInterface {
                 Some(message) => message,
                 None => continue,
             };
-            log::error!("airport {:#?}", content);
 
-            match content {
-                MessageContent::PullAnswer(id, binary) => {
-                    fs_interface.recept_binary(id, binary);
-                }
-                MessageContent::Binary(bin) => {
-                    println!("peer: {:?}", String::from_utf8(bin).unwrap_or_default());
-                }
-                MessageContent::Inode(inode, id) => {
-                    fs_interface.recept_inode(inode, id);
-                }
-                MessageContent::EditHosts(id, hosts) => {
-                    fs_interface.recept_edit_hosts(id, hosts);
-                }
-                MessageContent::Remove(ino) => {
-                    todo!();
-                    //let mut provider = provider.lock().expect("failed to lock mutex");
-                    //provider.recpt_remove(ino);
-                }
-                MessageContent::Write(ino, data) => {
-                    todo!();
-                    // deprecated ?
-                    //let mut provider = provider.lock().expect("failed to lock mutex");
-                    //provider.recpt_write(ino, data);
-                }
-                MessageContent::Meta(_) => {}
-                MessageContent::RequestFile(_) => {}
-                MessageContent::RequestFs => {
-                    fs_interface.send_filesystem(origin);
-                }
-                MessageContent::FsAnswer(fs) => {
-                    log::error!("MSGCONTENT FSANSWER");
-                    fs_interface.replace_arbo(fs);
-                }
+            let action_result = match content {
+                MessageContent::PullAnswer(id, binary) => fs_interface.recept_binary(id, binary),
+                MessageContent::Inode(inode, id) => fs_interface.recept_inode(inode, id),
+                MessageContent::EditHosts(id, hosts) => fs_interface.recept_edit_hosts(id, hosts),
+                MessageContent::Remove(id) => fs_interface.recept_remove_inode(id),
+                MessageContent::Meta(_) => todo!(),
+                MessageContent::RequestFile(_) => todo!(),
+                MessageContent::RequestFs => fs_interface.send_filesystem(origin),
+                MessageContent::FsAnswer(fs) => fs_interface.replace_arbo(fs),
             };
+            if let Err(error) = action_result {
+                log::error!("Network airport couldn't operate this operation: {error}");
+            }
         }
     }
 
@@ -411,7 +381,7 @@ impl NetworkInterface {
                 .collect();
 
             println!("broadcasting message to peers:\n{:?}", message);
-            info!(
+            log::info!(
                 "peers list {:#?}",
                 peers_list
                     .read()
@@ -433,7 +403,6 @@ impl NetworkInterface {
                         .iter()
                         .filter(|&(_, address)| origins.contains(address))
                         .for_each(|(channel, address)| {
-                            error!("here to {:?}", address);
                             channel
                                 .send(message_content.clone())
                                 .expect(&format!("failed to send message to peer {}", address))
@@ -453,7 +422,6 @@ impl NetworkInterface {
                 .await
                 .expect("Error during the websocket handshake occurred");
             let addr = ws_stream.get_ref().peer_addr().unwrap().to_string();
-            log::error!("new connected peer addr is {}", addr);
 
             let (write, read) = futures_util::StreamExt::split(ws_stream);
             let new_peer = PeerIPC::connect_from_incomming(addr, nfa_tx.clone(), write, read);

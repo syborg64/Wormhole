@@ -65,7 +65,7 @@ impl FsInterface {
             ));
         };
 
-        match self.disk.new_file(&new_path) {
+        match self.disk.new_file(new_path) {
             Ok(_) => (),
             Err(e) => {
                 return Err(e);
@@ -85,10 +85,10 @@ impl FsInterface {
         };
 
         match entry {
-            FsEntry::File(_) => self.disk.remove_file(&to_remove_path),
+            FsEntry::File(_) => self.disk.remove_file(to_remove_path),
             FsEntry::Directory(children) => {
                 if children.is_empty() {
-                    self.disk.remove_dir(&to_remove_path)
+                    self.disk.remove_dir(to_remove_path)
                 } else {
                     Err(io::Error::new(
                         io::ErrorKind::InvalidData,
@@ -107,7 +107,7 @@ impl FsInterface {
         let written = {
             let arbo = Arbo::read_lock(&self.arbo, "fs_interface.write")?;
             self.disk
-                .write_file(&arbo.get_path_from_inode_id(id)?, data, offset)?
+                .write_file(arbo.get_path_from_inode_id(id)?, data, offset)?
         };
 
         self.network_interface.revoke_remote_hosts(id)?; // TODO - manage this error to prevent remote/local desync
@@ -124,9 +124,7 @@ impl FsInterface {
     }
 
     pub fn read_file(&self, file: InodeId, offset: u64, len: u64) -> io::Result<Vec<u8>> {
-        let cb = self
-            .network_interface
-            .pull_file(file)?;
+        let cb = self.network_interface.pull_file(file)?;
 
         let status = match cb {
             None => true,
@@ -141,7 +139,7 @@ impl FsInterface {
         }
 
         self.disk.read_file(
-            &Arbo::read_lock(&self.arbo, "read_file")?.get_path_from_inode_id(file)?,
+            Arbo::read_lock(&self.arbo, "read_file")?.get_path_from_inode_id(file)?,
             offset,
             len,
         )
@@ -168,9 +166,11 @@ impl FsInterface {
 
     // SECTION - remote -> write
 
-    pub fn replace_arbo(&self, new: FileSystemSerialized) {
-        self.network_interface.replace_arbo(new);
-        self.network_interface.callbacks.resolve(Callback::PullFs, true);
+    pub fn replace_arbo(&self, new: FileSystemSerialized) -> io::Result<()> {
+        self.network_interface.replace_arbo(new)?;
+        self.network_interface
+            .callbacks
+            .resolve(Callback::PullFs, true)
     }
 
     pub fn recept_inode(&self, inode: Inode, id: InodeId) -> io::Result<()> {
@@ -181,7 +181,7 @@ impl FsInterface {
             arbo.get_path_from_inode_id(id)?
         };
 
-        match self.disk.new_file(&new_path) {
+        match self.disk.new_file(new_path) {
             Ok(_) => (),
             Err(e) => {
                 return Err(e);
@@ -191,7 +191,7 @@ impl FsInterface {
         Ok(())
     }
 
-    pub fn recept_binary(&self, id: InodeId, binary: Vec<u8>) {
+    pub fn recept_binary(&self, id: InodeId, binary: Vec<u8>) -> io::Result<()> {
         let path = {
             let arbo = Arbo::read_lock(&self.arbo, "recept_binary")
                 .expect("recept_binary: can't read lock arbo");
@@ -199,17 +199,18 @@ impl FsInterface {
             match arbo.get_path_from_inode_id(id) {
                 Ok(path) => path,
                 Err(_) => {
-                    self.network_interface
+                    return self
+                        .network_interface
                         .callbacks
-                        .resolve(Callback::Pull(id), false);
-                    return;
+                        .resolve(Callback::Pull(id), false)
+                        .map(|_| ());
                 }
             }
         };
-        let status = self.disk.write_file(&path, binary, 0).is_ok();
+        let status = self.disk.write_file(path, binary, 0).is_ok();
         self.network_interface
             .callbacks
-            .resolve(Callback::Pull(id), status);
+            .resolve(Callback::Pull(id), status)
     }
 
     pub fn recept_remove_inode(&self, id: InodeId) -> io::Result<()> {
@@ -219,7 +220,7 @@ impl FsInterface {
         };
 
         // REVIEW - should be ok that file is not on disk
-        match self.disk.remove_file(&to_remove_path) {
+        match self.disk.remove_file(to_remove_path) {
             Ok(_) => (),
             Err(e) => {
                 return Err(e);
@@ -231,14 +232,14 @@ impl FsInterface {
         Ok(())
     }
 
-    pub fn recept_edit_hosts(&self, id: InodeId, hosts: Vec<Address>) {
-        self.network_interface.acknowledge_hosts_edition(id, hosts);
+    pub fn recept_edit_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
+        self.network_interface.acknowledge_hosts_edition(id, hosts)
     }
     // !SECTION
 
     // SECTION remote -> read
-    pub fn send_filesystem(&self, to: Address) {
-        self.network_interface.send_arbo(to);
+    pub fn send_filesystem(&self, to: Address) -> io::Result<()> {
+        self.network_interface.send_arbo(to)
     }
     // !SECTION
 
