@@ -1,17 +1,12 @@
 use std::{collections::HashMap, io, sync::Arc};
 
-use clap::error;
-use log::{debug, error, info, warn};
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::{
     broadcast,
-    mpsc::{self, UnboundedReceiver, UnboundedSender},
+    mpsc::{UnboundedReceiver, UnboundedSender},
 };
 
-use super::{
-    arbo::{self, FsEntry},
-    whpath::WhPath,
-};
+use super::{arbo::FsEntry, whpath::WhPath};
 use crate::network::{
     message::{
         self, Address, FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
@@ -55,20 +50,21 @@ impl Callbacks {
     pub fn resolve(&self, call: Callback, status: bool) -> io::Result<()> {
         if let Some(mut callbacks) = self.callbacks.try_write_for(LOCK_TIMEOUT) {
             if let Some(cb) = callbacks.remove(&call) {
-                cb.send(status);
-                return Ok(());
+                cb.send(status).map(|_| ()).map_err(|send_error| {
+                    io::Error::new(io::ErrorKind::Other, send_error.to_string())
+                })
             } else {
-                return Err(io::Error::new(
+                Err(io::Error::new(
                     io::ErrorKind::WouldBlock,
                     "no such callback active",
-                ));
-            };
+                ))
+            }
         } else {
-            return Err(io::Error::new(
+            Err(io::Error::new(
                 io::ErrorKind::WouldBlock,
                 "unable to read_lock callbacks",
-            ));
-        };
+            ))
+        }
     }
 
     pub fn wait_for(&self, call: Callback) -> io::Result<bool> {
@@ -194,7 +190,7 @@ impl NetworkInterface {
 
     #[must_use]
     /// Get a new inode, add the requested entry to the arbo and inform the network
-    pub fn acknowledge_new_file(&self, inode: Inode, id: InodeId) -> io::Result<()> {
+    pub fn acknowledge_new_file(&self, inode: Inode, _id: InodeId) -> io::Result<()> {
         if let Some(mut arbo) = self.arbo.try_write_for(LOCK_TIMEOUT) {
             match arbo.add_inode(inode) {
                 Ok(()) => (),
@@ -342,8 +338,7 @@ impl NetworkInterface {
         *next_inode = new.next_inode;
 
         // resolve callback :
-        self.callbacks.resolve(Callback::PullFs, true);
-        Ok(())
+        self.callbacks.resolve(Callback::PullFs, true)
     }
 
     pub async fn network_airport(
@@ -364,15 +359,19 @@ impl NetworkInterface {
                     println!("peer: {:?}", String::from_utf8(bin).unwrap_or_default());
                 }
                 MessageContent::Inode(inode, id) => {
-                    fs_interface.recept_inode(inode, id);
+                    if let Err(error) = fs_interface.recept_inode(inode, id) {
+                        log::error!("{error:?}");
+                    }
                 }
                 MessageContent::EditHosts(id, hosts) => {
                     fs_interface.recept_edit_hosts(id, hosts);
                 }
                 MessageContent::Remove(id) => {
-                    fs_interface.recept_remove_inode(id);
+                    if let Err(error) = fs_interface.recept_remove_inode(id) {
+                        log::error!("{error:?}");
+                    }
                 }
-                MessageContent::Write(ino, data) => {
+                MessageContent::Write(_id, _data) => {
                     todo!();
                     // deprecated ?
                     //let mut provider = provider.lock().expect("failed to lock mutex");
@@ -404,7 +403,7 @@ impl NetworkInterface {
                 .collect();
 
             println!("broadcasting message to peers:\n{:?}", message);
-            info!(
+            log::info!(
                 "peers list {:#?}",
                 peers_list
                     .read()
