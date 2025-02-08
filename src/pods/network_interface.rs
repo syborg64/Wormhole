@@ -351,41 +351,19 @@ impl NetworkInterface {
                 None => continue,
             };
 
-            match content {
-                MessageContent::PullAnswer(id, binary) => {
-                    fs_interface.recept_binary(id, binary);
-                }
-                MessageContent::Binary(bin) => {
-                    println!("peer: {:?}", String::from_utf8(bin).unwrap_or_default());
-                }
-                MessageContent::Inode(inode, id) => {
-                    if let Err(error) = fs_interface.recept_inode(inode, id) {
-                        log::error!("{error:?}");
-                    }
-                }
-                MessageContent::EditHosts(id, hosts) => {
-                    fs_interface.recept_edit_hosts(id, hosts);
-                }
-                MessageContent::Remove(id) => {
-                    if let Err(error) = fs_interface.recept_remove_inode(id) {
-                        log::error!("{error:?}");
-                    }
-                }
-                MessageContent::Write(_id, _data) => {
-                    todo!();
-                    // deprecated ?
-                    //let mut provider = provider.lock().expect("failed to lock mutex");
-                    //provider.recpt_write(ino, data);
-                }
-                MessageContent::Meta(_) => {}
-                MessageContent::RequestFile(_) => {}
-                MessageContent::RequestFs => {
-                    fs_interface.send_filesystem(origin);
-                }
-                MessageContent::FsAnswer(fs) => {
-                    fs_interface.replace_arbo(fs);
-                }
+            let action_result = match content {
+                MessageContent::PullAnswer(id, binary) => fs_interface.recept_binary(id, binary),
+                MessageContent::Inode(inode, id) => fs_interface.recept_inode(inode, id),
+                MessageContent::EditHosts(id, hosts) => fs_interface.recept_edit_hosts(id, hosts),
+                MessageContent::Remove(id) => fs_interface.recept_remove_inode(id),
+                MessageContent::Meta(_) => todo!(),
+                MessageContent::RequestFile(_) => todo!(),
+                MessageContent::RequestFs => fs_interface.send_filesystem(origin),
+                MessageContent::FsAnswer(fs) => fs_interface.replace_arbo(fs),
             };
+            if let Err(error) = action_result {
+                log::error!("Network airport couldn't operate this operation: {error}");
+            }
         }
     }
 
