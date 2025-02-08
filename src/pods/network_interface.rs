@@ -265,6 +265,11 @@ impl NetworkInterface {
             }
         };
 
+        if hosts.len() == 0 {
+            log::error!("No hosts hold the file");
+            return Err(io::ErrorKind::InvalidData.into());
+        }
+
         if hosts.contains(&self.self_addr) {
             // if the asked file is already on disk
             Ok(None)
