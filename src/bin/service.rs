@@ -32,10 +32,10 @@ async fn main() {
     let own_addr = env::args().nth(1).unwrap_or("127.0.0.1:8080".to_string());
     let other_addr1 = env::args()
         .nth(2)
-        .unwrap_or("ws://127.0.0.2:8080".to_string());
+        .unwrap_or("127.0.0.2:8080".to_string());
     let other_addr2 = env::args()
         .nth(3)
-        .unwrap_or("ws://127.0.0.3:8080".to_string());
+        .unwrap_or("127.0.0.3:8080".to_string());
     let mount: PathBuf = env::args()
         .nth(4)
         .unwrap_or("./virtual/".to_string())
