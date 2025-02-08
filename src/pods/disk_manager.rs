@@ -1,4 +1,4 @@
-use std::{fs::File, os::unix::fs::FileExt};
+use std::{fs::File, io::Read, os::unix::fs::FileExt};
 
 use openat::Dir;
 use tokio::io;
@@ -38,12 +38,15 @@ impl DiskManager {
 
     pub fn read_file(&self, path: WhPath, offset: u64, len: u64) -> io::Result<Vec<u8>> {
         let file = self.handle.open_file(path.set_relative())?;
-        let mut buf = Vec::with_capacity(
-            len.try_into()
-                .expect("disk_manager::read_file: can't convert u64 to usize"),
+        let mut buf = Vec::<u8>::new();
+        buf.splice(
+            0..0,
+            file.bytes()
+                .skip(offset as usize)
+                .take(len as usize)
+                .map_while(|b| b.ok()),
         );
 
-        file.read_exact_at(&mut buf, offset)?;
         Ok(buf)
     }
 
