@@ -5,7 +5,7 @@ use fuser::{
     BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData,
     ReplyDirectory, ReplyEntry, Request,
 };
-use libc::{ENOENT, ENOSYS};
+use libc::{EIO, ENOENT};
 use log::debug;
 use openat::{Dir, SimpleType};
 use std::collections::HashMap;
@@ -128,7 +128,7 @@ impl Filesystem for FuseController {
 
         match content {
             Ok(content) => reply.data(&content),
-            Err(_) => reply.error(ENOENT),
+            Err(err) => reply.error(err.raw_os_error().unwrap_or(EIO)),
         }
     }
 
@@ -178,20 +178,21 @@ impl Filesystem for FuseController {
         _rdev: u32,
         reply: ReplyEntry,
     ) {
-        if let Ok((id, _)) = self.fs_interface.make_inode(
+        match self.fs_interface.make_inode(
             parent,
             name.to_string_lossy().to_string(),
             SimpleFileType::File,
         ) {
-            // creating metadata to return
-            let mut new_attr = TEMPLATE_FILE_ATTR;
-            new_attr.ino = id;
-            new_attr.kind = FileType::RegularFile;
-            new_attr.size = 0;
+            Ok((id, _)) => {
+                // creating metadata to return
+                let mut new_attr = TEMPLATE_FILE_ATTR;
+                new_attr.ino = id;
+                new_attr.kind = FileType::RegularFile;
+                new_attr.size = 0;
 
-            reply.entry(&TTL, &new_attr, 0)
-        } else {
-            reply.error(ENOSYS)
+                reply.entry(&TTL, &new_attr, 0)
+            }
+            Err(err) => reply.error(err.raw_os_error().unwrap_or(EIO)),
         }
     }
 
@@ -204,37 +205,36 @@ impl Filesystem for FuseController {
         _umask: u32,
         reply: ReplyEntry,
     ) {
-        if let Ok((id, _)) = self.fs_interface.make_inode(
+        match self.fs_interface.make_inode(
             parent,
             name.to_string_lossy().to_string(),
             SimpleFileType::File,
         ) {
-            // creating metadata to return
-            let mut new_attr = TEMPLATE_FILE_ATTR;
-            new_attr.ino = id;
-            new_attr.kind = FileType::Directory;
-            new_attr.size = 0;
+            Ok((id, _)) => {
+                // creating metadata to return
+                let mut new_attr = TEMPLATE_FILE_ATTR;
+                new_attr.ino = id;
+                new_attr.kind = FileType::Directory;
+                new_attr.size = 0;
 
-            reply.entry(&TTL, &new_attr, 0)
-        } else {
-            reply.error(ENOSYS)
+                reply.entry(&TTL, &new_attr, 0)
+            }
+            Err(err) => reply.error(err.raw_os_error().unwrap_or(EIO)),
         }
     }
 
     fn unlink(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: fuser::ReplyEmpty) {
-        if let Ok(()) = self.fs_interface.fuse_remove_inode(parent, name) {
-            reply.ok()
-        } else {
-            reply.error(ENOENT)
+        match self.fs_interface.fuse_remove_inode(parent, name) {
+            Ok(()) => reply.ok(),
+            Err(err) => reply.error(err.raw_os_error().unwrap_or(EIO)),
         }
     }
 
     fn rmdir(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: fuser::ReplyEmpty) {
         // should be only called on empty dirs ?
-        if let Ok(()) = self.fs_interface.fuse_remove_inode(parent, name) {
-            reply.ok()
-        } else {
-            reply.error(ENOENT)
+        match self.fs_interface.fuse_remove_inode(parent, name) {
+            Ok(()) => reply.ok(),
+            Err(err) => reply.error(err.raw_os_error().unwrap_or(EIO)),
         }
     }
 
@@ -277,14 +277,13 @@ impl Filesystem for FuseController {
             .try_into()
             .expect("fuser write: can't convert i64 to u64");
 
-        if let Ok(written) = self.fs_interface.write(ino, data.to_vec(), offset) {
-            reply.written(
+        match self.fs_interface.write(ino, data.to_vec(), offset) {
+            Ok(written) => reply.written(
                 written
                     .try_into()
                     .expect("fuser write: can't convert u64 to u32"),
-            )
-        } else {
-            reply.error(ENOENT)
+            ),
+            Err(err) => reply.error(err.raw_os_error().unwrap_or(EIO)),
         }
     }
 

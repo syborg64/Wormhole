@@ -244,6 +244,25 @@ impl WhPath {
         }
     }
 
+    //NOTE - returns all but the last element
+    pub fn get_folder(&self) -> String {
+        let mut path = self.clone();
+        path.remove_last_slash();
+        match path.inner.rsplit_once('/') {
+            Some((first, _)) => first.to_string(),
+            _none => String::new(),
+        }
+    }
+
+    pub fn split_folder_file(&self) -> (String, String) {
+        let mut path = self.clone();
+        path.remove_last_slash();
+        match path.inner.rsplit_once('/') {
+            Some((first, last)) => (first.to_string(), last.to_string()),
+            _none => (String::new(), String::new()),
+        }
+    }
+
     pub fn pop(&mut self) -> &Self {
         self.remove_last_slash();
         if let Some(pos) = self.inner.rfind('/') {

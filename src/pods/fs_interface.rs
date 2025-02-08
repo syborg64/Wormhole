@@ -47,7 +47,7 @@ impl FsInterface {
         kind: SimpleFileType,
     ) -> io::Result<(InodeId, Inode)> {
         let new_entry = match kind {
-            SimpleFileType::File => FsEntry::File(Vec::new()),
+            SimpleFileType::File => FsEntry::File(vec!(self.network_interface.self_addr.clone())),
             SimpleFileType::Directory => FsEntry::Directory(Vec::new()),
         };
 

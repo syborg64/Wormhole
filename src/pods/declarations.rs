@@ -42,7 +42,7 @@ impl Pod {
         server: Arc<Server>,
         server_address: Address,
     ) -> io::Result<Self> {
-        let (arbo, next_inode) = index_folder(&mount_point)?;
+        let (arbo, next_inode) = index_folder(&mount_point, &server_address)?;
         let arbo: Arc<RwLock<Arbo>> = Arc::new(RwLock::new(arbo));
         let (to_network_message_tx, to_network_message_rx) = mpsc::unbounded_channel();
         let (from_network_message_tx, from_network_message_rx) = mpsc::unbounded_channel();

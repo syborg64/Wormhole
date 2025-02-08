@@ -321,6 +321,7 @@ fn index_folder_recursive(
     parent: InodeId,
     ino: &mut InodeId,
     path: &WhPath,
+    host: &String,
 ) -> io::Result<()> {
     let str_path = path.to_string();
     for entry in fs::read_dir(str_path)? {
@@ -328,12 +329,13 @@ fn index_folder_recursive(
         let ftype = entry.file_type().expect("error in filesystem indexion (2)");
         let fname = entry.file_name().to_string_lossy().to_string();
 
+
         arbo.add_inode(Inode::new(
             fname.clone(),
             parent,
             *ino,
             if ftype.is_file() {
-                FsEntry::File(Vec::new())
+                FsEntry::File(vec!(host.clone()))
             } else {
                 FsEntry::Directory(Vec::new())
             },
@@ -341,17 +343,17 @@ fn index_folder_recursive(
         *ino += 1;
 
         if ftype.is_dir() {
-            index_folder_recursive(arbo, *ino - 1, ino, &path.join(&fname))
+            index_folder_recursive(arbo, *ino - 1, ino, &path.join(&fname), host)
                 .expect("error in filesystem indexion (3)");
         };
     }
     Ok(())
 }
 
-pub fn index_folder(path: &WhPath) -> io::Result<(Arbo, InodeId)> {
+pub fn index_folder(path: &WhPath, host: &String) -> io::Result<(Arbo, InodeId)> {
     let mut arbo = Arbo::new();
     let mut ino: u64 = 11; // NOTE - will be the first registered inode after root
 
-    index_folder_recursive(&mut arbo, ROOT, &mut ino, path)?;
+    index_folder_recursive(&mut arbo, ROOT, &mut ino, path, host)?;
     Ok((arbo, ino))
 }

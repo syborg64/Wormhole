@@ -121,7 +121,7 @@ pub struct NetworkInterface {
     pub next_inode: Mutex<InodeId>, // TODO - replace with InodeIndex type
     pub callbacks: Callbacks,
     pub peers: Arc<RwLock<Vec<PeerIPC>>>,
-    self_addr: Address,
+    pub self_addr: Address,
 }
 
 impl NetworkInterface {
@@ -264,6 +264,11 @@ impl NetworkInterface {
                 ));
             }
         };
+
+        if hosts.len() == 0 {
+            log::error!("No hosts hold the file");
+            return Err(io::ErrorKind::InvalidData.into());
+        }
 
         if hosts.contains(&self.self_addr) {
             // if the asked file is already on disk
