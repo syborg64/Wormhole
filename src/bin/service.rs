@@ -23,6 +23,7 @@ use log::info;
 use wormhole::pods::whpath::WhPath;
 use wormhole::{network::server::Server, pods::declarations::Pod};
 
+
 #[tokio::main]
 async fn main() {
     let mut pods: Vec<Pod> = Vec::new();
@@ -106,7 +107,7 @@ async fn main2() {
     println!("peer1 address: {}", other_addr1);
     println!("peer2 address: {}", other_addr2);
     println!("\nstarting");
-
+    //TODO - le service doit attendre une commande de la cli pour mounter fuse, ou rejoindre un network, une grande parti de ce code doit être modifié
     let (nfa_tx, nfa_rx) = mpsc::unbounded_channel();
     let (local_fuse_tx, local_fuse_rx) = mpsc::unbounded_channel();
     let (_session, provider) = mount_fuse(&mount, local_fuse_tx.clone());

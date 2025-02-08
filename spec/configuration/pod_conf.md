@@ -32,7 +32,7 @@ This size **cannot** be exeeded by Wormhole actions.<br>
 > [!IMPORTANT]
 > If an asked file is too large to be pulled when asked, the pod will have to unload local data to the cluster, leading to increased response time. If the cluster for this data transfer, the user will be unable to access this file.
 
-## Srategy
+## Strategy
 > [!NOTE] [strategy]
 
 **redundancy-priority**: number<br>
