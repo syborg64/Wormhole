@@ -313,6 +313,19 @@ impl NetworkInterface {
          */
     }
 
+    pub fn update_remote_hosts(&self, inode: &Inode) -> io::Result<()> {
+        if let FsEntry::File(hosts) = &inode.entry {
+            self.to_network_message_tx
+                .send(ToNetworkMessage::BroadcastMessage(
+                    MessageContent::EditHosts(inode.id, hosts.clone()),
+                ))
+                .expect("update_remote_hosts: unable to update modification on the network thread");
+            Ok(())
+        } else {
+            Err(io::ErrorKind::InvalidInput.into())
+        }
+    }
+
     pub async fn request_arbo(&self, to: Address) -> io::Result<bool> {
         let callback = self.callbacks.create(Callback::PullFs)?;
 
