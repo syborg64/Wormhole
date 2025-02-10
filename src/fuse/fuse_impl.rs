@@ -283,6 +283,25 @@ impl Filesystem for FuseController {
     }
 
     // ^ WRITING
+
+    fn open(&mut self, _req: &Request<'_>, ino: u64, flags: i32, reply: fuser::ReplyOpen) {
+        log::error!("OPEN ON {}", ino);
+        reply.opened(ino, flags as u32); // TODO - check flags ?
+    }
+
+    fn release(
+        &mut self,
+        _req: &Request<'_>,
+        _ino: u64,
+        _fh: u64,
+        _flags: i32,
+        _lock_owner: Option<u64>,
+        _flush: bool,
+        reply: fuser::ReplyEmpty,
+    ) {
+        log::error!("RELEASE CALLED");
+        reply.ok();
+    }
 }
 
 pub fn mount_fuse(
