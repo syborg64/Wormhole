@@ -1,4 +1,4 @@
-use std::{fs::File, os::unix::fs::FileExt};
+use std::{ffi::OsStr, fs::File, os::unix::fs::FileExt};
 
 use openat::Dir;
 use tokio::io;
@@ -36,10 +36,12 @@ impl DiskManager {
         Ok(file.write_at(&binary, offset)? as u64) // NOTE - used "as" because into() is not supported
     }
 
-    pub fn rename(&self, path: WhPath, new_name: &String) -> io::Result<()> {
-        let mut original_path = path.clone(); // NOTE - Would be better if rename was non mutable
-        original_path.rename(new_name);
-        self.handle.local_rename(path, original_path)
+    pub fn mv_file(&self, path: WhPath, new_path: WhPath) -> io::Result<()> {
+        // let mut original_path = path.clone(); // NOTE - Would be better if rename was non mutable
+        // original_path.rename(new_name);
+        log::error!("disk rename {} {}", path, new_path);
+        self.handle
+            .local_rename(path.set_relative(), new_path.set_relative())
     }
 
     pub fn read_file(&self, path: WhPath, offset: u64, len: u64) -> io::Result<Vec<u8>> {

@@ -245,20 +245,36 @@ impl Filesystem for FuseController {
         _req: &Request<'_>,
         parent: u64,
         name: &OsStr,
-        newparent: u64,
+        new_parent: u64,
         newname: &OsStr,
         flags: u32,
         reply: fuser::ReplyEmpty,
     ) {
-        log::error!("Renaming: {parent}, [{name:?}], [{newparent}], [{newname:?}], [{flags:?}]");
-        //self.fs_interface.rename(id);
-        reply.error(ENOENT) // TODO
-                            // let mut provider = self.provider.lock().unwrap();
-                            // if let Some(()) = provider.rename(parent, name, newparent, newname) {
-                            //     reply.ok()
-                            // } else {
-                            //     reply.error(ENOENT)
-                            // }
+        log::error!("Renaming: {parent}, [{name:?}], [{new_parent}], [{newname:?}], [{flags:?}]");
+        match self.fs_interface.rename(
+            parent,
+            new_parent,
+            &name
+                .to_owned()
+                .into_string()
+                .expect("Don't support non unicode yet"),
+            &newname
+                .to_owned()
+                .into_string()
+                .expect("Don't support non unicode yet"),
+        ) {
+            Ok(()) => reply.ok(),
+            Err(err) => {
+                log::error!("Error in rename: {err:?}");
+                reply.error(err.raw_os_error().unwrap_or(EIO))
+            }
+        }
+        // let mut provider = self.provider.lock().unwrap();
+        // if let Some(()) = provider.rename(parent, name, newparent, newname) {
+        //     reply.ok()
+        // } else {
+        //     reply.error(ENOENT)
+        // }
     }
 
     fn write(

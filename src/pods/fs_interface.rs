@@ -8,6 +8,7 @@ use super::{
     network_interface::NetworkInterface,
 };
 use parking_lot::RwLock;
+use std::ffi::OsStr;
 use std::io::{self};
 use std::sync::Arc;
 
@@ -47,7 +48,7 @@ impl FsInterface {
         kind: SimpleFileType,
     ) -> io::Result<(InodeId, Inode)> {
         let new_entry = match kind {
-            SimpleFileType::File => FsEntry::File(vec!(self.network_interface.self_addr.clone())),
+            SimpleFileType::File => FsEntry::File(vec![self.network_interface.self_addr.clone()]),
             SimpleFileType::Directory => FsEntry::Directory(Vec::new()),
         };
 
@@ -114,7 +115,60 @@ impl FsInterface {
         Ok(written)
     }
 
-    //pub fn rename(&self, id: InodeId, )
+    fn construct_file_path(&self, parent: InodeId, name: &String) -> io::Result<WhPath> {
+        let arbo = Arbo::read_lock(&self.arbo, "fs_interface.get_begin_path_end_path")?;
+        let parent_path = arbo.get_path_from_inode_id(parent)?;
+
+        return Ok(parent_path.join(name));
+    }
+
+    pub fn rename(
+        &self,
+        parent: InodeId,
+        new_parent: InodeId,
+        name: &String,
+        new_name: &String,
+    ) -> io::Result<()> {
+        log::error!("fs_interface rename");
+        let parent_path = self.construct_file_path(parent, name)?;
+        log::error!("1");
+        let new_parent_path = self.construct_file_path(new_parent, new_name)?;
+        log::error!("2");
+        if std::path::Path::new(&parent_path.inner).exists() {
+            self.disk.mv_file(parent_path, new_parent_path)?;
+        }
+        log::error!("3");
+        self.network_interface
+            .broadcast_rename_file(parent, new_parent, name, new_name)?;
+        log::error!("4");
+        self.network_interface
+            .arbo_rename_file(parent, new_parent, name, new_name)?;
+        log::error!("5");
+        Ok(())
+    }
+
+    pub fn accept_rename(
+        &self,
+        parent: InodeId,
+        new_parent: InodeId,
+        name: &String,
+        new_name: &String,
+    ) -> io::Result<()> {
+        log::error!("fs_interface accept rename");
+        let parent_path = self.construct_file_path(parent, name)?;
+        log::error!("1.1");
+        let new_parent_path = self.construct_file_path(new_parent, new_name)?;
+        log::error!("2.1");
+        if std::path::Path::new(&parent_path.inner).exists() {
+            self.disk.mv_file(parent_path, new_parent_path)?;
+        }
+        log::error!("3.1");
+        self.network_interface
+            .arbo_rename_file(parent, new_parent, name, new_name)?;
+        log::error!("4.1");
+        Ok(())
+    }
+
     // !SECTION
 
     // SECTION - local -> read
