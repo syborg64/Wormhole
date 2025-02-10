@@ -45,7 +45,7 @@ pub const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
     ctime: UNIX_EPOCH,
     crtime: UNIX_EPOCH,
     kind: FileType::RegularFile,
-    perm: 0o644,
+    perm: 0o777,
     nlink: 1,
     uid: 501,
     gid: 20,
@@ -128,7 +128,10 @@ impl Filesystem for FuseController {
 
         match content {
             Ok(content) => reply.data(&content),
-            Err(err) => reply.error(err.raw_os_error().unwrap_or(EIO)),
+            Err(err) => {
+                log::error!("fuse_impl error: {:?}", err);
+                reply.error(err.raw_os_error().unwrap_or(EIO))
+            }
         }
     }
 
@@ -191,7 +194,10 @@ impl Filesystem for FuseController {
 
                 reply.entry(&TTL, &new_attr, 0)
             }
-            Err(err) => reply.error(err.raw_os_error().unwrap_or(EIO)),
+            Err(err) => {
+                log::error!("fuse_impl error: {:?}", err);
+                reply.error(err.raw_os_error().unwrap_or(EIO))
+            }
         }
     }
 
@@ -218,14 +224,20 @@ impl Filesystem for FuseController {
 
                 reply.entry(&TTL, &new_attr, 0)
             }
-            Err(err) => reply.error(err.raw_os_error().unwrap_or(EIO)),
+            Err(err) => {
+                log::error!("fuse_impl error: {:?}", err);
+                reply.error(err.raw_os_error().unwrap_or(EIO))
+            }
         }
     }
 
     fn unlink(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: fuser::ReplyEmpty) {
         match self.fs_interface.fuse_remove_inode(parent, name) {
             Ok(()) => reply.ok(),
-            Err(err) => reply.error(err.raw_os_error().unwrap_or(EIO)),
+            Err(err) => {
+                log::error!("fuse_impl error: {:?}", err);
+                reply.error(err.raw_os_error().unwrap_or(EIO))
+            }
         }
     }
 
@@ -233,7 +245,10 @@ impl Filesystem for FuseController {
         // should be only called on empty dirs ?
         match self.fs_interface.fuse_remove_inode(parent, name) {
             Ok(()) => reply.ok(),
-            Err(err) => reply.error(err.raw_os_error().unwrap_or(EIO)),
+            Err(err) => {
+                log::error!("fuse_impl error: {:?}", err);
+                reply.error(err.raw_os_error().unwrap_or(EIO))
+            }
         }
     }
 
@@ -278,15 +293,54 @@ impl Filesystem for FuseController {
                     .try_into()
                     .expect("fuser write: can't convert u64 to u32"),
             ),
-            Err(err) => reply.error(err.raw_os_error().unwrap_or(EIO)),
+            Err(err) => {
+                log::error!("fuse_impl error: {:?}", err);
+                reply.error(err.raw_os_error().unwrap_or(EIO))
+            }
         }
     }
 
     // ^ WRITING
 
-    fn open(&mut self, _req: &Request<'_>, ino: u64, flags: i32, reply: fuser::ReplyOpen) {
+    fn create(
+        &mut self,
+        _req: &Request<'_>,
+        parent: u64,
+        name: &OsStr,
+        mode: u32,
+        umask: u32,
+        flags: i32,
+        reply: fuser::ReplyCreate,
+    ) {
+        debug!("CREATE called on parent {} for {:?}", parent, name);
+
+        match self.fs_interface.make_inode(
+            parent,
+            name.to_string_lossy().to_string(),
+            SimpleFileType::File,
+        ) {
+            Ok((id, _)) => {
+                // creating metadata to return
+                let mut new_attr = TEMPLATE_FILE_ATTR;
+                new_attr.ino = id;
+                new_attr.kind = FileType::RegularFile;
+                new_attr.size = 0;
+
+                reply.created(&TTL, &new_attr, 0, new_attr.ino, flags as u32);
+            }
+            Err(err) => {
+                log::error!("fuse_impl::create : unable to create file. {:?}", err);
+                {
+                    log::error!("fuse_impl error: {:?}", err);
+                    reply.error(err.raw_os_error().unwrap_or(EIO))
+                }
+            }
+        }
+    }
+
+    fn open(&mut self, _req: &Request<'_>, ino: u64, _flags: i32, reply: fuser::ReplyOpen) {
         log::error!("OPEN ON {}", ino);
-        reply.opened(ino, flags as u32); // TODO - check flags ?
+        reply.opened(ino, 0o666); // TODO - check flags ?
     }
 
     fn release(
