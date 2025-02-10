@@ -208,7 +208,7 @@ impl Filesystem for FuseController {
         match self.fs_interface.make_inode(
             parent,
             name.to_string_lossy().to_string(),
-            SimpleFileType::File,
+            SimpleFileType::Directory,
         ) {
             Ok((id, _)) => {
                 // creating metadata to return
