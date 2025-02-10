@@ -7,16 +7,22 @@ use fuser::{
 };
 use libc::{EIO, ENOENT};
 use log::debug;
-use openat::{Dir, SimpleType};
-use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::io;
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, UNIX_EPOCH};
 
 // NOTE - placeholders
 const TTL: Duration = Duration::from_secs(1);
+
+impl Into<FileType> for SimpleFileType {
+    fn into(self) -> FileType {
+        match self {
+            SimpleFileType::File => FileType::RegularFile,
+            SimpleFileType::Directory => FileType::Directory,
+        }
+    }
+}
 
 const MOUNT_DIR_ATTR: FileAttr = FileAttr {
     ino: 1,
@@ -154,7 +160,7 @@ impl Filesystem for FuseController {
                 ino,
                 // i + 1 means offset of the next entry
                 (i + 1) as i64, // NOTE - in case of error, try i + 1
-                entry.entry.get_filetype(),
+                entry.entry.get_filetype().into(),
                 entry.name,
             ) {
                 break;

@@ -1,12 +1,10 @@
 use crate::network::message::Address;
-use fuser::FileType;
 use log::debug;
-use openat::AsPath;
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs, io, sync::Arc, time::Duration};
 
-use super::whpath::WhPath;
+use super::{fs_interface::SimpleFileType, whpath::WhPath};
 
 // SECTION consts
 
@@ -65,10 +63,10 @@ impl FsEntry {
     //     }
     // }
 
-    pub fn get_filetype(&self) -> FileType {
+    pub fn get_filetype(&self) -> SimpleFileType {
         match self {
-            FsEntry::File(_) => FileType::RegularFile,
-            FsEntry::Directory(_) => FileType::Directory,
+            FsEntry::File(_) => SimpleFileType::File,
+            FsEntry::Directory(_) => SimpleFileType::Directory,
         }
     }
 

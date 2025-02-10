@@ -1,9 +1,17 @@
-use std::{fs::File, io::Read, os::unix::fs::FileExt};
+use std::{ffi::CString, fs::File, io::Read, os::unix::fs::FileExt};
 
-use openat::Dir;
+use openat::{AsPath, Dir};
 use tokio::io;
 
 use super::whpath::WhPath;
+
+impl AsPath for WhPath {
+    type Buffer = CString;
+
+    fn to_path(self) -> Option<Self::Buffer> {
+        CString::new(self.inner).ok()
+    }
+}
 
 pub struct DiskManager {
     handle: Dir,

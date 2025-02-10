@@ -1,10 +1,11 @@
 use std::{io, sync::Arc};
 
-use futures_util::future::join;
 use log::{debug, info};
 use parking_lot::RwLock;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
+#[cfg(target_os = "linux")]
+use fuser;
 
 use crate::{
     fuse::fuse_impl::mount_fuse,
@@ -28,6 +29,7 @@ pub struct Pod {
     mount_point: WhPath,
     peers: Arc<RwLock<Vec<PeerIPC>>>,
     pod_conf: PodConfig,
+    #[cfg(target_os = "linux")]
     fuse_handle: fuser::BackgroundSession,
     network_airport_handle: Option<JoinHandle<()>>,
     peer_broadcast_handle: Option<JoinHandle<()>>,
@@ -106,6 +108,7 @@ impl Pod {
             mount_point: mount_point.clone(),
             peers,
             pod_conf: config,
+            #[cfg(target_os = "linux")]
             fuse_handle: mount_fuse(&mount_point, fs_interface.clone())?,
             network_airport_handle,
             peer_broadcast_handle,
