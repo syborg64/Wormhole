@@ -196,7 +196,6 @@ impl NetworkInterface {
         name: &String,
         new_name: &String,
     ) -> io::Result<()> {
-        log::error!("network_interface broadcast");
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
                 message::MessageContent::Rename(parent, new_parent, name.clone(), new_name.clone()),
@@ -213,11 +212,8 @@ impl NetworkInterface {
         new_name: &String,
     ) -> io::Result<()> {
         let mut arbo = Arbo::write_lock(&self.arbo, "arbo_rename_file")?;
-        log::error!("network_interface arbo rename");
-        arbo.log();
-        arbo.mv_inode(parent, new_parent, name, new_name)?;
-        arbo.log();
-        Ok(())
+
+        arbo.mv_inode(parent, new_parent, name, new_name)
     }
 
     #[must_use]

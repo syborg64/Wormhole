@@ -129,21 +129,15 @@ impl FsInterface {
         name: &String,
         new_name: &String,
     ) -> io::Result<()> {
-        log::error!("fs_interface rename");
         let parent_path = self.construct_file_path(parent, name)?;
-        log::error!("1");
         let new_parent_path = self.construct_file_path(new_parent, new_name)?;
-        log::error!("2");
         if std::path::Path::new(&parent_path.inner).exists() {
             self.disk.mv_file(parent_path, new_parent_path)?;
         }
-        log::error!("3");
         self.network_interface
             .broadcast_rename_file(parent, new_parent, name, new_name)?;
-        log::error!("4");
         self.network_interface
             .arbo_rename_file(parent, new_parent, name, new_name)?;
-        log::error!("5");
         Ok(())
     }
 
@@ -154,18 +148,13 @@ impl FsInterface {
         name: &String,
         new_name: &String,
     ) -> io::Result<()> {
-        log::error!("fs_interface accept rename");
         let parent_path = self.construct_file_path(parent, name)?;
-        log::error!("1.1");
         let new_parent_path = self.construct_file_path(new_parent, new_name)?;
-        log::error!("2.1");
         if std::path::Path::new(&parent_path.inner).exists() {
             self.disk.mv_file(parent_path, new_parent_path)?;
         }
-        log::error!("3.1");
         self.network_interface
             .arbo_rename_file(parent, new_parent, name, new_name)?;
-        log::error!("4.1");
         Ok(())
     }
 

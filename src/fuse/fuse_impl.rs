@@ -247,34 +247,24 @@ impl Filesystem for FuseController {
         name: &OsStr,
         new_parent: u64,
         newname: &OsStr,
-        flags: u32,
+        _flags: u32,
         reply: fuser::ReplyEmpty,
     ) {
-        log::error!("Renaming: {parent}, [{name:?}], [{new_parent}], [{newname:?}], [{flags:?}]");
         match self.fs_interface.rename(
             parent,
             new_parent,
-            &name
+            &name //TODO move instead of ref because of the clone down the line
                 .to_owned()
                 .into_string()
-                .expect("Don't support non unicode yet"),
+                .expect("Don't support non unicode yet"), //TODO support OsString smartly
             &newname
                 .to_owned()
                 .into_string()
                 .expect("Don't support non unicode yet"),
         ) {
             Ok(()) => reply.ok(),
-            Err(err) => {
-                log::error!("Error in rename: {err:?}");
-                reply.error(err.raw_os_error().unwrap_or(EIO))
-            }
+            Err(err) => reply.error(err.raw_os_error().unwrap_or(EIO)),
         }
-        // let mut provider = self.provider.lock().unwrap();
-        // if let Some(()) = provider.rename(parent, name, newparent, newname) {
-        //     reply.ok()
-        // } else {
-        //     reply.error(ENOENT)
-        // }
     }
 
     fn write(
