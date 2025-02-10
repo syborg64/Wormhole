@@ -1,5 +1,6 @@
 use std::{collections::HashMap, io, sync::Arc};
 
+use clap::error;
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::{
     broadcast,
@@ -186,6 +187,33 @@ impl NetworkInterface {
         // TODO - if unable to update for some reason, should be passed to the background worker
 
         Ok(new_inode_id)
+    }
+
+    pub fn broadcast_rename_file(
+        &self,
+        parent: InodeId,
+        new_parent: InodeId,
+        name: &String,
+        new_name: &String,
+    ) -> io::Result<()> {
+        self.to_network_message_tx
+            .send(ToNetworkMessage::BroadcastMessage(
+                message::MessageContent::Rename(parent, new_parent, name.clone(), new_name.clone()),
+            ))
+            .expect("broadcast_rename_file: unable to update modification on the network thread");
+        Ok(())
+    }
+
+    pub fn arbo_rename_file(
+        &self,
+        parent: InodeId,
+        new_parent: InodeId,
+        name: &String,
+        new_name: &String,
+    ) -> io::Result<()> {
+        let mut arbo = Arbo::write_lock(&self.arbo, "arbo_rename_file")?;
+
+        arbo.mv_inode(parent, new_parent, name, new_name)
     }
 
     #[must_use]
@@ -386,6 +414,9 @@ impl NetworkInterface {
                 MessageContent::Remove(id) => fs_interface.recept_remove_inode(id),
                 MessageContent::Meta(_) => todo!(),
                 MessageContent::RequestFile(inode) => fs_interface.send_file(inode, origin),
+                MessageContent::Rename(parent, new_parent, name, new_name) => {
+                    fs_interface.accept_rename(parent, new_parent, &name, &new_name)
+                }
                 MessageContent::RequestFs => fs_interface.send_filesystem(origin),
                 MessageContent::FsAnswer(fs) => fs_interface.replace_arbo(fs),
             };

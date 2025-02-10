@@ -1,3 +1,4 @@
+use clap::builder::OsStr;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -17,6 +18,7 @@ pub enum MessageContent {
     RequestFile(InodeId),
     PullAnswer(InodeId, Vec<u8>),
     RequestFs,
+    Rename(InodeId, InodeId, String, String), //Parent, New Parent, Name, New Name
     EditHosts(InodeId, Vec<Address>),
     FsAnswer(FileSystemSerialized),
 }

@@ -100,7 +100,7 @@ impl Filesystem for FuseController {
 
     // TODO
     fn getattr(&mut self, _req: &Request, ino: u64, _: Option<u64>, reply: ReplyAttr) {
-        debug!("called getattr ino:{}", ino);
+        //debug!("called getattr ino:{}", ino);
         match ino {
             1 => reply.attr(&TTL, &MOUNT_DIR_ATTR),
             2 => reply.attr(&TTL, &TEMPLATE_FILE_ATTR),
@@ -153,10 +153,11 @@ impl Filesystem for FuseController {
             if reply.add(
                 ino,
                 // i + 1 means offset of the next entry
-                (i + 1) as i64, // NOTE - in case of error, try i + 1
+                i as i64 + 1, // NOTE - in case of error, try i + 1
                 entry.entry.get_filetype(),
                 entry.name,
             ) {
+                log::error!("BREAK?");
                 break;
             }
         }
@@ -207,7 +208,7 @@ impl Filesystem for FuseController {
         match self.fs_interface.make_inode(
             parent,
             name.to_string_lossy().to_string(),
-            SimpleFileType::File,
+            SimpleFileType::Directory,
         ) {
             Ok((id, _)) => {
                 // creating metadata to return
@@ -237,23 +238,33 @@ impl Filesystem for FuseController {
         }
     }
 
+    // Naive implementation to get my hands in implementation
+    // Does not support yet move if needed
     fn rename(
         &mut self,
         _req: &Request<'_>,
         parent: u64,
         name: &OsStr,
-        newparent: u64,
+        new_parent: u64,
         newname: &OsStr,
         _flags: u32,
         reply: fuser::ReplyEmpty,
     ) {
-        reply.error(ENOENT) // TODO
-                            // let mut provider = self.provider.lock().unwrap();
-                            // if let Some(()) = provider.rename(parent, name, newparent, newname) {
-                            //     reply.ok()
-                            // } else {
-                            //     reply.error(ENOENT)
-                            // }
+        match self.fs_interface.rename(
+            parent,
+            new_parent,
+            &name //TODO move instead of ref because of the clone down the line
+                .to_owned()
+                .into_string()
+                .expect("Don't support non unicode yet"), //TODO support OsString smartly
+            &newname
+                .to_owned()
+                .into_string()
+                .expect("Don't support non unicode yet"),
+        ) {
+            Ok(()) => reply.ok(),
+            Err(err) => reply.error(err.raw_os_error().unwrap_or(EIO)),
+        }
     }
 
     fn write(
