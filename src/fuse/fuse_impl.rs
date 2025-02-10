@@ -38,7 +38,7 @@ const MOUNT_DIR_ATTR: FileAttr = FileAttr {
 
 pub const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
     ino: 2,
-    size: 13,
+    size: 2048,
     blocks: 1,
     atime: UNIX_EPOCH, // 1970-01-01 00:00:00
     mtime: UNIX_EPOCH,
