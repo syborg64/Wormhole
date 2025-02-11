@@ -1,13 +1,10 @@
 services:
   wormhole1:
+    container_name: w1
     build: .
-    environment:
-      - RUST_LOG=info
-      - WH_ADDRESS=127.0.01:8080
-      - WH_PEERS=ws://127.0.02:8080, ws://127.0.0.3:8080
-      - WH_MOUNT_POINT=/mnt/virtual1
+    command: ["127.0.0.1:8080", "ws://127.0.0.2:8080", "ws://127.0.0.3:8080", "/usr/src/wormhole/virtual"]
     ports:
-      - "8081:8080"
+      - "8080:8080"
     privileged: true
     cap_add:
     - SYS_ADMIN
@@ -16,18 +13,15 @@ services:
     volumes:
       - type: bind
         source: ./shared_mnt1
-        target: /mnt/virtual1
+        target: /usr/src/wormhole/virtual
         bind:
           propagation: shared
   wormhole2:
+    container_name: w2
     build: .
-    environment:
-      - RUST_LOG=info
-      - WH_ADDRESS=127.0.02:8080
-      - WH_PEERS=ws://127.0.01:8080, ws://127.0.0.3:8080
-      - WH_MOUNT_POINT=/mnt/virtual2
+    command: ["127.0.0.2:8080", "ws://127.0.0.1:8080", "ws://127.0.0.3:8080", "/usr/src/wormhole/virtual"]
     ports:
-      - "8082:8080"
+      - "8080:8080"
     privileged: true
     cap_add:
     - SYS_ADMIN
@@ -36,18 +30,15 @@ services:
     volumes:
       - type: bind
         source: ./shared_mnt2
-        target: /mnt/virtual2
+        target: /usr/src/wormhole/virtual
         bind:
           propagation: shared
   wormhole3:
+    container_name: w3
     build: .
-    environment:
-      - RUST_LOG=info
-      - WH_ADDRESS=127.0.03:8080
-      - WH_PEERS=ws://127.0.02:8080, ws://127.0.0.1:8080
-      - WH_MOUNT_POINT=/mnt/virtual3
+    command: ["127.0.0.3:8080", "ws://127.0.0.2:8080", "ws://127.0.0.1:8080", "/usr/src/wormhole/virtual"]
     ports:
-      - "8083:8080"
+      - "8080:8080"
     privileged: true
     cap_add:
     - SYS_ADMIN
@@ -56,6 +47,6 @@ services:
     volumes:
       - type: bind
         source: ./shared_mnt3
-        target: /mnt/virtual3
+        target: /usr/src/wormhole/virtual
         bind:
           propagation: shared

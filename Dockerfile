@@ -1,8 +1,7 @@
-FROM rust:latest as builder
+FROM rust:1.78.0-buster AS builder
 
 RUN apt-get update && apt-get install -y \
     pkg-config \
-    libc-bin    \
     libfuse3-dev  # Pour FUSE3
 RUN rm -rf /var/lib/apt/lists/*
 
@@ -19,22 +18,22 @@ COPY --chown=user:user . .
 RUN cargo build --release
 
 # Utilisez une image légère pour l'exécution
-FROM debian:buster-slim
+FROM debian:bullseye-slim
 
 RUN apt-get update && apt-get install -y \
-    libc-bin    \
     fuse3
 RUN rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m user
 USER user
 
+WORKDIR /usr/src/wormhole/virtual
 
 # Copiez le binaire construit depuis l'étape de construction
-COPY --from=builder --chown=user:user /usr/src/wormhole/target/release/wormhole-service /usr/local/bin/wormhole-service
+COPY --from=builder --chown=user:user /usr/src/wormhole/target/release/wormhole-service /usr/src/wormhole/wormhole-service
 
 # Exposez le port sur lequel votre service écoute
 EXPOSE 8080
 
 # Commande par défaut pour lancer l'application
-CMD ["wormhole-service", "${WH_ADDRESS}", "${WH_PEERS}", "${WH_MOUNT_POINT}"]
+ENTRYPOINT [ "./wormhole-service" ]
