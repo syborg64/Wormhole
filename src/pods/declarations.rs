@@ -1,6 +1,5 @@
 use std::{io, sync::Arc};
 
-use futures_util::future::join;
 use log::{debug, info};
 use parking_lot::RwLock;
 use tokio::sync::mpsc;
@@ -22,6 +21,7 @@ use super::{
 // TODO
 pub type PodConfig = u64;
 
+#[allow(dead_code)]
 pub struct Pod {
     network_interface: Arc<NetworkInterface>,
     fs_interface: Arc<FsInterface>,
@@ -42,7 +42,7 @@ impl Pod {
         server: Arc<Server>,
         server_address: Address,
     ) -> io::Result<Self> {
-        let (arbo, next_inode) = index_folder(&mount_point)?;
+        let (arbo, next_inode) = index_folder(&mount_point, &server_address)?;
         let arbo: Arc<RwLock<Arbo>> = Arc::new(RwLock::new(arbo));
         let (to_network_message_tx, to_network_message_rx) = mpsc::unbounded_channel();
         let (from_network_message_tx, from_network_message_rx) = mpsc::unbounded_channel();
@@ -63,8 +63,6 @@ impl Pod {
             to_network_message_rx,
         )));
 
-        
-
         let disk_manager = DiskManager::new(mount_point.clone())?;
 
         // TODO - maybe not mount fuse until remote arbo is pulled
@@ -82,7 +80,8 @@ impl Pod {
         if peers_addrs.len() >= 1 {
             info!("Will pull filesystem from remote...");
             network_interface
-                .request_arbo(peers_addrs[0].clone()).await?;
+                .request_arbo(peers_addrs[0].clone())
+                .await?;
 
             info!("Pull completed");
             debug!("arbo: {:#?}", network_interface.arbo);
