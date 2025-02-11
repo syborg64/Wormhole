@@ -1,52 +1,35 @@
+version: '3'
 services:
+  wormhole-base:
+    &base-service
+      build: .
+      privileged: true
+      cap_add:
+        - SYS_ADMIN
+      devices:
+        - '/dev/fuse'
+      volumes:
+        - ./shared_mnt:/usr/src/wormhole/virtual:shared
+      ports:
+        - "8080:8080"
+
   wormhole1:
+    <<: *base-service
     container_name: w1
-    build: .
     command: ["127.0.0.1:8080", "ws://127.0.0.2:8080", "ws://127.0.0.3:8080", "/usr/src/wormhole/virtual"]
-    ports:
-      - "8080:8080"
-    privileged: true
-    cap_add:
-    - SYS_ADMIN
-    devices:
-      - '/dev/fuse'
     volumes:
-      - type: bind
-        source: ./shared_mnt1
-        target: /usr/src/wormhole/virtual
-        bind:
-          propagation: shared
+      - ./shared_mnt1:/usr/src/wormhole/virtual:shared
+
   wormhole2:
+    <<: *base-service
     container_name: w2
-    build: .
     command: ["127.0.0.2:8080", "ws://127.0.0.1:8080", "ws://127.0.0.3:8080", "/usr/src/wormhole/virtual"]
-    ports:
-      - "8080:8080"
-    privileged: true
-    cap_add:
-    - SYS_ADMIN
-    devices:
-      - '/dev/fuse'
     volumes:
-      - type: bind
-        source: ./shared_mnt2
-        target: /usr/src/wormhole/virtual
-        bind:
-          propagation: shared
+      - ./shared_mnt2:/usr/src/wormhole/virtual:shared
+
   wormhole3:
+    <<: *base-service
     container_name: w3
-    build: .
-    command: ["127.0.0.3:8080", "ws://127.0.0.2:8080", "ws://127.0.0.1:8080", "/usr/src/wormhole/virtual"]
-    ports:
-      - "8080:8080"
-    privileged: true
-    cap_add:
-    - SYS_ADMIN
-    devices:
-      - '/dev/fuse'
+    command: ["127.0.0.3:8080", "ws://127.0.0.1:8080", "ws://127.0.0.2:8080", "/usr/src/wormhole/virtual"]
     volumes:
-      - type: bind
-        source: ./shared_mnt3
-        target: /usr/src/wormhole/virtual
-        bind:
-          propagation: shared
+      - ./shared_mnt3:/usr/src/wormhole/virtual:shared
