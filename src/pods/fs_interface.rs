@@ -1,5 +1,6 @@
 use crate::network::message::{Address, FileSystemSerialized};
 
+use super::arbo::{self, Metadata};
 use super::network_interface::Callback;
 use super::whpath::WhPath;
 use super::{
@@ -113,6 +114,10 @@ impl FsInterface {
         self.network_interface.revoke_remote_hosts(id)?; // TODO - manage this error to prevent remote/local desync
         Ok(written)
     }
+
+    pub fn set_inode_meta(&self, ino: InodeId, meta: Metadata) -> io::Result<()> {
+        self.network_interface.update_metadata(ino, meta)
+    }
     // !SECTION
 
     // SECTION - local -> read
@@ -143,6 +148,16 @@ impl FsInterface {
             offset,
             len,
         )
+    }
+
+    pub fn get_inode_attributes(&self, ino: InodeId) -> io::Result<Metadata>{
+        let arbo = Arbo::read_lock(&self.arbo, "fs_interface::get_inode_attributes")?;
+
+        Ok(arbo.get_inode(ino)?.meta.clone())
+    }
+
+    pub fn set_inode_attributes(&self, ino: InodeId, meta: Metadata) -> io::Result<()> {
+        self.network_interface.update_metadata(ino, meta)
     }
 
     pub fn read_dir(&self, ino: InodeId) -> io::Result<Vec<Inode>> {
@@ -254,6 +269,10 @@ impl FsInterface {
 
     pub fn recept_edit_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
         self.network_interface.acknowledge_hosts_edition(id, hosts)
+    }
+
+    pub fn recept_edit_metadata(&self, id: InodeId, meta: Metadata) -> io::Result<()> {
+        self.network_interface.acknowledge_metadata(id, meta)
     }
     // !SECTION
 

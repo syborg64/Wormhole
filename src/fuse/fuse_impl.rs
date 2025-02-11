@@ -1,9 +1,9 @@
-use crate::pods::arbo::{FsEntry, Inode};
-use crate::pods::fs_interface::{FsInterface, SimpleFileType};
+use crate::pods::arbo::{FsEntry, Inode, Metadata};
+use crate::pods::fs_interface::{self, FsInterface, SimpleFileType};
 use crate::pods::whpath::WhPath;
 use fuser::{
     BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData,
-    ReplyDirectory, ReplyEntry, Request,
+    ReplyDirectory, ReplyEntry, Request, TimeOrNow,
 };
 use libc::{EIO, ENOENT};
 use log::debug;
@@ -13,7 +13,7 @@ use std::ffi::OsStr;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::{Duration, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 // NOTE - placeholders
 const TTL: Duration = Duration::from_secs(1);
@@ -57,6 +57,46 @@ pub const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
 
 // const MIRROR_PTH: &str = "./wh_mirror/";
 
+fn metadata_to_fileattr(meta: Metadata) -> FileAttr {
+    FileAttr {
+        ino: meta.ino,
+        size: meta.size,
+        blocks: meta.blocks,
+        atime: meta.atime,
+        mtime: meta.mtime,
+        ctime: meta.ctime,
+        crtime: meta.crtime,
+        kind: meta.kind,
+        perm: meta.perm,
+        nlink: meta.nlink,
+        uid: meta.uid,
+        gid: meta.gid,
+        rdev: meta.rdev,
+        flags: meta.flags,
+        blksize: meta.blksize,
+    }
+}
+
+fn fileattr_to_metadata(attr: FileAttr) -> Metadata {
+    Metadata {
+        ino: attr.ino,
+        size: attr.size,
+        blocks: attr.blocks,
+        atime: attr.atime,
+        mtime: attr.mtime,
+        ctime: attr.ctime,
+        crtime: attr.crtime,
+        kind: attr.kind,
+        perm: attr.perm,
+        nlink: attr.nlink,
+        uid: attr.uid,
+        gid: attr.gid,
+        rdev: attr.rdev,
+        flags: attr.flags,
+        blksize: attr.blksize,
+    }
+}
+
 pub struct FuseController {
     pub fs_interface: Arc<FsInterface>,
 }
@@ -98,13 +138,93 @@ impl Filesystem for FuseController {
         };
     }
 
-    // TODO
     fn getattr(&mut self, _req: &Request, ino: u64, _: Option<u64>, reply: ReplyAttr) {
         debug!("called getattr ino:{}", ino);
-        match ino {
-            1 => reply.attr(&TTL, &MOUNT_DIR_ATTR),
-            2 => reply.attr(&TTL, &TEMPLATE_FILE_ATTR),
-            _ => reply.error(ENOENT),
+        let attrs = self.fs_interface.get_inode_attributes(ino);
+
+        match attrs {
+            Ok(attrs) => reply.attr(&TTL, &metadata_to_fileattr(attrs)),
+            Err(err) => {
+                log::error!("fuse_impl error: {:?}", err);
+                reply.error(err.raw_os_error().unwrap_or(EIO))
+            }
+        }
+    }
+
+    fn setattr(
+        &mut self,
+        _req: &Request<'_>,
+        ino: u64,
+        mode: Option<u32>,
+        uid: Option<u32>,
+        gid: Option<u32>,
+        size: Option<u64>,
+        atime: Option<fuser::TimeOrNow>,
+        mtime: Option<fuser::TimeOrNow>,
+        ctime: Option<std::time::SystemTime>,
+        fh: Option<u64>,
+        crtime: Option<std::time::SystemTime>,
+        chgtime: Option<std::time::SystemTime>,
+        bkuptime: Option<std::time::SystemTime>,
+        flags: Option<u32>,
+        reply: ReplyAttr,
+    ) {
+        debug!("called setattr ino:{}", ino);
+        let attrs = match self.fs_interface.get_inode_attributes(ino) {
+            Ok(attrs) => Metadata {
+                ino: attrs.ino,
+                size: if let Some(size) = size {
+                    size
+                } else {
+                    attrs.size
+                },
+                blocks: attrs.blocks,
+                atime: if let Some(atime) = atime {
+                    time_or_now_to_system_time(atime)
+                } else {
+                    attrs.atime
+                },
+                mtime: if let Some(mtime) = mtime {
+                    time_or_now_to_system_time(mtime)
+                } else {
+                    attrs.mtime
+                },
+                ctime: if let Some(ctime) = ctime {
+                    ctime
+                } else {
+                    attrs.ctime
+                },
+                crtime: if let Some(crtime) = crtime {
+                    crtime
+                } else {
+                    attrs.crtime
+                },
+                kind: attrs.kind,
+                perm: attrs.perm,
+                nlink: attrs.nlink,
+                uid: if let Some(uid) = uid { uid } else { attrs.uid },
+                gid: if let Some(gid) = gid { gid } else { attrs.gid },
+                rdev: attrs.rdev,
+                blksize: attrs.blksize,
+                flags: if let Some(flags) = flags {
+                    flags
+                } else {
+                    attrs.flags
+                },
+            },
+            Err(err) => {
+                log::error!("fuse_impl::setattr: {:?}", err);
+                reply.error(err.raw_os_error().unwrap_or(EIO));
+                return;
+            }
+        };
+
+        match self.fs_interface.set_inode_meta(ino, attrs.clone()) {
+            Ok(_) => reply.attr(&TTL, &metadata_to_fileattr(attrs)),
+            Err(err) => {
+                log::error!("fuse_impl::setattr: {:?}", err);
+                reply.error(err.raw_os_error().unwrap_or(EIO))
+            }
         }
     }
 
@@ -355,6 +475,13 @@ impl Filesystem for FuseController {
     ) {
         log::error!("RELEASE CALLED");
         reply.ok();
+    }
+}
+
+fn time_or_now_to_system_time(time: TimeOrNow) -> SystemTime {
+    match time {
+        TimeOrNow::Now => SystemTime::now(),
+        TimeOrNow::SpecificTime(time) => time,
     }
 }
 

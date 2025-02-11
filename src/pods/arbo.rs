@@ -135,9 +135,25 @@ impl Arbo {
                 id: ROOT,
                 name: "/".to_owned(),
                 entry: FsEntry::Directory(vec![]),
+                meta: Metadata {
+                    ino: 0,
+                    size: 0,
+                    blocks: 0,
+                    atime: SystemTime::now(),
+                    mtime: SystemTime::now(),
+                    ctime: SystemTime::now(),
+                    crtime: SystemTime::now(),
+                    kind: FileType::Directory,
+                    perm: 0o777,
+                    nlink: 0,
+                    uid: 0,
+                    gid: 0,
+                    rdev: 0,
+                    blksize: 0,
+                    flags: 0,
+                },
             },
         );
-
         arbo
     }
 
@@ -203,12 +219,30 @@ impl Arbo {
                     id: _,
                     name: _,
                     entry: FsEntry::Directory(parent_children),
+                    meta: _,
                 }) => {
                     let new_entry = Inode {
                         parent: parent_ino,
                         id: ino,
                         name: name,
                         entry: entry,
+                        meta: Metadata {
+                            ino: ino,
+                            size: 0,
+                            blocks: 0,
+                            atime: SystemTime::now(),
+                            mtime: SystemTime::now(),
+                            ctime: SystemTime::now(),
+                            crtime: SystemTime::now(),
+                            kind: FileType::Directory,
+                            perm: 0o777,
+                            nlink: 0,
+                            uid: 0,
+                            gid: 0,
+                            rdev: 0,
+                            blksize: 0,
+                            flags: 0,
+                        },
                     };
                     parent_children.push(ino);
                     self.entries.insert(ino, new_entry);
@@ -334,6 +368,13 @@ impl Arbo {
                 ))
             }
         };
+        Ok(())
+    }
+
+    pub fn set_inode_meta(&mut self, ino: InodeId, meta: Metadata) -> io::Result<()> {
+        let inode = self.get_inode_mut(ino)?;
+
+        inode.meta = meta;
         Ok(())
     }
 
