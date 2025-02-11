@@ -4,7 +4,12 @@ use log::debug;
 use openat::AsPath;
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs, io, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    fs, io,
+    sync::Arc,
+    time::{Duration, SystemTime},
+};
 
 use super::whpath::WhPath;
 
@@ -37,6 +42,7 @@ pub struct Inode {
     pub id: InodeId,
     pub name: String,
     pub entry: FsEntry,
+    pub meta: Metadata,
 }
 
 pub type ArboIndex = HashMap<InodeId, Inode>;
@@ -85,11 +91,33 @@ impl FsEntry {
 
 impl Inode {
     pub fn new(name: String, parent_ino: InodeId, id: InodeId, entry: FsEntry) -> Self {
+        let meta = Metadata {
+            ino: id,
+            size: 0,
+            blocks: 0,
+            atime: SystemTime::now(),
+            mtime: SystemTime::now(),
+            ctime: SystemTime::now(),
+            crtime: SystemTime::now(),
+            kind: match entry {
+                FsEntry::Directory(_) => FileType::Directory,
+                FsEntry::File(_) => FileType::RegularFile,
+            },
+            perm: 0o777,
+            nlink: 0,
+            uid: 0,
+            gid: 0,
+            rdev: 0,
+            blksize: 0,
+            flags: 0,
+        };
+
         Self {
             parent: parent_ino,
             id: id,
             name: name,
             entry: entry,
+            meta,
         }
     }
 }
@@ -329,13 +357,12 @@ fn index_folder_recursive(
         let ftype = entry.file_type().expect("error in filesystem indexion (2)");
         let fname = entry.file_name().to_string_lossy().to_string();
 
-
         arbo.add_inode(Inode::new(
             fname.clone(),
             parent,
             *ino,
             if ftype.is_file() {
-                FsEntry::File(vec!(host.clone()))
+                FsEntry::File(vec![host.clone()])
             } else {
                 FsEntry::Directory(Vec::new())
             },
@@ -356,4 +383,41 @@ pub fn index_folder(path: &WhPath, host: &String) -> io::Result<(Arbo, InodeId)>
 
     index_folder_recursive(&mut arbo, ROOT, &mut ino, path, host)?;
     Ok((arbo, ino))
+}
+
+/* NOTE
+ * is currently made with fuse in sight. Will probably need to be edited to be windows compatible
+ */
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Metadata {
+    /// Inode number
+    pub ino: u64,
+    /// Size in bytes
+    pub size: u64,
+    /// Size in blocks
+    pub blocks: u64,
+    /// Time of last access
+    pub atime: SystemTime,
+    /// Time of last modification
+    pub mtime: SystemTime,
+    /// Time of last change
+    pub ctime: SystemTime,
+    /// Time of creation (macOS only)
+    pub crtime: SystemTime,
+    /// Kind of file (directory, file, pipe, etc)
+    pub kind: FileType,
+    /// Permissions
+    pub perm: u16,
+    /// Number of hard links
+    pub nlink: u32,
+    /// User id
+    pub uid: u32,
+    /// Group id
+    pub gid: u32,
+    /// Rdev
+    pub rdev: u32,
+    /// Block size
+    pub blksize: u32,
+    /// Flags (macOS only, see chflags(2))
+    pub flags: u32,
 }
