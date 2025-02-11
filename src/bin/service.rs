@@ -51,13 +51,19 @@ async fn main() {
         args_other_addresses.remove(0);
     };
 
-    let global_config: GlobalConfig = config::parse_toml_file(global_config_path.as_str())
+    let mut global_config: GlobalConfig = config::parse_toml_file(global_config_path.as_str())
         .unwrap_or(GlobalConfig {
             general: GeneralGlobalConfig {
                 peers: args_other_addresses,
+                ignore_paths: vec![],
             },
             redundancy: Some(RedundancyConfig { number: 3 }),
         });
+
+    global_config
+        .general
+        .ignore_paths
+        .push(".local_config.toml".to_string());
 
     let local_config: LocalConfig = match config::parse_toml_file(local_config_path.as_str()) {
         Err(error) => {
