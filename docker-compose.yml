@@ -1,4 +1,3 @@
-version: '3'
 services:
   wormhole-base:
     &base-service
@@ -9,27 +8,27 @@ services:
       devices:
         - '/dev/fuse'
       volumes:
-        - ./shared_mnt:/usr/src/wormhole/virtual:shared
+        - ./shared_mnt:/usr/src/wormhole/virtual:rwx
       ports:
-        - "8080:8080"
+        - "8080"
 
   wormhole1:
     <<: *base-service
     container_name: w1
-    command: ["127.0.0.1:8080", "ws://127.0.0.2:8080", "ws://127.0.0.3:8080", "/usr/src/wormhole/virtual"]
+    command: "./wormhole-service 127.0.0.1:8081 127.0.0.2:8081 127.0.0.3:8081 /usr/src/wormhole/virtual >> /var/log/wormhole.log 2>&1"
     volumes:
-      - ./shared_mnt1:/usr/src/wormhole/virtual:shared
+      - ./shared_mnt1:/usr/src/wormhole/virtual:rwx
 
   wormhole2:
     <<: *base-service
     container_name: w2
-    command: ["127.0.0.2:8080", "ws://127.0.0.1:8080", "ws://127.0.0.3:8080", "/usr/src/wormhole/virtual"]
+    command: "./wormhole-service 127.0.0.2:8081 127.0.0.1:8081 127.0.0.3:8081 /usr/src/wormhole/virtual >> /var/log/wormhole.log 2>&1"
     volumes:
-      - ./shared_mnt2:/usr/src/wormhole/virtual:shared
+      - ./shared_mnt2:/usr/src/wormhole/virtual:rwx
 
   wormhole3:
     <<: *base-service
     container_name: w3
-    command: ["127.0.0.3:8080", "ws://127.0.0.1:8080", "ws://127.0.0.2:8080", "/usr/src/wormhole/virtual"]
+    command: "./wormhole-service 127.0.0.3:8081 127.0.0.2:8081 127.0.0.1:8081 /usr/src/wormhole/virtual >> /var/log/wormhole.log 2>&1"
     volumes:
-      - ./shared_mnt3:/usr/src/wormhole/virtual:shared
+      - ./shared_mnt3:/usr/src/wormhole/virtual:rwx
