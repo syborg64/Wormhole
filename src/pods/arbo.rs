@@ -282,10 +282,10 @@ impl Arbo {
     }
 
     #[must_use]
-    pub fn get_inode_from_path(&self, mut path: WhPath) -> io::Result<&Inode> {
+    pub fn get_inode_from_path(&self, path: &WhPath) -> io::Result<&Inode> {
         let mut actual_inode = self.entries.get(&ROOT).expect("inode_from_path: NO ROOT");
 
-        for name in path.to_vector().iter() {
+        for name in path.clone().to_vector().iter() {
             actual_inode = self.get_inode_child_by_name(&actual_inode, name)?;
         }
 

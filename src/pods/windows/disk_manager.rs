@@ -91,12 +91,12 @@ impl DiskManager {
         }
     }
 
-    pub fn write_file(&self, mut path: WhPath, binary: Vec<u8>, offset: u64) -> io::Result<u64> {
+    pub fn write_file(&self, mut path: WhPath, binary: &[u8], offset: u64) -> io::Result<u64> {
         path = path.set_relative();
         log::error!("write file path: {}", &path.inner);
         if let Some(file) = self.files.write().expect("VirtDisk::write_file rwLock").get_mut(&path.inner) {
             let len = binary.len();
-            file.splice((offset as usize)..(offset as usize), binary);
+            file.splice((offset as usize)..(offset as usize), binary.iter().cloned());
             Ok(len as u64)
         } else {
             Err(io::Error::from_raw_os_error(ENODEV))

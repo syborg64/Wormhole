@@ -103,7 +103,7 @@ impl FsInterface {
         Ok(())
     }
 
-    pub fn write(&self, id: InodeId, data: Vec<u8>, offset: u64) -> io::Result<u64> {
+    pub fn write(&self, id: InodeId, data: &[u8], offset: u64) -> io::Result<u64> {
         let written = {
             let arbo = Arbo::read_lock(&self.arbo, "fs_interface.write")?;
             self.disk
@@ -207,7 +207,7 @@ impl FsInterface {
                 }
             }
         };
-        let status = self.disk.write_file(path, binary, 0).is_ok();
+        let status = self.disk.write_file(path, &binary, 0).is_ok();
         self.network_interface
             .callbacks
             .resolve(Callback::Pull(id), status)
