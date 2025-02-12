@@ -18,9 +18,19 @@ pub struct FsInterface {
                                  // REVIEW - check self.arbo usage to be only reading
 }
 
+#[derive(PartialEq, Debug)]
 pub enum SimpleFileType {
     File,
     Directory,
+}
+
+impl Into<SimpleFileType> for &FsEntry {
+    fn into(self) -> SimpleFileType {
+        match self {
+            FsEntry::File(_) => SimpleFileType::File,
+            FsEntry::Directory(_) => SimpleFileType::Directory,
+        }
+    }
 }
 
 /// Provides functions to allow primitive handlers like Fuse & WinFSP to
