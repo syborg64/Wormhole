@@ -37,5 +37,5 @@ RUN useradd -m user && \
     chmod -R 775 /usr/src/wormhole/virtual
 
 USER user
-COPY --from=builder --chown=user:user /usr/src/wormhole/target/release/wormhole-service .
+COPY --from=builder --chown=user:user /usr/src/wormhole/target/debug/wormhole-service .
 RUN ls -la /usr/src/wormhole
