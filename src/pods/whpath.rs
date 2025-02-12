@@ -266,7 +266,9 @@ impl WhPath {
         let mut elements: Vec<String> = vec![];
 
         while !self.is_empty() {
-            elements.push(self.get_end());
+            if !self.get_end().is_empty() {
+                elements.push(self.get_end());
+            }
             self.pop(); // REVIEW - replaced "remove_end()" with pop
         }
         let elements = elements.into_iter().rev().collect();
