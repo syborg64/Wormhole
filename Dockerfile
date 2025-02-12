@@ -22,7 +22,7 @@ USER user
 FROM debian:bullseye-slim
 # Installation minimale des dépendances
 RUN apt-get update --no-install-recommends && \
-    apt-get install -y --no-install-suggests fuse3 && \
+    apt-get install -y --no-install-suggests fuse3 netcat-openbsd && \
     rm -rf /var/lib/apt/lists/*
 
 # Configuration FUSE
