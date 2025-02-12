@@ -352,6 +352,7 @@ pub fn index_folder(path: &WhPath, host: &String) -> io::Result<(Arbo, InodeId)>
     let mut arbo = Arbo::new();
     let mut ino: u64 = 11; // NOTE - will be the first registered inode after root
 
+    #[cfg(target_os = "linux")]
     index_folder_recursive(&mut arbo, ROOT, &mut ino, path, host)?;
     Ok((arbo, ino))
 }
