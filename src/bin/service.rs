@@ -20,6 +20,8 @@
 use std::{env, path::PathBuf, sync::Arc};
 
 use log::info;
+#[cfg(target_os = "windows")]
+use winfsp::winfsp_init;
 use wormhole::pods::whpath::WhPath;
 use wormhole::{network::server::Server, pods::declarations::Pod};
 
@@ -45,6 +47,12 @@ async fn main() {
     info!("peer1 address: {}", other_addr1);
     info!("peer2 address: {}", other_addr2);
     info!("\nstarting");
+
+    #[cfg(target_os = "windows")]
+    match winfsp_init() {
+        Ok(_token) => println!("got fsp token!"),
+        Err(err) => {println!("fsp error: {:?}", err); std::process::exit(84)}
+    }
 
     let server = Arc::new(Server::setup(&own_addr).await);
 
