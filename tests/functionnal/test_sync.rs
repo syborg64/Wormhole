@@ -9,14 +9,14 @@ use serial_test::serial;
 #[tokio::test]
 async fn sync_start_state() {
     let mut env = EnvironnementManager::new();
-    env.add_service(false).unwrap();
+    env.add_service(true).unwrap();
     std::thread::sleep(std::time::Duration::from_secs_f32(0.3));
 
     let file_path = append_to_path(&env.services[0].path, "/foo.txt");
     std::fs::write(&file_path, "Hello world!").unwrap();
     std::thread::sleep(std::time::Duration::from_secs_f32(0.2));
 
-    env.add_service(false).unwrap();
+    env.add_service(true).unwrap();
     std::thread::sleep(std::time::Duration::from_secs_f32(0.3));
 
     match std::fs::read_to_string(append_to_path(&env.services[1].path, "/foo.txt")) {
