@@ -104,6 +104,15 @@ impl DiskManager {
         }
     }
 
+    pub fn set_file_size(&self, path: WhPath, size: u64) -> io::Result<()> {
+        if let Some(file) = self.files.write().expect("VirtDisk::write_file rwLock").get_mut(&path.inner) {
+            file.resize(size as usize, 0);
+            Ok(())
+        } else {
+            Err(io::Error::from_raw_os_error(ENODEV))
+        }
+    }
+
     pub fn read_file(&self, mut path: WhPath, offset: u64, len: u64) -> io::Result<Vec<u8>> {
         path = path.set_relative();
         log::error!("read file path: {}", &path.inner);
