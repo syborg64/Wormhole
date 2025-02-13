@@ -137,9 +137,10 @@ impl FsInterface {
     ) -> io::Result<()> {
         let parent_path = self.construct_file_path(parent, name)?;
         let new_parent_path = self.construct_file_path(new_parent, new_name)?;
-        if std::path::Path::new(&parent_path.inner).exists() {
-            self.disk.mv_file(parent_path, new_parent_path)?;
-        }
+        let err = self
+            .disk
+            .mv_file(parent_path, new_parent_path)
+            .inspect_err(|err| log::error!("disk.mv_file fail: {err:?}"));
         self.network_interface
             .broadcast_rename_file(parent, new_parent, name, new_name)?;
         self.network_interface
