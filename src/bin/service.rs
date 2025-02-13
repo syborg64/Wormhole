@@ -19,7 +19,6 @@
  */
 use std::{env, path::PathBuf, sync::Arc};
 
-use libc::exit;
 use wormhole::config;
 use wormhole::config::types::{
     GeneralGlobalConfig, GeneralLocalConfig, GlobalConfig, LocalConfig, RedundancyConfig,

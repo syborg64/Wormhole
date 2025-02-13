@@ -8,7 +8,6 @@ use super::{
     network_interface::NetworkInterface,
 };
 use parking_lot::RwLock;
-use std::ffi::OsStr;
 use std::io::{self};
 use std::sync::Arc;
 

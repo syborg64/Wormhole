@@ -23,14 +23,14 @@ pub const LOCK_TIMEOUT: Duration = Duration::new(5, 0);
 pub type Hosts = Vec<Address>;
 pub type InodeId = u64;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 /// Should be extended until meeting [fuser::FileType]
 pub enum FsEntry {
     File(Hosts),
     Directory(Vec<InodeId>),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Inode {
     pub parent: InodeId,
     pub id: InodeId,
