@@ -71,6 +71,10 @@ impl DiskManager {
         }
     }
 
+    pub fn mv_file(&self, old_path: WhPath, new_path: WhPath) -> io::Result<()> {
+        Ok(())
+    }
+
     pub fn remove_dir(&self, mut path: WhPath) -> io::Result<()> {
         path = path.set_relative();
         let (f_path, name) = path.split_folder_file();
