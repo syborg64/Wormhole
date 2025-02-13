@@ -22,6 +22,12 @@ services:
     command: "./wormhole-service 0.0.0.0:8082 wormhole2:8082 wormhole3:8082 /usr/src/wormhole/virtual >> /var/log/wormhole.log 2>&1"
     volumes:
       - ./shared_mnt1:/usr/src/wormhole/virtual:rwx
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
 
   wormhole2:
     <<: *base-service
@@ -31,6 +37,14 @@ services:
     command: "./wormhole-service 0.0.0.0:8082 wormhole1:8082 wormhole3:8082 /usr/src/wormhole/virtual >> /var/log/wormhole.log 2>&1"
     volumes:
       - ./shared_mnt2:/usr/src/wormhole/virtual:rwx
+    depends_on:
+      - wormhole1
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
 
   wormhole3:
     <<: *base-service
@@ -40,6 +54,14 @@ services:
     command: "./wormhole-service 0.0.0.0:8082 wormhole1:8082 wormhole2:8082 /usr/src/wormhole/virtual >> /var/log/wormhole.log 2>&1"
     volumes:
       - ./shared_mnt3:/usr/src/wormhole/virtual:rwx
+    depends_on:
+      - wormhole2
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
 
 networks:
   wormhole-net:
