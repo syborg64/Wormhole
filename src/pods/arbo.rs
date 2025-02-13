@@ -95,8 +95,8 @@ impl Inode {
             ctime: SystemTime::now(),
             crtime: SystemTime::now(),
             kind: match entry {
-                FsEntry::Directory(_) => FileType::Directory,
-                FsEntry::File(_) => FileType::RegularFile,
+                FsEntry::Directory(_) => SimpleFileType::Directory,
+                FsEntry::File(_) => SimpleFileType::File,
             },
             perm: 0o777,
             nlink: 0,
@@ -138,7 +138,7 @@ impl Arbo {
                     mtime: SystemTime::now(),
                     ctime: SystemTime::now(),
                     crtime: SystemTime::now(),
-                    kind: FileType::Directory,
+                    kind: SimpleFileType::Directory,
                     perm: 0o777,
                     nlink: 0,
                     uid: 0,
@@ -229,7 +229,7 @@ impl Arbo {
                             mtime: SystemTime::now(),
                             ctime: SystemTime::now(),
                             crtime: SystemTime::now(),
-                            kind: FileType::Directory,
+                            kind: SimpleFileType::Directory,
                             perm: 0o777,
                             nlink: 0,
                             uid: 0,
@@ -444,7 +444,7 @@ pub struct Metadata {
     /// Time of creation (macOS only)
     pub crtime: SystemTime,
     /// Kind of file (directory, file, pipe, etc)
-    pub kind: FileType,
+    pub kind: SimpleFileType,
     /// Permissions
     pub perm: u16,
     /// Number of hard links
@@ -472,7 +472,7 @@ impl TryInto<Metadata> for fs::Metadata {
             mtime: self.modified()?,
             ctime: self.modified()?,
             crtime: self.created()?,
-            kind: if self.is_file() { FileType::RegularFile } else { FileType::Directory },
+            kind: if self.is_file() { SimpleFileType::File } else { SimpleFileType::Directory },
             perm: 0o666 as u16,
             nlink: 0,
             uid: 0,

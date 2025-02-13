@@ -9,6 +9,7 @@ use super::{
     network_interface::NetworkInterface,
 };
 use parking_lot::RwLock;
+use serde::{Deserialize, Serialize};
 use std::cmp::max;
 use std::io::{self};
 use std::sync::Arc;
@@ -20,7 +21,7 @@ pub struct FsInterface {
                                  // REVIEW - check self.arbo usage to be only reading
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub enum SimpleFileType {
     File,
     Directory,
