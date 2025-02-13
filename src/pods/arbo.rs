@@ -1,5 +1,4 @@
 use crate::network::message::Address;
-use fuser::FileType;
 use log::debug;
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use serde::{Deserialize, Serialize};
@@ -7,7 +6,7 @@ use std::{
     collections::HashMap, fs, io, sync::Arc, time::{Duration, SystemTime}
 };
 
-use super::whpath::WhPath;
+use super::{fs_interface::SimpleFileType, whpath::WhPath};
 
 // SECTION consts
 
@@ -67,10 +66,10 @@ impl FsEntry {
     //     }
     // }
 
-    pub fn get_filetype(&self) -> FileType {
+    pub fn get_filetype(&self) -> SimpleFileType {
         match self {
-            FsEntry::File(_) => FileType::RegularFile,
-            FsEntry::Directory(_) => FileType::Directory,
+            FsEntry::File(_) => SimpleFileType::File,
+            FsEntry::Directory(_) => SimpleFileType::Directory,
         }
     }
 
@@ -96,8 +95,8 @@ impl Inode {
             ctime: SystemTime::now(),
             crtime: SystemTime::now(),
             kind: match entry {
-                FsEntry::Directory(_) => FileType::Directory,
-                FsEntry::File(_) => FileType::RegularFile,
+                FsEntry::Directory(_) => SimpleFileType::Directory,
+                FsEntry::File(_) => SimpleFileType::File,
             },
             perm: 0o777,
             nlink: 0,
@@ -139,7 +138,7 @@ impl Arbo {
                     mtime: SystemTime::now(),
                     ctime: SystemTime::now(),
                     crtime: SystemTime::now(),
-                    kind: FileType::Directory,
+                    kind: SimpleFileType::Directory,
                     perm: 0o777,
                     nlink: 0,
                     uid: 0,
@@ -230,7 +229,7 @@ impl Arbo {
                             mtime: SystemTime::now(),
                             ctime: SystemTime::now(),
                             crtime: SystemTime::now(),
-                            kind: FileType::Directory,
+                            kind: SimpleFileType::Directory,
                             perm: 0o777,
                             nlink: 0,
                             uid: 0,
@@ -383,10 +382,10 @@ impl Arbo {
     }
 
     #[must_use]
-    pub fn get_inode_from_path(&self, mut path: WhPath) -> io::Result<&Inode> {
+    pub fn get_inode_from_path(&self, path: &WhPath) -> io::Result<&Inode> {
         let mut actual_inode = self.entries.get(&ROOT).expect("inode_from_path: NO ROOT");
 
-        for name in path.to_vector().iter() {
+        for name in path.clone().to_vector().iter() {
             actual_inode = self.get_inode_child_by_name(&actual_inode, name)?;
         }
 
@@ -475,6 +474,7 @@ pub fn index_folder(path: &WhPath, host: &String) -> io::Result<(Arbo, InodeId)>
     let mut arbo = Arbo::new();
     let mut ino: u64 = 11; // NOTE - will be the first registered inode after root
 
+    #[cfg(target_os = "linux")]
     index_folder_recursive(&mut arbo, ROOT, &mut ino, path, host)?;
     Ok((arbo, ino))
 }
@@ -499,7 +499,7 @@ pub struct Metadata {
     /// Time of creation (macOS only)
     pub crtime: SystemTime,
     /// Kind of file (directory, file, pipe, etc)
-    pub kind: FileType,
+    pub kind: SimpleFileType,
     /// Permissions
     pub perm: u16,
     /// Number of hard links
@@ -527,7 +527,7 @@ impl TryInto<Metadata> for fs::Metadata {
             mtime: self.modified()?,
             ctime: self.modified()?,
             crtime: self.created()?,
-            kind: if self.is_file() { FileType::RegularFile } else { FileType::Directory },
+            kind: if self.is_file() { SimpleFileType::File } else { SimpleFileType::Directory },
             perm: 0o666 as u16,
             nlink: 0,
             uid: 0,

@@ -15,6 +15,15 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 // NOTE - placeholders
 const TTL: Duration = Duration::from_secs(1);
 
+impl Into<FileType> for SimpleFileType {
+    fn into(self) -> FileType {
+        match self {
+            SimpleFileType::File => FileType::RegularFile,
+            SimpleFileType::Directory => FileType::Directory,
+        }
+    }
+}
+
 const MOUNT_DIR_ATTR: FileAttr = FileAttr {
     ino: 1,
     size: 0,
@@ -280,7 +289,7 @@ impl Filesystem for FuseController {
                 ino,
                 // i + 1 means offset of the next entry
                 i as i64 + 1, // NOTE - in case of error, try i + 1
-                entry.entry.get_filetype(),
+                entry.entry.get_filetype().into(),
                 entry.name,
             ) {
                 log::error!("BREAK?");

@@ -4,11 +4,17 @@ use log::{debug, info};
 use parking_lot::RwLock;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
+#[cfg(target_os = "linux")]
+use fuser;
+#[cfg(target_os = "windows")]
+use winfsp::host::FileSystemHost;
 
-use crate::{
-    fuse::fuse_impl::mount_fuse,
-    network::{message::Address, peer_ipc::PeerIPC, server::Server},
-};
+#[cfg(target_os = "linux")]
+use crate::fuse::fuse_impl::mount_fuse;
+#[cfg(target_os = "windows")]
+use crate::winfsp::winfsp_impl::mount_fsp;
+
+use crate::network::{message::Address, peer_ipc::PeerIPC, server::Server};
 
 use super::{
     arbo::{index_folder, Arbo},
@@ -28,7 +34,10 @@ pub struct Pod {
     mount_point: WhPath,
     peers: Arc<RwLock<Vec<PeerIPC>>>,
     pod_conf: PodConfig,
+    #[cfg(target_os = "linux")]
     fuse_handle: fuser::BackgroundSession,
+    #[cfg(target_os = "windows")]
+    fsp_host: FileSystemHost<'static>,
     network_airport_handle: Option<JoinHandle<()>>,
     peer_broadcast_handle: Option<JoinHandle<()>>,
     new_peer_handle: Option<JoinHandle<()>>,
@@ -107,7 +116,10 @@ impl Pod {
             mount_point: mount_point.clone(),
             peers,
             pod_conf: config,
+            #[cfg(target_os = "linux")]
             fuse_handle: mount_fuse(&mount_point, fs_interface.clone())?,
+            #[cfg(target_os = "windows")]
+            fsp_host: mount_fsp(&mount_point, fs_interface.clone())?,
             network_airport_handle,
             peer_broadcast_handle,
             new_peer_handle,
