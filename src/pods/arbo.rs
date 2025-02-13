@@ -24,14 +24,14 @@ pub const LOCK_TIMEOUT: Duration = Duration::new(5, 0);
 pub type Hosts = Vec<Address>;
 pub type InodeId = u64;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 /// Should be extended until meeting [fuser::FileType]
 pub enum FsEntry {
     File(Hosts),
     Directory(Vec<InodeId>),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Inode {
     pub parent: InodeId,
     pub id: InodeId,
@@ -273,6 +273,22 @@ impl Arbo {
     }
 
     #[must_use]
+    pub fn add_children(&mut self, parent: InodeId, child: InodeId) -> io::Result<()> {
+        let parent = self.get_inode_mut(parent)?;
+
+        let children = match &mut parent.entry {
+            FsEntry::File(_) => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "add_children: specified parent is not a folder",
+            )),
+            FsEntry::Directory(children) => Ok(children),
+        }?;
+
+        children.push(child);
+        Ok(())
+    }
+
+    #[must_use]
     pub fn remove_inode(&mut self, id: InodeId) -> io::Result<Inode> {
         let removed = match self.entries.remove(&id) {
             Some(inode) => Ok(inode),
@@ -295,13 +311,38 @@ impl Arbo {
         }
     }
 
+    #[must_use]
+    pub fn mv_inode(
+        &mut self,
+        parent: InodeId,
+        new_parent: InodeId,
+        name: &String,
+        new_name: &String,
+    ) -> io::Result<()> {
+        let parent_inode = self.entries.get(&parent).ok_or(io::Error::new(
+            io::ErrorKind::NotFound,
+            "add_inode_from_parameters: parent not existing",
+        ))?;
+        let item_id = match self.get_inode_child_by_name(parent_inode, name) {
+            Ok(item_inode) => item_inode.id,
+            Err(_) => todo!("mv_inode: inode not found"), // TODO
+        };
+
+        self.remove_children(parent, item_id)?;
+
+        let item = self.get_inode_mut(item_id)?;
+        item.name = new_name.clone();
+        item.parent = new_parent;
+
+        self.add_children(new_parent, item_id)
+    }
+
     // not public as the modifications are not automaticly propagated on other related inodes
     #[must_use]
     fn get_inode_mut(&mut self, ino: InodeId) -> io::Result<&mut Inode> {
-        match self.entries.get_mut(&ino) {
-            Some(inode) => Ok(inode),
-            None => Err(io::Error::new(io::ErrorKind::NotFound, "entry not found")),
-        }
+        self.entries
+            .get_mut(&ino)
+            .ok_or(io::Error::new(io::ErrorKind::NotFound, "entry not found"))
     }
 
     #[must_use]
@@ -380,6 +421,11 @@ impl Arbo {
 
 // !SECTION
 
+///
+/// Reserved Inodes:
+/// 1 - "/"
+/// 2 - ".global_config.toml"
+/// 3 - ".local_config.toml"
 fn index_folder_recursive(
     arbo: &mut Arbo,
     parent: InodeId,
@@ -394,18 +440,27 @@ fn index_folder_recursive(
         let fname = entry.file_name().to_string_lossy().to_string();
         let meta = entry.metadata()?;
 
+        let used_ino = match (fname.as_str(), parent) {
+            (".global_config.toml", 1) => 2u64,
+            (".local_config.toml", 1) => 3u64,
+            _ => {
+                let used = *ino;
+                *ino += 1;
+                used
+            }
+        };
+
         arbo.add_inode(Inode::new(
             fname.clone(),
             parent,
-            *ino,
+            used_ino,
             if ftype.is_file() {
                 FsEntry::File(vec![host.clone()])
             } else {
                 FsEntry::Directory(Vec::new())
             },
         ))?;
-        arbo.set_inode_meta(*ino, meta.try_into()?)?;
-        *ino += 1;
+        arbo.set_inode_meta(used_ino, meta.try_into()?)?;
 
         if ftype.is_dir() {
             index_folder_recursive(arbo, *ino - 1, ino, &path.join(&fname), host)
@@ -427,7 +482,7 @@ pub fn index_folder(path: &WhPath, host: &String) -> io::Result<(Arbo, InodeId)>
 /* NOTE
  * is currently made with fuse in sight. Will probably need to be edited to be windows compatible
  */
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Metadata {
     /// Inode number
     pub ino: u64,

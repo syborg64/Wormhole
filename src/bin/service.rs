@@ -22,7 +22,11 @@ use std::{env, path::PathBuf, sync::Arc};
 use log::info;
 #[cfg(target_os = "windows")]
 use winfsp::winfsp_init;
-use wormhole::pods::whpath::WhPath;
+use wormhole::config;
+use wormhole::config::types::{
+    GeneralGlobalConfig, GeneralLocalConfig, GlobalConfig, LocalConfig, RedundancyConfig,
+};
+use wormhole::pods::whpath::{JoinPath, WhPath};
 use wormhole::{network::server::Server, pods::declarations::Pod};
 
 #[tokio::main]
@@ -30,23 +34,13 @@ async fn main() {
     let mut pods: Vec<Pod> = Vec::new();
 
     env_logger::init();
-    // DOC - arguments: own_address other_addr1 other_addr2 mount_to source
-    let own_addr = env::args().nth(1).unwrap_or("127.0.0.1:8080".to_string());
-    let other_addr1 = env::args()
-        .nth(2)
-        .unwrap_or("127.0.0.2:8080".to_string());
-    let other_addr2 = env::args()
-        .nth(3)
-        .unwrap_or("127.0.0.3:8080".to_string());
     let mount: PathBuf = env::args()
-        .nth(4)
+        .nth(1)
         .unwrap_or("./virtual/".to_string())
         .into();
 
-    info!("own address: {}", own_addr);
-    info!("peer1 address: {}", other_addr1);
-    info!("peer2 address: {}", other_addr2);
-    info!("\nstarting");
+    let mut global_config_path = mount.clone();
+    global_config_path.push(".global_config.toml");
 
     #[cfg(target_os = "windows")]
     match winfsp_init() {
@@ -54,24 +48,72 @@ async fn main() {
         Err(err) => {println!("fsp error: {:?}", err); std::process::exit(84)}
     }
 
-    let server = Arc::new(Server::setup(&own_addr).await);
+    let mut local_config_path = mount.clone();
+    local_config_path.push(".local_config.toml");
+
+    let mut args_other_addresses: Vec<String> = env::args().collect();
+    if args_other_addresses.len() >= 3 {
+        args_other_addresses.remove(0);
+        args_other_addresses.remove(0);
+        args_other_addresses.remove(0);
+    };
+
+    let mut global_config: GlobalConfig = config::parse_toml_file(global_config_path.as_str())
+        .unwrap_or(GlobalConfig {
+            general: GeneralGlobalConfig {
+                peers: args_other_addresses,
+                ignore_paths: vec![],
+            },
+            redundancy: Some(RedundancyConfig { number: 3 }),
+        });
+
+    global_config
+        .general
+        .ignore_paths
+        .push(".local_config.toml".to_string());
+
+    let local_config: LocalConfig = match config::parse_toml_file(local_config_path.as_str()) {
+        Err(error) => {
+            log::warn!("Local Config Not Found: {error}");
+
+            let own_addr = match env::args().nth(2) {
+                Some(address) => address,
+                None => {
+                    log::error!("Local config missing and own Address missing from args");
+                    return;
+                }
+            };
+
+            LocalConfig {
+                general: GeneralLocalConfig {
+                    name: own_addr.clone(),
+                    address: own_addr,
+                },
+            }
+        }
+        Ok(found) => found,
+    };
+
+    log::info!("WHConfig: {global_config:?} {local_config:?}");
+
+    let server = Arc::new(Server::setup(&local_config.general.address).await);
 
     pods.push(
         Pod::new(
             WhPath::from(mount.as_path()),
             1,
-            vec![other_addr1, other_addr2],
+            global_config.general.peers,
             server.clone(),
-            own_addr,
+            local_config.general.address,
         )
         .await
         .expect("failed to create the pod"),
     );
 
     let local_cli_handle = tokio::spawn(local_cli_watchdog());
-    info!("started");
+    log::info!("Started");
     local_cli_handle.await.unwrap(); // keeps the main process alive until interruption from this watchdog;
-    info!("stopping");
+    log::info!("Stopping");
 }
 
 // NOTE - old watchdog brought here for debug purposes
@@ -114,7 +156,7 @@ async fn main2() {
     println!("peer1 address: {}", other_addr1);
     println!("peer2 address: {}", other_addr2);
     println!("\nstarting");
-
+    //TODO - le service doit attendre une commande de la cli pour mounter fuse, ou rejoindre un network, une grande parti de ce code doit être modifié
     let (nfa_tx, nfa_rx) = mpsc::unbounded_channel();
     let (local_fuse_tx, local_fuse_rx) = mpsc::unbounded_channel();
     let (_session, provider) = mount_fuse(&mount, local_fuse_tx.clone());

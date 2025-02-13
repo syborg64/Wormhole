@@ -1,10 +1,10 @@
-mod init;
+mod templates;
 mod join;
 mod register;
 mod remove;
 mod unregister;
 
-pub use init::init;
+pub use templates::templates;
 pub use join::join;
 pub use register::register;
 pub use remove::remove;

@@ -27,6 +27,7 @@ use super::{
 // TODO
 pub type PodConfig = u64;
 
+#[allow(dead_code)]
 pub struct Pod {
     network_interface: Arc<NetworkInterface>,
     fs_interface: Arc<FsInterface>,
@@ -46,15 +47,17 @@ impl Pod {
     pub async fn new(
         mount_point: WhPath,
         config: PodConfig,
-        peers: Vec<Address>,
+        mut peers: Vec<Address>,
         server: Arc<Server>,
         server_address: Address,
     ) -> io::Result<Self> {
-        let (arbo, next_inode) = index_folder(&mount_point, &server_address)?;
+        log::info!("mount point {}", mount_point);
+        let (arbo, next_inode) = index_folder(&mount_point, &server_address).expect("unable to index folder");
         let arbo: Arc<RwLock<Arbo>> = Arc::new(RwLock::new(arbo));
         let (to_network_message_tx, to_network_message_rx) = mpsc::unbounded_channel();
         let (from_network_message_tx, from_network_message_rx) = mpsc::unbounded_channel();
 
+        peers.retain(|x| *x != server_address);
         let peers = PeerIPC::peer_startup(peers, from_network_message_tx.clone()).await;
         let peers_addrs: Vec<Address> = peers.iter().map(|peer| peer.address.clone()).collect();
         let network_interface = Arc::new(NetworkInterface::new(
@@ -71,8 +74,6 @@ impl Pod {
             to_network_message_rx,
         )));
 
-
-
         let disk_manager = DiskManager::new(mount_point.clone())?;
 
         // TODO - maybe not mount fuse until remote arbo is pulled
@@ -88,9 +89,10 @@ impl Pod {
         )));
 
         if peers_addrs.len() >= 1 {
-            info!("Will pull filesystem from remote...");
+            info!("Will pull filesystem from remote... {:?}", peers_addrs);
             network_interface
-                .request_arbo(peers_addrs[0].clone()).await?;
+                .request_arbo(peers_addrs[0].clone())
+                .await?;
 
             info!("Pull completed");
             debug!("arbo: {:#?}", network_interface.arbo);
