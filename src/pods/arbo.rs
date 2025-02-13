@@ -5,10 +5,7 @@ use openat::AsPath;
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
-    fs, io,
-    sync::Arc,
-    time::{Duration, SystemTime},
+    collections::HashMap, fs, io, sync::Arc, time::{Duration, SystemTime}
 };
 
 use super::whpath::WhPath;
@@ -397,6 +394,7 @@ fn index_folder_recursive(
         let entry = entry.expect("error in filesystem indexion (1)");
         let ftype = entry.file_type().expect("error in filesystem indexion (2)");
         let fname = entry.file_name().to_string_lossy().to_string();
+        let meta = entry.metadata()?;
 
         arbo.add_inode(Inode::new(
             fname.clone(),
@@ -408,6 +406,7 @@ fn index_folder_recursive(
                 FsEntry::Directory(Vec::new())
             },
         ))?;
+        arbo.set_inode_meta(*ino, meta.try_into()?)?;
         *ino += 1;
 
         if ftype.is_dir() {
@@ -461,4 +460,27 @@ pub struct Metadata {
     pub blksize: u32,
     /// Flags (macOS only, see chflags(2))
     pub flags: u32,
+}
+
+impl TryInto<Metadata> for fs::Metadata {
+    type Error = std::io::Error;
+    fn try_into(self) -> Result<Metadata, std::io::Error> {
+        Ok(Metadata {
+            ino: 0,
+            size: self.len(),
+            blocks: 1,
+            atime: self.accessed()?,
+            mtime: self.modified()?,
+            ctime: self.modified()?,
+            crtime: self.created()?,
+            kind: if self.is_file() { FileType::RegularFile } else { FileType::Directory },
+            perm: 0o666 as u16,
+            nlink: 0,
+            uid: 0,
+            gid: 0,
+            rdev: 0,
+            blksize: 1,
+            flags: 0,
+        })
+    }
 }
