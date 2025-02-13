@@ -13,7 +13,6 @@ services:
     tty: true
     networks:
       - wormhole-net
-
   wormhole1:
     <<: *base-service
     container_name: w1
@@ -28,7 +27,6 @@ services:
         delay: 5s
         max_attempts: 3
         window: 120s
-
   wormhole2:
     <<: *base-service
     container_name: w2
@@ -45,7 +43,6 @@ services:
         delay: 5s
         max_attempts: 3
         window: 120s
-
   wormhole3:
     <<: *base-service
     container_name: w3
@@ -62,7 +59,6 @@ services:
         delay: 5s
         max_attempts: 3
         window: 120s
-
 networks:
   wormhole-net:
     driver: bridge
