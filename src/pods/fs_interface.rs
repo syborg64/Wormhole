@@ -48,7 +48,7 @@ impl FsInterface {
         kind: SimpleFileType,
     ) -> io::Result<(InodeId, Inode)> {
         let new_entry = match kind {
-            SimpleFileType::File => FsEntry::File(vec!(self.network_interface.self_addr.clone())),
+            SimpleFileType::File => FsEntry::File(vec![self.network_interface.self_addr.clone()]),
             SimpleFileType::Directory => FsEntry::Directory(Vec::new()),
         };
 
@@ -116,9 +116,8 @@ impl FsInterface {
     }
 
     pub fn set_inode_meta(&self, ino: InodeId, meta: Metadata) -> io::Result<()> {
-        let arbo = Arbo::read_lock(&self.arbo, "fs_interface::set_inode_meta")?;
-
-        let path = arbo.get_path_from_inode_id(ino)?;
+        let path = Arbo::read_lock(&self.arbo, "fs_interface::set_inode_meta")?
+            .get_path_from_inode_id(ino)?;
 
         self.disk.set_file_size(path, meta.size)?;
         self.network_interface.update_metadata(ino, meta)
@@ -155,7 +154,7 @@ impl FsInterface {
         )
     }
 
-    pub fn get_inode_attributes(&self, ino: InodeId) -> io::Result<Metadata>{
+    pub fn get_inode_attributes(&self, ino: InodeId) -> io::Result<Metadata> {
         let arbo = Arbo::read_lock(&self.arbo, "fs_interface::get_inode_attributes")?;
 
         Ok(arbo.get_inode(ino)?.meta.clone())
@@ -215,7 +214,6 @@ impl FsInterface {
         let mut arbo = Arbo::write_lock(&self.arbo, "recept_binary")
             .expect("recept_binary: can't write lock arbo");
         let path = {
-
             match arbo.get_path_from_inode_id(id) {
                 Ok(path) => path,
                 Err(_) => {
@@ -276,7 +274,12 @@ impl FsInterface {
         self.network_interface.acknowledge_hosts_edition(id, hosts)
     }
 
-    pub fn recept_edit_metadata(&self, id: InodeId, meta: Metadata, host: Address) -> io::Result<()> {
+    pub fn recept_edit_metadata(
+        &self,
+        id: InodeId,
+        meta: Metadata,
+        host: Address,
+    ) -> io::Result<()> {
         self.network_interface.acknowledge_metadata(id, meta, host)
     }
     // !SECTION
@@ -289,7 +292,7 @@ impl FsInterface {
     pub fn send_file(&self, inode: InodeId, to: Address) -> io::Result<()> {
         let arbo = Arbo::read_lock(&self.arbo, "send_arbo")?;
         let path = arbo.get_path_from_inode_id(inode)?;
-        let data = self.disk.read_file(path, 0 , u64::max_value())?;
+        let data = self.disk.read_file(path, 0, u64::max_value())?;
         self.network_interface.send_file(inode, data, to)
     }
     // !SECTION
