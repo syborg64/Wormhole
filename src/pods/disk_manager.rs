@@ -32,7 +32,7 @@ impl DiskManager {
     }
 
     pub fn write_file(&self, path: WhPath, binary: Vec<u8>, offset: u64) -> io::Result<u64> {
-        let file = self.handle.write_file(path.set_relative(), 0o600)?;
+        let file = self.handle.append_file(path.set_relative(), 0o600)?;
         Ok(file.write_at(&binary, offset)? as u64) // NOTE - used "as" because into() is not supported
     }
 

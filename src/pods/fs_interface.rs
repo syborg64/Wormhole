@@ -9,6 +9,7 @@ use super::{
     network_interface::NetworkInterface,
 };
 use parking_lot::RwLock;
+use std::cmp::max;
 use std::io::{self};
 use std::sync::Arc;
 
@@ -107,8 +108,17 @@ impl FsInterface {
     pub fn write(&self, id: InodeId, data: Vec<u8>, offset: u64) -> io::Result<u64> {
         let written = {
             let arbo = Arbo::read_lock(&self.arbo, "fs_interface.write")?;
-            self.disk
-                .write_file(arbo.get_path_from_inode_id(id)?, data, offset)?
+            let path = arbo.get_path_from_inode_id(id)?;
+            let mut meta = arbo.get_inode(id)?.meta.clone();
+            drop(arbo);
+
+            let newsize = offset + data.len() as u64;
+            if newsize > meta.size {
+                let mut arbo = Arbo::write_lock(&self.arbo, "fs_interface.write")?;
+                meta.size = newsize;
+                arbo.set_inode_meta(id, meta)?;
+            }
+            self.disk.write_file(path, data, offset)?
         };
 
         self.network_interface.revoke_remote_hosts(id)?; // TODO - manage this error to prevent remote/local desync
