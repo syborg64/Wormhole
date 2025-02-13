@@ -341,6 +341,11 @@ impl Arbo {
 
 // !SECTION
 
+///
+/// Reserved Inodes:
+/// 1 - "/"
+/// 2 - ".global_config.toml"
+/// 3 - ".local_config.toml"
 fn index_folder_recursive(
     arbo: &mut Arbo,
     parent: InodeId,
@@ -354,17 +359,26 @@ fn index_folder_recursive(
         let ftype = entry.file_type().expect("error in filesystem indexion (2)");
         let fname = entry.file_name().to_string_lossy().to_string();
 
+        let used_ino = match (fname.as_str(), parent) {
+            (".global_config.toml", 1) => 2u64,
+            (".local_config.toml", 1) => 3u64,
+            _ => {
+                let used = *ino;
+                *ino += 1;
+                used
+            }
+        };
+
         arbo.add_inode(Inode::new(
             fname.clone(),
             parent,
-            *ino,
+            used_ino,
             if ftype.is_file() {
                 FsEntry::File(vec![host.clone()])
             } else {
                 FsEntry::Directory(Vec::new())
             },
         ))?;
-        *ino += 1;
 
         if ftype.is_dir() {
             index_folder_recursive(arbo, *ino - 1, ino, &path.join(&fname), host)

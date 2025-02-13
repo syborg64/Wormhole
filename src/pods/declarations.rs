@@ -38,7 +38,7 @@ impl Pod {
     pub async fn new(
         mount_point: WhPath,
         config: PodConfig,
-        peers: Vec<Address>,
+        mut peers: Vec<Address>,
         server: Arc<Server>,
         server_address: Address,
     ) -> io::Result<Self> {
@@ -47,6 +47,7 @@ impl Pod {
         let (to_network_message_tx, to_network_message_rx) = mpsc::unbounded_channel();
         let (from_network_message_tx, from_network_message_rx) = mpsc::unbounded_channel();
 
+        peers.retain(|x| *x != server_address);
         let peers = PeerIPC::peer_startup(peers, from_network_message_tx.clone()).await;
         let peers_addrs: Vec<Address> = peers.iter().map(|peer| peer.address.clone()).collect();
         let network_interface = Arc::new(NetworkInterface::new(

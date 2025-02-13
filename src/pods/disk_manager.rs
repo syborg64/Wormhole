@@ -39,7 +39,6 @@ impl DiskManager {
     pub fn mv_file(&self, path: WhPath, new_path: WhPath) -> io::Result<()> {
         // let mut original_path = path.clone(); // NOTE - Would be better if rename was non mutable
         // original_path.rename(new_name);
-        log::error!("disk rename {} {}", path, new_path);
         self.handle
             .local_rename(path.set_relative(), new_path.set_relative())
     }

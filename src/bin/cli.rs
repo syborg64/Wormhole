@@ -11,10 +11,14 @@ use wormhole::commands;
 enum Cli {
     /// make a pod and join a network
     Join(JoinArgs),
-    /// make a pod and create a new network
-    Create(CreateArgs),
+    /// make a pod and create a new network (template)
+    Template(TemplateArg),
+    /// mount a pod based on config files
+    Mount,
     /// remove a pod from its network
     Remove(RemoveArgs),
+    /// inspect a pod with its configuration, connections, etc
+    Inspect,
 }
 
 #[derive(clap::Args)]
@@ -41,7 +45,7 @@ struct JoinArgs {
 
 #[derive(clap::Args)]
 #[command(version, about, long_about = None)]
-struct CreateArgs {
+struct TemplateArg {
     /// name of the network to create
     #[arg()]
     name: Option<String>,
@@ -76,7 +80,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 args.additional_hosts.unwrap_or(vec![]),
             )?;
         }
-        Cli::Create(args) => println!("creating network {:?}", args.name),
+        Cli::Template(args) => {
+            println!("creating network {:?}", args.name.clone().unwrap_or("default".into()));
+            commands::templates(
+                &args.path.unwrap_or(".".into()),
+                &args.name.unwrap_or("default".into()),
+            )?;
+        }
         Cli::Remove(args) => {
             println!("removing pod");
             let mode = match (args.clone, args.delete, args.take) {
@@ -87,6 +97,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 _ => unreachable!("multiple exclusive options"),
             };
             commands::remove(&args.path.unwrap_or(".".into()), mode)?;
+        }
+        Cli::Mount => {
+            println!("mounting pod");
+            todo!("mount");
+        }
+        Cli::Inspect => {
+            println!("inspecting pod");
+            todo!("inspect");
         }
     }
     Ok(())

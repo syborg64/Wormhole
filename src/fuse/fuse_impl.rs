@@ -7,11 +7,8 @@ use fuser::{
 };
 use libc::{EIO, ENOENT};
 use log::debug;
-use openat::{Dir, SimpleType};
-use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::io;
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, UNIX_EPOCH};
 
@@ -141,11 +138,13 @@ impl Filesystem for FuseController {
         mut reply: ReplyDirectory,
     ) {
         debug!("called readdir ino:{} offset:{}", ino, offset);
-        let entries = if let Ok(entries) = self.fs_interface.read_dir(ino) {
-            entries
-        } else {
-            reply.error(ENOENT);
-            return;
+        let entries = match self.fs_interface.read_dir(ino) {
+            Ok(entries) => entries,
+            Err(e) => {
+                log::error!("readdir: ENOENT {e} {ino}");
+                reply.error(ENOENT);
+                return;
+            }
         };
 
         for (i, entry) in entries.into_iter().enumerate().skip(offset as usize) {
@@ -238,8 +237,6 @@ impl Filesystem for FuseController {
         }
     }
 
-    // Naive implementation to get my hands in implementation
-    // Does not support yet move if needed
     fn rename(
         &mut self,
         _req: &Request<'_>,
