@@ -1,8 +1,8 @@
 extern crate wormhole;
-use crate::wormhole::providers::whpath::{JoinPath, PathType, WhPath};
+use crate::wormhole::pods::whpath::{JoinPath, PathType, WhPath};
 
 use std::ffi::OsStr;
-use std::{fmt, path::Path};
+use std::path::Path;
 
 #[test]
 fn test_whpath_kind() {
@@ -68,12 +68,12 @@ fn test_whpath_new() {
     );
 }
 
-fn whpath_join<T: JoinPath>(mut path: WhPath, join: &T, result: &WhPath)
+fn whpath_join<T: JoinPath>(path: WhPath, join: &T, result: &WhPath)
 where
     T: JoinPath + ?Sized,
 {
     let new_path = path.join(join);
-    assert_eq!(new_path, result);
+    assert_eq!(&new_path, result);
 }
 
 #[test]
@@ -190,35 +190,35 @@ fn test_whpath_rename() {
 
 #[test]
 fn test_whpath_set_relative() {
-    let mut no_prefix = WhPath::from("foo");
-    let mut absolute = WhPath::from("/foo/");
-    let mut empty = WhPath::new();
+    let no_prefix = WhPath::from("foo");
+    let absolute = WhPath::from("/foo/");
+    let empty = WhPath::new();
 
-    assert_eq!(no_prefix.set_relative(), &WhPath::from("./foo"));
-    assert_eq!(absolute.set_relative(), &WhPath::from("./foo/"));
-    assert_eq!(empty.set_relative(), &WhPath::new());
+    assert_eq!(no_prefix.set_relative(), WhPath::from("./foo"));
+    assert_eq!(absolute.set_relative(), WhPath::from("./foo/"));
+    assert_eq!(empty.set_relative(), WhPath::new());
 }
 
 #[test]
 fn test_whpath_set_absolute() {
-    let mut no_prefix = WhPath::from("foo");
-    let mut relative = WhPath::from("./foo/");
-    let mut empty = WhPath::new();
+    let no_prefix = WhPath::from("foo");
+    let relative = WhPath::from("./foo/");
+    let empty = WhPath::new();
 
-    assert_eq!(no_prefix.set_absolute(), &WhPath::from("/foo"));
-    assert_eq!(relative.set_absolute(), &WhPath::from("/foo/"));
-    assert_eq!(empty.set_absolute(), &WhPath::new());
+    assert_eq!(no_prefix.set_absolute(), WhPath::from("/foo"));
+    assert_eq!(relative.set_absolute(), WhPath::from("/foo/"));
+    assert_eq!(empty.set_absolute(), WhPath::new());
 }
 
 #[test]
 fn test_whpath_remove_prefix() {
-    let mut absolute = WhPath::from("/foo");
-    let mut relative = WhPath::from("./foo/");
-    let mut empty = WhPath::new();
+    let absolute = WhPath::from("/foo");
+    let relative = WhPath::from("./foo/");
+    let empty = WhPath::new();
 
-    assert_eq!(absolute.remove_prefix(), &WhPath::from("foo"));
-    assert_eq!(relative.remove_prefix(), &WhPath::from("foo/"));
-    assert_eq!(empty.remove_prefix(), &WhPath::new());
+    assert_eq!(absolute.remove_prefix(), WhPath::from("foo"));
+    assert_eq!(relative.remove_prefix(), WhPath::from("foo/"));
+    assert_eq!(empty.remove_prefix(), WhPath::new());
 }
 
 #[test]

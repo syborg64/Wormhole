@@ -20,7 +20,7 @@ use super::{
     fs_interface::FsInterface,
 };
 
-#[derive(Eq, Hash, PartialEq, Clone, Copy)]
+#[derive(Eq, Hash, PartialEq, Clone, Copy, Debug)]
 pub enum Callback {
     Pull(InodeId),
     PullFs,
@@ -51,7 +51,7 @@ impl Callbacks {
         if let Some(mut callbacks) = self.callbacks.try_write_for(LOCK_TIMEOUT) {
             if let Some(cb) = callbacks.remove(&call) {
                 cb.send(status).map(|_| ()).map_err(|send_error| {
-                    io::Error::new(io::ErrorKind::Other, send_error.to_string())
+                    io::Error::new(io::ErrorKind::AddrNotAvailable, send_error.to_string())
                 })
             } else {
                 Err(io::Error::new(
@@ -178,14 +178,43 @@ impl NetworkInterface {
 
         // TODO - add myself to hosts
 
-        self.to_network_message_tx
-            .send(ToNetworkMessage::BroadcastMessage(
-                message::MessageContent::Inode(inode, new_inode_id),
-            ))
-            .expect("mkfile: unable to update modification on the network thread");
+        if new_inode_id != 3u64 {
+            self.to_network_message_tx
+                .send(ToNetworkMessage::BroadcastMessage(
+                    message::MessageContent::Inode(inode, new_inode_id),
+                ))
+                .expect("mkfile: unable to update modification on the network thread");
+        }
         // TODO - if unable to update for some reason, should be passed to the background worker
 
         Ok(new_inode_id)
+    }
+
+    pub fn broadcast_rename_file(
+        &self,
+        parent: InodeId,
+        new_parent: InodeId,
+        name: &String,
+        new_name: &String,
+    ) -> io::Result<()> {
+        self.to_network_message_tx
+            .send(ToNetworkMessage::BroadcastMessage(
+                message::MessageContent::Rename(parent, new_parent, name.clone(), new_name.clone()),
+            ))
+            .expect("broadcast_rename_file: unable to update modification on the network thread");
+        Ok(())
+    }
+
+    pub fn arbo_rename_file(
+        &self,
+        parent: InodeId,
+        new_parent: InodeId,
+        name: &String,
+        new_name: &String,
+    ) -> io::Result<()> {
+        let mut arbo = Arbo::write_lock(&self.arbo, "arbo_rename_file")?;
+
+        arbo.mv_inode(parent, new_parent, name, new_name)
     }
 
     #[must_use]
@@ -219,11 +248,13 @@ impl NetworkInterface {
             ));
         };
 
-        self.to_network_message_tx
-            .send(ToNetworkMessage::BroadcastMessage(
-                message::MessageContent::Remove(id),
-            ))
-            .expect("mkfile: unable to update modification on the network thread");
+        if id != 3u64 {
+            self.to_network_message_tx
+                .send(ToNetworkMessage::BroadcastMessage(
+                    message::MessageContent::Remove(id),
+                ))
+                .expect("mkfile: unable to update modification on the network thread");
+        }
 
         // TODO - if unable to update for some reason, should be passed to the background worker
 
@@ -379,10 +410,20 @@ impl NetworkInterface {
     pub fn send_arbo(&self, to: Address, real_address: Address) -> io::Result<()> {
         self.edit_peer_ip(to, real_address.clone());
         let arbo = Arbo::read_lock(&self.arbo, "send_arbo")?;
+        let mut entries = arbo.get_raw_entries();
+
+        //Remove ignored entries
+        entries.remove(&3u64);
+        entries.entry(1u64).and_modify(|inode| {
+            if let FsEntry::Directory(childrens) = &mut inode.entry {
+                childrens.retain(|x| *x != 3u64);
+            }
+        });
+
         self.to_network_message_tx
             .send(ToNetworkMessage::SpecificMessage(
                 MessageContent::FsAnswer(FileSystemSerialized {
-                    fs_index: arbo.get_raw_entries(),
+                    fs_index: entries,
                     next_inode: self.get_next_inode()?,
                 }),
                 vec![real_address],
@@ -426,6 +467,9 @@ impl NetworkInterface {
                 MessageContent::Remove(id) => fs_interface.recept_remove_inode(id),
                 MessageContent::RequestFile(inode, peer) => fs_interface.send_file(inode, peer),
                 MessageContent::RequestFs(origin_addr) => fs_interface.send_filesystem(origin, origin_addr),
+                MessageContent::Rename(parent, new_parent, name, new_name) => {
+                    fs_interface.accept_rename(parent, new_parent, &name, &new_name)
+                }
                 MessageContent::FsAnswer(fs) => fs_interface.replace_arbo(fs),
             };
             if let Err(error) = action_result {

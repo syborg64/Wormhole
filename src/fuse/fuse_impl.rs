@@ -7,11 +7,8 @@ use fuser::{
 };
 use libc::{EIO, ENOENT};
 use log::debug;
-use openat::{Dir, SimpleType};
-use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::io;
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -268,11 +265,13 @@ impl Filesystem for FuseController {
         mut reply: ReplyDirectory,
     ) {
         debug!("called readdir ino:{} offset:{}", ino, offset);
-        let entries = if let Ok(entries) = self.fs_interface.read_dir(ino) {
-            entries
-        } else {
-            reply.error(ENOENT);
-            return;
+        let entries = match self.fs_interface.read_dir(ino) {
+            Ok(entries) => entries,
+            Err(e) => {
+                log::error!("readdir: ENOENT {e} {ino}");
+                reply.error(ENOENT);
+                return;
+            }
         };
 
         for (i, entry) in entries.into_iter().enumerate().skip(offset as usize) {
@@ -280,10 +279,11 @@ impl Filesystem for FuseController {
             if reply.add(
                 ino,
                 // i + 1 means offset of the next entry
-                (i + 1) as i64, // NOTE - in case of error, try i + 1
+                i as i64 + 1, // NOTE - in case of error, try i + 1
                 entry.entry.get_filetype(),
                 entry.name,
             ) {
+                log::error!("BREAK?");
                 break;
             }
         }
@@ -337,7 +337,7 @@ impl Filesystem for FuseController {
         match self.fs_interface.make_inode(
             parent,
             name.to_string_lossy().to_string(),
-            SimpleFileType::File,
+            SimpleFileType::Directory,
         ) {
             Ok((id, _)) => {
                 // creating metadata to return
@@ -381,18 +381,26 @@ impl Filesystem for FuseController {
         _req: &Request<'_>,
         parent: u64,
         name: &OsStr,
-        newparent: u64,
+        new_parent: u64,
         newname: &OsStr,
         _flags: u32,
         reply: fuser::ReplyEmpty,
     ) {
-        reply.error(ENOENT) // TODO
-                            // let mut provider = self.provider.lock().unwrap();
-                            // if let Some(()) = provider.rename(parent, name, newparent, newname) {
-                            //     reply.ok()
-                            // } else {
-                            //     reply.error(ENOENT)
-                            // }
+        match self.fs_interface.rename(
+            parent,
+            new_parent,
+            &name //TODO move instead of ref because of the clone down the line
+                .to_owned()
+                .into_string()
+                .expect("Don't support non unicode yet"), //TODO support OsString smartly
+            &newname
+                .to_owned()
+                .into_string()
+                .expect("Don't support non unicode yet"),
+        ) {
+            Ok(()) => reply.ok(),
+            Err(err) => reply.error(err.raw_os_error().unwrap_or(EIO)),
+        }
     }
 
     fn write(

@@ -1,4 +1,2 @@
-#[test]
-fn test_add() {
-    assert_eq!(2, 2);
-}
+pub mod arbo_tests;
+pub mod whpath_test;

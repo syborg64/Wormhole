@@ -53,7 +53,12 @@ impl FsInterface {
             SimpleFileType::Directory => FsEntry::Directory(Vec::new()),
         };
 
-        let new_inode_id = self.network_interface.get_next_inode()?;
+        let new_inode_id = match (name.as_str(), parent_ino) {
+            (".global_config.toml", 1) => 2u64,
+            (".local_config.toml", 1) => 3u64,
+            _ => self.network_interface.get_next_inode()?,
+        };
+
         let new_inode: Inode = Inode::new(name, parent_ino, new_inode_id, new_entry);
         self.network_interface
             .register_new_file(new_inode.clone())?;
@@ -67,11 +72,12 @@ impl FsInterface {
             ));
         };
 
-        match self.disk.new_file(new_path) {
-            Ok(_) => (),
-            Err(e) => {
-                return Err(e);
+        match kind {
+            SimpleFileType::File => {
+                self.disk.new_file(new_path)?;
+                ()
             }
+            SimpleFileType::Directory => self.disk.new_dir(new_path)?,
         };
 
         Ok((new_inode_id, new_inode))
@@ -131,6 +137,50 @@ impl FsInterface {
         self.disk.set_file_size(path, meta.size)?;
         self.network_interface.update_metadata(ino, meta)
     }
+    fn construct_file_path(&self, parent: InodeId, name: &String) -> io::Result<WhPath> {
+        let arbo = Arbo::read_lock(&self.arbo, "fs_interface.get_begin_path_end_path")?;
+        let parent_path = arbo.get_path_from_inode_id(parent)?;
+
+        return Ok(parent_path.join(name));
+    }
+
+    // TODO:  Must handle the file creation if the file is not replicated like ino 3
+    pub fn rename(
+        &self,
+        parent: InodeId,
+        new_parent: InodeId,
+        name: &String,
+        new_name: &String,
+    ) -> io::Result<()> {
+        let parent_path = self.construct_file_path(parent, name)?;
+        let new_parent_path = self.construct_file_path(new_parent, new_name)?;
+        if std::path::Path::new(&parent_path.inner).exists() {
+            self.disk.mv_file(parent_path, new_parent_path)?;
+        }
+        self.network_interface
+            .broadcast_rename_file(parent, new_parent, name, new_name)?;
+        self.network_interface
+            .arbo_rename_file(parent, new_parent, name, new_name)?;
+        Ok(())
+    }
+
+    pub fn accept_rename(
+        &self,
+        parent: InodeId,
+        new_parent: InodeId,
+        name: &String,
+        new_name: &String,
+    ) -> io::Result<()> {
+        let parent_path = self.construct_file_path(parent, name)?;
+        let new_parent_path = self.construct_file_path(new_parent, new_name)?;
+        if std::path::Path::new(&parent_path.inner).exists() {
+            self.disk.mv_file(parent_path, new_parent_path)?;
+        }
+        self.network_interface
+            .arbo_rename_file(parent, new_parent, name, new_name)?;
+        Ok(())
+    }
+
     // !SECTION
 
     // SECTION - local -> read
@@ -175,6 +225,7 @@ impl FsInterface {
 
     pub fn read_dir(&self, ino: InodeId) -> io::Result<Vec<Inode>> {
         let arbo = Arbo::read_lock(&self.arbo, "fs_interface.read_dir")?;
+        arbo.log();
         let dir = arbo.get_inode(ino)?;
         let mut entries: Vec<Inode> = Vec::new();
 
@@ -203,6 +254,7 @@ impl FsInterface {
 
         let new_path = {
             let arbo = Arbo::read_lock(&self.arbo, "fs_interface.write")?;
+            arbo.log();
             arbo.get_path_from_inode_id(id)?
         };
 
