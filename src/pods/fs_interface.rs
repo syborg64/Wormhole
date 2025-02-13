@@ -195,10 +195,7 @@ impl FsInterface {
     // SECTION - remote -> write
 
     pub fn replace_arbo(&self, new: FileSystemSerialized) -> io::Result<()> {
-        self.network_interface.replace_arbo(new)?;
-        self.network_interface
-            .callbacks
-            .resolve(Callback::PullFs, true)
+        self.network_interface.replace_arbo(new)
     }
 
     pub fn recept_inode(&self, inode: Inode, id: InodeId) -> io::Result<()> {
@@ -280,6 +277,11 @@ impl FsInterface {
     }
 
     pub fn recept_edit_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
+        if !hosts.contains(&self.network_interface.self_addr) {
+            self.disk.remove_file(
+                Arbo::read_lock(&self.arbo, "recept_edit_hosts")?.get_path_from_inode_id(id)?,
+            )?
+        }
         self.network_interface.acknowledge_hosts_edition(id, hosts)
     }
 
@@ -294,11 +296,12 @@ impl FsInterface {
     // !SECTION
 
     // SECTION remote -> read
-    pub fn send_filesystem(&self, to: Address) -> io::Result<()> {
-        self.network_interface.send_arbo(to)
+    pub fn send_filesystem(&self, to: Address, real_address: Address) -> io::Result<()> {
+        self.network_interface.send_arbo(to, real_address)
     }
 
     pub fn send_file(&self, inode: InodeId, to: Address) -> io::Result<()> {
+        log::error!("GOT FILE PULL from {}", to);
         let arbo = Arbo::read_lock(&self.arbo, "send_arbo")?;
         let path = arbo.get_path_from_inode_id(inode)?;
         let data = self.disk.read_file(path, 0, u64::max_value())?;

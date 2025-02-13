@@ -80,7 +80,7 @@ impl Pod {
         )));
 
         if peers_addrs.len() >= 1 {
-            info!("Will pull filesystem from remote...");
+            info!("Will pull filesystem from remote... {:?}", peers_addrs);
             network_interface
                 .request_arbo(peers_addrs[0].clone()).await?;
 

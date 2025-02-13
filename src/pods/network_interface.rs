@@ -284,7 +284,7 @@ impl NetworkInterface {
 
             self.to_network_message_tx
                 .send(ToNetworkMessage::SpecificMessage(
-                    message::MessageContent::RequestFile(file),
+                    message::MessageContent::RequestFile(file, self.self_addr.clone()),
                     vec![hosts[0].clone()], // NOTE - naive choice for now
                 ))
                 .expect("pull_file: unable to request on the network thread");
@@ -356,7 +356,7 @@ impl NetworkInterface {
 
         self.to_network_message_tx
             .send(ToNetworkMessage::SpecificMessage(
-                MessageContent::RequestFs,
+                MessageContent::RequestFs(self.self_addr.clone()),
                 vec![to],
             ))
             .expect("request_arbo: unable to update modification on the network thread");
@@ -364,7 +364,20 @@ impl NetworkInterface {
         self.callbacks.async_wait_for(callback).await
     }
 
-    pub fn send_arbo(&self, to: Address) -> io::Result<()> {
+    pub fn edit_peer_ip(&self, actual: Address, new: Address) {
+        log::info!("changing host {} to {}", actual, new);
+        if let Some(mut peers) = self.peers.try_write_for(LOCK_TIMEOUT) {
+            for peer in peers.iter_mut() {
+                if peer.address == actual {
+                    log::info!("done once");
+                    peer.address = new.clone();
+                }
+            }
+        }
+    }
+
+    pub fn send_arbo(&self, to: Address, real_address: Address) -> io::Result<()> {
+        self.edit_peer_ip(to, real_address.clone());
         let arbo = Arbo::read_lock(&self.arbo, "send_arbo")?;
         self.to_network_message_tx
             .send(ToNetworkMessage::SpecificMessage(
@@ -372,7 +385,7 @@ impl NetworkInterface {
                     fs_index: arbo.get_raw_entries(),
                     next_inode: self.get_next_inode()?,
                 }),
-                vec![to],
+                vec![real_address],
             ))
             .expect("send_arbo: unable to update modification on the network thread");
         Ok(())
@@ -403,6 +416,7 @@ impl NetworkInterface {
                 Some(message) => message,
                 None => continue,
             };
+            log::error!("message from {} : {:?}", origin, content);
 
             let action_result = match content {
                 MessageContent::PullAnswer(id, binary) => fs_interface.recept_binary(id, binary),
@@ -410,8 +424,8 @@ impl NetworkInterface {
                 MessageContent::EditHosts(id, hosts) => fs_interface.recept_edit_hosts(id, hosts),
                 MessageContent::EditMetadata(id, meta, host) => fs_interface.recept_edit_metadata(id, meta, host),
                 MessageContent::Remove(id) => fs_interface.recept_remove_inode(id),
-                MessageContent::RequestFile(inode) => fs_interface.send_file(inode, origin),
-                MessageContent::RequestFs => fs_interface.send_filesystem(origin),
+                MessageContent::RequestFile(inode, peer) => fs_interface.send_file(inode, peer),
+                MessageContent::RequestFs(origin_addr) => fs_interface.send_filesystem(origin, origin_addr),
                 MessageContent::FsAnswer(fs) => fs_interface.replace_arbo(fs),
             };
             if let Err(error) = action_result {
@@ -452,10 +466,12 @@ impl NetworkInterface {
                     });
                 }
                 ToNetworkMessage::SpecificMessage(message_content, origins) => {
+                    log::error!("SPECIFIC MESSAGE {:?} {:?}", origins, peer_tx);
                     peer_tx
                         .iter()
                         .filter(|&(_, address)| origins.contains(address))
                         .for_each(|(channel, address)| {
+                            log::error!("SPECIFIC MESSAGE TO {}", address);
                             channel
                                 .send(message_content.clone())
                                 .expect(&format!("failed to send message to peer {}", address))
