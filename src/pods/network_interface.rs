@@ -1,17 +1,13 @@
 use std::{collections::HashMap, io, sync::Arc};
 
-use clap::error;
-use log::{debug, error, info, warn};
+use log::{error, info};
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::{
     broadcast,
-    mpsc::{self, UnboundedReceiver, UnboundedSender},
+    mpsc::{UnboundedReceiver, UnboundedSender},
 };
 
-use super::{
-    arbo::{self, FsEntry},
-    whpath::WhPath,
-};
+use super::{arbo::FsEntry, whpath::WhPath};
 use crate::network::{
     message::{
         self, Address, FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
@@ -56,20 +52,22 @@ impl Callbacks {
         log::error!("RESOLVING CALLBACK");
         if let Some(mut callbacks) = self.callbacks.try_write_for(LOCK_TIMEOUT) {
             if let Some(cb) = callbacks.remove(&call) {
-                cb.send(status);
-                return Ok(());
+                cb.send(status).map_err(|error| {
+                    std::io::Error::new(io::ErrorKind::AddrNotAvailable, error.to_string())
+                })?;
+                Ok(())
             } else {
-                return Err(io::Error::new(
+                Err(io::Error::new(
                     io::ErrorKind::WouldBlock,
                     "no such callback active",
-                ));
-            };
+                ))
+            }
         } else {
-            return Err(io::Error::new(
+            Err(io::Error::new(
                 io::ErrorKind::WouldBlock,
                 "unable to read_lock callbacks",
-            ));
-        };
+            ))
+        }
     }
 
     pub fn wait_for(&self, call: Callback) -> io::Result<bool> {

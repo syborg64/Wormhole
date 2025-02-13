@@ -124,9 +124,7 @@ impl FsInterface {
     }
 
     pub fn read_file(&self, file: InodeId, offset: u64, len: u64) -> io::Result<Vec<u8>> {
-        let cb = self
-            .network_interface
-            .pull_file(file)?;
+        let cb = self.network_interface.pull_file(file)?;
 
         let status = match cb {
             None => true,
@@ -170,7 +168,9 @@ impl FsInterface {
 
     pub fn replace_arbo(&self, new: FileSystemSerialized) {
         self.network_interface.replace_arbo(new);
-        self.network_interface.callbacks.resolve(Callback::PullFs, true);
+        self.network_interface
+            .callbacks
+            .resolve(Callback::PullFs, true);
     }
 
     pub fn recept_inode(&self, inode: Inode, id: InodeId) -> io::Result<()> {
@@ -191,7 +191,7 @@ impl FsInterface {
         Ok(())
     }
 
-    pub fn recept_binary(&self, id: InodeId, binary: Vec<u8>) {
+    pub fn recept_binary(&self, id: InodeId, binary: Vec<u8>) -> std::io::Result<()> {
         let path = {
             let arbo = Arbo::read_lock(&self.arbo, "recept_binary")
                 .expect("recept_binary: can't read lock arbo");
@@ -199,17 +199,17 @@ impl FsInterface {
             match arbo.get_path_from_inode_id(id) {
                 Ok(path) => path,
                 Err(_) => {
-                    self.network_interface
+                    return self
+                        .network_interface
                         .callbacks
                         .resolve(Callback::Pull(id), false);
-                    return;
                 }
             }
         };
         let status = self.disk.write_file(&path, binary, 0).is_ok();
         self.network_interface
             .callbacks
-            .resolve(Callback::Pull(id), status);
+            .resolve(Callback::Pull(id), status)
     }
 
     pub fn recept_remove_inode(&self, id: InodeId) -> io::Result<()> {
