@@ -52,7 +52,12 @@ impl FsInterface {
             SimpleFileType::Directory => FsEntry::Directory(Vec::new()),
         };
 
-        let new_inode_id = self.network_interface.get_next_inode()?;
+        let new_inode_id = match (name.as_str(), parent_ino) {
+            (".global_config.toml", 1) => 2u64,
+            (".local_config.toml", 1) => 3u64,
+            _ => self.network_interface.get_next_inode()?,
+        };
+
         let new_inode: Inode = Inode::new(name, parent_ino, new_inode_id, new_entry);
         self.network_interface
             .register_new_file(new_inode.clone())?;
@@ -123,6 +128,7 @@ impl FsInterface {
         return Ok(parent_path.join(name));
     }
 
+    // TODO:  Must handle the file creation if the file is not replicated like ino 3
     pub fn rename(
         &self,
         parent: InodeId,

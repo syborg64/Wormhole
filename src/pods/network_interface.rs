@@ -178,11 +178,13 @@ impl NetworkInterface {
 
         // TODO - add myself to hosts
 
-        self.to_network_message_tx
-            .send(ToNetworkMessage::BroadcastMessage(
-                message::MessageContent::Inode(inode, new_inode_id),
-            ))
-            .expect("mkfile: unable to update modification on the network thread");
+        if new_inode_id != 3 {
+            self.to_network_message_tx
+                .send(ToNetworkMessage::BroadcastMessage(
+                    message::MessageContent::Inode(inode, new_inode_id),
+                ))
+                .expect("mkfile: unable to update modification on the network thread");
+        }
         // TODO - if unable to update for some reason, should be passed to the background worker
 
         Ok(new_inode_id)
@@ -246,11 +248,13 @@ impl NetworkInterface {
             ));
         };
 
-        self.to_network_message_tx
-            .send(ToNetworkMessage::BroadcastMessage(
-                message::MessageContent::Remove(id),
-            ))
-            .expect("mkfile: unable to update modification on the network thread");
+        if id != 3 {
+            self.to_network_message_tx
+                .send(ToNetworkMessage::BroadcastMessage(
+                    message::MessageContent::Remove(id),
+                ))
+                .expect("mkfile: unable to update modification on the network thread");
+        }
 
         // TODO - if unable to update for some reason, should be passed to the background worker
 
@@ -368,10 +372,15 @@ impl NetworkInterface {
 
     pub fn send_arbo(&self, to: Address) -> io::Result<()> {
         let arbo = Arbo::read_lock(&self.arbo, "send_arbo")?;
+        let mut entries = arbo.get_raw_entries();
+
+        //Remove ignored entries
+        entries.remove(&3u64);
+
         self.to_network_message_tx
             .send(ToNetworkMessage::SpecificMessage(
                 MessageContent::FsAnswer(FileSystemSerialized {
-                    fs_index: arbo.get_raw_entries(),
+                    fs_index: entries,
                     next_inode: self.get_next_inode()?,
                 }),
                 vec![to],
