@@ -3,7 +3,9 @@ use fuser::FileType;
 use log::debug;
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs, io, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap, fs, io, sync::Arc, time::{Duration, SystemTime}
+};
 
 use super::whpath::WhPath;
 
@@ -36,6 +38,7 @@ pub struct Inode {
     pub id: InodeId,
     pub name: String,
     pub entry: FsEntry,
+    pub meta: Metadata,
 }
 
 pub type ArboIndex = HashMap<InodeId, Inode>;
@@ -84,11 +87,33 @@ impl FsEntry {
 
 impl Inode {
     pub fn new(name: String, parent_ino: InodeId, id: InodeId, entry: FsEntry) -> Self {
+        let meta = Metadata {
+            ino: id,
+            size: 0,
+            blocks: 0,
+            atime: SystemTime::now(),
+            mtime: SystemTime::now(),
+            ctime: SystemTime::now(),
+            crtime: SystemTime::now(),
+            kind: match entry {
+                FsEntry::Directory(_) => FileType::Directory,
+                FsEntry::File(_) => FileType::RegularFile,
+            },
+            perm: 0o777,
+            nlink: 0,
+            uid: 0,
+            gid: 0,
+            rdev: 0,
+            blksize: 0,
+            flags: 0,
+        };
+
         Self {
             parent: parent_ino,
             id: id,
             name: name,
             entry: entry,
+            meta,
         }
     }
 }
@@ -106,9 +131,25 @@ impl Arbo {
                 id: ROOT,
                 name: "/".to_owned(),
                 entry: FsEntry::Directory(vec![]),
+                meta: Metadata {
+                    ino: 0,
+                    size: 0,
+                    blocks: 0,
+                    atime: SystemTime::now(),
+                    mtime: SystemTime::now(),
+                    ctime: SystemTime::now(),
+                    crtime: SystemTime::now(),
+                    kind: FileType::Directory,
+                    perm: 0o777,
+                    nlink: 0,
+                    uid: 0,
+                    gid: 0,
+                    rdev: 0,
+                    blksize: 0,
+                    flags: 0,
+                },
             },
         );
-
         arbo
     }
 
@@ -164,17 +205,50 @@ impl Arbo {
                 "add_inode_from_parameters: file already existing",
             ))
         } else {
-            self.add_children(parent_ino, ino)?;
-            self.entries.insert(
-                ino,
-                Inode {
-                    parent: parent_ino,
-                    id: ino,
-                    name: name,
-                    entry: entry,
-                },
-            );
-            Ok(())
+            match self.entries.get_mut(&parent_ino) {
+                None => Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "add_inode_from_parameters: parent not existing",
+                )),
+                Some(Inode {
+                    parent: _,
+                    id: _,
+                    name: _,
+                    entry: FsEntry::Directory(parent_children),
+                    meta: _,
+                }) => {
+                    let new_entry = Inode {
+                        parent: parent_ino,
+                        id: ino,
+                        name: name,
+                        entry: entry,
+                        meta: Metadata {
+                            ino: ino,
+                            size: 0,
+                            blocks: 1,
+                            atime: SystemTime::now(),
+                            mtime: SystemTime::now(),
+                            ctime: SystemTime::now(),
+                            crtime: SystemTime::now(),
+                            kind: FileType::Directory,
+                            perm: 0o777,
+                            nlink: 0,
+                            uid: 0,
+                            gid: 0,
+                            rdev: 0,
+                            blksize: 1,
+                            flags: 0,
+                        },
+                    };
+                    parent_children.push(ino);
+                    self.entries.insert(ino, new_entry);
+                    Ok(())
+                }
+                Some(_) => Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "parent not a folder",
+                )),
+            }
         }
     }
 
@@ -334,6 +408,13 @@ impl Arbo {
         Ok(())
     }
 
+    pub fn set_inode_meta(&mut self, ino: InodeId, meta: Metadata) -> io::Result<()> {
+        let inode = self.get_inode_mut(ino)?;
+
+        inode.meta = meta;
+        Ok(())
+    }
+
     pub fn log(&self) {
         debug!("{:#?}", self.entries);
     }
@@ -358,6 +439,7 @@ fn index_folder_recursive(
         let entry = entry.expect("error in filesystem indexion (1)");
         let ftype = entry.file_type().expect("error in filesystem indexion (2)");
         let fname = entry.file_name().to_string_lossy().to_string();
+        let meta = entry.metadata()?;
 
         let used_ino = match (fname.as_str(), parent) {
             (".global_config.toml", 1) => 2u64,
@@ -379,6 +461,7 @@ fn index_folder_recursive(
                 FsEntry::Directory(Vec::new())
             },
         ))?;
+        arbo.set_inode_meta(used_ino, meta.try_into()?)?;
 
         if ftype.is_dir() {
             index_folder_recursive(arbo, *ino - 1, ino, &path.join(&fname), host)
@@ -394,4 +477,64 @@ pub fn index_folder(path: &WhPath, host: &String) -> io::Result<(Arbo, InodeId)>
 
     index_folder_recursive(&mut arbo, ROOT, &mut ino, path, host)?;
     Ok((arbo, ino))
+}
+
+/* NOTE
+ * is currently made with fuse in sight. Will probably need to be edited to be windows compatible
+ */
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct Metadata {
+    /// Inode number
+    pub ino: u64,
+    /// Size in bytes
+    pub size: u64,
+    /// Size in blocks
+    pub blocks: u64,
+    /// Time of last access
+    pub atime: SystemTime,
+    /// Time of last modification
+    pub mtime: SystemTime,
+    /// Time of last change
+    pub ctime: SystemTime,
+    /// Time of creation (macOS only)
+    pub crtime: SystemTime,
+    /// Kind of file (directory, file, pipe, etc)
+    pub kind: FileType,
+    /// Permissions
+    pub perm: u16,
+    /// Number of hard links
+    pub nlink: u32,
+    /// User id
+    pub uid: u32,
+    /// Group id
+    pub gid: u32,
+    /// Rdev
+    pub rdev: u32,
+    /// Block size
+    pub blksize: u32,
+    /// Flags (macOS only, see chflags(2))
+    pub flags: u32,
+}
+
+impl TryInto<Metadata> for fs::Metadata {
+    type Error = std::io::Error;
+    fn try_into(self) -> Result<Metadata, std::io::Error> {
+        Ok(Metadata {
+            ino: 0,
+            size: self.len(),
+            blocks: 1,
+            atime: self.accessed()?,
+            mtime: self.modified()?,
+            ctime: self.modified()?,
+            crtime: self.created()?,
+            kind: if self.is_file() { FileType::RegularFile } else { FileType::Directory },
+            perm: 0o666 as u16,
+            nlink: 0,
+            uid: 0,
+            gid: 0,
+            rdev: 0,
+            blksize: 1,
+            flags: 0,
+        })
+    }
 }

@@ -32,10 +32,15 @@ impl DiskManager {
     }
 
     pub fn write_file(&self, path: WhPath, binary: Vec<u8>, offset: u64) -> io::Result<u64> {
-        let file = self.handle.write_file(path.set_relative(), 0o600)?;
+        let file = self.handle.append_file(path.set_relative(), 0o600)?;
         Ok(file.write_at(&binary, offset)? as u64) // NOTE - used "as" because into() is not supported
     }
 
+    pub fn set_file_size(&self, path: WhPath, size: u64) -> io::Result<()> {
+        let file = self.handle.write_file(path.set_relative(), 0o600)?;
+        file.set_len(size)
+    }
+    
     pub fn mv_file(&self, path: WhPath, new_path: WhPath) -> io::Result<()> {
         // let mut original_path = path.clone(); // NOTE - Would be better if rename was non mutable
         // original_path.rename(new_name);

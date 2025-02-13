@@ -6,7 +6,7 @@ use tokio::sync::{
     mpsc::{UnboundedReceiver, UnboundedSender},
 };
 
-use super::{arbo::FsEntry, whpath::WhPath};
+use super::{arbo::{FsEntry, Metadata}, whpath::WhPath};
 use crate::network::{
     message::{
         self, Address, FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
@@ -282,6 +282,12 @@ impl NetworkInterface {
         arbo.set_inode_hosts(id, hosts) // TODO - if unable to update for some reason, should be passed to the background worker
     }
 
+    pub fn acknowledge_metadata(&self, id: InodeId, meta: Metadata, host: Address) -> io::Result<()> {
+        let mut arbo = Arbo::write_lock(&self.arbo, "acknowledge_metadata")?;
+        arbo.set_inode_hosts(id, vec![host])?;
+        arbo.set_inode_meta(id, meta) // TODO - if unable to update for some reason, should be passed to the background worker
+    }
+
     // REVIEW - recheck and simplify this if possible
     pub fn pull_file(&self, file: InodeId) -> io::Result<Option<Callback>> {
         let hosts = {
@@ -309,7 +315,7 @@ impl NetworkInterface {
 
             self.to_network_message_tx
                 .send(ToNetworkMessage::SpecificMessage(
-                    message::MessageContent::RequestFile(file),
+                    message::MessageContent::RequestFile(file, self.self_addr.clone()),
                     vec![hosts[0].clone()], // NOTE - naive choice for now
                 ))
                 .expect("pull_file: unable to request on the network thread");
@@ -357,12 +363,31 @@ impl NetworkInterface {
         }
     }
 
+    pub fn update_metadata(&self, id: InodeId, meta: Metadata) -> io::Result<()> {
+        let mut arbo = Arbo::write_lock(&self.arbo, "fs_interface::get_inode_attributes")?;
+        arbo.set_inode_meta(id, meta.clone())?;
+
+        self.to_network_message_tx
+            .send(ToNetworkMessage::BroadcastMessage(
+                MessageContent::EditMetadata(id, meta, self.self_addr.clone()),
+            ))
+            .expect("update_metadata: unable to update modification on the network thread");
+        Ok(())
+        /* REVIEW
+         * This system (and others broadcasts systems) should be reviewed as they don't check success.
+         * In this case, if another host misses this order, it will not update it's file.
+         * We could create a "broadcast" callback with the number of awaited confirmations and a timeout
+         * before resend or fail declaration.
+         * Or send a bunch of Specific messages
+         */
+    }
+
     pub async fn request_arbo(&self, to: Address) -> io::Result<bool> {
         let callback = self.callbacks.create(Callback::PullFs)?;
 
         self.to_network_message_tx
             .send(ToNetworkMessage::SpecificMessage(
-                MessageContent::RequestFs,
+                MessageContent::RequestFs(self.self_addr.clone()),
                 vec![to],
             ))
             .expect("request_arbo: unable to update modification on the network thread");
@@ -370,7 +395,20 @@ impl NetworkInterface {
         self.callbacks.async_wait_for(callback).await
     }
 
-    pub fn send_arbo(&self, to: Address) -> io::Result<()> {
+    pub fn edit_peer_ip(&self, actual: Address, new: Address) {
+        log::info!("changing host {} to {}", actual, new);
+        if let Some(mut peers) = self.peers.try_write_for(LOCK_TIMEOUT) {
+            for peer in peers.iter_mut() {
+                if peer.address == actual {
+                    log::info!("done once");
+                    peer.address = new.clone();
+                }
+            }
+        }
+    }
+
+    pub fn send_arbo(&self, to: Address, real_address: Address) -> io::Result<()> {
+        self.edit_peer_ip(to, real_address.clone());
         let arbo = Arbo::read_lock(&self.arbo, "send_arbo")?;
         let mut entries = arbo.get_raw_entries();
 
@@ -388,7 +426,7 @@ impl NetworkInterface {
                     fs_index: entries,
                     next_inode: self.get_next_inode()?,
                 }),
-                vec![to],
+                vec![real_address],
             ))
             .expect("send_arbo: unable to update modification on the network thread");
         Ok(())
@@ -419,18 +457,19 @@ impl NetworkInterface {
                 Some(message) => message,
                 None => continue,
             };
+            log::error!("message from {} : {:?}", origin, content);
 
             let action_result = match content {
                 MessageContent::PullAnswer(id, binary) => fs_interface.recept_binary(id, binary),
                 MessageContent::Inode(inode, id) => fs_interface.recept_inode(inode, id),
                 MessageContent::EditHosts(id, hosts) => fs_interface.recept_edit_hosts(id, hosts),
+                MessageContent::EditMetadata(id, meta, host) => fs_interface.recept_edit_metadata(id, meta, host),
                 MessageContent::Remove(id) => fs_interface.recept_remove_inode(id),
-                MessageContent::Meta(_) => todo!(),
-                MessageContent::RequestFile(inode) => fs_interface.send_file(inode, origin),
+                MessageContent::RequestFile(inode, peer) => fs_interface.send_file(inode, peer),
+                MessageContent::RequestFs(origin_addr) => fs_interface.send_filesystem(origin, origin_addr),
                 MessageContent::Rename(parent, new_parent, name, new_name) => {
                     fs_interface.accept_rename(parent, new_parent, &name, &new_name)
                 }
-                MessageContent::RequestFs => fs_interface.send_filesystem(origin),
                 MessageContent::FsAnswer(fs) => fs_interface.replace_arbo(fs),
             };
             if let Err(error) = action_result {
@@ -471,10 +510,12 @@ impl NetworkInterface {
                     });
                 }
                 ToNetworkMessage::SpecificMessage(message_content, origins) => {
+                    log::error!("SPECIFIC MESSAGE {:?} {:?}", origins, peer_tx);
                     peer_tx
                         .iter()
                         .filter(|&(_, address)| origins.contains(address))
                         .for_each(|(channel, address)| {
+                            log::error!("SPECIFIC MESSAGE TO {}", address);
                             channel
                                 .send(message_content.clone())
                                 .expect(&format!("failed to send message to peer {}", address))

@@ -1,10 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-use crate::{
-    data::metadata::MetaData,
-    pods::arbo::{ArboIndex, Inode, InodeId},
-};
+use crate::pods::arbo::{ArboIndex, Inode, InodeId, Metadata};
 
 /// Message Content
 /// Represent the content of the intern message but is also the struct sent
@@ -13,12 +10,12 @@ use crate::{
 pub enum MessageContent {
     Remove(InodeId),
     Inode(Inode, InodeId),
-    Meta(MetaData),
-    RequestFile(InodeId),
+    RequestFile(InodeId, Address),
     PullAnswer(InodeId, Vec<u8>),
-    RequestFs,
+    RequestFs(Address),
     Rename(InodeId, InodeId, String, String), //Parent, New Parent, Name, New Name
     EditHosts(InodeId, Vec<Address>),
+    EditMetadata(InodeId, Metadata, Address),
     FsAnswer(FileSystemSerialized),
 }
 
