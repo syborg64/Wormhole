@@ -32,7 +32,6 @@ async fn main() {
     let mut pods: Vec<Pod> = Vec::new();
 
     env_logger::init();
-
     let mount: PathBuf = env::args()
         .nth(1)
         .unwrap_or("./virtual/".to_string())

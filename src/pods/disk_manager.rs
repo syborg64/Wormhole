@@ -1,6 +1,5 @@
-use std::{fs::File, io::Write, os::unix::fs::FileExt};
+use std::{fs::File, io::Read, os::unix::fs::FileExt};
 
-use log::debug;
 use openat::Dir;
 use tokio::io;
 
@@ -20,41 +19,46 @@ impl DiskManager {
         })
     }
 
-    pub fn new_file(&self, path: &WhPath) -> io::Result<File> {
-        let path: WhPath = self.mount_point.join(path);
-        self.handle.new_file(path, 0o644) // TODO look more in c mode_t value
+    pub fn new_file(&self, path: WhPath) -> io::Result<File> {
+        self.handle.new_file(path.set_relative(), 0o644) // TODO look more in c mode_t value
     }
 
-    pub fn remove_file(&self, path: &WhPath) -> io::Result<()> {
-        let path = self.mount_point.join(path);
-        self.handle.remove_file(path)
+    pub fn remove_file(&self, path: WhPath) -> io::Result<()> {
+        self.handle.remove_file(path.set_relative())
     }
 
-    pub fn remove_dir(&self, path: &WhPath) -> io::Result<()> {
-        let path = self.mount_point.join(path);
-        self.handle.remove_dir(path)
+    pub fn remove_dir(&self, path: WhPath) -> io::Result<()> {
+        self.handle.remove_dir(path.set_relative())
     }
 
-    pub fn write_file(&self, path: &WhPath, binary: Vec<u8>, offset: u64) -> io::Result<u64> {
-        let path = self.mount_point.join(path);
-        let file = self.handle.write_file(path, 0o600)?;
+    pub fn write_file(&self, path: WhPath, binary: Vec<u8>, offset: u64) -> io::Result<u64> {
+        let file = self.handle.write_file(path.set_relative(), 0o600)?;
         Ok(file.write_at(&binary, offset)? as u64) // NOTE - used "as" because into() is not supported
     }
 
-    pub fn read_file(&self, path: &WhPath, offset: u64, len: u64) -> io::Result<Vec<u8>> {
-        let path = self.mount_point.join(path);
-        let file = self.handle.open_file(path)?;
-        let mut buf = Vec::with_capacity(
-            len.try_into()
-                .expect("disk_manager::read_file: can't convert u64 to usize"),
+    pub fn mv_file(&self, path: WhPath, new_path: WhPath) -> io::Result<()> {
+        // let mut original_path = path.clone(); // NOTE - Would be better if rename was non mutable
+        // original_path.rename(new_name);
+        log::error!("disk rename {} {}", path, new_path);
+        self.handle
+            .local_rename(path.set_relative(), new_path.set_relative())
+    }
+
+    pub fn read_file(&self, path: WhPath, offset: u64, len: u64) -> io::Result<Vec<u8>> {
+        let file = self.handle.open_file(path.set_relative())?;
+        let mut buf = Vec::<u8>::new();
+        buf.splice(
+            0..0,
+            file.bytes()
+                .skip(offset as usize)
+                .take(len as usize)
+                .map_while(|b| b.ok()),
         );
 
-        file.read_exact_at(&mut buf, offset)?;
         Ok(buf)
     }
 
-    pub fn new_dir(&self, path: &WhPath) -> io::Result<()> {
-        let path = self.mount_point.join(path);
-        self.handle.create_dir(path, 0o644) // TODO look more in c mode_t value
+    pub fn new_dir(&self, path: WhPath) -> io::Result<()> {
+        self.handle.create_dir(path.set_relative(), 0o644) // TODO look more in c mode_t value
     }
 }

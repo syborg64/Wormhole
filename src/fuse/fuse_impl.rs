@@ -5,13 +5,10 @@ use fuser::{
     BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData,
     ReplyDirectory, ReplyEntry, Request,
 };
-use libc::{ENOENT, ENOSYS};
+use libc::{EIO, ENOENT};
 use log::debug;
-use openat::{Dir, SimpleType};
-use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::io;
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, UNIX_EPOCH};
 
@@ -82,7 +79,7 @@ impl Filesystem for FuseController {
             parent,
             name.to_string_lossy().to_string()
         );
-        
+
         match self
             .fs_interface
             .get_entry_from_name(parent, name.to_string_lossy().to_string())
@@ -100,7 +97,7 @@ impl Filesystem for FuseController {
 
     // TODO
     fn getattr(&mut self, _req: &Request, ino: u64, _: Option<u64>, reply: ReplyAttr) {
-        debug!("called getattr ino:{}", ino);
+        //debug!("called getattr ino:{}", ino);
         match ino {
             1 => reply.attr(&TTL, &MOUNT_DIR_ATTR),
             2 => reply.attr(&TTL, &TEMPLATE_FILE_ATTR),
@@ -128,7 +125,7 @@ impl Filesystem for FuseController {
 
         match content {
             Ok(content) => reply.data(&content),
-            Err(_) => reply.error(ENOENT),
+            Err(err) => reply.error(err.raw_os_error().unwrap_or(EIO)),
         }
     }
 
@@ -153,10 +150,11 @@ impl Filesystem for FuseController {
             if reply.add(
                 ino,
                 // i + 1 means offset of the next entry
-                (i + 1) as i64, // NOTE - in case of error, try i + 1
+                i as i64 + 1, // NOTE - in case of error, try i + 1
                 entry.entry.get_filetype(),
                 entry.name,
             ) {
+                log::error!("BREAK?");
                 break;
             }
         }
@@ -177,20 +175,21 @@ impl Filesystem for FuseController {
         _rdev: u32,
         reply: ReplyEntry,
     ) {
-        if let Ok((id, _)) = self.fs_interface.make_inode(
+        match self.fs_interface.make_inode(
             parent,
             name.to_string_lossy().to_string(),
             SimpleFileType::File,
         ) {
-            // creating metadata to return
-            let mut new_attr = TEMPLATE_FILE_ATTR;
-            new_attr.ino = id;
-            new_attr.kind = FileType::RegularFile;
-            new_attr.size = 0;
+            Ok((id, _)) => {
+                // creating metadata to return
+                let mut new_attr = TEMPLATE_FILE_ATTR;
+                new_attr.ino = id;
+                new_attr.kind = FileType::RegularFile;
+                new_attr.size = 0;
 
-            reply.entry(&TTL, &new_attr, 0)
-        } else {
-            reply.error(ENOSYS)
+                reply.entry(&TTL, &new_attr, 0)
+            }
+            Err(err) => reply.error(err.raw_os_error().unwrap_or(EIO)),
         }
     }
 
@@ -203,57 +202,66 @@ impl Filesystem for FuseController {
         _umask: u32,
         reply: ReplyEntry,
     ) {
-        if let Ok((id, _)) = self.fs_interface.make_inode(
+        match self.fs_interface.make_inode(
             parent,
             name.to_string_lossy().to_string(),
-            SimpleFileType::File,
+            SimpleFileType::Directory,
         ) {
-            // creating metadata to return
-            let mut new_attr = TEMPLATE_FILE_ATTR;
-            new_attr.ino = id;
-            new_attr.kind = FileType::Directory;
-            new_attr.size = 0;
+            Ok((id, _)) => {
+                // creating metadata to return
+                let mut new_attr = TEMPLATE_FILE_ATTR;
+                new_attr.ino = id;
+                new_attr.kind = FileType::Directory;
+                new_attr.size = 0;
 
-            reply.entry(&TTL, &new_attr, 0)
-        } else {
-            reply.error(ENOSYS)
+                reply.entry(&TTL, &new_attr, 0)
+            }
+            Err(err) => reply.error(err.raw_os_error().unwrap_or(EIO)),
         }
     }
 
     fn unlink(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: fuser::ReplyEmpty) {
-        if let Ok(()) = self.fs_interface.fuse_remove_inode(parent, name) {
-            reply.ok()
-        } else {
-            reply.error(ENOENT)
+        match self.fs_interface.fuse_remove_inode(parent, name) {
+            Ok(()) => reply.ok(),
+            Err(err) => reply.error(err.raw_os_error().unwrap_or(EIO)),
         }
     }
 
     fn rmdir(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: fuser::ReplyEmpty) {
         // should be only called on empty dirs ?
-        if let Ok(()) = self.fs_interface.fuse_remove_inode(parent, name) {
-            reply.ok()
-        } else {
-            reply.error(ENOENT)
+        match self.fs_interface.fuse_remove_inode(parent, name) {
+            Ok(()) => reply.ok(),
+            Err(err) => reply.error(err.raw_os_error().unwrap_or(EIO)),
         }
     }
 
+    // Naive implementation to get my hands in implementation
+    // Does not support yet move if needed
     fn rename(
         &mut self,
         _req: &Request<'_>,
         parent: u64,
         name: &OsStr,
-        newparent: u64,
+        new_parent: u64,
         newname: &OsStr,
         _flags: u32,
         reply: fuser::ReplyEmpty,
     ) {
-        reply.error(ENOENT) // TODO
-                            // let mut provider = self.provider.lock().unwrap();
-                            // if let Some(()) = provider.rename(parent, name, newparent, newname) {
-                            //     reply.ok()
-                            // } else {
-                            //     reply.error(ENOENT)
-                            // }
+        match self.fs_interface.rename(
+            parent,
+            new_parent,
+            &name //TODO move instead of ref because of the clone down the line
+                .to_owned()
+                .into_string()
+                .expect("Don't support non unicode yet"), //TODO support OsString smartly
+            &newname
+                .to_owned()
+                .into_string()
+                .expect("Don't support non unicode yet"),
+        ) {
+            Ok(()) => reply.ok(),
+            Err(err) => reply.error(err.raw_os_error().unwrap_or(EIO)),
+        }
     }
 
     fn write(
@@ -272,14 +280,13 @@ impl Filesystem for FuseController {
             .try_into()
             .expect("fuser write: can't convert i64 to u64");
 
-        if let Ok(written) = self.fs_interface.write(ino, data.to_vec(), offset) {
-            reply.written(
+        match self.fs_interface.write(ino, data.to_vec(), offset) {
+            Ok(written) => reply.written(
                 written
                     .try_into()
                     .expect("fuser write: can't convert u64 to u32"),
-            )
-        } else {
-            reply.error(ENOENT)
+            ),
+            Err(err) => reply.error(err.raw_os_error().unwrap_or(EIO)),
         }
     }
 
@@ -290,7 +297,11 @@ pub fn mount_fuse(
     mount_point: &WhPath,
     fs_interface: Arc<FsInterface>,
 ) -> io::Result<BackgroundSession> {
-    let options = vec![MountOption::RW, MountOption::FSName("wormhole".to_string())];
+    let options = vec![
+        MountOption::RW,
+        // MountOption::DefaultPermissions,
+        MountOption::FSName("wormhole".to_string()),
+    ];
     let ctrl = FuseController { fs_interface };
 
     fuser::spawn_mount2(ctrl, mount_point.to_string(), &options)

@@ -1,7 +1,6 @@
 use crate::network::message::Address;
 use fuser::FileType;
 use log::debug;
-use openat::AsPath;
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs, io, sync::Arc, time::Duration};
@@ -165,32 +164,17 @@ impl Arbo {
                 "add_inode_from_parameters: file already existing",
             ))
         } else {
-            match self.entries.get_mut(&parent_ino) {
-                None => Err(io::Error::new(
-                    io::ErrorKind::NotFound,
-                    "add_inode_from_parameters: parent not existing",
-                )),
-                Some(Inode {
-                    parent: _,
-                    id: _,
-                    name: _,
-                    entry: FsEntry::Directory(parent_children),
-                }) => {
-                    let new_entry = Inode {
-                        parent: parent_ino,
-                        id: ino,
-                        name: name,
-                        entry: entry,
-                    };
-                    parent_children.push(ino);
-                    self.entries.insert(ino, new_entry);
-                    Ok(())
-                }
-                Some(_) => Err(io::Error::new(
-                    io::ErrorKind::NotFound,
-                    "parent not a folder",
-                )),
-            }
+            self.add_children(parent_ino, ino)?;
+            self.entries.insert(
+                ino,
+                Inode {
+                    parent: parent_ino,
+                    id: ino,
+                    name: name,
+                    entry: entry,
+                },
+            );
+            Ok(())
         }
     }
 
@@ -212,6 +196,22 @@ impl Arbo {
         }?;
 
         children.retain(|v| *v != child);
+        Ok(())
+    }
+
+    #[must_use]
+    pub fn add_children(&mut self, parent: InodeId, child: InodeId) -> io::Result<()> {
+        let parent = self.get_inode_mut(parent)?;
+
+        let children = match &mut parent.entry {
+            FsEntry::File(_) => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "add_children: specified parent is not a folder",
+            )),
+            FsEntry::Directory(children) => Ok(children),
+        }?;
+
+        children.push(child);
         Ok(())
     }
 
@@ -238,13 +238,38 @@ impl Arbo {
         }
     }
 
+    #[must_use]
+    pub fn mv_inode(
+        &mut self,
+        parent: InodeId,
+        new_parent: InodeId,
+        name: &String,
+        new_name: &String,
+    ) -> io::Result<()> {
+        let parent_inode = self.entries.get(&parent).ok_or(io::Error::new(
+            io::ErrorKind::NotFound,
+            "add_inode_from_parameters: parent not existing",
+        ))?;
+        let item_id = match self.get_inode_child_by_name(parent_inode, name) {
+            Ok(item_inode) => item_inode.id,
+            Err(_) => todo!("mv_inode: inode not found"), // TODO
+        };
+
+        self.remove_children(parent, item_id)?;
+
+        let item = self.get_inode_mut(item_id)?;
+        item.name = new_name.clone();
+        item.parent = new_parent;
+
+        self.add_children(new_parent, item_id)
+    }
+
     // not public as the modifications are not automaticly propagated on other related inodes
     #[must_use]
     fn get_inode_mut(&mut self, ino: InodeId) -> io::Result<&mut Inode> {
-        match self.entries.get_mut(&ino) {
-            Some(inode) => Ok(inode),
-            None => Err(io::Error::new(io::ErrorKind::NotFound, "entry not found")),
-        }
+        self.entries
+            .get_mut(&ino)
+            .ok_or(io::Error::new(io::ErrorKind::NotFound, "entry not found"))
     }
 
     #[must_use]
@@ -326,6 +351,7 @@ fn index_folder_recursive(
     parent: InodeId,
     ino: &mut InodeId,
     path: &WhPath,
+    host: &String,
 ) -> io::Result<()> {
     let str_path = path.to_string();
     for entry in fs::read_dir(str_path)? {
@@ -348,24 +374,24 @@ fn index_folder_recursive(
             parent,
             used_ino,
             if ftype.is_file() {
-                FsEntry::File(Vec::new())
+                FsEntry::File(vec![host.clone()])
             } else {
                 FsEntry::Directory(Vec::new())
             },
         ))?;
 
         if ftype.is_dir() {
-            index_folder_recursive(arbo, *ino - 1, ino, &path.join(&fname))
+            index_folder_recursive(arbo, *ino - 1, ino, &path.join(&fname), host)
                 .expect("error in filesystem indexion (3)");
         };
     }
     Ok(())
 }
 
-pub fn index_folder(path: &WhPath) -> io::Result<(Arbo, InodeId)> {
+pub fn index_folder(path: &WhPath, host: &String) -> io::Result<(Arbo, InodeId)> {
     let mut arbo = Arbo::new();
     let mut ino: u64 = 11; // NOTE - will be the first registered inode after root
 
-    index_folder_recursive(&mut arbo, ROOT, &mut ino, path)?;
+    index_folder_recursive(&mut arbo, ROOT, &mut ino, path, host)?;
     Ok((arbo, ino))
 }

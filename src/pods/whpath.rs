@@ -177,7 +177,7 @@ impl WhPath {
     }
 
     //NOTE - changer le path pour "./path"
-    pub fn set_relative(&mut self) -> &Self {
+    pub fn set_relative(mut self) -> Self {
         if !self.is_empty() && !Self::is_relative(&self) {
             self.convert_path(PathType::Relative);
         }
@@ -185,7 +185,7 @@ impl WhPath {
     }
 
     //NOTE - changer le path pour "/path"
-    pub fn set_absolute(&mut self) -> &Self {
+    pub fn set_absolute(mut self) -> Self {
         if !self.is_empty() && !Self::is_absolute(&self) {
             self.convert_path(PathType::Absolute);
         }
@@ -193,7 +193,7 @@ impl WhPath {
     }
 
     //NOTE - changer le path pour "path"
-    pub fn remove_prefix(&mut self) -> &Self {
+    pub fn remove_prefix(mut self) -> Self {
         if !self.is_empty() && !Self::has_no_prefix(&self) {
             self.convert_path(PathType::NoPrefix);
         }
@@ -241,6 +241,25 @@ impl WhPath {
         match path.inner.rsplit('/').next() {
             Some(last) => last.to_string(),
             _none => String::new(),
+        }
+    }
+
+    //NOTE - returns all but the last element
+    pub fn get_folder(&self) -> String {
+        let mut path = self.clone();
+        path.remove_last_slash();
+        match path.inner.rsplit_once('/') {
+            Some((first, _)) => first.to_string(),
+            _none => String::new(),
+        }
+    }
+
+    pub fn split_folder_file(&self) -> (String, String) {
+        let mut path = self.clone();
+        path.remove_last_slash();
+        match path.inner.rsplit_once('/') {
+            Some((first, last)) => (first.to_string(), last.to_string()),
+            _none => (String::new(), String::new()),
         }
     }
 

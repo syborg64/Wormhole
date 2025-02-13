@@ -3,7 +3,7 @@ use serde_with::serde_as;
 
 use crate::{
     data::metadata::MetaData,
-    pods::arbo::{Arbo, ArboIndex, Inode, InodeId},
+    pods::arbo::{ArboIndex, Inode, InodeId},
 };
 
 /// Message Content
@@ -15,10 +15,9 @@ pub enum MessageContent {
     Inode(Inode, InodeId),
     Meta(MetaData),
     RequestFile(InodeId),
-    Binary(Vec<u8>),
     PullAnswer(InodeId, Vec<u8>),
-    Write(InodeId, Vec<u8>),
     RequestFs,
+    Rename(InodeId, InodeId, String, String), //Parent, New Parent, Name, New Name
     EditHosts(InodeId, Vec<Address>),
     FsAnswer(FileSystemSerialized),
 }
@@ -47,4 +46,3 @@ pub struct FileSystemSerialized {
     pub fs_index: ArboIndex,
     pub next_inode: InodeId,
 }
-

@@ -2,7 +2,7 @@ use futures_util::{
     stream::{SplitSink, SplitStream},
     StreamExt,
 };
-use log::{debug, error, warn};
+use log::warn;
 use tokio::{
     net::TcpStream,
     sync::mpsc::{self, UnboundedSender},
@@ -75,7 +75,7 @@ impl PeerIPC {
     ) -> Option<Self> {
         let (peer_send, peer_recv) = mpsc::unbounded_channel();
 
-        let thread = match tokio_tungstenite::connect_async(&address).await {
+        let thread = match tokio_tungstenite::connect_async("ws://".to_string() + &address).await {
             Ok((stream, _)) => tokio::spawn(Self::work(stream, nfa_tx, peer_recv, address.clone())),
             Err(e) => {
                 warn!("failed to connect to {}. Error: {}", address, e);
