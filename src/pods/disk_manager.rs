@@ -36,6 +36,11 @@ impl DiskManager {
         Ok(file.write_at(&binary, offset)? as u64) // NOTE - used "as" because into() is not supported
     }
 
+    pub fn set_file_size(&self, path: WhPath, size: u64) -> io::Result<()> {
+        let file = self.handle.write_file(path.set_relative(), 0o600)?;
+        file.set_len(size)
+    }
+    
     pub fn read_file(&self, path: WhPath, offset: u64, len: u64) -> io::Result<Vec<u8>> {
         let file = self.handle.open_file(path.set_relative())?;
         let mut buf = Vec::<u8>::new();

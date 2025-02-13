@@ -14,7 +14,7 @@ pub enum MessageContent {
     PullAnswer(InodeId, Vec<u8>),
     RequestFs,
     EditHosts(InodeId, Vec<Address>),
-    EditMetadata(InodeId, Metadata),
+    EditMetadata(InodeId, Metadata, Address),
     FsAnswer(FileSystemSerialized),
 }
 

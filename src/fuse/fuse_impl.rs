@@ -462,9 +462,9 @@ impl Filesystem for FuseController {
         }
     }
 
-    fn open(&mut self, _req: &Request<'_>, ino: u64, _flags: i32, reply: fuser::ReplyOpen) {
+    fn open(&mut self, _req: &Request<'_>, ino: u64, flags: i32, reply: fuser::ReplyOpen) {
         log::error!("OPEN ON {}", ino);
-        reply.opened(ino, 0o666); // TODO - check flags ?
+        reply.opened(ino, flags as u32); // TODO - check flags ?
     }
 
     fn release(
