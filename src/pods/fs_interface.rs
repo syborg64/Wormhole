@@ -66,11 +66,12 @@ impl FsInterface {
             ));
         };
 
-        match self.disk.new_file(new_path) {
-            Ok(_) => (),
-            Err(e) => {
-                return Err(e);
+        match kind {
+            SimpleFileType::File => {
+                self.disk.new_file(new_path)?;
+                ()
             }
+            SimpleFileType::Directory => self.disk.new_dir(new_path)?,
         };
 
         Ok((new_inode_id, new_inode))
@@ -240,7 +241,6 @@ impl FsInterface {
         let mut arbo = Arbo::write_lock(&self.arbo, "recept_binary")
             .expect("recept_binary: can't write lock arbo");
         let path = {
-
             match arbo.get_path_from_inode_id(id) {
                 Ok(path) => path,
                 Err(_) => {
@@ -310,7 +310,7 @@ impl FsInterface {
     pub fn send_file(&self, inode: InodeId, to: Address) -> io::Result<()> {
         let arbo = Arbo::read_lock(&self.arbo, "send_arbo")?;
         let path = arbo.get_path_from_inode_id(inode)?;
-        let data = self.disk.read_file(path, 0 , u64::max_value())?;
+        let data = self.disk.read_file(path, 0, u64::max_value())?;
         self.network_interface.send_file(inode, data, to)
     }
     // !SECTION
