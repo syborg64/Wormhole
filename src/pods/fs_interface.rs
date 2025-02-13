@@ -66,11 +66,12 @@ impl FsInterface {
             ));
         };
 
-        match self.disk.new_file(new_path) {
-            Ok(_) => (),
-            Err(e) => {
-                return Err(e);
+        match kind {
+            SimpleFileType::File => {
+                self.disk.new_file(new_path)?;
+                ()
             }
+            SimpleFileType::Directory => self.disk.new_dir(new_path)?,
         };
 
         Ok((new_inode_id, new_inode))
