@@ -434,6 +434,8 @@ impl FileSystemContext for FSPController {
         last_change_time: u64,
         file_info: &mut winfsp::filesystem::FileInfo,
     ) -> winfsp::Result<()> {
+        log::info!("winfsp::set_basic_info({:?})", context);
+
         Ok(())
         // Err(NTSTATUS(STATUS_INVALID_DEVICE_REQUEST).into())
     }
@@ -444,6 +446,7 @@ impl FileSystemContext for FSPController {
         file_name: &winfsp::U16CStr,
         delete_file: bool,
     ) -> winfsp::Result<()> {
+        log::info!("winfsp::set_delete({:?})", context);
 
         Ok(())
         // Err(NTSTATUS(STATUS_INVALID_DEVICE_REQUEST).into())
@@ -456,6 +459,7 @@ impl FileSystemContext for FSPController {
         set_allocation_size: bool,
         file_info: &mut winfsp::filesystem::FileInfo,
     ) -> winfsp::Result<()> {
+        log::info!("winfsp::set_file_size({:?}, {new_size})", context);
         Ok(())
         // Err(NTSTATUS(STATUS_INVALID_DEVICE_REQUEST).into())
     }
