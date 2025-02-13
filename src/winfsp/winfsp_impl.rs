@@ -1,4 +1,4 @@
-use std::{cmp::min, ffi::OsString, io::ErrorKind, sync::Arc};
+use std::{cmp::min, ffi::OsString, io::ErrorKind, sync::Arc, time::UNIX_EPOCH};
 
 use ntapi::ntioapi::FILE_DIRECTORY_FILE;
 use winapi::{
@@ -21,7 +21,7 @@ use winfsp::{
 use winfsp_sys::FILE_ACCESS_RIGHTS;
 
 use crate::pods::{
-    arbo::Arbo,
+    arbo::{Arbo, Metadata},
     fs_interface::{FsInterface, SimpleFileType},
     whpath::WhPath,
 };
@@ -40,6 +40,42 @@ impl TryInto<WhPath> for &winfsp::U16CStr {
 impl WhPath {
     pub fn to_winfsp(&self) -> String {
         self.inner.replace("/", "\\")
+    }
+}
+
+impl Into<FileInfo> for Metadata {
+    fn into(self) -> FileInfo {
+        FileInfo {
+            file_attributes: 0,
+            reparse_tag: 0,
+            allocation_size: self.size,
+            file_size: self.size,
+            creation_time: self.crtime.duration_since(UNIX_EPOCH).map(|t|t.as_secs()).unwrap_or(0),
+            last_access_time: self.atime.duration_since(UNIX_EPOCH).map(|t|t.as_secs()).unwrap_or(0),
+            last_write_time: self.mtime.duration_since(UNIX_EPOCH).map(|t|t.as_secs()).unwrap_or(0),
+            change_time: self.ctime.duration_since(UNIX_EPOCH).map(|t|t.as_secs()).unwrap_or(0),
+            index_number: self.ino,
+            hard_links: 0,
+            ea_size: 0,
+        }
+    }
+}
+
+impl Into<FileInfo> for &Metadata {
+    fn into(self) -> FileInfo {
+        FileInfo {
+            file_attributes: 0,
+            reparse_tag: 0,
+            allocation_size: self.size,
+            file_size: self.size,
+            creation_time: self.crtime.duration_since(UNIX_EPOCH).map(|t|t.as_secs()).unwrap_or(0),
+            last_access_time: self.atime.duration_since(UNIX_EPOCH).map(|t|t.as_secs()).unwrap_or(0),
+            last_write_time: self.mtime.duration_since(UNIX_EPOCH).map(|t|t.as_secs()).unwrap_or(0),
+            change_time: self.ctime.duration_since(UNIX_EPOCH).map(|t|t.as_secs()).unwrap_or(0),
+            index_number: self.ino,
+            hard_links: 0,
+            ea_size: 0,
+        }
     }
 }
 
@@ -173,21 +209,9 @@ impl FileSystemContext for FSPController {
                     // SimpleFileType::Link => FILE_ATTRIBUTE_REPARSE_POINT,
                     // SimpleFileType::Other => FILE_ATTRIBUTE_READONLY, // TODO: remove ?
                 };
-                *file_info.as_mut() = FileInfo {
-                    file_attributes: attributes,
-                    reparse_tag: 0,
-                    allocation_size: 0,
-                    file_size: 0,
-                    creation_time: 0,
-                    last_access_time: 0,
-                    last_write_time: 0,
-                    change_time: 0,
-                    index_number: inode.id,
-                    hard_links: 0,
-                    ea_size: 0,
-                };
+                *file_info.as_mut() = (&inode.meta).into();
+                file_info.as_mut().file_attributes = attributes;
                 file_info.set_normalized_name(file_name.as_slice(), None);
-                // file_info.set_normalized_name(U16CString::from_str(&inode.name).expect("u16str from str").as_slice(), None);
                 log::info!("ok:{}", inode.id);
                 Ok(WormholeHandle(inode.id))
             }
@@ -248,26 +272,15 @@ impl FileSystemContext for FSPController {
             // SimpleFileType::Link => FILE_ATTRIBUTE_REPARSE_POINT,
             // SimpleFileType::Other => FILE_ATTRIBUTE_READONLY, // TODO: remove ?
         };
-        let inode = self
+        let (id, inode) = self
             .fs_interface
             .make_inode(parent, name, file_type)
             .inspect_err(|e| log::error!("make_inode:{e}"))?;
-        *file_info.as_mut() = FileInfo {
-            file_attributes: attributes,
-            reparse_tag: 0,
-            allocation_size: 0,
-            file_size: 0,
-            creation_time: 0,
-            last_access_time: 0,
-            last_write_time: 0,
-            change_time: 0,
-            index_number: inode.0,
-            hard_links: 0,
-            ea_size: 0,
-        };
+        *file_info.as_mut() = (&inode.meta).into();
+        file_info.as_mut().file_attributes = attributes;
         file_info.set_normalized_name(file_name.as_slice(), None);
 
-        Ok(WormholeHandle(inode.0))
+        Ok(WormholeHandle(id))
     }
 
     fn cleanup(
@@ -306,19 +319,8 @@ impl FileSystemContext for FSPController {
                     // SimpleFileType::Link => FILE_ATTRIBUTE_REPARSE_POINT,
                     // SimpleFileType::Other => FILE_ATTRIBUTE_READONLY, // TODO: remove ?
                 };
-                *file_info = FileInfo {
-                    file_attributes: attributes,
-                    reparse_tag: 0,
-                    allocation_size: 0,
-                    file_size: 0,
-                    creation_time: 0,
-                    last_access_time: 0,
-                    last_write_time: 0,
-                    change_time: 0,
-                    index_number: inode.id,
-                    hard_links: 0,
-                    ea_size: 0,
-                };
+                *file_info = (&inode.meta).into();
+                file_info.file_attributes = attributes;
                 log::info!("ok:{:?}", file_info);
                 Ok(())
             }
@@ -399,20 +401,8 @@ impl FileSystemContext for FSPController {
                 // SimpleFileType::Link => FILE_ATTRIBUTE_REPARSE_POINT,
                 // SimpleFileType::Other => FILE_ATTRIBUTE_READONLY, // TODO: remove ?
             };
-            *dirinfo.file_info_mut() = FileInfo {
-                file_attributes: attributes,
-                reparse_tag: 0,
-                allocation_size: 0,
-                file_size: 0,
-                creation_time: 0,
-                last_access_time: 0,
-                last_write_time: 0,
-                change_time: 0,
-                index_number: entry.id,
-                hard_links: 0,
-                ea_size: 0,
-            };
-
+            *dirinfo.file_info_mut() = (&entry.meta).into();
+            dirinfo.file_info_mut().file_attributes = attributes;
             log::info!("dirinfo:{}:{:?}", &entry.name, dirinfo.file_info_mut());
             if !dirinfo.append_to_buffer(buffer, &mut cursor) {
                 break;
