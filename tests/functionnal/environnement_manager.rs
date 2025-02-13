@@ -56,11 +56,10 @@ impl EnvironnementManager {
                 "run".to_string(),
                 "--bin".to_string(),
                 "wormhole-service".to_string(),
-                format!("127.0.0.{}:8081", new_index + 100),
-                format!("ws://127.0.0.{}:8081", snd_index + 100),
-                format!("ws://127.0.0.{}:8081", third_index + 100),
-                new_path.clone(),
                 new_path,
+                format!("127.0.0.{}:8081", new_index + 100),
+                format!("127.0.0.{}:8081", snd_index + 100),
+                format!("127.0.0.{}:8081", third_index + 100),
             ])
             .stdout(Self::generate_pipe(pipe_output))
             .stderr(Self::generate_pipe(pipe_output))
@@ -74,6 +73,6 @@ impl EnvironnementManager {
             stdin: write,
         });
 
-        return Ok(());
+        Ok(())
     }
 }

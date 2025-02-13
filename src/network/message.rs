@@ -1,25 +1,22 @@
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-use crate::{
-    data::metadata::MetaData,
-    providers::{FsIndex, Ino},
-};
+use crate::pods::arbo::{ArboIndex, Inode, InodeId, Metadata};
 
 /// Message Content
 /// Represent the content of the intern message but is also the struct sent
 /// through the network
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum MessageContent {
-    Remove(Ino),
-    File(File),
-    Meta(MetaData),
-    NewFolder(Folder),
-    RequestFile(std::path::PathBuf),
-    Binary(Vec<u8>),
-    Write(Ino, Vec<u8>),
-    RequestFs,
-    FileStructure(FileSystemSerialized),
+    Remove(InodeId),
+    Inode(Inode, InodeId),
+    RequestFile(InodeId, Address),
+    PullAnswer(InodeId, Vec<u8>),
+    RequestFs(Address),
+    Rename(InodeId, InodeId, String, String), //Parent, New Parent, Name, New Name
+    EditHosts(InodeId, Vec<Address>),
+    EditMetadata(InodeId, Metadata, Address),
+    FsAnswer(FileSystemSerialized),
 }
 
 pub type Address = String;
@@ -43,19 +40,6 @@ pub enum ToNetworkMessage {
 #[serde_as]
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct FileSystemSerialized {
-    #[serde_as(as = "Vec<(_, _)>")]
-    pub fs_index: FsIndex,
-    pub next_inode: Ino,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct File {
-    pub path: std::path::PathBuf,
-    pub ino: Ino,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Folder {
-    pub ino: Ino,
-    pub path: std::path::PathBuf,
+    pub fs_index: ArboIndex,
+    pub next_inode: InodeId,
 }
