@@ -2,9 +2,9 @@
 // In code we trust
 // AgarthaSoftware - 2024
 
-use crate::INSTANCE_PATH;
+//use crate::INSTANCE_PATH;
 use std::error::Error;
-use std::fs;
+//use std::fs;
 
 #[cfg(target_os = "windows")]
 #[must_use]
@@ -16,8 +16,9 @@ pub fn unregister(path: &std::path::PathBuf, name: &str) -> Result<(), Box<dyn E
 
 #[cfg(target_os = "linux")]
 #[must_use]
-pub fn unregister(name: &str) -> Result<(), Box<dyn Error>> {
-    return Ok(());
-    fs::remove_file(std::path::Path::new(INSTANCE_PATH).join("pods").join(name))?;
+pub fn unregister(_name: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
+    /*
+    fs::remove_file(std::path::Path::new(INSTANCE_PATH).join("pods").join(name))?;
+    */
 }

@@ -1,27 +1,35 @@
 use fuser::{FileAttr, FileType};
 use openat::Dir;
-use std::{collections::HashMap, path::PathBuf, time::UNIX_EPOCH};
+use serde::{Deserialize, Serialize};
+use std::{
+    collections::HashMap,
+    ffi::OsStr,
+    io,
+    path::{Path, PathBuf},
+    time::UNIX_EPOCH,
+};
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::network::message::NetworkMessage;
+use crate::{
+    network::message::{Address, ToNetworkMessage},
+    pods::arbo::Inode,
+};
 
 mod helpers;
 pub mod readers;
+pub mod whpath;
 pub mod writers;
 
-// (inode_number, (Type, Original path))
-pub type FsIndex = HashMap<u64, (fuser::FileType, PathBuf)>;
-
-// will keep all the necessary info to provide real
-// data to the fuse lib
-// For now this is given to the fuse controler on creation and we do NOT have
-// ownership during the runtime.
+/// Will keep all the necessary info to provide real
+/// data to the fuse lib
+/// For now this is given to the fuse controler on creation and we do NOT have
+/// ownership during the runtime.
 pub struct Provider {
-    pub next_inode: u64,
+    pub next_inode: InodeIndex,
     pub index: FsIndex,
     pub local_source: PathBuf,
     pub metal_handle: Dir,
-    pub tx: UnboundedSender<NetworkMessage>,
+    pub tx: UnboundedSender<ToNetworkMessage>,
 }
 
 // will soon be replaced once the dev continues
@@ -42,5 +50,3 @@ const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
     flags: 0,
     blksize: 512,
 };
-
-impl Provider {}

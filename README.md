@@ -14,7 +14,7 @@ For users and other softwares, the files behaves like any normal files, while th
 ## How to launch
 (this is for demo purposes and will be changed)
 ```
-cargo run --bin service -- "127.0.0.1:8080" "ws://127.0.0.2:8080" "ws://127.0.0.3:8080" ./virtual ./virtual
-^---------------------     ^--------------  ^-------------------- ^-------------------- ^------------------
-Build and run              host ip          other ip1             other ip2             where to mount (2 times)
+cargo run --bin service -- ./virtual       "127.0.0.1:8080" "127.0.0.2:8080"
+^---------------------     ^-------        ^--------------  ^---------------
+Build and run              where to mount  host ip          other ips (multiple possible)
 ```

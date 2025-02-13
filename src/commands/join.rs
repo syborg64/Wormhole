@@ -21,7 +21,7 @@ pub fn join(
         let mut peers = vec![address_str.to_owned()];
         peers.append(&mut additional_hosts);
         let network = config::Network::new(peers, network_name_str.to_owned());
-        commands::init(path, network_name_str)?;
+        commands::templates(path, network_name_str)?;
         network.write((&path).join(".wormhole/network.toml"))?;
         return Ok(());
     } else {

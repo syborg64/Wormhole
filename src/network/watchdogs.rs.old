@@ -9,7 +9,9 @@ use tokio::{
 use crate::network::peer_ipc::PeerIPC;
 use crate::providers::Provider;
 
-use crate::network::{message::NetworkMessage, server::Server};
+use crate::network::server::Server;
+
+use super::message::{FromNetworkMessage, MessageContent};
 
 pub async fn local_cli_watchdog() {
     let mut stdin = tokio::io::stdin();
@@ -24,6 +26,8 @@ pub async fn local_cli_watchdog() {
                 println!("Quiting!");
                 break;
             }
+            //TODO - en fonction du message reçu par la cli, doit mounter fuse si pas monté, join un network. Ce sera surtout de la lecture de fichier de config
+            //TODO - 
             _ => (),
         };
     }
@@ -38,42 +42,56 @@ pub async fn local_cli_watchdog() {
  *  @provider: fuse instance
 */
 pub async fn network_file_actions(
-    mut nfa_rx: UnboundedReceiver<NetworkMessage>,
+    mut nfa_rx: UnboundedReceiver<FromNetworkMessage>,
     provider: Arc<Mutex<Provider>>,
 ) {
     loop {
-        match nfa_rx.recv().await {
-            Some(NetworkMessage::Binary(bin)) => {
+        let FromNetworkMessage { origin, content } = match nfa_rx.recv().await {
+            Some(message) => message,
+            None => continue,
+        };
+
+        match content {
+            MessageContent::Binary(bin) => {
                 println!("peer: {:?}", String::from_utf8(bin).unwrap_or_default());
             }
-            Some(NetworkMessage::NewFolder(folder)) => {
+            MessageContent::NewFolder(folder) => {
                 println!("peer: NEW FOLDER");
                 let mut provider = provider.lock().expect("failed to lock mutex");
                 provider.new_folder(folder.ino, folder.path);
             }
-            Some(NetworkMessage::File(file)) => {
+            MessageContent::File(file) => {
                 println!("peer: NEW FILE");
                 let mut provider = provider.lock().expect("failed to lock mutex");
                 provider.new_file(file.ino, file.path);
             }
-            Some(NetworkMessage::Remove(ino)) => {
+            MessageContent::Remove(ino) => {
                 println!("peer: REMOVE");
                 let mut provider = provider.lock().expect("failed to lock mutex");
                 provider.recpt_remove(ino);
             }
-            Some(NetworkMessage::Write(ino, data)) => {
+            MessageContent::Write(ino, data) => {
                 println!("peer: WRITE");
                 let mut provider = provider.lock().expect("failed to lock mutex");
                 provider.recpt_write(ino, data);
             }
-            Some(NetworkMessage::Meta(_)) => {
+            MessageContent::Meta(_) => {
                 println!("peer: META");
             }
-            Some(NetworkMessage::RequestFile(_)) => {
+            MessageContent::RequestFile(_) => {
                 println!("peer: REQUEST FILE");
             }
-            None => {
-                () //REVIEW - Is it ok to loop every time ? the recv should wait or throw None every time ?
+            MessageContent::RequestFs => {
+                let provider = provider.lock().expect("failed to lock mutex");
+                provider.send_file_system(origin);
+                print!("Arbo requested");
+
+                println!(" and sent!");
+            }
+            MessageContent::FileStructure(fs) => {
+                let mut provider = provider.lock().expect("failed to lock mutex");
+                provider.merge_file_system(fs);
+                println!("Arbo recieved");
             }
         };
     }
@@ -81,7 +99,7 @@ pub async fn network_file_actions(
 
 pub async fn incoming_connections_watchdog(
     server: Server,
-    nfa_tx: UnboundedSender<NetworkMessage>,
+    nfa_tx: UnboundedSender<FromNetworkMessage>,
     existing_peers: Arc<Mutex<Vec<PeerIPC>>>,
 ) {
     while let Ok((stream, _)) = server.listener.accept().await {

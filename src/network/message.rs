@@ -1,27 +1,48 @@
 use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 
-use crate::data::metadata::MetaData;
+use crate::{
+    data::metadata::MetaData,
+    pods::arbo::{ArboIndex, Inode, InodeId},
+};
 
+/// Message Content
+/// Represent the content of the intern message but is also the struct sent
+/// through the network
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub enum NetworkMessage {
-    Remove(u64),
-    File(File),
+pub enum MessageContent {
+    Remove(InodeId),
+    Inode(Inode, InodeId),
     Meta(MetaData),
-    NewFolder(Folder),
-    RequestFile(std::path::PathBuf),
-    Binary(Vec<u8>),
-    Write(u64, Vec<u8>),
+    RequestFile(InodeId),
+    PullAnswer(InodeId, Vec<u8>),
+    RequestFs,
+    Rename(InodeId, InodeId, String, String), //Parent, New Parent, Name, New Name
+    EditHosts(InodeId, Vec<Address>),
+    FsAnswer(FileSystemSerialized),
 }
 
+pub type Address = String;
+
+/// Message Coming from Network
+/// Messages recived by peers, forwared to [crate::network::watchdogs::network_file_actions]
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct File {
-    pub path: std::path::PathBuf,
-    pub file: Vec<u8>,
-    pub ino: u64,
+pub struct FromNetworkMessage {
+    pub origin: Address,
+    pub content: MessageContent,
 }
 
+/// Message Going To Network
+/// Messages sent from fuser to process communicating to the peers
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Folder {
-    pub ino: u64,
-    pub path: std::path::PathBuf,
+pub enum ToNetworkMessage {
+    BroadcastMessage(MessageContent),
+    SpecificMessage(MessageContent, Vec<Address>),
+}
+
+#[serde_as]
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct FileSystemSerialized {
+    pub fs_index: ArboIndex,
+    pub next_inode: InodeId,
 }
