@@ -235,8 +235,6 @@ impl Filesystem for FuseController {
         }
     }
 
-    // Naive implementation to get my hands in implementation
-    // Does not support yet move if needed
     fn rename(
         &mut self,
         _req: &Request<'_>,
