@@ -199,6 +199,7 @@ impl FsInterface {
 
     pub fn read_dir(&self, ino: InodeId) -> io::Result<Vec<Inode>> {
         let arbo = Arbo::read_lock(&self.arbo, "fs_interface.read_dir")?;
+        arbo.log();
         let dir = arbo.get_inode(ino)?;
         let mut entries: Vec<Inode> = Vec::new();
 
@@ -219,10 +220,7 @@ impl FsInterface {
     // SECTION - remote -> write
 
     pub fn replace_arbo(&self, new: FileSystemSerialized) -> io::Result<()> {
-        self.network_interface.replace_arbo(new)?;
-        self.network_interface
-            .callbacks
-            .resolve(Callback::PullFs, true)
+        self.network_interface.replace_arbo(new)
     }
 
     pub fn recept_inode(&self, inode: Inode, id: InodeId) -> io::Result<()> {
@@ -230,6 +228,7 @@ impl FsInterface {
 
         let new_path = {
             let arbo = Arbo::read_lock(&self.arbo, "fs_interface.write")?;
+            arbo.log();
             arbo.get_path_from_inode_id(id)?
         };
 

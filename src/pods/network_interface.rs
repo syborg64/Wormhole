@@ -20,7 +20,7 @@ use super::{
     fs_interface::FsInterface,
 };
 
-#[derive(Eq, Hash, PartialEq, Clone, Copy)]
+#[derive(Eq, Hash, PartialEq, Clone, Copy, Debug)]
 pub enum Callback {
     Pull(InodeId),
     PullFs,
@@ -178,7 +178,7 @@ impl NetworkInterface {
 
         // TODO - add myself to hosts
 
-        if new_inode_id != 3 {
+        if new_inode_id != 3u64 {
             self.to_network_message_tx
                 .send(ToNetworkMessage::BroadcastMessage(
                     message::MessageContent::Inode(inode, new_inode_id),
@@ -248,7 +248,7 @@ impl NetworkInterface {
             ));
         };
 
-        if id != 3 {
+        if id != 3u64 {
             self.to_network_message_tx
                 .send(ToNetworkMessage::BroadcastMessage(
                     message::MessageContent::Remove(id),
@@ -376,6 +376,11 @@ impl NetworkInterface {
 
         //Remove ignored entries
         entries.remove(&3u64);
+        entries.entry(1u64).and_modify(|inode| {
+            if let FsEntry::Directory(childrens) = &mut inode.entry {
+                childrens.retain(|x| *x != 3u64);
+            }
+        });
 
         self.to_network_message_tx
             .send(ToNetworkMessage::SpecificMessage(
