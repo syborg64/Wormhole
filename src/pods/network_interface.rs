@@ -6,7 +6,7 @@ use tokio::sync::{
     mpsc::{UnboundedReceiver, UnboundedSender},
 };
 
-use super::{arbo::FsEntry, whpath::WhPath};
+use super::{arbo::{FsEntry, Metadata}, whpath::WhPath};
 use crate::network::{
     message::{
         self, Address, FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
@@ -251,6 +251,12 @@ impl NetworkInterface {
         arbo.set_inode_hosts(id, hosts) // TODO - if unable to update for some reason, should be passed to the background worker
     }
 
+    pub fn acknowledge_metadata(&self, id: InodeId, meta: Metadata, host: Address) -> io::Result<()> {
+        let mut arbo = Arbo::write_lock(&self.arbo, "acknowledge_metadata")?;
+        arbo.set_inode_hosts(id, vec![host])?;
+        arbo.set_inode_meta(id, meta) // TODO - if unable to update for some reason, should be passed to the background worker
+    }
+
     // REVIEW - recheck and simplify this if possible
     pub fn pull_file(&self, file: InodeId) -> io::Result<Option<Callback>> {
         let hosts = {
@@ -303,6 +309,38 @@ impl NetworkInterface {
                 MessageContent::EditHosts(id, vec![self.self_addr.clone()]),
             ))
             .expect("revoke_remote_hosts: unable to update modification on the network thread");
+        Ok(())
+        /* REVIEW
+         * This system (and others broadcasts systems) should be reviewed as they don't check success.
+         * In this case, if another host misses this order, it will not update it's file.
+         * We could create a "broadcast" callback with the number of awaited confirmations and a timeout
+         * before resend or fail declaration.
+         * Or send a bunch of Specific messages
+         */
+    }
+
+    pub fn update_remote_hosts(&self, inode: &Inode) -> io::Result<()> {
+        if let FsEntry::File(hosts) = &inode.entry {
+            self.to_network_message_tx
+                .send(ToNetworkMessage::BroadcastMessage(
+                    MessageContent::EditHosts(inode.id, hosts.clone()),
+                ))
+                .expect("update_remote_hosts: unable to update modification on the network thread");
+            Ok(())
+        } else {
+            Err(io::ErrorKind::InvalidInput.into())
+        }
+    }
+
+    pub fn update_metadata(&self, id: InodeId, meta: Metadata) -> io::Result<()> {
+        let mut arbo = Arbo::write_lock(&self.arbo, "fs_interface::get_inode_attributes")?;
+        arbo.set_inode_meta(id, meta.clone())?;
+
+        self.to_network_message_tx
+            .send(ToNetworkMessage::BroadcastMessage(
+                MessageContent::EditMetadata(id, meta, self.self_addr.clone()),
+            ))
+            .expect("update_metadata: unable to update modification on the network thread");
         Ok(())
         /* REVIEW
          * This system (and others broadcasts systems) should be reviewed as they don't check success.
@@ -370,8 +408,8 @@ impl NetworkInterface {
                 MessageContent::PullAnswer(id, binary) => fs_interface.recept_binary(id, binary),
                 MessageContent::Inode(inode, id) => fs_interface.recept_inode(inode, id),
                 MessageContent::EditHosts(id, hosts) => fs_interface.recept_edit_hosts(id, hosts),
+                MessageContent::EditMetadata(id, meta, host) => fs_interface.recept_edit_metadata(id, meta, host),
                 MessageContent::Remove(id) => fs_interface.recept_remove_inode(id),
-                MessageContent::Meta(_) => todo!(),
                 MessageContent::RequestFile(inode) => fs_interface.send_file(inode, origin),
                 MessageContent::RequestFs => fs_interface.send_filesystem(origin),
                 MessageContent::FsAnswer(fs) => fs_interface.replace_arbo(fs),

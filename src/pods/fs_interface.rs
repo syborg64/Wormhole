@@ -1,5 +1,6 @@
 use crate::network::message::{Address, FileSystemSerialized};
 
+use super::arbo::{self, Metadata};
 use super::network_interface::Callback;
 use super::whpath::WhPath;
 use super::{
@@ -8,6 +9,7 @@ use super::{
     network_interface::NetworkInterface,
 };
 use parking_lot::RwLock;
+use std::cmp::max;
 use std::io::{self};
 use std::sync::Arc;
 
@@ -57,7 +59,7 @@ impl FsInterface {
         kind: SimpleFileType,
     ) -> io::Result<(InodeId, Inode)> {
         let new_entry = match kind {
-            SimpleFileType::File => FsEntry::File(vec!(self.network_interface.self_addr.clone())),
+            SimpleFileType::File => FsEntry::File(vec![self.network_interface.self_addr.clone()]),
             SimpleFileType::Directory => FsEntry::Directory(Vec::new()),
         };
 
@@ -116,12 +118,28 @@ impl FsInterface {
     pub fn write(&self, id: InodeId, data: &[u8], offset: u64) -> io::Result<u64> {
         let written = {
             let arbo = Arbo::read_lock(&self.arbo, "fs_interface.write")?;
-            self.disk
-                .write_file(arbo.get_path_from_inode_id(id)?, data, offset)?
+            let path = arbo.get_path_from_inode_id(id)?;
+            let mut meta = arbo.get_inode(id)?.meta.clone();
+            drop(arbo);
+
+            let newsize = offset + data.len() as u64;
+            if newsize > meta.size {
+                meta.size = newsize;
+                self.network_interface.update_metadata(id, meta)?;
+            }
+            self.disk.write_file(path, data, offset)?
         };
 
         self.network_interface.revoke_remote_hosts(id)?; // TODO - manage this error to prevent remote/local desync
         Ok(written)
+    }
+
+    pub fn set_inode_meta(&self, ino: InodeId, meta: Metadata) -> io::Result<()> {
+        let path = Arbo::read_lock(&self.arbo, "fs_interface::set_inode_meta")?
+            .get_path_from_inode_id(ino)?;
+
+        self.disk.set_file_size(path, meta.size)?;
+        self.network_interface.update_metadata(ino, meta)
     }
     // !SECTION
 
@@ -153,6 +171,16 @@ impl FsInterface {
             offset,
             len,
         )
+    }
+
+    pub fn get_inode_attributes(&self, ino: InodeId) -> io::Result<Metadata> {
+        let arbo = Arbo::read_lock(&self.arbo, "fs_interface::get_inode_attributes")?;
+
+        Ok(arbo.get_inode(ino)?.meta.clone())
+    }
+
+    pub fn set_inode_attributes(&self, ino: InodeId, meta: Metadata) -> io::Result<()> {
+        self.network_interface.update_metadata(ino, meta)
     }
 
     pub fn read_dir(&self, ino: InodeId) -> io::Result<Vec<Inode>> {
@@ -202,13 +230,13 @@ impl FsInterface {
     }
 
     pub fn recept_binary(&self, id: InodeId, binary: Vec<u8>) -> io::Result<()> {
+        let mut arbo = Arbo::write_lock(&self.arbo, "recept_binary")
+            .expect("recept_binary: can't write lock arbo");
         let path = {
-            let arbo = Arbo::read_lock(&self.arbo, "recept_binary")
-                .expect("recept_binary: can't read lock arbo");
-
             match arbo.get_path_from_inode_id(id) {
                 Ok(path) => path,
                 Err(_) => {
+                    drop(arbo);
                     return self
                         .network_interface
                         .callbacks
@@ -220,7 +248,26 @@ impl FsInterface {
         let status = self.disk.write_file(path, &binary, 0).is_ok();
         self.network_interface
             .callbacks
-            .resolve(Callback::Pull(id), status)
+            .resolve(Callback::Pull(id), status)?;
+        if status {
+            let mut hosts;
+            {
+                let inode = arbo.get_inode(id)?;
+                if let FsEntry::File(hosts_source) = &inode.entry {
+                    hosts = hosts_source.clone();
+                    let self_addr = self.network_interface.self_addr.clone();
+                    let idx = hosts.partition_point(|x| x <= &self_addr);
+                    hosts.insert(idx, self_addr);
+                } else {
+                    return Err(io::ErrorKind::InvalidInput.into());
+                }
+            }
+            arbo.set_inode_hosts(id, hosts)?;
+            let inode = arbo.get_inode(id)?;
+            self.network_interface.update_remote_hosts(inode)
+        } else {
+            Ok(())
+        }
     }
 
     pub fn recept_remove_inode(&self, id: InodeId) -> io::Result<()> {
@@ -245,6 +292,15 @@ impl FsInterface {
     pub fn recept_edit_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
         self.network_interface.acknowledge_hosts_edition(id, hosts)
     }
+
+    pub fn recept_edit_metadata(
+        &self,
+        id: InodeId,
+        meta: Metadata,
+        host: Address,
+    ) -> io::Result<()> {
+        self.network_interface.acknowledge_metadata(id, meta, host)
+    }
     // !SECTION
 
     // SECTION remote -> read
@@ -255,7 +311,7 @@ impl FsInterface {
     pub fn send_file(&self, inode: InodeId, to: Address) -> io::Result<()> {
         let arbo = Arbo::read_lock(&self.arbo, "send_arbo")?;
         let path = arbo.get_path_from_inode_id(inode)?;
-        let data = self.disk.read_file(path, 0 , u64::max_value())?;
+        let data = self.disk.read_file(path, 0, u64::max_value())?;
         self.network_interface.send_file(inode, data, to)
     }
     // !SECTION
