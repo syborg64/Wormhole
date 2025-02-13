@@ -251,9 +251,9 @@ impl NetworkInterface {
         arbo.set_inode_hosts(id, hosts) // TODO - if unable to update for some reason, should be passed to the background worker
     }
 
-    pub fn acknowledge_metadata(&self, id: InodeId, meta: Metadata) -> io::Result<()> {
+    pub fn acknowledge_metadata(&self, id: InodeId, meta: Metadata, host: Address) -> io::Result<()> {
         let mut arbo = Arbo::write_lock(&self.arbo, "acknowledge_metadata")?;
-
+        arbo.set_inode_hosts(id, vec![host])?;
         arbo.set_inode_meta(id, meta) // TODO - if unable to update for some reason, should be passed to the background worker
     }
 
@@ -338,7 +338,7 @@ impl NetworkInterface {
 
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::EditMetadata(id, meta),
+                MessageContent::EditMetadata(id, meta, self.self_addr.clone()),
             ))
             .expect("update_metadata: unable to update modification on the network thread");
         Ok(())
@@ -408,7 +408,7 @@ impl NetworkInterface {
                 MessageContent::PullAnswer(id, binary) => fs_interface.recept_binary(id, binary),
                 MessageContent::Inode(inode, id) => fs_interface.recept_inode(inode, id),
                 MessageContent::EditHosts(id, hosts) => fs_interface.recept_edit_hosts(id, hosts),
-                MessageContent::EditMetadata(id, meta) => fs_interface.recept_edit_metadata(id, meta),
+                MessageContent::EditMetadata(id, meta, host) => fs_interface.recept_edit_metadata(id, meta, host),
                 MessageContent::Remove(id) => fs_interface.recept_remove_inode(id),
                 MessageContent::RequestFile(inode) => fs_interface.send_file(inode, origin),
                 MessageContent::RequestFs => fs_interface.send_filesystem(origin),

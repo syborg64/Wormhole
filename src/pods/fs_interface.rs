@@ -116,6 +116,11 @@ impl FsInterface {
     }
 
     pub fn set_inode_meta(&self, ino: InodeId, meta: Metadata) -> io::Result<()> {
+        let arbo = Arbo::read_lock(&self.arbo, "fs_interface::set_inode_meta")?;
+
+        let path = arbo.get_path_from_inode_id(ino)?;
+
+        self.disk.set_file_size(path, meta.size)?;
         self.network_interface.update_metadata(ino, meta)
     }
     // !SECTION
@@ -271,8 +276,8 @@ impl FsInterface {
         self.network_interface.acknowledge_hosts_edition(id, hosts)
     }
 
-    pub fn recept_edit_metadata(&self, id: InodeId, meta: Metadata) -> io::Result<()> {
-        self.network_interface.acknowledge_metadata(id, meta)
+    pub fn recept_edit_metadata(&self, id: InodeId, meta: Metadata, host: Address) -> io::Result<()> {
+        self.network_interface.acknowledge_metadata(id, meta, host)
     }
     // !SECTION
 
