@@ -38,7 +38,7 @@ const MOUNT_DIR_ATTR: FileAttr = FileAttr {
 
 pub const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
     ino: 2,
-    size: 2048,
+    size: 0,
     blocks: 1,
     atime: UNIX_EPOCH, // 1970-01-01 00:00:00
     mtime: UNIX_EPOCH,
@@ -57,43 +57,47 @@ pub const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
 
 // const MIRROR_PTH: &str = "./wh_mirror/";
 
-fn metadata_to_fileattr(meta: Metadata) -> FileAttr {
-    FileAttr {
-        ino: meta.ino,
-        size: meta.size,
-        blocks: meta.blocks,
-        atime: meta.atime,
-        mtime: meta.mtime,
-        ctime: meta.ctime,
-        crtime: meta.crtime,
-        kind: meta.kind,
-        perm: meta.perm,
-        nlink: meta.nlink,
-        uid: meta.uid,
-        gid: meta.gid,
-        rdev: meta.rdev,
-        flags: meta.flags,
-        blksize: meta.blksize,
+impl Into<FileAttr> for Metadata {
+    fn into(self) -> FileAttr {
+        FileAttr {
+            ino: self.ino,
+            size: self.size,
+            blocks: self.blocks,
+            atime: self.atime,
+            mtime: self.mtime,
+            ctime: self.ctime,
+            crtime: self.crtime,
+            kind: self.kind,
+            perm: self.perm,
+            nlink: self.nlink,
+            uid: self.uid,
+            gid: self.gid,
+            rdev: self.rdev,
+            flags: self.flags,
+            blksize: self.blksize,
+        }
     }
 }
 
-fn fileattr_to_metadata(attr: FileAttr) -> Metadata {
-    Metadata {
-        ino: attr.ino,
-        size: attr.size,
-        blocks: attr.blocks,
-        atime: attr.atime,
-        mtime: attr.mtime,
-        ctime: attr.ctime,
-        crtime: attr.crtime,
-        kind: attr.kind,
-        perm: attr.perm,
-        nlink: attr.nlink,
-        uid: attr.uid,
-        gid: attr.gid,
-        rdev: attr.rdev,
-        flags: attr.flags,
-        blksize: attr.blksize,
+impl Into<Metadata> for FileAttr {
+    fn into(self) -> Metadata {
+        Metadata {
+            ino: self.ino,
+            size: self.size,
+            blocks: self.blocks,
+            atime: self.atime,
+            mtime: self.mtime,
+            ctime: self.ctime,
+            crtime: self.crtime,
+            kind: self.kind,
+            perm: self.perm,
+            nlink: self.nlink,
+            uid: self.uid,
+            gid: self.gid,
+            rdev: self.rdev,
+            flags: self.flags,
+            blksize: self.blksize,
+        }
     }
 }
 
@@ -103,7 +107,7 @@ pub struct FuseController {
 
 // NOTE for dev purpose while all metadata is not supported
 fn inode_to_fuse_fileattr(inode: Inode) -> FileAttr {
-    let mut attr = TEMPLATE_FILE_ATTR;
+    let mut attr : FileAttr = inode.meta.into();
     attr.ino = inode.id;
     attr.kind = match inode.entry {
         FsEntry::Directory(_) => fuser::FileType::Directory,
@@ -143,7 +147,7 @@ impl Filesystem for FuseController {
         let attrs = self.fs_interface.get_inode_attributes(ino);
 
         match attrs {
-            Ok(attrs) => reply.attr(&TTL, &metadata_to_fileattr(attrs)),
+            Ok(attrs) => reply.attr(&TTL, &attrs.into()),
             Err(err) => {
                 log::error!("fuse_impl error: {:?}", err);
                 reply.error(err.raw_os_error().unwrap_or(EIO))
@@ -220,7 +224,7 @@ impl Filesystem for FuseController {
         };
 
         match self.fs_interface.set_inode_meta(ino, attrs.clone()) {
-            Ok(_) => reply.attr(&TTL, &metadata_to_fileattr(attrs)),
+            Ok(_) => reply.attr(&TTL, &attrs.into()),
             Err(err) => {
                 log::error!("fuse_impl::setattr: {:?}", err);
                 reply.error(err.raw_os_error().unwrap_or(EIO))

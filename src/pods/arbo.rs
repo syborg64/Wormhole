@@ -229,7 +229,7 @@ impl Arbo {
                         meta: Metadata {
                             ino: ino,
                             size: 0,
-                            blocks: 0,
+                            blocks: 1,
                             atime: SystemTime::now(),
                             mtime: SystemTime::now(),
                             ctime: SystemTime::now(),
@@ -240,7 +240,7 @@ impl Arbo {
                             uid: 0,
                             gid: 0,
                             rdev: 0,
-                            blksize: 0,
+                            blksize: 1,
                             flags: 0,
                         },
                     };
