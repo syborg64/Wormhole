@@ -62,7 +62,7 @@ impl Into<FileAttr> for Metadata {
         FileAttr {
             ino: self.ino,
             size: self.size,
-            blocks: self.blocks,
+            blocks: self.size,
             atime: self.atime,
             mtime: self.mtime,
             ctime: self.ctime,
@@ -74,7 +74,7 @@ impl Into<FileAttr> for Metadata {
             gid: self.gid,
             rdev: self.rdev,
             flags: self.flags,
-            blksize: self.blksize,
+            blksize: 1,
         }
     }
 }
