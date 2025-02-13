@@ -114,9 +114,8 @@ impl FsInterface {
 
             let newsize = offset + data.len() as u64;
             if newsize > meta.size {
-                let mut arbo = Arbo::write_lock(&self.arbo, "fs_interface.write")?;
                 meta.size = newsize;
-                arbo.set_inode_meta(id, meta)?;
+                self.network_interface.update_metadata(id, meta)?;
             }
             self.disk.write_file(path, data, offset)?
         };
