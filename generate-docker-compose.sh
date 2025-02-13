@@ -26,6 +26,8 @@ services:
     tty: true
     networks:
       - wormhole-net
+    environment:
+      RUST_BACKTRACE: "1"
 EOF
 
 # Ajouter les services dynamiquement
@@ -40,7 +42,7 @@ for ((i=1; i<=SERVICE_COUNT; i++)); do
     container_name: w$i
     networks:
       - wormhole-net
-    command: "./wormhole-service 0.0.0.0:8082 $(for ((j=1; j<=SERVICE_COUNT; j++)); do if [[ $j -ne $i ]]; then echo -n "wormhole$j:8082 "; fi; done)/usr/src/wormhole/virtual >> /var/log/wormhole.log 2>&1"
+    command: "./wormhole-service /usr/src/wormhole/virtual 0.0.0.0:8082 $(for ((j=1; j<=SERVICE_COUNT; j++)); do if [[ $j -ne $i ]]; then echo -n "wormhole$j:8082 "; fi; done) >> /var/log/wormhole.log 2>&1"
     volumes:
       - ./shared_mnt$i:/usr/src/wormhole/virtual:rwx
 EOF
@@ -75,10 +77,10 @@ EOF
 echo "Fichier docker-compose.yml généré avec $SERVICE_COUNT services."
 
 # Vérifier si l'image Docker a déjà été construite
-if docker images | grep -q "wormhole-base"; then
-    echo "L'image Docker existe déjà. Lancement de docker-compose up --no-deps..."
-    kitty --hold bash -c "docker-compose up --no-deps"
-else
-    echo "L'image Docker n'a jamais été construite. Lancement de docker-compose up --build --no-deps..."
-    kitty --hold bash -c "docker-compose up --build --no-deps"
-fi
+# if docker images | grep -q "wormhole-base"; then
+#     echo "L'image Docker existe déjà. Lancement de docker-compose up --no-deps..."
+#     docker-compose up --no-deps
+# else
+#     echo "L'image Docker n'a jamais été construite. Lancement de docker-compose up --build --no-deps..."
+# fi
+docker-compose up --build --no-deps
