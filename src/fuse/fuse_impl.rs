@@ -275,7 +275,6 @@ impl Filesystem for FuseController {
         };
 
         for (i, entry) in entries.into_iter().enumerate().skip(offset as usize) {
-            debug!("....readdir entries : {:?}", entry);
             if reply.add(
                 ino,
                 // i + 1 means offset of the next entry
@@ -283,7 +282,6 @@ impl Filesystem for FuseController {
                 entry.entry.get_filetype(),
                 entry.name,
             ) {
-                log::error!("BREAK?");
                 break;
             }
         }
@@ -461,17 +459,14 @@ impl Filesystem for FuseController {
                 reply.created(&TTL, &new_attr, 0, new_attr.ino, flags as u32);
             }
             Err(err) => {
-                log::error!("fuse_impl::create : unable to create file. {:?}", err);
-                {
                     log::error!("fuse_impl error: {:?}", err);
                     reply.error(err.raw_os_error().unwrap_or(EIO))
-                }
             }
         }
     }
 
     fn open(&mut self, _req: &Request<'_>, ino: u64, flags: i32, reply: fuser::ReplyOpen) {
-        log::error!("OPEN ON {}", ino);
+        log::debug!("fuse call open on {}", ino);
         reply.opened(ino, flags as u32); // TODO - check flags ?
     }
 
@@ -485,7 +480,7 @@ impl Filesystem for FuseController {
         _flush: bool,
         reply: fuser::ReplyEmpty,
     ) {
-        log::error!("RELEASE CALLED");
+        log::debug!("fuse call release");
         reply.ok();
     }
 }

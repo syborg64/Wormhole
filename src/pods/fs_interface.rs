@@ -358,7 +358,6 @@ impl FsInterface {
     }
 
     pub fn send_file(&self, inode: InodeId, to: Address) -> io::Result<()> {
-        log::error!("GOT FILE PULL from {}", to);
         let arbo = Arbo::read_lock(&self.arbo, "send_arbo")?;
         let path = arbo.get_path_from_inode_id(inode)?;
         let data = self.disk.read_file(path, 0, u64::max_value())?;

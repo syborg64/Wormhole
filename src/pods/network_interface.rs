@@ -476,7 +476,7 @@ impl NetworkInterface {
                 Some(message) => message,
                 None => continue,
             };
-            log::error!("message from {} : {:?}", origin, content);
+            log::debug!("message from {} : {:?}", origin, content);
 
             let action_result = match content {
                 MessageContent::PullAnswer(id, binary) => fs_interface.recept_binary(id, binary),
@@ -534,12 +534,10 @@ impl NetworkInterface {
                     });
                 }
                 ToNetworkMessage::SpecificMessage(message_content, origins) => {
-                    log::error!("SPECIFIC MESSAGE {:?} {:?}", origins, peer_tx);
                     peer_tx
                         .iter()
                         .filter(|&(_, address)| origins.contains(address))
                         .for_each(|(channel, address)| {
-                            log::error!("SPECIFIC MESSAGE TO {}", address);
                             channel
                                 .send(message_content.clone())
                                 .expect(&format!("failed to send message to peer {}", address))
