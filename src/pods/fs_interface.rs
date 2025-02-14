@@ -353,6 +353,10 @@ impl FsInterface {
         self.network_interface.send_arbo(to, real_address)
     }
 
+    pub fn register_new_node(&self, socket: Address, addr: Address) {
+        self.network_interface.register_new_node(socket, addr);
+    }
+
     pub fn send_file(&self, inode: InodeId, to: Address) -> io::Result<()> {
         log::error!("GOT FILE PULL from {}", to);
         let arbo = Arbo::read_lock(&self.arbo, "send_arbo")?;

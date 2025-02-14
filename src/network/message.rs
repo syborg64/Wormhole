@@ -8,6 +8,7 @@ use crate::pods::arbo::{ArboIndex, Inode, InodeId, Metadata};
 /// through the network
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum MessageContent {
+    Register(Address),
     Remove(InodeId),
     Inode(Inode, InodeId),
     RequestFile(InodeId, Address),
