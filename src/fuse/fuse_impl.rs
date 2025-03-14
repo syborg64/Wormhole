@@ -24,6 +24,20 @@ impl Into<FileType> for SimpleFileType {
     }
 }
 
+impl Into<SimpleFileType> for FileType {
+    fn into(self) -> SimpleFileType {
+        match self {
+            FileType::RegularFile => SimpleFileType::File,
+            FileType::Directory => SimpleFileType::Directory,
+            FileType::NamedPipe => todo!("file type not supported"),
+            FileType::CharDevice => todo!("file type not supported"),
+            FileType::BlockDevice => todo!("file type not supported"),
+            FileType::Symlink => todo!("file type not supported"),
+            FileType::Socket => todo!("file type not supported"),
+        }
+    }
+}
+
 const MOUNT_DIR_ATTR: FileAttr = FileAttr {
     ino: 1,
     size: 0,
@@ -73,7 +87,7 @@ impl Into<FileAttr> for Metadata {
             mtime: self.mtime,
             ctime: self.ctime,
             crtime: self.crtime,
-            kind: self.kind,
+            kind: self.kind.into(),
             perm: self.perm,
             nlink: self.nlink,
             uid: self.uid,
@@ -95,7 +109,7 @@ impl Into<Metadata> for FileAttr {
             mtime: self.mtime,
             ctime: self.ctime,
             crtime: self.crtime,
-            kind: self.kind,
+            kind: self.kind.into(),
             perm: self.perm,
             nlink: self.nlink,
             uid: self.uid,
