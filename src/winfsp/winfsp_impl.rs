@@ -16,7 +16,9 @@ use winapi::{
 };
 use windows::Win32::Foundation::{NTSTATUS, WIN32_ERROR};
 use winfsp::{
-    filesystem::{DirInfo, FileInfo, FileSecurity, FileSystemContext, WideNameInfo}, host::{FileSystemHost, VolumeParams}, U16CStr, U16CString
+    filesystem::{DirInfo, FileInfo, FileSecurity, FileSystemContext, WideNameInfo},
+    host::{FileSystemHost, VolumeParams},
+    U16CStr, U16CString,
 };
 use winfsp_sys::FILE_ACCESS_RIGHTS;
 
@@ -50,10 +52,26 @@ impl Into<FileInfo> for Metadata {
             reparse_tag: 0,
             allocation_size: self.size,
             file_size: self.size,
-            creation_time: self.crtime.duration_since(UNIX_EPOCH).map(|t|t.as_secs()).unwrap_or(0),
-            last_access_time: self.atime.duration_since(UNIX_EPOCH).map(|t|t.as_secs()).unwrap_or(0),
-            last_write_time: self.mtime.duration_since(UNIX_EPOCH).map(|t|t.as_secs()).unwrap_or(0),
-            change_time: self.ctime.duration_since(UNIX_EPOCH).map(|t|t.as_secs()).unwrap_or(0),
+            creation_time: self
+                .crtime
+                .duration_since(UNIX_EPOCH)
+                .map(|t| t.as_secs())
+                .unwrap_or(0),
+            last_access_time: self
+                .atime
+                .duration_since(UNIX_EPOCH)
+                .map(|t| t.as_secs())
+                .unwrap_or(0),
+            last_write_time: self
+                .mtime
+                .duration_since(UNIX_EPOCH)
+                .map(|t| t.as_secs())
+                .unwrap_or(0),
+            change_time: self
+                .ctime
+                .duration_since(UNIX_EPOCH)
+                .map(|t| t.as_secs())
+                .unwrap_or(0),
             index_number: self.ino,
             hard_links: 0,
             ea_size: 0,
@@ -68,10 +86,26 @@ impl Into<FileInfo> for &Metadata {
             reparse_tag: 0,
             allocation_size: self.size,
             file_size: self.size,
-            creation_time: self.crtime.duration_since(UNIX_EPOCH).map(|t|t.as_secs()).unwrap_or(0),
-            last_access_time: self.atime.duration_since(UNIX_EPOCH).map(|t|t.as_secs()).unwrap_or(0),
-            last_write_time: self.mtime.duration_since(UNIX_EPOCH).map(|t|t.as_secs()).unwrap_or(0),
-            change_time: self.ctime.duration_since(UNIX_EPOCH).map(|t|t.as_secs()).unwrap_or(0),
+            creation_time: self
+                .crtime
+                .duration_since(UNIX_EPOCH)
+                .map(|t| t.as_secs())
+                .unwrap_or(0),
+            last_access_time: self
+                .atime
+                .duration_since(UNIX_EPOCH)
+                .map(|t| t.as_secs())
+                .unwrap_or(0),
+            last_write_time: self
+                .mtime
+                .duration_since(UNIX_EPOCH)
+                .map(|t| t.as_secs())
+                .unwrap_or(0),
+            change_time: self
+                .ctime
+                .duration_since(UNIX_EPOCH)
+                .map(|t| t.as_secs())
+                .unwrap_or(0),
             index_number: self.ino,
             hard_links: 0,
             ea_size: 0,
@@ -131,7 +165,7 @@ impl FileSystemContext for FSPController {
             file_name.to_string_lossy(),
             security_descriptor.as_ref().map(|s| s.len())
         );
-        
+
         if let Some(security) = reparse_point_resolver(file_name) {
             return Ok(security);
         }
@@ -145,9 +179,12 @@ impl FileSystemContext for FSPController {
             .try_into()
             .inspect_err(|e| log::error!("{}:{:?}", file_name.to_string_lossy(), e))?;
 
-        let file_type: SimpleFileType = (&Arbo::read_lock(&self.fs_interface.arbo, "get_security_by_name")?
-        .get_inode_from_path(&path)
-        .inspect_err(|e| log::error!("{}:{:?}", &path.inner, e))?.entry).into();
+        let file_type: SimpleFileType =
+            (&Arbo::read_lock(&self.fs_interface.arbo, "get_security_by_name")?
+                .get_inode_from_path(&path)
+                .inspect_err(|e| log::error!("{}:{:?}", &path.inner, e))?
+                .entry)
+                .into();
         // let mut descriptor_size = 0;
         // let option_sd = if security_descriptor.is_some() {
         //     Some(
@@ -200,7 +237,9 @@ impl FileSystemContext for FSPController {
             log::error!("{:?}", e);
             e
         })?;
-        return match Arbo::read_lock(&self.fs_interface.arbo, "winfsp::open")?.get_inode_from_path(&path) {
+        return match Arbo::read_lock(&self.fs_interface.arbo, "winfsp::open")?
+            .get_inode_from_path(&path)
+        {
             Ok(inode) => {
                 let mut attributes: u32 = FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES;
                 attributes |= match (&inode.entry).into() {
@@ -229,7 +268,6 @@ impl FileSystemContext for FSPController {
     fn close(&self, context: Self::FileContext) {
         // thread::sleep(std::time::Duration::from_secs(2));
         log::info!("winfsp::close({:?})", context);
-
     }
 
     fn create(
@@ -261,7 +299,8 @@ impl FileSystemContext for FSPController {
 
         let parent = arbo
             .get_inode_from_path(&(&folder).into())
-            .map_err(|_| winfsp::FspError::WIN32(ERROR_NOT_FOUND))?.id;
+            .map_err(|_| winfsp::FspError::WIN32(ERROR_NOT_FOUND))?
+            .id;
 
         drop(arbo);
 
@@ -373,7 +412,11 @@ impl FileSystemContext for FSPController {
         buffer: &mut [u8],
     ) -> winfsp::Result<u32> {
         // thread::sleep(std::time::Duration::from_secs(2));
-        log::info!("winfsp::read_directory({:?}, marker: {:?})", context, marker.inner_as_cstr().map(|s|s.to_string_lossy()));
+        log::info!(
+            "winfsp::read_directory({:?}, marker: {:?})",
+            context,
+            marker.inner_as_cstr().map(|s| s.to_string_lossy())
+        );
         // return Ok(STATUS_SUCCESS as u32);
         let mut entries = if let Ok(entries) = self.fs_interface.read_dir(context.0) {
             entries

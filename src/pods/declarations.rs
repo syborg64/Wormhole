@@ -1,11 +1,11 @@
 use std::{io, sync::Arc};
 
+#[cfg(target_os = "linux")]
+use fuser;
 use log::{debug, info};
 use parking_lot::RwLock;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
-#[cfg(target_os = "linux")]
-use fuser;
 #[cfg(target_os = "windows")]
 use winfsp::host::FileSystemHost;
 
