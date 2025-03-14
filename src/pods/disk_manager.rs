@@ -40,7 +40,7 @@ impl DiskManager {
         let file = self.handle.write_file(path.set_relative(), 0o600)?;
         file.set_len(size)
     }
-    
+
     pub fn mv_file(&self, path: WhPath, new_path: WhPath) -> io::Result<()> {
         // let mut original_path = path.clone(); // NOTE - Would be better if rename was non mutable
         // original_path.rename(new_name);

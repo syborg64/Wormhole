@@ -28,7 +28,6 @@ pub async fn forward_read_to_sender<
 ) {
     while let Ok(Message::Binary(message)) = read.next().await.unwrap() {
         let deserialized: MessageContent = bincode::deserialize(&message).unwrap();
-        log::debug!("message from network {:?}", deserialized);
         tx.send(FromNetworkMessage {
             origin: address.clone(),
             content: deserialized,

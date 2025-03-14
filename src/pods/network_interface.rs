@@ -476,7 +476,7 @@ impl NetworkInterface {
                 Some(message) => message,
                 None => continue,
             };
-            log::debug!("message from {} : {:?}", origin, content);
+            // log::debug!("message from {} : {:?}", origin, content);
 
             let action_result = match content {
                 MessageContent::PullAnswer(id, binary) => fs_interface.recept_binary(id, binary),

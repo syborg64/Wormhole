@@ -226,7 +226,6 @@ impl FsInterface {
 
     pub fn read_dir(&self, ino: InodeId) -> io::Result<Vec<Inode>> {
         let arbo = Arbo::read_lock(&self.arbo, "fs_interface.read_dir")?;
-        arbo.log();
         let dir = arbo.get_inode(ino)?;
         let mut entries: Vec<Inode> = Vec::new();
 
@@ -255,7 +254,6 @@ impl FsInterface {
 
         let new_path = {
             let arbo = Arbo::read_lock(&self.arbo, "fs_interface.write")?;
-            arbo.log();
             arbo.get_path_from_inode_id(id)?
         };
 

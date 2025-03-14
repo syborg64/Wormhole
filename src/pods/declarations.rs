@@ -43,7 +43,8 @@ impl Pod {
         server_address: Address,
     ) -> io::Result<Self> {
         log::info!("mount point {}", mount_point);
-        let (arbo, next_inode) = index_folder(&mount_point, &server_address).expect("unable to index folder");
+        let (arbo, next_inode) =
+            index_folder(&mount_point, &server_address).expect("unable to index folder");
         let arbo: Arc<RwLock<Arbo>> = Arc::new(RwLock::new(arbo));
         let (to_network_message_tx, to_network_message_rx) = mpsc::unbounded_channel();
         let (from_network_message_tx, from_network_message_rx) = mpsc::unbounded_channel();
@@ -87,7 +88,7 @@ impl Pod {
                 .await?;
 
             info!("Pull completed");
-            debug!("arbo: {:#?}", network_interface.arbo);
+            // debug!("arbo: {:#?}", network_interface.arbo);
         } else {
             info!("Created fresh new filesystem");
         }
