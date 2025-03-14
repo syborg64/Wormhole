@@ -19,6 +19,9 @@
  */
 use std::{env, path::PathBuf, sync::Arc};
 
+use log::info;
+#[cfg(target_os = "windows")]
+use winfsp::winfsp_init;
 use wormhole::config;
 use wormhole::config::types::{
     GeneralGlobalConfig, GeneralLocalConfig, GlobalConfig, LocalConfig, RedundancyConfig,
@@ -38,6 +41,12 @@ async fn main() {
 
     let mut global_config_path = mount.clone();
     global_config_path.push(".global_config.toml");
+
+    #[cfg(target_os = "windows")]
+    match winfsp_init() {
+        Ok(_token) => println!("got fsp token!"),
+        Err(err) => {println!("fsp error: {:?}", err); std::process::exit(84)}
+    }
 
     let mut local_config_path = mount.clone();
     local_config_path.push(".local_config.toml");
