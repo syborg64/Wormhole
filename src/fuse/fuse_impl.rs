@@ -428,7 +428,7 @@ impl Filesystem for FuseController {
             .try_into()
             .expect("fuser write: can't convert i64 to u64");
 
-        match self.fs_interface.write(ino, data.to_vec(), offset) {
+        match self.fs_interface.write(ino, data, offset) {
             Ok(written) => reply.written(
                 written
                     .try_into()
