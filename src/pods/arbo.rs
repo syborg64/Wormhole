@@ -527,9 +527,9 @@ impl TryInto<Metadata> for fs::Metadata {
             ctime: self.modified()?,
             crtime: self.created()?,
             kind: if self.is_file() {
-                FileType::RegularFile
+                SimpleFileType::File
             } else {
-                FileType::Directory
+                SimpleFileType::Directory
             },
             perm: 0o666 as u16,
             nlink: 0,
