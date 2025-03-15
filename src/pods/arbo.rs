@@ -3,7 +3,10 @@ use log::debug;
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap, fs, io, sync::Arc, time::{Duration, SystemTime}
+    collections::HashMap,
+    fs, io,
+    sync::Arc,
+    time::{Duration, SystemTime},
 };
 
 use super::{fs_interface::SimpleFileType, whpath::WhPath};
@@ -413,10 +416,6 @@ impl Arbo {
         inode.meta = meta;
         Ok(())
     }
-
-    pub fn log(&self) {
-        debug!("{:#?}", self.entries);
-    }
 }
 
 // !SECTION
@@ -527,7 +526,11 @@ impl TryInto<Metadata> for fs::Metadata {
             mtime: self.modified()?,
             ctime: self.modified()?,
             crtime: self.created()?,
-            kind: if self.is_file() { SimpleFileType::File } else { SimpleFileType::Directory },
+            kind: if self.is_file() {
+                SimpleFileType::File
+            } else {
+                SimpleFileType::Directory
+            },
             perm: 0o666 as u16,
             nlink: 0,
             uid: 0,

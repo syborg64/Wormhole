@@ -237,7 +237,6 @@ impl FsInterface {
 
     pub fn read_dir(&self, ino: InodeId) -> io::Result<Vec<Inode>> {
         let arbo = Arbo::read_lock(&self.arbo, "fs_interface.read_dir")?;
-        arbo.log();
         let dir = arbo.get_inode(ino)?;
         let mut entries: Vec<Inode> = Vec::new();
 
@@ -266,7 +265,6 @@ impl FsInterface {
 
         let new_path = {
             let arbo = Arbo::read_lock(&self.arbo, "fs_interface.write")?;
-            arbo.log();
             arbo.get_path_from_inode_id(id)?
         };
 
@@ -364,8 +362,11 @@ impl FsInterface {
         self.network_interface.send_arbo(to, real_address)
     }
 
+    pub fn register_new_node(&self, socket: Address, addr: Address) {
+        self.network_interface.register_new_node(socket, addr);
+    }
+
     pub fn send_file(&self, inode: InodeId, to: Address) -> io::Result<()> {
-        log::error!("GOT FILE PULL from {}", to);
         let arbo = Arbo::read_lock(&self.arbo, "send_arbo")?;
         let path = arbo.get_path_from_inode_id(inode)?;
         let data = self.disk.read_file(path, 0, u64::max_value())?;

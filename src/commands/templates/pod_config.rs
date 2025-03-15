@@ -4,8 +4,8 @@ use std::fs;
 
 #[derive(Serialize, Deserialize)]
 pub struct PodBasicConfig {
-  storage: Storage,
-  strategy: Strategy
+    storage: Storage,
+    strategy: Strategy,
 }
 
 #[derive(Serialize, Deserialize)]

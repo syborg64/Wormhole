@@ -81,7 +81,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             )?;
         }
         Cli::Template(args) => {
-            println!("creating network {:?}", args.name.clone().unwrap_or("default".into()));
+            println!(
+                "creating network {:?}",
+                args.name.clone().unwrap_or("default".into())
+            );
             commands::templates(
                 &args.path.unwrap_or(".".into()),
                 &args.name.unwrap_or("default".into()),

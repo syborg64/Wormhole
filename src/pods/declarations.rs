@@ -1,11 +1,11 @@
 use std::{io, sync::Arc};
 
+#[cfg(target_os = "linux")]
+use fuser;
 use log::{debug, info};
 use parking_lot::RwLock;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
-#[cfg(target_os = "linux")]
-use fuser;
 #[cfg(target_os = "windows")]
 use winfsp::host::FileSystemHost;
 
@@ -52,7 +52,8 @@ impl Pod {
         server_address: Address,
     ) -> io::Result<Self> {
         log::info!("mount point {}", mount_point);
-        let (arbo, next_inode) = index_folder(&mount_point, &server_address).expect("unable to index folder");
+        let (arbo, next_inode) =
+            index_folder(&mount_point, &server_address).expect("unable to index folder");
         let arbo: Arc<RwLock<Arbo>> = Arc::new(RwLock::new(arbo));
         let (to_network_message_tx, to_network_message_rx) = mpsc::unbounded_channel();
         let (from_network_message_tx, from_network_message_rx) = mpsc::unbounded_channel();
@@ -89,13 +90,14 @@ impl Pod {
         )));
 
         if peers_addrs.len() >= 1 {
+            network_interface.register_to_others();
             info!("Will pull filesystem from remote... {:?}", peers_addrs);
             network_interface
                 .request_arbo(peers_addrs[0].clone())
                 .await?;
 
             info!("Pull completed");
-            debug!("arbo: {:#?}", network_interface.arbo);
+            // debug!("arbo: {:#?}", network_interface.arbo);
         } else {
             info!("Created fresh new filesystem");
         }
