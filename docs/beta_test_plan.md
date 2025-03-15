@@ -1,66 +1,52 @@
-### **BETA TEST PLAN – TEMPLATE**
-*This template serves as a structured example of what is expected for your Beta Test Plan.*
+# **WormHole:** Beta Test Plan
 
-## **1. Core Functionalities for Beta Version**
-[List and describe the core functionalities that must be available for beta testing. Explain any changes made since the original Tech3 Action Plan.]
+## Core functionalities necessary for a proper beta test:
 
-| **Feature Name**  | **Description** | **Priority (High/Medium/Low)** | **Changes Since Tech3** |
-|-------------------|---------------|--------------------------------|--------------------------|
-| Feature 1        | [Brief description] | High | [Modifications or additions] |
-| Feature 2        | [Brief description] | Medium | [Modifications or additions] |
-| Feature 3        | [Brief description] | High | [Modifications or additions] |
+- Read, Write, Move, Rename, Delete files and folders (done)
+    - All common user interactions must be implemented
+- Docker Image (done)
+    - Necessary to simplify the user interaction
+- Configuration files (done)
+- Stability (Almost)
+    - Most of the Fuser Calls must be implemented to allow the best interaction with interfaces
+- Linux Support (done)
+- Mac Support (lack testing)
+- Windows Support (70%)
+- Complete User Documentation (50%)
+- Redudancy (Just Started)
+    - Needed to justify wormhole usage
+- Clean Error Handling
+    - Mostly only used by TUI but will help with feedback
 
----
+## Currently aborted features:
 
-## **2. Beta Testing Scenarios**
-### **2.1 User Roles**
-[Define the different user roles that will be involved in testing, e.g., Admin, Regular User, Guest, External Partner.]
+- Fancy optimization techniques
+    - Trafic optimization depending on internet speed or storage left
+- Pod specialisation
+    - Permissions
+    - Storage Limit
+    - Redudancy priority
+- Cache handling
 
-| **Role Name**  | **Description** |
-|---------------|---------------|
-| Role 1       | [Brief description] |
-| Role 2       | [Brief description] |
-| Role 3       | [Brief description] |
+## Profiles
 
-### **2.2 Test Scenarios**
-For each core functionality, provide detailed test scenarios.
+### An experienced mac user
+> Mac support, ease of use
 
-#### **Scenario 1: [Feature Name]**
-- **Role Involved:** [e.g., Admin]
-- **Objective:** [What is being tested?]
-- **Preconditions:** [Any required setup before running the test]
-- **Test Steps:**
-  1. [Step 1]
-  2. [Step 2]
-  3. [Step 3]
-- **Expected Outcome:** [What should happen if the feature works correctly?]
+Allow us to have some insight on the mac experience, bugs unique to mac
 
-#### **Scenario 2: [Feature Name]**
-- **Role Involved:** [e.g., Regular User]
-- **Objective:** [What is being tested?]
-- **Preconditions:** [Any required setup before running the test]
-- **Test Steps:**
-  1. [Step 1]
-  2. [Step 2]
-  3. [Step 3]
-- **Expected Outcome:** [What should happen if the feature works correctly?]
+A mac user is also used to easy to use interfaces so we might have usefull API feedback
 
----
+### A home server user
+> Large Dataset, speed test
 
-## **3. Success Criteria**
-[Define the metrics and conditions that determine if the beta version is successful.]
+A home server user with a large catalogue of files, so we can have a real insight of how our system handle realistic high work load.
 
----
+We could do speed tests and comporate to other filesystems to verify efficiency.
 
-## **4. Known Issues & Limitations**
-[List any known bugs, incomplete features, or limitations that testers should be aware of.]
+### Professional engineer
+> API Feedback from experienced user, Point of vue from a professional
 
-| **Issue** | **Description** | **Impact** | **Planned Fix? (Yes/No)** |
-|----------|---------------|----------|----------------|
-| Issue 1  | [Brief description] | High | Yes |
-| Issue 2  | [Brief description] | Medium | No |
+Working with a professional will allow us to have feedback with the intrest of company in mind.
 
----
-
-## **5. Conclusion**
-[Summarize the importance of this Beta Test Plan and what the team expects to achieve with it.]
+It will also let us work with someone with professional experience so a wider skill set.
