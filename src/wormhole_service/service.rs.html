@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/bin/service.rs`."><title>service.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-b0742ba02757f159.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="wormhole_service" data-themes="" data-resource-suffix="" data-rustdoc-version="1.83.0 (90b35a623 2024-11-26)" data-channel="1.83.0" data-search-js="search-f0d225181b97f9a4.js" data-settings-js="settings-805db61a62df4bd2.js" ><script src="../../static.files/storage-1d39b6787ed640ff.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-f070b9041d14864c.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-0111fcff984fae8f.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">wormhole_service/</div>service.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/bin/service.rs`."><title>service.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-46132b98.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="wormhole_service" data-themes="" data-resource-suffix="" data-rustdoc-version="1.85.0 (4d91de4e4 2025-02-17)" data-channel="1.85.0" data-search-js="search-75f5ac3e.js" data-settings-js="settings-0f613d39.js" ><script src="../../static.files/storage-59e33391.js"></script><script defer src="../../static.files/src-script-56102188.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">wormhole_service/</div>service.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
 <a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
@@ -98,7 +98,109 @@
 <a href="#97" id="97">97</a>
 <a href="#98" id="98">98</a>
 <a href="#99" id="99">99</a>
-<a href="#100" id="100">100</a></pre></div><pre class="rust"><code><span class="comment">// In rust we code
+<a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
+<a href="#110" id="110">110</a>
+<a href="#111" id="111">111</a>
+<a href="#112" id="112">112</a>
+<a href="#113" id="113">113</a>
+<a href="#114" id="114">114</a>
+<a href="#115" id="115">115</a>
+<a href="#116" id="116">116</a>
+<a href="#117" id="117">117</a>
+<a href="#118" id="118">118</a>
+<a href="#119" id="119">119</a>
+<a href="#120" id="120">120</a>
+<a href="#121" id="121">121</a>
+<a href="#122" id="122">122</a>
+<a href="#123" id="123">123</a>
+<a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
+<a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a></pre></div><pre class="rust"><code><span class="comment">// In rust we code
 // In code we trust
 // AgarthaSoftware - 2024
 
@@ -117,85 +219,187 @@
  *  reads a message (supposely emitted by a peer) related to files actions
  *  and execute instructions on the disk
  */
-</span><span class="kw">use </span>std::{
-    env,
-    path::PathBuf,
-    sync::{Arc, Mutex},
+</span><span class="kw">use </span>std::{env, path::PathBuf, sync::Arc};
+
+<span class="kw">use </span>log::info;
+<span class="attr">#[cfg(target_os = <span class="string">"windows"</span>)]
+</span><span class="kw">use </span>winfsp::winfsp_init;
+<span class="kw">use </span>wormhole::config;
+<span class="kw">use </span>wormhole::config::types::{
+    GeneralGlobalConfig, GeneralLocalConfig, GlobalConfig, LocalConfig, RedundancyConfig,
 };
-
-<span class="kw">use </span>tokio::sync::mpsc::{<span class="self">self</span>};
-
-<span class="kw">use </span>wormhole::network::{
-    peers_operations::{all_peers_broadcast, peer_startup},
-    watchdogs::{incoming_connections_watchdog, local_cli_watchdog, network_file_actions},
-};
-<span class="kw">use </span>wormhole::{fuse::fuse_impl::mount_fuse, network::peer_ipc::PeerIPC};
-
-<span class="kw">use </span>wormhole::network::server::Server;
+<span class="kw">use </span>wormhole::pods::whpath::{JoinPath, WhPath};
+<span class="kw">use </span>wormhole::{network::server::Server, pods::declarations::Pod};
 
 <span class="attr">#[tokio::main]
 </span><span class="kw">async fn </span>main() {
-    env_logger::init();
+    <span class="kw">let </span><span class="kw-2">mut </span>pods: Vec&lt;Pod&gt; = Vec::new();
 
-    <span class="comment">// DOC - arguments: own_address other_addr1 other_addr2 mount_to source
-    </span><span class="kw">let </span>own_addr = env::args().nth(<span class="number">1</span>).unwrap_or(<span class="string">"127.0.0.1:8080"</span>.to_string());
-    <span class="kw">let </span>other_addr1 = env::args()
-        .nth(<span class="number">2</span>)
-        .unwrap_or(<span class="string">"ws://127.0.0.2:8080"</span>.to_string());
-    <span class="kw">let </span>other_addr2 = env::args()
-        .nth(<span class="number">3</span>)
-        .unwrap_or(<span class="string">"ws://127.0.0.3:8080"</span>.to_string());
+    env_logger::init();
     <span class="kw">let </span>mount: PathBuf = env::args()
-        .nth(<span class="number">4</span>)
+        .nth(<span class="number">1</span>)
         .unwrap_or(<span class="string">"./virtual/"</span>.to_string())
         .into();
-    <span class="kw">let </span>source: PathBuf = env::args()
-        .nth(<span class="number">5</span>)
-        .unwrap_or(<span class="string">"./original/"</span>.to_string())
-        .into();
 
-    <span class="macro">println!</span>(<span class="string">"own address: {}"</span>, own_addr);
-    <span class="macro">println!</span>(<span class="string">"peer1 address: {}"</span>, other_addr1);
-    <span class="macro">println!</span>(<span class="string">"peer2 address: {}"</span>, other_addr2);
+    <span class="kw">let </span><span class="kw-2">mut </span>global_config_path = mount.clone();
+    global_config_path.push(<span class="string">".global_config.toml"</span>);
 
-    <span class="macro">println!</span>(<span class="string">"\nstarting"</span>);
+    <span class="attr">#[cfg(target_os = <span class="string">"windows"</span>)]
+    </span><span class="kw">match </span>winfsp_init() {
+        <span class="prelude-val">Ok</span>(_token) =&gt; <span class="macro">println!</span>(<span class="string">"got fsp token!"</span>),
+        <span class="prelude-val">Err</span>(err) =&gt; {
+            <span class="macro">println!</span>(<span class="string">"fsp error: {:?}"</span>, err);
+            std::process::exit(<span class="number">84</span>)
+        }
+    }
 
-    <span class="kw">let </span>(nfa_tx, nfa_rx) = mpsc::unbounded_channel();
-    <span class="kw">let </span>(local_fuse_tx, local_fuse_rx) = mpsc::unbounded_channel();
-    <span class="kw">let </span>(_session, provider) = mount_fuse(<span class="kw-2">&amp;</span>source, <span class="kw-2">&amp;</span>mount, local_fuse_tx.clone());
+    <span class="kw">let </span><span class="kw-2">mut </span>local_config_path = mount.clone();
+    local_config_path.push(<span class="string">".local_config.toml"</span>);
+
+    <span class="kw">let </span><span class="kw-2">mut </span>args_other_addresses: Vec&lt;String&gt; = env::args().collect();
+    <span class="kw">if </span>args_other_addresses.len() &gt;= <span class="number">3 </span>{
+        args_other_addresses.remove(<span class="number">0</span>);
+        args_other_addresses.remove(<span class="number">0</span>);
+        args_other_addresses.remove(<span class="number">0</span>);
+    };
+
+    <span class="kw">let </span><span class="kw-2">mut </span>global_config: GlobalConfig = config::parse_toml_file(global_config_path.as_str())
+        .unwrap_or(GlobalConfig {
+            general: GeneralGlobalConfig {
+                peers: args_other_addresses,
+                ignore_paths: <span class="macro">vec!</span>[],
+            },
+            redundancy: <span class="prelude-val">Some</span>(RedundancyConfig { number: <span class="number">3 </span>}),
+        });
+
+    global_config
+        .general
+        .ignore_paths
+        .push(<span class="string">".local_config.toml"</span>.to_string());
+
+    <span class="kw">let </span>local_config: LocalConfig = <span class="kw">match </span>config::parse_toml_file(local_config_path.as_str()) {
+        <span class="prelude-val">Err</span>(error) =&gt; {
+            <span class="macro">log::warn!</span>(<span class="string">"Local Config Not Found: {error}"</span>);
+
+            <span class="kw">let </span>own_addr = <span class="kw">match </span>env::args().nth(<span class="number">2</span>) {
+                <span class="prelude-val">Some</span>(address) =&gt; address,
+                <span class="prelude-val">None </span>=&gt; {
+                    <span class="macro">log::error!</span>(<span class="string">"Local config missing and own Address missing from args"</span>);
+                    <span class="kw">return</span>;
+                }
+            };
+
+            LocalConfig {
+                general: GeneralLocalConfig {
+                    name: own_addr.clone(),
+                    address: own_addr,
+                },
+            }
+        }
+        <span class="prelude-val">Ok</span>(found) =&gt; found,
+    };
+
+    <span class="macro">log::info!</span>(<span class="string">"WHConfig: {global_config:?} {local_config:?}"</span>);
+
+    <span class="kw">let </span>server = Arc::new(Server::setup(<span class="kw-2">&amp;</span>local_config.general.address).<span class="kw">await</span>);
+
+    pods.push(
+        Pod::new(
+            WhPath::from(mount.as_path()),
+            <span class="number">1</span>,
+            global_config.general.peers,
+            server.clone(),
+            local_config.general.address,
+        )
+        .<span class="kw">await
+        </span>.expect(<span class="string">"failed to create the pod"</span>),
+    );
 
     <span class="kw">let </span>local_cli_handle = tokio::spawn(local_cli_watchdog());
-    <span class="kw">let </span>nfa_handle = tokio::spawn(network_file_actions(nfa_rx, provider));
-    <span class="kw">let </span>server = Server::setup(<span class="kw-2">&amp;</span>own_addr).<span class="kw">await</span>;
+    <span class="macro">log::info!</span>(<span class="string">"Started"</span>);
+    local_cli_handle.<span class="kw">await</span>.unwrap(); <span class="comment">// keeps the main process alive until interruption from this watchdog;
+    </span><span class="macro">log::info!</span>(<span class="string">"Stopping"</span>);
+}
 
-    <span class="kw">let </span>peers = peer_startup(<span class="macro">vec!</span>[other_addr1, other_addr2], nfa_tx.clone()).<span class="kw">await</span>;
-    <span class="macro">println!</span>(
-        <span class="string">"successful peers at startup :\n{:?}"</span>,
+<span class="comment">// NOTE - old watchdog brought here for debug purposes
+</span><span class="kw">pub async fn </span>local_cli_watchdog() {
+    <span class="kw">let </span><span class="kw-2">mut </span>stdin = tokio::io::stdin();
+    <span class="kw">let </span><span class="kw-2">mut </span>buf = <span class="macro">vec!</span>[<span class="number">0</span>; <span class="number">1024</span>];
+
+    <span class="kw">loop </span>{
+        <span class="kw">let </span>read = tokio::io::AsyncReadExt::read(<span class="kw-2">&amp;mut </span>stdin, <span class="kw-2">&amp;mut </span>buf).<span class="kw">await</span>;
+
+        <span class="comment">// NOTE -  on ctrl-D -&gt; quit
+        </span><span class="kw">match </span>read {
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) | <span class="prelude-val">Ok</span>(<span class="number">0</span>) =&gt; {
+                <span class="macro">println!</span>(<span class="string">"Quiting!"</span>);
+                <span class="kw">break</span>;
+            }
+            <span class="kw">_ </span>=&gt; (),
+        };
+    }
+}
+
+<span class="comment">/*
+#[tokio::main]
+async fn main2() {
+    env_logger::init();
+    // DOC - arguments: own_address other_addr1 other_addr2 mount_to source
+    let own_addr = env::args().nth(1).unwrap_or("127.0.0.1:8080".to_string());
+    let other_addr1 = env::args()
+        .nth(2)
+        .unwrap_or("ws://127.0.0.2:8080".to_string());
+    let other_addr2 = env::args()
+        .nth(3)
+        .unwrap_or("ws://127.0.0.3:8080".to_string());
+    let mount: PathBuf = env::args()
+        .nth(4)
+        .unwrap_or("./virtual/".to_string())
+        .into();
+
+    println!("own address: {}", own_addr);
+    println!("peer1 address: {}", other_addr1);
+    println!("peer2 address: {}", other_addr2);
+    println!("\nstarting");
+    //TODO - le service doit attendre une commande de la cli pour mounter fuse, ou rejoindre un network, une grande parti de ce code doit être modifié
+    let (nfa_tx, nfa_rx) = mpsc::unbounded_channel();
+    let (local_fuse_tx, local_fuse_rx) = mpsc::unbounded_channel();
+    let (_session, provider) = mount_fuse(&amp;mount, local_fuse_tx.clone());
+
+    let local_cli_handle = tokio::spawn(local_cli_watchdog());
+    let nfa_handle = tokio::spawn(network_file_actions(nfa_rx, provider));
+    let server = Server::setup(&amp;own_addr).await;
+
+    let peers = peer_startup(vec![other_addr1, other_addr2], nfa_tx.clone()).await;
+    println!(
+        "successful peers at startup :\n{:?}",
         peers
             .iter()
             .map(|p| p.address.clone())
             .collect::&lt;Vec&lt;String&gt;&gt;()
     );
-    <span class="kw">let </span>peers: Arc&lt;Mutex&lt;Vec&lt;PeerIPC&gt;&gt;&gt; = Arc::new(Mutex::new(peers));
+    let peers: Arc&lt;Mutex&lt;Vec&lt;PeerIPC&gt;&gt;&gt; = Arc::new(Mutex::new(peers));
 
-    <span class="kw">let </span>new_conn_handle = tokio::spawn(incoming_connections_watchdog(
+    let new_conn_handle = tokio::spawn(incoming_connections_watchdog(
         server,
         nfa_tx.clone(),
         peers.clone(),
     ));
 
-    <span class="kw">let </span>peers_broadcast_handle = tokio::spawn(all_peers_broadcast(peers.clone(), local_fuse_rx));
-    <span class="comment">// let remote_reception = tokio::spawn(all_peers_reception(connected_peers, nfa_tx));
+    request_filesystem(peers.clone());
+    let peers_broadcast_handle = tokio::spawn(contact_peers(peers.clone(), local_fuse_rx));
+    // let remote_reception = tokio::spawn(all_peers_reception(connected_peers, nfa_tx));
 
-    </span><span class="macro">println!</span>(<span class="string">"started"</span>);
-    local_cli_handle.<span class="kw">await</span>.unwrap(); <span class="comment">// keeps the main process alive until interruption from this watchdog;
-    </span><span class="macro">println!</span>(<span class="string">"stopping"</span>);
+    println!("started");
+    local_cli_handle.await.unwrap(); // keeps the main process alive until interruption from this watchdog;
+    println!("stopping");
     new_conn_handle.abort();
     peers.lock().unwrap().iter().for_each(|peer| {
         peer.thread.abort();
     });
     nfa_handle.abort();
     peers_broadcast_handle.abort();
-    <span class="macro">println!</span>(<span class="string">"stopped"</span>);
+    println!("stopped");
 }
-</code></pre></div></section></main></body></html>
+*/
+</span></code></pre></div></section></main></body></html>

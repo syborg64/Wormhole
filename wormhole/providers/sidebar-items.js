@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["readers","writers"],"struct":["Provider"],"type":["FsIndex"]};

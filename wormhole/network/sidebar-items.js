@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["forward","message","peer_ipc","peers_operations","server","watchdogs"]};
+window.SIDEBAR_ITEMS = {"mod":["forward","message","peer_ipc","server"]};

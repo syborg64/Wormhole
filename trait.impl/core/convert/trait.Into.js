@@ -1,0 +1,9 @@
+(function() {
+    var implementors = Object.fromEntries([["wormhole",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.85.0/core/convert/trait.Into.html\" title=\"trait core::convert::Into\">Into</a>&lt;<a class=\"enum\" href=\"wormhole/pods/fs_interface/enum.SimpleFileType.html\" title=\"enum wormhole::pods::fs_interface::SimpleFileType\">SimpleFileType</a>&gt; for &amp;<a class=\"enum\" href=\"wormhole/pods/arbo/enum.FsEntry.html\" title=\"enum wormhole::pods::arbo::FsEntry\">FsEntry</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.85.0/core/convert/trait.Into.html\" title=\"trait core::convert::Into\">Into</a>&lt;<a class=\"enum\" href=\"wormhole/pods/fs_interface/enum.SimpleFileType.html\" title=\"enum wormhole::pods::fs_interface::SimpleFileType\">SimpleFileType</a>&gt; for FileType"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.85.0/core/convert/trait.Into.html\" title=\"trait core::convert::Into\">Into</a>&lt;<a class=\"struct\" href=\"wormhole/pods/arbo/struct.Metadata.html\" title=\"struct wormhole::pods::arbo::Metadata\">Metadata</a>&gt; for FileAttr"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.85.0/core/convert/trait.Into.html\" title=\"trait core::convert::Into\">Into</a>&lt;FileAttr&gt; for <a class=\"struct\" href=\"wormhole/pods/arbo/struct.Metadata.html\" title=\"struct wormhole::pods::arbo::Metadata\">Metadata</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.85.0/core/convert/trait.Into.html\" title=\"trait core::convert::Into\">Into</a>&lt;FileType&gt; for <a class=\"enum\" href=\"wormhole/pods/fs_interface/enum.SimpleFileType.html\" title=\"enum wormhole::pods::fs_interface::SimpleFileType\">SimpleFileType</a>"]]]]);
+    if (window.register_implementors) {
+        window.register_implementors(implementors);
+    } else {
+        window.pending_implementors = implementors;
+    }
+})()
+//{"start":57,"fragment_lengths":[1685]}

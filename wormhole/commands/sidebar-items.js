@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["Mode"],"fn":["init","join","register","remove","unregister"]};
+window.SIDEBAR_ITEMS = {"enum":["Mode"],"fn":["join","register","remove","templates","unregister"]};

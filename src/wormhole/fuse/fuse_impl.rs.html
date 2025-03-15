@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/fuse/fuse_impl.rs`."><title>fuse_impl.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-b0742ba02757f159.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="wormhole" data-themes="" data-resource-suffix="" data-rustdoc-version="1.83.0 (90b35a623 2024-11-26)" data-channel="1.83.0" data-search-js="search-f0d225181b97f9a4.js" data-settings-js="settings-805db61a62df4bd2.js" ><script src="../../../static.files/storage-1d39b6787ed640ff.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-f070b9041d14864c.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-0111fcff984fae8f.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">wormhole/fuse/</div>fuse_impl.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/fuse/fuse_impl.rs`."><title>fuse_impl.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-46132b98.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="wormhole" data-themes="" data-resource-suffix="" data-rustdoc-version="1.85.0 (4d91de4e4 2025-02-17)" data-channel="1.85.0" data-search-js="search-75f5ac3e.js" data-settings-js="settings-0f613d39.js" ><script src="../../../static.files/storage-59e33391.js"></script><script defer src="../../../static.files/src-script-56102188.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">wormhole/fuse/</div>fuse_impl.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
 <a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
@@ -324,26 +324,233 @@
 <a href="#323" id="323">323</a>
 <a href="#324" id="324">324</a>
 <a href="#325" id="325">325</a>
-<a href="#326" id="326">326</a></pre></div><pre class="rust"><code><span class="kw">use </span>fuser::{
+<a href="#326" id="326">326</a>
+<a href="#327" id="327">327</a>
+<a href="#328" id="328">328</a>
+<a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
+<a href="#354" id="354">354</a>
+<a href="#355" id="355">355</a>
+<a href="#356" id="356">356</a>
+<a href="#357" id="357">357</a>
+<a href="#358" id="358">358</a>
+<a href="#359" id="359">359</a>
+<a href="#360" id="360">360</a>
+<a href="#361" id="361">361</a>
+<a href="#362" id="362">362</a>
+<a href="#363" id="363">363</a>
+<a href="#364" id="364">364</a>
+<a href="#365" id="365">365</a>
+<a href="#366" id="366">366</a>
+<a href="#367" id="367">367</a>
+<a href="#368" id="368">368</a>
+<a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
+<a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
+<a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
+<a href="#403" id="403">403</a>
+<a href="#404" id="404">404</a>
+<a href="#405" id="405">405</a>
+<a href="#406" id="406">406</a>
+<a href="#407" id="407">407</a>
+<a href="#408" id="408">408</a>
+<a href="#409" id="409">409</a>
+<a href="#410" id="410">410</a>
+<a href="#411" id="411">411</a>
+<a href="#412" id="412">412</a>
+<a href="#413" id="413">413</a>
+<a href="#414" id="414">414</a>
+<a href="#415" id="415">415</a>
+<a href="#416" id="416">416</a>
+<a href="#417" id="417">417</a>
+<a href="#418" id="418">418</a>
+<a href="#419" id="419">419</a>
+<a href="#420" id="420">420</a>
+<a href="#421" id="421">421</a>
+<a href="#422" id="422">422</a>
+<a href="#423" id="423">423</a>
+<a href="#424" id="424">424</a>
+<a href="#425" id="425">425</a>
+<a href="#426" id="426">426</a>
+<a href="#427" id="427">427</a>
+<a href="#428" id="428">428</a>
+<a href="#429" id="429">429</a>
+<a href="#430" id="430">430</a>
+<a href="#431" id="431">431</a>
+<a href="#432" id="432">432</a>
+<a href="#433" id="433">433</a>
+<a href="#434" id="434">434</a>
+<a href="#435" id="435">435</a>
+<a href="#436" id="436">436</a>
+<a href="#437" id="437">437</a>
+<a href="#438" id="438">438</a>
+<a href="#439" id="439">439</a>
+<a href="#440" id="440">440</a>
+<a href="#441" id="441">441</a>
+<a href="#442" id="442">442</a>
+<a href="#443" id="443">443</a>
+<a href="#444" id="444">444</a>
+<a href="#445" id="445">445</a>
+<a href="#446" id="446">446</a>
+<a href="#447" id="447">447</a>
+<a href="#448" id="448">448</a>
+<a href="#449" id="449">449</a>
+<a href="#450" id="450">450</a>
+<a href="#451" id="451">451</a>
+<a href="#452" id="452">452</a>
+<a href="#453" id="453">453</a>
+<a href="#454" id="454">454</a>
+<a href="#455" id="455">455</a>
+<a href="#456" id="456">456</a>
+<a href="#457" id="457">457</a>
+<a href="#458" id="458">458</a>
+<a href="#459" id="459">459</a>
+<a href="#460" id="460">460</a>
+<a href="#461" id="461">461</a>
+<a href="#462" id="462">462</a>
+<a href="#463" id="463">463</a>
+<a href="#464" id="464">464</a>
+<a href="#465" id="465">465</a>
+<a href="#466" id="466">466</a>
+<a href="#467" id="467">467</a>
+<a href="#468" id="468">468</a>
+<a href="#469" id="469">469</a>
+<a href="#470" id="470">470</a>
+<a href="#471" id="471">471</a>
+<a href="#472" id="472">472</a>
+<a href="#473" id="473">473</a>
+<a href="#474" id="474">474</a>
+<a href="#475" id="475">475</a>
+<a href="#476" id="476">476</a>
+<a href="#477" id="477">477</a>
+<a href="#478" id="478">478</a>
+<a href="#479" id="479">479</a>
+<a href="#480" id="480">480</a>
+<a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
+<a href="#484" id="484">484</a>
+<a href="#485" id="485">485</a>
+<a href="#486" id="486">486</a>
+<a href="#487" id="487">487</a>
+<a href="#488" id="488">488</a>
+<a href="#489" id="489">489</a>
+<a href="#490" id="490">490</a>
+<a href="#491" id="491">491</a>
+<a href="#492" id="492">492</a>
+<a href="#493" id="493">493</a>
+<a href="#494" id="494">494</a>
+<a href="#495" id="495">495</a>
+<a href="#496" id="496">496</a>
+<a href="#497" id="497">497</a>
+<a href="#498" id="498">498</a>
+<a href="#499" id="499">499</a>
+<a href="#500" id="500">500</a>
+<a href="#501" id="501">501</a>
+<a href="#502" id="502">502</a>
+<a href="#503" id="503">503</a>
+<a href="#504" id="504">504</a>
+<a href="#505" id="505">505</a>
+<a href="#506" id="506">506</a>
+<a href="#507" id="507">507</a>
+<a href="#508" id="508">508</a>
+<a href="#509" id="509">509</a>
+<a href="#510" id="510">510</a>
+<a href="#511" id="511">511</a>
+<a href="#512" id="512">512</a>
+<a href="#513" id="513">513</a>
+<a href="#514" id="514">514</a></pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::pods::arbo::{FsEntry, Inode, Metadata};
+<span class="kw">use </span><span class="kw">crate</span>::pods::fs_interface::{<span class="self">self</span>, FsInterface, SimpleFileType};
+<span class="kw">use </span><span class="kw">crate</span>::pods::whpath::WhPath;
+<span class="kw">use </span>fuser::{
     BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData,
-    ReplyDirectory, ReplyEntry, Request,
+    ReplyDirectory, ReplyEntry, Request, TimeOrNow,
 };
-<span class="kw">use </span>libc::{ENOENT, ENOSYS};
+<span class="kw">use </span>libc::{EIO, ENOENT};
 <span class="kw">use </span>log::debug;
-<span class="kw">use </span>openat::{Dir, SimpleType};
-<span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::ffi::OsStr;
 <span class="kw">use </span>std::io;
-<span class="kw">use </span>std::path::{Path, PathBuf};
-<span class="kw">use </span>std::sync::{Arc, Mutex};
-<span class="kw">use </span>std::time::{Duration, UNIX_EPOCH};
-<span class="kw">use </span>tokio::sync::mpsc::UnboundedSender;
-
-<span class="kw">use </span><span class="kw">crate</span>::network::message::NetworkMessage;
-<span class="kw">use </span><span class="kw">crate</span>::providers::{FsIndex, Provider};
+<span class="kw">use </span>std::sync::Arc;
+<span class="kw">use </span>std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 <span class="comment">// NOTE - placeholders
 </span><span class="kw">const </span>TTL: Duration = Duration::from_secs(<span class="number">1</span>);
+
+<span class="kw">impl </span>Into&lt;FileType&gt; <span class="kw">for </span>SimpleFileType {
+    <span class="kw">fn </span>into(<span class="self">self</span>) -&gt; FileType {
+        <span class="kw">match </span><span class="self">self </span>{
+            SimpleFileType::File =&gt; FileType::RegularFile,
+            SimpleFileType::Directory =&gt; FileType::Directory,
+        }
+    }
+}
+
+<span class="kw">impl </span>Into&lt;SimpleFileType&gt; <span class="kw">for </span>FileType {
+    <span class="kw">fn </span>into(<span class="self">self</span>) -&gt; SimpleFileType {
+        <span class="kw">match </span><span class="self">self </span>{
+            FileType::RegularFile =&gt; SimpleFileType::File,
+            FileType::Directory =&gt; SimpleFileType::Directory,
+            FileType::NamedPipe =&gt; <span class="macro">todo!</span>(<span class="string">"file type not supported"</span>),
+            FileType::CharDevice =&gt; <span class="macro">todo!</span>(<span class="string">"file type not supported"</span>),
+            FileType::BlockDevice =&gt; <span class="macro">todo!</span>(<span class="string">"file type not supported"</span>),
+            FileType::Symlink =&gt; <span class="macro">todo!</span>(<span class="string">"file type not supported"</span>),
+            FileType::Socket =&gt; <span class="macro">todo!</span>(<span class="string">"file type not supported"</span>),
+        }
+    }
+}
 
 <span class="kw">const </span>MOUNT_DIR_ATTR: FileAttr = FileAttr {
     ino: <span class="number">1</span>,
@@ -363,16 +570,16 @@
     blksize: <span class="number">512</span>,
 };
 
-<span class="kw">const </span>TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
+<span class="kw">pub const </span>TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
     ino: <span class="number">2</span>,
-    size: <span class="number">13</span>,
+    size: <span class="number">0</span>,
     blocks: <span class="number">1</span>,
     atime: UNIX_EPOCH, <span class="comment">// 1970-01-01 00:00:00
     </span>mtime: UNIX_EPOCH,
     ctime: UNIX_EPOCH,
     crtime: UNIX_EPOCH,
     kind: FileType::RegularFile,
-    perm: <span class="number">0o644</span>,
+    perm: <span class="number">0o777</span>,
     nlink: <span class="number">1</span>,
     uid: <span class="number">501</span>,
     gid: <span class="number">20</span>,
@@ -384,74 +591,63 @@
 
 // const MIRROR_PTH: &amp;str = "./wh_mirror/";
 
-</span><span class="kw">pub struct </span>FuseController {
-    <span class="kw">pub </span>provider: Arc&lt;Mutex&lt;Provider&gt;&gt;,
-}
-
-<span class="comment">// Custom data (not directly linked to fuse)
-// create some data for us like the index or data provider
-
-</span><span class="kw">fn </span>simple_type_to_fuse_type(t: SimpleType) -&gt; fuser::FileType {
-    <span class="kw">match </span>t {
-        SimpleType::Dir =&gt; fuser::FileType::Directory,
-        SimpleType::File =&gt; fuser::FileType::RegularFile,
-        <span class="kw">_ </span>=&gt; fuser::FileType::CharDevice, <span class="comment">// NOTE - random because unsupported, should be handled
-    </span>}
-}
-<span class="kw">fn </span>index_folder_recursive(
-    arbo: <span class="kw-2">&amp;mut </span>FsIndex,
-    inode: <span class="kw-2">&amp;mut </span>u64,
-    root_fd: <span class="kw-2">&amp;</span>Dir,
-    path: PathBuf,
-) -&gt; io::Result&lt;()&gt; {
-    <span class="kw">let </span>errors_nb = root_fd
-        .list_dir(<span class="kw-2">&amp;</span>path)<span class="question-mark">?
-        </span>.map(|entry| -&gt; io::Result&lt;()&gt; {
-            <span class="kw">let </span>entry = entry<span class="question-mark">?</span>;
-
-            <span class="kw">let </span>name = entry.file_name();
-            <span class="kw">let </span>stype = entry.simple_type().unwrap();
-
-            <span class="comment">// let mut generated_path = path.clone();
-            </span><span class="kw">let </span>generated_path = path.join(name);
-
-            arbo.insert(
-                <span class="kw-2">*</span>inode,
-                (
-                    simple_type_to_fuse_type(stype),
-                    generated_path.clone(),
-                ),
-            );
-            <span class="macro">println!</span>(<span class="string">"added entry to arbo {}:{:?}"</span>, inode, arbo.get(inode));
-            <span class="kw-2">*</span>inode += <span class="number">1</span>;
-
-            <span class="kw">if </span>stype == SimpleType::Dir {
-                index_folder_recursive(arbo, inode, root_fd, generated_path)<span class="question-mark">?</span>;
-            }
-            <span class="prelude-val">Ok</span>(())
-        })
-        .filter(|e| e.is_err())
-        .collect::&lt;Vec&lt;<span class="prelude-ty">Result</span>&lt;(), io::Error&gt;&gt;&gt;()
-        .len();
-    <span class="macro">println!</span>(
-        <span class="string">"indexing: {} error(s) in folder {}"</span>,
-        errors_nb,
-        path.display()
-    );
-    <span class="prelude-val">Ok</span>(())
-}
-
-<span class="kw">impl </span>FuseController {
-    <span class="kw">fn </span>index_folder(path: <span class="kw-2">&amp;</span>Path) -&gt; io::Result&lt;(openat::Dir, FsIndex)&gt; {
-        <span class="kw">let </span>metal_mount_handle = Dir::open(path)<span class="question-mark">?</span>;
-        <span class="kw">let </span><span class="kw-2">mut </span>arbo: FsIndex = HashMap::new();
-        <span class="kw">let </span><span class="kw-2">mut </span>inode: u64 = <span class="number">2</span>;
-
-        arbo.insert(<span class="number">1</span>, (FileType::Directory, <span class="string">"./"</span>.into()));
-
-        index_folder_recursive(<span class="kw-2">&amp;mut </span>arbo, <span class="kw-2">&amp;mut </span>inode, <span class="kw-2">&amp;</span>metal_mount_handle, <span class="string">"."</span>.into())<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>((metal_mount_handle, arbo))
+</span><span class="kw">impl </span>Into&lt;FileAttr&gt; <span class="kw">for </span>Metadata {
+    <span class="kw">fn </span>into(<span class="self">self</span>) -&gt; FileAttr {
+        FileAttr {
+            ino: <span class="self">self</span>.ino,
+            size: <span class="self">self</span>.size,
+            blocks: <span class="self">self</span>.size,
+            atime: <span class="self">self</span>.atime,
+            mtime: <span class="self">self</span>.mtime,
+            ctime: <span class="self">self</span>.ctime,
+            crtime: <span class="self">self</span>.crtime,
+            kind: <span class="self">self</span>.kind.into(),
+            perm: <span class="self">self</span>.perm,
+            nlink: <span class="self">self</span>.nlink,
+            uid: <span class="self">self</span>.uid,
+            gid: <span class="self">self</span>.gid,
+            rdev: <span class="self">self</span>.rdev,
+            flags: <span class="self">self</span>.flags,
+            blksize: <span class="number">1</span>,
+        }
     }
+}
+
+<span class="kw">impl </span>Into&lt;Metadata&gt; <span class="kw">for </span>FileAttr {
+    <span class="kw">fn </span>into(<span class="self">self</span>) -&gt; Metadata {
+        Metadata {
+            ino: <span class="self">self</span>.ino,
+            size: <span class="self">self</span>.size,
+            blocks: <span class="self">self</span>.blocks,
+            atime: <span class="self">self</span>.atime,
+            mtime: <span class="self">self</span>.mtime,
+            ctime: <span class="self">self</span>.ctime,
+            crtime: <span class="self">self</span>.crtime,
+            kind: <span class="self">self</span>.kind.into(),
+            perm: <span class="self">self</span>.perm,
+            nlink: <span class="self">self</span>.nlink,
+            uid: <span class="self">self</span>.uid,
+            gid: <span class="self">self</span>.gid,
+            rdev: <span class="self">self</span>.rdev,
+            flags: <span class="self">self</span>.flags,
+            blksize: <span class="self">self</span>.blksize,
+        }
+    }
+}
+
+<span class="kw">pub struct </span>FuseController {
+    <span class="kw">pub </span>fs_interface: Arc&lt;FsInterface&gt;,
+}
+
+<span class="comment">// NOTE for dev purpose while all metadata is not supported
+</span><span class="kw">fn </span>inode_to_fuse_fileattr(inode: Inode) -&gt; FileAttr {
+    <span class="kw">let </span><span class="kw-2">mut </span>attr: FileAttr = inode.meta.into();
+    attr.ino = inode.id;
+    attr.kind = <span class="kw">match </span>inode.entry {
+        FsEntry::Directory(<span class="kw">_</span>) =&gt; fuser::FileType::Directory,
+        FsEntry::File(<span class="kw">_</span>) =&gt; fuser::FileType::RegularFile,
+    };
+    attr
 }
 
 <span class="comment">// REVIEW - should later invest in proper error handling
@@ -459,22 +655,104 @@
     <span class="comment">// READING
 
     </span><span class="kw">fn </span>lookup(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _req: <span class="kw-2">&amp;</span>Request, parent: u64, name: <span class="kw-2">&amp;</span>OsStr, reply: ReplyEntry) {
-        <span class="macro">debug!</span>(<span class="string">"lookup is called {} {:?}"</span>, parent, name);
-        <span class="kw">let </span>provider = <span class="self">self</span>.provider.lock().unwrap();
-        <span class="kw">if let </span><span class="prelude-val">Ok</span>(file_attr) = provider.fs_lookup(parent, name) {
-            reply.entry(<span class="kw-2">&amp;</span>TTL, <span class="kw-2">&amp;</span>file_attr, <span class="number">0</span>)
-        } <span class="kw">else </span>{
-            reply.error(ENOENT)
+        <span class="kw">match </span><span class="self">self
+            </span>.fs_interface
+            .get_entry_from_name(parent, name.to_string_lossy().to_string())
+        {
+            <span class="prelude-val">Ok</span>(inode) =&gt; {
+                reply.entry(<span class="kw-2">&amp;</span>TTL, <span class="kw-2">&amp;</span>inode_to_fuse_fileattr(inode), <span class="number">0</span>);
+            }
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
+                reply.error(ENOENT);
+            }
+        };
+    }
+
+    <span class="kw">fn </span>getattr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _req: <span class="kw-2">&amp;</span>Request, ino: u64, <span class="kw">_</span>: <span class="prelude-ty">Option</span>&lt;u64&gt;, reply: ReplyAttr) {
+        <span class="kw">let </span>attrs = <span class="self">self</span>.fs_interface.get_inode_attributes(ino);
+
+        <span class="kw">match </span>attrs {
+            <span class="prelude-val">Ok</span>(attrs) =&gt; reply.attr(<span class="kw-2">&amp;</span>TTL, <span class="kw-2">&amp;</span>attrs.into()),
+            <span class="prelude-val">Err</span>(err) =&gt; {
+                <span class="macro">log::error!</span>(<span class="string">"fuse_impl error: {:?}"</span>, err);
+                reply.error(err.raw_os_error().unwrap_or(EIO))
+            }
         }
     }
 
-    <span class="comment">// TODO
-    </span><span class="kw">fn </span>getattr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _req: <span class="kw-2">&amp;</span>Request, ino: u64, reply: ReplyAttr) {
-        <span class="macro">debug!</span>(<span class="string">"getattr is called {}"</span>, ino);
-        <span class="kw">match </span>ino {
-            <span class="number">1 </span>=&gt; reply.attr(<span class="kw-2">&amp;</span>TTL, <span class="kw-2">&amp;</span>MOUNT_DIR_ATTR),
-            <span class="number">2 </span>=&gt; reply.attr(<span class="kw-2">&amp;</span>TTL, <span class="kw-2">&amp;</span>TEMPLATE_FILE_ATTR),
-            <span class="kw">_ </span>=&gt; reply.error(ENOENT),
+    <span class="kw">fn </span>setattr(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        _req: <span class="kw-2">&amp;</span>Request&lt;<span class="lifetime">'_</span>&gt;,
+        ino: u64,
+        mode: <span class="prelude-ty">Option</span>&lt;u32&gt;,
+        uid: <span class="prelude-ty">Option</span>&lt;u32&gt;,
+        gid: <span class="prelude-ty">Option</span>&lt;u32&gt;,
+        size: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+        atime: <span class="prelude-ty">Option</span>&lt;fuser::TimeOrNow&gt;,
+        mtime: <span class="prelude-ty">Option</span>&lt;fuser::TimeOrNow&gt;,
+        ctime: <span class="prelude-ty">Option</span>&lt;std::time::SystemTime&gt;,
+        fh: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+        crtime: <span class="prelude-ty">Option</span>&lt;std::time::SystemTime&gt;,
+        chgtime: <span class="prelude-ty">Option</span>&lt;std::time::SystemTime&gt;,
+        bkuptime: <span class="prelude-ty">Option</span>&lt;std::time::SystemTime&gt;,
+        flags: <span class="prelude-ty">Option</span>&lt;u32&gt;,
+        reply: ReplyAttr,
+    ) {
+        <span class="kw">let </span>attrs = <span class="kw">match </span><span class="self">self</span>.fs_interface.get_inode_attributes(ino) {
+            <span class="prelude-val">Ok</span>(attrs) =&gt; Metadata {
+                ino: attrs.ino,
+                size: <span class="kw">if let </span><span class="prelude-val">Some</span>(size) = size {
+                    size
+                } <span class="kw">else </span>{
+                    attrs.size
+                },
+                blocks: attrs.blocks,
+                atime: <span class="kw">if let </span><span class="prelude-val">Some</span>(atime) = atime {
+                    time_or_now_to_system_time(atime)
+                } <span class="kw">else </span>{
+                    attrs.atime
+                },
+                mtime: <span class="kw">if let </span><span class="prelude-val">Some</span>(mtime) = mtime {
+                    time_or_now_to_system_time(mtime)
+                } <span class="kw">else </span>{
+                    attrs.mtime
+                },
+                ctime: <span class="kw">if let </span><span class="prelude-val">Some</span>(ctime) = ctime {
+                    ctime
+                } <span class="kw">else </span>{
+                    attrs.ctime
+                },
+                crtime: <span class="kw">if let </span><span class="prelude-val">Some</span>(crtime) = crtime {
+                    crtime
+                } <span class="kw">else </span>{
+                    attrs.crtime
+                },
+                kind: attrs.kind,
+                perm: attrs.perm,
+                nlink: attrs.nlink,
+                uid: <span class="kw">if let </span><span class="prelude-val">Some</span>(uid) = uid { uid } <span class="kw">else </span>{ attrs.uid },
+                gid: <span class="kw">if let </span><span class="prelude-val">Some</span>(gid) = gid { gid } <span class="kw">else </span>{ attrs.gid },
+                rdev: attrs.rdev,
+                blksize: attrs.blksize,
+                flags: <span class="kw">if let </span><span class="prelude-val">Some</span>(flags) = flags {
+                    flags
+                } <span class="kw">else </span>{
+                    attrs.flags
+                },
+            },
+            <span class="prelude-val">Err</span>(err) =&gt; {
+                <span class="macro">log::error!</span>(<span class="string">"fuse_impl::setattr: {:?}"</span>, err);
+                reply.error(err.raw_os_error().unwrap_or(EIO));
+                <span class="kw">return</span>;
+            }
+        };
+
+        <span class="kw">match </span><span class="self">self</span>.fs_interface.set_inode_meta(ino, attrs.clone()) {
+            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; reply.attr(<span class="kw-2">&amp;</span>TTL, <span class="kw-2">&amp;</span>attrs.into()),
+            <span class="prelude-val">Err</span>(err) =&gt; {
+                <span class="macro">log::error!</span>(<span class="string">"fuse_impl::setattr: {:?}"</span>, err);
+                reply.error(err.raw_os_error().unwrap_or(EIO))
+            }
         }
     }
 
@@ -484,17 +762,23 @@
         ino: u64,
         _fh: u64,
         offset: i64,
-        _size: u32,
+        size: u32,
         _flags: i32,
         _lock: <span class="prelude-ty">Option</span>&lt;u64&gt;,
         reply: ReplyData,
     ) {
-        <span class="macro">debug!</span>(<span class="string">"read is called"</span>);
-        <span class="kw">let </span>provider = <span class="self">self</span>.provider.lock().unwrap();
-        <span class="kw">if let </span><span class="prelude-val">Ok</span>(content) = provider.read(ino) {
-            reply.data(<span class="kw-2">&amp;</span>content[offset <span class="kw">as </span>usize..])
-        } <span class="kw">else </span>{
-            reply.error(ENOENT);
+        <span class="kw">let </span>content = <span class="self">self</span>.fs_interface.read_file(
+            ino,
+            offset.try_into().expect(<span class="string">"fuse_impl::read offset negative"</span>),
+            size.try_into().expect(<span class="string">"fuse_impl::read size too large"</span>),
+        );
+
+        <span class="kw">match </span>content {
+            <span class="prelude-val">Ok</span>(content) =&gt; reply.data(<span class="kw-2">&amp;</span>content),
+            <span class="prelude-val">Err</span>(err) =&gt; {
+                <span class="macro">log::error!</span>(<span class="string">"fuse_impl error: {:?}"</span>, err);
+                reply.error(err.raw_os_error().unwrap_or(EIO))
+            }
         }
     }
 
@@ -506,22 +790,27 @@
         offset: i64,
         <span class="kw-2">mut </span>reply: ReplyDirectory,
     ) {
-        <span class="macro">println!</span>(<span class="string">"readdir is called for ino {}"</span>, ino);
-        <span class="kw">let </span>provider = <span class="self">self</span>.provider.lock().unwrap();
-        <span class="kw">if let </span><span class="prelude-val">Ok</span>(entries) = provider.fs_readdir(ino) {
-            <span class="macro">println!</span>(<span class="string">"....listing entries {:?}"</span>, entries);
-            <span class="kw">for </span>(i, entry) <span class="kw">in </span>entries.into_iter().enumerate().skip(offset <span class="kw">as </span>usize) {
-                <span class="macro">println!</span>(<span class="string">"....readdir entries : {:?}"</span>, entry);
-                <span class="comment">// i + 1 means the index of the next entry
-                </span><span class="kw">if </span>reply.add(entry.<span class="number">0</span>, (i + <span class="number">1</span>) <span class="kw">as </span>i64, entry.<span class="number">1</span>, entry.<span class="number">2</span>) {
-                    <span class="kw">break</span>;
-                }
+        <span class="kw">let </span>entries = <span class="kw">match </span><span class="self">self</span>.fs_interface.read_dir(ino) {
+            <span class="prelude-val">Ok</span>(entries) =&gt; entries,
+            <span class="prelude-val">Err</span>(e) =&gt; {
+                <span class="macro">log::error!</span>(<span class="string">"readdir: ENOENT {e} {ino}"</span>);
+                reply.error(ENOENT);
+                <span class="kw">return</span>;
             }
-            reply.ok()
-        } <span class="kw">else </span>{
-            <span class="macro">println!</span>(<span class="string">"/!\\ readdir EONENT "</span>);
-            reply.error(ENOENT)
+        };
+
+        <span class="kw">for </span>(i, entry) <span class="kw">in </span>entries.into_iter().enumerate().skip(offset <span class="kw">as </span>usize) {
+            <span class="kw">if </span>reply.add(
+                ino,
+                <span class="comment">// i + 1 means offset of the next entry
+                </span>i <span class="kw">as </span>i64 + <span class="number">1</span>, <span class="comment">// NOTE - in case of error, try i + 1
+                </span>entry.entry.get_filetype().into(),
+                entry.name,
+            ) {
+                <span class="kw">break</span>;
+            }
         }
+        reply.ok();
     }
 
     <span class="comment">// ^ READING
@@ -538,11 +827,24 @@
         _rdev: u32,
         reply: ReplyEntry,
     ) {
-        <span class="kw">let </span><span class="kw-2">mut </span>provider = <span class="self">self</span>.provider.lock().unwrap();
-        <span class="kw">if let </span><span class="prelude-val">Ok</span>(attr) = provider.mkfile(parent, name) {
-            reply.entry(<span class="kw-2">&amp;</span>TTL, <span class="kw-2">&amp;</span>attr, <span class="number">0</span>)
-        } <span class="kw">else </span>{
-            reply.error(ENOSYS)
+        <span class="kw">match </span><span class="self">self</span>.fs_interface.make_inode(
+            parent,
+            name.to_string_lossy().to_string(),
+            SimpleFileType::File,
+        ) {
+            <span class="prelude-val">Ok</span>((id, <span class="kw">_</span>)) =&gt; {
+                <span class="comment">// creating metadata to return
+                </span><span class="kw">let </span><span class="kw-2">mut </span>new_attr = TEMPLATE_FILE_ATTR;
+                new_attr.ino = id;
+                new_attr.kind = FileType::RegularFile;
+                new_attr.size = <span class="number">0</span>;
+
+                reply.entry(<span class="kw-2">&amp;</span>TTL, <span class="kw-2">&amp;</span>new_attr, <span class="number">0</span>)
+            }
+            <span class="prelude-val">Err</span>(err) =&gt; {
+                <span class="macro">log::error!</span>(<span class="string">"fuse_impl error: {:?}"</span>, err);
+                reply.error(err.raw_os_error().unwrap_or(EIO))
+            }
         }
     }
 
@@ -555,30 +857,45 @@
         _umask: u32,
         reply: ReplyEntry,
     ) {
-        <span class="kw">let </span><span class="kw-2">mut </span>provider = <span class="self">self</span>.provider.lock().unwrap();
-        <span class="kw">if let </span><span class="prelude-val">Ok</span>(attr) = provider.mkdir(parent, name) {
-            reply.entry(<span class="kw-2">&amp;</span>TTL, <span class="kw-2">&amp;</span>attr, <span class="number">0</span>)
-        } <span class="kw">else </span>{
-            reply.error(ENOSYS)
+        <span class="kw">match </span><span class="self">self</span>.fs_interface.make_inode(
+            parent,
+            name.to_string_lossy().to_string(),
+            SimpleFileType::Directory,
+        ) {
+            <span class="prelude-val">Ok</span>((id, <span class="kw">_</span>)) =&gt; {
+                <span class="comment">// creating metadata to return
+                </span><span class="kw">let </span><span class="kw-2">mut </span>new_attr = TEMPLATE_FILE_ATTR;
+                new_attr.ino = id;
+                new_attr.kind = FileType::Directory;
+                new_attr.size = <span class="number">0</span>;
+
+                reply.entry(<span class="kw-2">&amp;</span>TTL, <span class="kw-2">&amp;</span>new_attr, <span class="number">0</span>)
+            }
+            <span class="prelude-val">Err</span>(err) =&gt; {
+                <span class="macro">log::error!</span>(<span class="string">"fuse_impl error: {:?}"</span>, err);
+                reply.error(err.raw_os_error().unwrap_or(EIO))
+            }
         }
     }
 
     <span class="kw">fn </span>unlink(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _req: <span class="kw-2">&amp;</span>Request&lt;<span class="lifetime">'_</span>&gt;, parent: u64, name: <span class="kw-2">&amp;</span>OsStr, reply: fuser::ReplyEmpty) {
-        <span class="kw">let </span><span class="kw-2">mut </span>provider = <span class="self">self</span>.provider.lock().unwrap();
-        <span class="kw">if let </span><span class="prelude-val">Ok</span>(()) = provider.rmfile(parent, name) {
-            reply.ok()
-        } <span class="kw">else </span>{
-            reply.error(ENOENT)
+        <span class="kw">match </span><span class="self">self</span>.fs_interface.fuse_remove_inode(parent, name) {
+            <span class="prelude-val">Ok</span>(()) =&gt; reply.ok(),
+            <span class="prelude-val">Err</span>(err) =&gt; {
+                <span class="macro">log::error!</span>(<span class="string">"fuse_impl error: {:?}"</span>, err);
+                reply.error(err.raw_os_error().unwrap_or(EIO))
+            }
         }
     }
 
     <span class="kw">fn </span>rmdir(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _req: <span class="kw-2">&amp;</span>Request&lt;<span class="lifetime">'_</span>&gt;, parent: u64, name: <span class="kw-2">&amp;</span>OsStr, reply: fuser::ReplyEmpty) {
         <span class="comment">// should be only called on empty dirs ?
-        </span><span class="kw">let </span><span class="kw-2">mut </span>provider = <span class="self">self</span>.provider.lock().unwrap();
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(()) = provider.rmdir(parent, name) {
-            reply.ok()
-        } <span class="kw">else </span>{
-            reply.error(ENOENT)
+        </span><span class="kw">match </span><span class="self">self</span>.fs_interface.fuse_remove_inode(parent, name) {
+            <span class="prelude-val">Ok</span>(()) =&gt; reply.ok(),
+            <span class="prelude-val">Err</span>(err) =&gt; {
+                <span class="macro">log::error!</span>(<span class="string">"fuse_impl error: {:?}"</span>, err);
+                reply.error(err.raw_os_error().unwrap_or(EIO))
+            }
         }
     }
 
@@ -587,17 +904,25 @@
         _req: <span class="kw-2">&amp;</span>Request&lt;<span class="lifetime">'_</span>&gt;,
         parent: u64,
         name: <span class="kw-2">&amp;</span>OsStr,
-        newparent: u64,
+        new_parent: u64,
         newname: <span class="kw-2">&amp;</span>OsStr,
         _flags: u32,
         reply: fuser::ReplyEmpty,
     ) {
-        <span class="comment">// comment sont gérés les dossiers et sous fichiers ?
-        </span><span class="kw">let </span><span class="kw-2">mut </span>provider = <span class="self">self</span>.provider.lock().unwrap();
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(()) = provider.rename(parent, name, newparent, newname) {
-            reply.ok()
-        } <span class="kw">else </span>{
-            reply.error(ENOENT)
+        <span class="kw">match </span><span class="self">self</span>.fs_interface.rename(
+            parent,
+            new_parent,
+            <span class="kw-2">&amp;</span>name <span class="comment">//TODO move instead of ref because of the clone down the line
+                </span>.to_owned()
+                .into_string()
+                .expect(<span class="string">"Don't support non unicode yet"</span>), <span class="comment">//TODO support OsString smartly
+            </span><span class="kw-2">&amp;</span>newname
+                .to_owned()
+                .into_string()
+                .expect(<span class="string">"Don't support non unicode yet"</span>),
+        ) {
+            <span class="prelude-val">Ok</span>(()) =&gt; reply.ok(),
+            <span class="prelude-val">Err</span>(err) =&gt; reply.error(err.raw_os_error().unwrap_or(EIO)),
         }
     }
 
@@ -613,41 +938,92 @@
         _lock_owner: <span class="prelude-ty">Option</span>&lt;u64&gt;,
         reply: fuser::ReplyWrite,
     ) {
-        <span class="kw">let </span>provider = <span class="self">self</span>.provider.lock().unwrap();
-        <span class="kw">if let </span><span class="prelude-val">Ok</span>(written) = provider.write(ino, offset, data) {
-            reply.written(written)
-        } <span class="kw">else </span>{
-            reply.error(ENOENT)
+        <span class="kw">let </span>offset = offset
+            .try_into()
+            .expect(<span class="string">"fuser write: can't convert i64 to u64"</span>);
+
+        <span class="kw">match </span><span class="self">self</span>.fs_interface.write(ino, data, offset) {
+            <span class="prelude-val">Ok</span>(written) =&gt; reply.written(
+                written
+                    .try_into()
+                    .expect(<span class="string">"fuser write: can't convert u64 to u32"</span>),
+            ),
+            <span class="prelude-val">Err</span>(err) =&gt; {
+                <span class="macro">log::error!</span>(<span class="string">"fuse_impl error: {:?}"</span>, err);
+                reply.error(err.raw_os_error().unwrap_or(EIO))
+            }
         }
     }
 
     <span class="comment">// ^ WRITING
-</span>}
+
+    </span><span class="kw">fn </span>create(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        _req: <span class="kw-2">&amp;</span>Request&lt;<span class="lifetime">'_</span>&gt;,
+        parent: u64,
+        name: <span class="kw-2">&amp;</span>OsStr,
+        mode: u32,
+        umask: u32,
+        flags: i32,
+        reply: fuser::ReplyCreate,
+    ) {
+        <span class="kw">match </span><span class="self">self</span>.fs_interface.make_inode(
+            parent,
+            name.to_string_lossy().to_string(),
+            SimpleFileType::File,
+        ) {
+            <span class="prelude-val">Ok</span>((id, <span class="kw">_</span>)) =&gt; {
+                <span class="comment">// creating metadata to return
+                </span><span class="kw">let </span><span class="kw-2">mut </span>new_attr = TEMPLATE_FILE_ATTR;
+                new_attr.ino = id;
+                new_attr.kind = FileType::RegularFile;
+                new_attr.size = <span class="number">0</span>;
+
+                reply.created(<span class="kw-2">&amp;</span>TTL, <span class="kw-2">&amp;</span>new_attr, <span class="number">0</span>, new_attr.ino, flags <span class="kw">as </span>u32);
+            }
+            <span class="prelude-val">Err</span>(err) =&gt; {
+                <span class="macro">log::error!</span>(<span class="string">"fuse_impl error: {:?}"</span>, err);
+                reply.error(err.raw_os_error().unwrap_or(EIO))
+            }
+        }
+    }
+
+    <span class="kw">fn </span>open(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _req: <span class="kw-2">&amp;</span>Request&lt;<span class="lifetime">'_</span>&gt;, ino: u64, flags: i32, reply: fuser::ReplyOpen) {
+        reply.opened(ino, flags <span class="kw">as </span>u32); <span class="comment">// TODO - check flags ?
+    </span>}
+
+    <span class="kw">fn </span>release(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        _req: <span class="kw-2">&amp;</span>Request&lt;<span class="lifetime">'_</span>&gt;,
+        _ino: u64,
+        _fh: u64,
+        _flags: i32,
+        _lock_owner: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+        _flush: bool,
+        reply: fuser::ReplyEmpty,
+    ) {
+        reply.ok();
+    }
+}
+
+<span class="kw">fn </span>time_or_now_to_system_time(time: TimeOrNow) -&gt; SystemTime {
+    <span class="kw">match </span>time {
+        TimeOrNow::Now =&gt; SystemTime::now(),
+        TimeOrNow::SpecificTime(time) =&gt; time,
+    }
+}
 
 <span class="kw">pub fn </span>mount_fuse(
-    source: <span class="kw-2">&amp;</span>Path,
-    mountpoint: <span class="kw-2">&amp;</span>Path,
-    tx: UnboundedSender&lt;NetworkMessage&gt;,
-) -&gt; (BackgroundSession, Arc&lt;Mutex&lt;Provider&gt;&gt;) {
-    <span class="kw">let </span>options = <span class="macro">vec!</span>[MountOption::RW, MountOption::FSName(<span class="string">"wormhole"</span>.to_string())];
-    <span class="kw">let </span>(handle, index) = <span class="kw">match </span>FuseController::index_folder(source) {
-        <span class="prelude-val">Ok</span>((handle, idx)) =&gt; (handle, idx),
-        <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="macro">todo!</span>(),
-    };
-    <span class="macro">println!</span>(<span class="string">"FUSE MOUNT, actual file index:\n{:#?}"</span>, index);
-    <span class="kw">let </span>provider = Arc::new(Mutex::new(Provider {
-        next_inode: (index.len() + <span class="number">2</span>) <span class="kw">as </span>u64,
-        index,
-        metal_handle: handle,
-        local_source: source.to_path_buf(),
-        tx,
-    }));
-    <span class="kw">let </span>ctrl = FuseController {
-        provider: provider.clone(),
-    };
-    (
-        fuser::spawn_mount2(ctrl, mountpoint, <span class="kw-2">&amp;</span>options).unwrap(),
-        provider,
-    )
+    mount_point: <span class="kw-2">&amp;</span>WhPath,
+    fs_interface: Arc&lt;FsInterface&gt;,
+) -&gt; io::Result&lt;BackgroundSession&gt; {
+    <span class="kw">let </span>options = <span class="macro">vec!</span>[
+        MountOption::RW,
+        <span class="comment">// MountOption::DefaultPermissions,
+        </span>MountOption::FSName(<span class="string">"wormhole"</span>.to_string()),
+    ];
+    <span class="kw">let </span>ctrl = FuseController { fs_interface };
+
+    fuser::spawn_mount2(ctrl, mount_point.to_string(), <span class="kw-2">&amp;</span>options)
 }
 </code></pre></div></section></main></body></html>

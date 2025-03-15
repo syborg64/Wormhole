@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["NetworkMessage"],"struct":["File","Folder"]};
+window.SIDEBAR_ITEMS = {"enum":["MessageContent","ToNetworkMessage"],"struct":["FileSystemSerialized","FromNetworkMessage"],"type":["Address"]};
