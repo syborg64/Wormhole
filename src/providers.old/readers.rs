@@ -9,17 +9,16 @@ use log::info;
 use std::ffi::OsStr;
 use std::io;
 use std::io::Read;
-use std::path::Path;
 
-use super::Provider;
-use super::TEMPLATE_FILE_ATTR;
+use super::FsEntry;
+use super::{InodeIndex, Provider, TEMPLATE_FILE_ATTR};
 
 // should maybe be restructured, but
 // those are the functions made freely by us following our needs
 // and they are directly used by the fuse lib
 impl Provider {
     // Used directly in the FuseControler read function
-    pub fn read(&self, ino: u64) -> io::Result<Vec<u8>> {
+    pub fn read(&self, ino: InodeIndex) -> io::Result<Vec<u8>> {
         println!("read called on ino {}", ino); // DEBUG
         match self.mirror_path_from_inode(ino) {
             Ok(path) => {
@@ -35,16 +34,17 @@ impl Provider {
 
     // list files inodes in the parent folder
     // List from hashmap and not from disk
-    fn list_files(&self, parent_ino: u64) -> io::Result<Vec<u64>> {
+    fn list_files(&self, parent_ino: InodeIndex) -> io::Result<Vec<u64>> {
         println!("list files called on ino {}", parent_ino); // DEBUG
         match self.index.get(&parent_ino) {
-            Some((_, parent_path)) => {
-                debug!("LISTING files in parent path {:?}", parent_path);
+            Some(entry) => {
+                let parent_path = entry.get_path();
+
                 let ino_list = self
                     .index
                     .iter()
-                    .filter_map(|e| {
-                        let e_path = &e.1 .1;
+                    .filter_map(|(ino, entry)| {
+                        let e_path = entry.get_path();
                         let e_parent = e_path.parent()?;
 
                         if e_path == parent_path {
@@ -59,7 +59,7 @@ impl Provider {
                             );
                             if e_parent == parent_path {
                                 println!(">yes");
-                                Some(*e.0)
+                                Some(*ino)
                             } else {
                                 println!(">no");
                                 None
@@ -73,44 +73,30 @@ impl Provider {
             None => {
                 println!("ERROR IN RESULT");
                 Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                "Parent inode not found",
-            ))}
-        }
-    }
-
-    // returns a small amount of data for a file (asked for readdir)
-    // -> (ino, type, name)
-    fn file_small_meta(&self, ino: u64) -> io::Result<(u64, fuser::FileType, String)> {
-        println!("file_small_meta called on ino {}", ino); // DEBUG
-        match self.index.get(&ino) {
-            Some((file_type, file_path)) => {
-                let file_name = match Path::new(file_path).file_name() {
-                    Some(name) => name.to_string_lossy().to_string(),
-                    None => {
-                        return Err(io::Error::new(io::ErrorKind::Other, "Invalid path ending"))
-                    }
-                };
-                Ok((ino, file_type.clone(), file_name))
+                    io::ErrorKind::NotFound,
+                    "Parent inode not found",
+                ))
             }
-            None => Err(io::Error::new(io::ErrorKind::NotFound, "Inode not found")),
         }
     }
 
     // used directly in FuseControler's readdir function
-    pub fn fs_readdir(&self, parent_ino: u64) -> io::Result<Vec<(u64, fuser::FileType, String)>> {
+    pub fn fs_readdir(&self, parent_ino: InodeIndex) -> io::Result<Vec<(InodeIndex, &FsEntry)>> {
         println!("fs_readdir called on ino {}", parent_ino); // DEBUG
         match self.list_files(parent_ino) {
             Ok(list) => Ok(list
                 .into_iter()
-                .filter_map(|e| self.file_small_meta(e).ok())
+                .filter_map(|inode| match self.index.get(&inode) {
+                    Some(entry) => Some((inode, entry)),
+                    None => None,
+                })
                 .collect()),
             Err(e) => Err(e),
         }
     }
 
     // use real fs metadata and traduct part of it to the fuse FileAttr metadata
-    fn modify_metadata_template(data: openat::Metadata, ino: u64) -> FileAttr {
+    fn modify_metadata_template(data: openat::Metadata, ino: InodeIndex) -> FileAttr {
         let mut attr = TEMPLATE_FILE_ATTR;
         attr.ino = ino;
         attr.kind = if data.is_dir() {
@@ -125,7 +111,7 @@ impl Provider {
     }
 
     // get the metadata of a file from it's inode
-    pub fn get_metadata(&self, ino: u64) -> io::Result<FileAttr> {
+    pub fn get_metadata(&self, ino: InodeIndex) -> io::Result<FileAttr> {
         println!("get_metadata called on ino {}", ino); // DEBUG
         match self.mirror_path_from_inode(ino) {
             Ok(path) => {
@@ -138,11 +124,11 @@ impl Provider {
             Err(e) => {
                 println!("....mirror path from inode FAILED");
                 Err(e)
-            },
+            }
         }
     }
 
-    pub fn fs_lookup(&self, parent_ino: u64, file_name: &OsStr) -> io::Result<FileAttr> {
+    pub fn fs_lookup(&self, parent_ino: InodeIndex, file_name: &OsStr) -> io::Result<FileAttr> {
         println!(
             "fs_lookup called on ino {} and file name {:#?}",
             parent_ino, file_name
@@ -152,10 +138,10 @@ impl Provider {
             Ok(datas) => {
                 let mut metadata: io::Result<FileAttr> =
                     Err(io::Error::new(io::ErrorKind::NotFound, "Path not found"));
-                for data in datas {
-                    println!("looping on {:?}", data);
-                    if data.2 == file_name {
-                        metadata = self.get_metadata(data.0);
+                for (ino, entry) in datas {
+                    println!("looping on {:?}", entry);
+                    if entry.get_name()?.to_string_lossy() == file_name {
+                        metadata = self.get_metadata(ino);
                     };
                 }
                 metadata

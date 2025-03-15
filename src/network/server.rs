@@ -1,16 +1,14 @@
 use std::{
     collections::HashMap,
+    net::SocketAddr,
     sync::{Arc, Mutex},
 };
 
-use tokio::{
-    net::{unix::SocketAddr, TcpListener},
-    sync::mpsc::UnboundedReceiver,
-};
+use tokio::{net::TcpListener, sync::mpsc::UnboundedReceiver};
 
-use super::message::NetworkMessage;
+use super::message::ToNetworkMessage;
 
-pub type Tx = UnboundedReceiver<NetworkMessage>;
+pub type Tx = UnboundedReceiver<ToNetworkMessage>;
 pub type PeerMap = Arc<Mutex<HashMap<SocketAddr, Tx>>>;
 
 pub struct Server {

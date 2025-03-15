@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::os::unix::fs::MetadataExt;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MetaData {
@@ -16,7 +15,7 @@ impl MetaData {
         Ok(Self {
             name: path.to_path_buf(),
             // checksum: Sha256::new().input(file),
-            size: stat.size(),
+            size: stat.len(),
             owners: vec![],
             mtime: stat.modified()?,
         })
