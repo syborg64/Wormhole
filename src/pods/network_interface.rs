@@ -420,6 +420,7 @@ impl NetworkInterface {
                 .iter()
                 .map(|peer| peer.address.clone())
                 .filter(|addr| *addr != self.self_addr)
+                .take(REDUNDANCY_NB)
                 .collect()
         } else {
             return Err(io::Error::new(
