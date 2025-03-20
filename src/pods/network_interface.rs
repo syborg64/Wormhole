@@ -397,7 +397,7 @@ impl NetworkInterface {
     // !SECTION ^ Redundancy related
 
     pub fn apply_redundancy(&self, file_id: InodeId) -> io::Result<()> {
-        let hosts = {
+        let hosts: Vec<String> = {
             let arbo = Arbo::read_lock(&self.arbo, "apply_redundancy")?;
 
             if let FsEntry::File(hosts) = &arbo.get_inode(file_id)?.entry {
@@ -410,36 +410,47 @@ impl NetworkInterface {
             }
         };
 
-        if hosts.len() >= REDUNDANCY_NB {
-            return Ok(());
-        }
+        if hosts.len() < REDUNDANCY_NB {
+            let possible_hosts: Vec<String> =
+                if let Some(peers) = self.peers.try_read_for(LOCK_TIMEOUT) {
+                    peers
+                        .iter()
+                        .map(|peer| peer.address.clone())
+                        .filter(|addr| *addr != self.self_addr)
+                        .take(REDUNDANCY_NB)
+                        .collect()
+                } else {
+                    return Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        "apply_redundancy: can't lock peers mutex",
+                    ));
+                };
 
-        let possible_hosts: Vec<String> = if let Some(peers) = self.peers.try_read_for(LOCK_TIMEOUT)
-        {
-            peers
-                .iter()
-                .map(|peer| peer.address.clone())
+            if possible_hosts.len() < REDUNDANCY_NB {
+                todo!("redundancy needs enough hosts")
+            }
+
+            self.to_network_message_tx
+                .send(ToNetworkMessage::SpecificMessage(
+                    MessageContent::RequestPull(file_id),
+                    possible_hosts,
+                ))
+                .expect("apply_redundancy: unable to send redundancy on the network thread");
+        } else if hosts.len() > REDUNDANCY_NB {
+            let hosts_nb = hosts.len();
+            let discard_hosts: Vec<String> = hosts
+                .into_iter()
                 .filter(|addr| *addr != self.self_addr)
-                .take(REDUNDANCY_NB)
-                .collect()
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                "apply_redundancy: can't lock peers mutex",
-            ));
-        };
+                .take(hosts_nb - REDUNDANCY_NB)
+                .collect();
 
-        if possible_hosts.len() < REDUNDANCY_NB {
-            todo!("redundancy needs enough hosts")
+            self.to_network_message_tx
+                .send(ToNetworkMessage::SpecificMessage(
+                    MessageContent::DiscardRedundancy(file_id),
+                    discard_hosts,
+                ))
+                .expect("apply_redundancy: unable to send discard redundancy on the network thread");
         }
-
-        self.to_network_message_tx
-            .send(ToNetworkMessage::SpecificMessage(
-                MessageContent::RequestPull(file_id),
-                possible_hosts,
-            ))
-            .expect("apply_redundancy: unable to send redundancy on the network thread");
-
         Ok(())
     }
 
