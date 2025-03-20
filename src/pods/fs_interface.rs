@@ -203,6 +203,14 @@ impl FsInterface {
             .cloned()
     }
 
+    // NOTE - ignores the callback. To pull a file normaly, please use a process similar to read_file
+    pub fn pull_file(&self, file: InodeId) -> io::Result<()> {
+        match self.network_interface.pull_file(file) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e)
+        }
+    }
+
     pub fn read_file(&self, file: InodeId, offset: u64, len: u64) -> io::Result<Vec<u8>> {
         let cb = self.network_interface.pull_file(file)?;
 

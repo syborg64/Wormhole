@@ -33,6 +33,8 @@ pub struct Callbacks {
     callbacks: RwLock<HashMap<Callback, broadcast::Sender<bool>>>,
 }
 
+const REDUNDANCY_NB: usize = 2;
+
 impl Callbacks {
     pub fn create(&self, call: Callback) -> io::Result<Callback> {
         if let Some(mut callbacks) = self.callbacks.try_write_for(LOCK_TIMEOUT) {
@@ -390,6 +392,58 @@ impl NetworkInterface {
          */
     }
 
+    // SECTION Redundancy related
+
+    // !SECTION ^ Redundancy related
+
+    pub fn apply_redundancy(&self, file_id: InodeId) -> io::Result<()> {
+        let hosts = {
+            let arbo = Arbo::read_lock(&self.arbo, "apply_redundancy")?;
+
+            if let FsEntry::File(hosts) = &arbo.get_inode(file_id)?.entry {
+                hosts.clone()
+            } else {
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    "can't apply redundancy to a folder",
+                ));
+            }
+        };
+
+        if hosts.len() >= REDUNDANCY_NB {
+            return Ok(());
+        }
+
+        let possible_hosts: Vec<String> = if let Some(peers) = self.peers.try_read_for(LOCK_TIMEOUT)
+        {
+            peers
+                .iter()
+                .map(|peer| peer.address.clone())
+                .filter(|addr| *addr != self.self_addr)
+                .collect()
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "apply_redundancy: can't lock peers mutex",
+            ));
+        };
+
+        if possible_hosts.len() < REDUNDANCY_NB {
+            todo!("redundancy needs enough hosts")
+        }
+
+        self.to_network_message_tx
+            .send(ToNetworkMessage::SpecificMessage(
+                MessageContent::RequestPull(file_id),
+                possible_hosts,
+            ))
+            .expect("apply_redundancy: unable to send redundancy on the network thread");
+
+        Ok(())
+    }
+
+    // SECTION Node related
+
     pub fn register_to_others(&self) {
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
@@ -495,6 +549,8 @@ impl NetworkInterface {
                     fs_interface.accept_rename(parent, new_parent, &name, &new_name)
                 }
                 MessageContent::FsAnswer(fs) => fs_interface.replace_arbo(fs),
+                MessageContent::RequestPull(id) => fs_interface.pull_file(id),
+                MessageContent::DiscardRedundancy(id) => todo!(),
             };
             if let Err(error) = action_result {
                 log::error!("Network airport couldn't operate this operation: {error}");
@@ -568,4 +624,6 @@ impl NetworkInterface {
             }
         }
     }
+
+    // !SECTION ^ Node related
 }
