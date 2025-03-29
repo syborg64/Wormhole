@@ -1,5 +1,5 @@
 use crate::pods::arbo::{FsEntry, Inode, Metadata};
-use crate::pods::fs_interface::{self, FsInterface, SimpleFileType};
+use crate::pods::fs_interface::{FsInterface, SimpleFileType};
 use crate::pods::whpath::WhPath;
 use fuser::{
     BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData,
@@ -104,7 +104,7 @@ pub struct FuseController {
 
 // NOTE for dev purpose while all metadata is not supported
 fn inode_to_fuse_fileattr(inode: Inode) -> FileAttr {
-    let mut attr : FileAttr = inode.meta.into();
+    let mut attr: FileAttr = inode.meta.into();
     attr.ino = inode.id;
     attr.kind = match inode.entry {
         FsEntry::Directory(_) => fuser::FileType::Directory,
@@ -459,8 +459,8 @@ impl Filesystem for FuseController {
                 reply.created(&TTL, &new_attr, 0, new_attr.ino, flags as u32);
             }
             Err(err) => {
-                    log::error!("fuse_impl error: {:?}", err);
-                    reply.error(err.raw_os_error().unwrap_or(EIO))
+                log::error!("fuse_impl error: {:?}", err);
+                reply.error(err.raw_os_error().unwrap_or(EIO))
             }
         }
     }

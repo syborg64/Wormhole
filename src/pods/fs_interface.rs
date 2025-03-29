@@ -246,9 +246,16 @@ impl FsInterface {
 
     // SECTION - remote -> write
 
-    pub fn replace_arbo(&self, new: FileSystemSerialized) -> io::Result<()> {
-        self.network_interface.replace_arbo(new)
-    }
+    // pub async fn replace_arbo(
+    //     &self,
+    //     new: FileSystemSerialized,
+    //     first_connect: Address,
+    //     address: Vec<Address>,
+    // ) -> io::Result<()> {
+    //     self.network_interface
+    //         .replace_arbo(new, first_connect, address)
+    //         .await
+    // }
 
     pub fn recept_inode(&self, inode: Inode, id: InodeId) -> io::Result<()> {
         self.network_interface.acknowledge_new_file(inode, id)?;
