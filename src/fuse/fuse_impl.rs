@@ -15,6 +15,29 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 // NOTE - placeholders
 const TTL: Duration = Duration::from_secs(1);
 
+impl Into<FileType> for SimpleFileType {
+    fn into(self) -> FileType {
+        match self {
+            SimpleFileType::File => FileType::RegularFile,
+            SimpleFileType::Directory => FileType::Directory,
+        }
+    }
+}
+
+impl Into<SimpleFileType> for FileType {
+    fn into(self) -> SimpleFileType {
+        match self {
+            FileType::RegularFile => SimpleFileType::File,
+            FileType::Directory => SimpleFileType::Directory,
+            FileType::NamedPipe => todo!("file type not supported"),
+            FileType::CharDevice => todo!("file type not supported"),
+            FileType::BlockDevice => todo!("file type not supported"),
+            FileType::Symlink => todo!("file type not supported"),
+            FileType::Socket => todo!("file type not supported"),
+        }
+    }
+}
+
 const MOUNT_DIR_ATTR: FileAttr = FileAttr {
     ino: 1,
     size: 0,
@@ -64,7 +87,7 @@ impl Into<FileAttr> for Metadata {
             mtime: self.mtime,
             ctime: self.ctime,
             crtime: self.crtime,
-            kind: self.kind,
+            kind: self.kind.into(),
             perm: self.perm,
             nlink: self.nlink,
             uid: self.uid,
@@ -86,7 +109,7 @@ impl Into<Metadata> for FileAttr {
             mtime: self.mtime,
             ctime: self.ctime,
             crtime: self.crtime,
-            kind: self.kind,
+            kind: self.kind.into(),
             perm: self.perm,
             nlink: self.nlink,
             uid: self.uid,
@@ -118,29 +141,20 @@ impl Filesystem for FuseController {
     // READING
 
     fn lookup(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEntry) {
-        debug!(
-            "called lookup: {} > {}",
-            parent,
-            name.to_string_lossy().to_string()
-        );
-
         match self
             .fs_interface
             .get_entry_from_name(parent, name.to_string_lossy().to_string())
         {
             Ok(inode) => {
-                // debug!("yes entry for name {} - {}", parent, name.to_string_lossy().to_string());
                 reply.entry(&TTL, &inode_to_fuse_fileattr(inode), 0);
             }
             Err(_) => {
-                // debug!("no entry for name {} - {}", parent, name.to_string_lossy().to_string());
                 reply.error(ENOENT);
             }
         };
     }
 
     fn getattr(&mut self, _req: &Request, ino: u64, _: Option<u64>, reply: ReplyAttr) {
-        debug!("called getattr ino:{}", ino);
         let attrs = self.fs_interface.get_inode_attributes(ino);
 
         match attrs {
@@ -170,7 +184,6 @@ impl Filesystem for FuseController {
         flags: Option<u32>,
         reply: ReplyAttr,
     ) {
-        debug!("called setattr ino:{}", ino);
         let attrs = match self.fs_interface.get_inode_attributes(ino) {
             Ok(attrs) => Metadata {
                 ino: attrs.ino,
@@ -240,7 +253,6 @@ impl Filesystem for FuseController {
         _lock: Option<u64>,
         reply: ReplyData,
     ) {
-        debug!("called read ino:{}", ino);
         let content = self.fs_interface.read_file(
             ino,
             offset.try_into().expect("fuse_impl::read offset negative"),
@@ -264,7 +276,6 @@ impl Filesystem for FuseController {
         offset: i64,
         mut reply: ReplyDirectory,
     ) {
-        debug!("called readdir ino:{} offset:{}", ino, offset);
         let entries = match self.fs_interface.read_dir(ino) {
             Ok(entries) => entries,
             Err(e) => {
@@ -279,7 +290,7 @@ impl Filesystem for FuseController {
                 ino,
                 // i + 1 means offset of the next entry
                 i as i64 + 1, // NOTE - in case of error, try i + 1
-                entry.entry.get_filetype(),
+                entry.entry.get_filetype().into(),
                 entry.name,
             ) {
                 break;
@@ -417,7 +428,7 @@ impl Filesystem for FuseController {
             .try_into()
             .expect("fuser write: can't convert i64 to u64");
 
-        match self.fs_interface.write(ino, data.to_vec(), offset) {
+        match self.fs_interface.write(ino, data, offset) {
             Ok(written) => reply.written(
                 written
                     .try_into()
@@ -442,8 +453,6 @@ impl Filesystem for FuseController {
         flags: i32,
         reply: fuser::ReplyCreate,
     ) {
-        debug!("CREATE called on parent {} for {:?}", parent, name);
-
         match self.fs_interface.make_inode(
             parent,
             name.to_string_lossy().to_string(),
@@ -466,7 +475,6 @@ impl Filesystem for FuseController {
     }
 
     fn open(&mut self, _req: &Request<'_>, ino: u64, flags: i32, reply: fuser::ReplyOpen) {
-        log::debug!("fuse call open on {}", ino);
         reply.opened(ino, flags as u32); // TODO - check flags ?
     }
 
@@ -480,7 +488,6 @@ impl Filesystem for FuseController {
         _flush: bool,
         reply: fuser::ReplyEmpty,
     ) {
-        log::debug!("fuse call release");
         reply.ok();
     }
 }

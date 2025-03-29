@@ -1,12 +1,10 @@
 use std::{
     collections::HashMap,
+    net::SocketAddr,
     sync::{Arc, Mutex},
 };
 
-use tokio::{
-    net::{unix::SocketAddr, TcpListener},
-    sync::mpsc::UnboundedReceiver,
-};
+use tokio::{net::TcpListener, sync::mpsc::UnboundedReceiver};
 
 use super::message::ToNetworkMessage;
 

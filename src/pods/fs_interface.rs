@@ -9,6 +9,7 @@ use super::{
     network_interface::NetworkInterface,
 };
 use parking_lot::RwLock;
+use serde::{Deserialize, Serialize};
 use std::io::{self};
 use std::sync::Arc;
 
@@ -19,9 +20,19 @@ pub struct FsInterface {
                                  // REVIEW - check self.arbo usage to be only reading
 }
 
+#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub enum SimpleFileType {
     File,
     Directory,
+}
+
+impl Into<SimpleFileType> for &FsEntry {
+    fn into(self) -> SimpleFileType {
+        match self {
+            FsEntry::File(_) => SimpleFileType::File,
+            FsEntry::Directory(_) => SimpleFileType::Directory,
+        }
+    }
 }
 
 /// Provides functions to allow primitive handlers like Fuse & WinFSP to
@@ -110,7 +121,7 @@ impl FsInterface {
         Ok(())
     }
 
-    pub fn write(&self, id: InodeId, data: Vec<u8>, offset: u64) -> io::Result<u64> {
+    pub fn write(&self, id: InodeId, data: &[u8], offset: u64) -> io::Result<u64> {
         let written = {
             let arbo = Arbo::read_lock(&self.arbo, "fs_interface.write")?;
             let path = arbo.get_path_from_inode_id(id)?;
@@ -225,7 +236,6 @@ impl FsInterface {
 
     pub fn read_dir(&self, ino: InodeId) -> io::Result<Vec<Inode>> {
         let arbo = Arbo::read_lock(&self.arbo, "fs_interface.read_dir")?;
-        arbo.log();
         let dir = arbo.get_inode(ino)?;
         let mut entries: Vec<Inode> = Vec::new();
 
@@ -250,7 +260,6 @@ impl FsInterface {
 
         let new_path = {
             let arbo = Arbo::read_lock(&self.arbo, "fs_interface.write")?;
-            arbo.log();
             arbo.get_path_from_inode_id(id)?
         };
 
@@ -280,7 +289,7 @@ impl FsInterface {
                 }
             }
         };
-        let status = self.disk.write_file(path, binary, 0).is_ok();
+        let status = self.disk.write_file(path, &binary, 0).is_ok();
         self.network_interface
             .callbacks
             .resolve(Callback::Pull(id), status)?;
