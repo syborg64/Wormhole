@@ -1,5 +1,6 @@
 use std::{io, sync::Arc};
 
+use log::info;
 use parking_lot::RwLock;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::task::JoinHandle;
@@ -38,43 +39,56 @@ pub struct Pod {
     new_peer_handle: Option<JoinHandle<()>>,
 }
 
-pub async fn initiate(
+pub async fn initiate_connection(
     peers_addrs: Vec<Address>,
     server_address: Address,
     tx: &UnboundedSender<FromNetworkMessage>,
     rx: &mut UnboundedReceiver<FromNetworkMessage>,
-) -> io::Result<Option<(FileSystemSerialized, Vec<Address>, PeerIPC)>> {
+) -> Option<(FileSystemSerialized, Vec<Address>, PeerIPC)> {
     if peers_addrs.len() >= 1 {
         for first_contact in peers_addrs {
             let first_ipc = PeerIPC::connect(first_contact.to_owned(), tx.clone()).await;
 
             if let Some(ipc) = first_ipc {
-                let _ = ipc.sender.send(MessageContent::RequestFs);
+                if let Err(err) = ipc.sender.send(MessageContent::RequestFs) {
+                    info!(
+                        "Connection with {first_contact} failed: {err}.\n
+                        Trying with next know address"
+                    );
+                    continue;
+                }
 
                 loop {
-                    let FromNetworkMessage { origin: _, content } = match rx.recv().await {
-                        Some(message) => message,
+                    let file_system: FileSystemSerialized;
+                    let mut peers_address: Vec<Address>;
+
+                    match rx.recv().await {
+                        Some(FromNetworkMessage {
+                            origin: _,
+                            content: MessageContent::FsAnswer(fs, address),
+                        }) => {
+                            file_system = fs;
+                            peers_address = address;
+                        }
+                        Some(_) => {
+                            info!(
+                                "First message with {first_contact} failed: His answer is not the FileSystem, corrupted client.\n
+                                Trying with next know address"
+                            );
+                            break;
+                        }
                         None => continue,
                     };
 
-                    if let MessageContent::FsAnswer(fs_serialized, mut network_address) = content {
-                        network_address.retain(|address| {
-                            *address != server_address && *address != first_contact
-                        });
-                        return Ok(Some((fs_serialized, network_address, ipc)));
-                    } else {
-                        return Err(std::io::Error::new(
-                            io::ErrorKind::Unsupported,
-                            "First message from other is not fs answer",
-                        ));
-                    }
+                    peers_address
+                        .retain(|address| *address != server_address && *address != first_contact);
+                    return Some((file_system, peers_address, ipc));
                 }
             }
         }
-        Ok(None)
-    } else {
-        Ok(None)
+        info!("Non of the known address answered correctly, starting a FS.")
     }
+    None
 }
 
 impl Pod {
@@ -95,13 +109,13 @@ impl Pod {
 
         let mut peers = vec![];
 
-        if let Some((fs_serialized, peers_addrs, ipc)) = initiate(
+        if let Some((fs_serialized, peers_addrs, ipc)) = initiate_connection(
             know_peers,
             server_address.clone(),
             &from_network_message_tx,
             &mut from_network_message_rx,
         )
-        .await?
+        .await
         {
             // remove itself from peers and first_connect because the connection is already existing
             peers = PeerIPC::peer_startup(peers_addrs, from_network_message_tx.clone()).await;
