@@ -1,22 +1,22 @@
 {
-  description = "build for wormhole-service with fuse";
-
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
+    flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = {nixpkgs, ...}: let
-    system = "x86_64-linux";
-    pkgs = import nixpkgs { inherit system; };
-  in {
-    devShells.${system}.build = pkgs.mkShell {
-      packages = [ pkgs.fuse3 pkgs.pkg-config pkgs.cargo pkgs.gcc ];
-      shellHook = ''
-        cargo build --bin wormhole-service
-        exit
-      '';
-    };
-  };
+  outputs = {nixpkgs, flake-utils, ...}:
+    flake-utils.lib.eachDefaultSystem (system: let
+      pkgs = nixpkgs.legacyPackages.${system};
+    in {
+      devShells.default = pkgs.mkShell {
+        packages = [
+          pkgs.cargo
+          pkgs.rustc
+          pkgs.pkg-config
+          pkgs.fuse3
+        ];
+#        PKG_CONFIG_PATH = "${pkgs.fuse3}/lib/pkgconfig";
+#        LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [pkgs.fuse3];
+      };
+    });
 }
-# use with :
-# nix develop .#build
