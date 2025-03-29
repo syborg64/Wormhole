@@ -3,22 +3,26 @@
 // AgarthaSoftware - 2024
 
 use clap::Parser;
-use wormhole::commands;
+use wormhole::{commands, pods::whpath::WhPath};
 
 #[derive(Parser)] // requires `derive` feature
 #[command(name = "wormhole")]
 #[command(bin_name = "wormhole")]
 enum Cli {
+    /// start the service
+    Start,
+    /// stop the service
+    Stop,
+    /// create a new network (template)
+    Template(TemplateArg),
+    /// make a pod and create a new network
+    Init(PodArgs),
     /// make a pod and join a network
     Join(JoinArgs),
-    /// make a pod and create a new network (template)
-    Template(TemplateArg),
-    /// mount a pod based on config files
-    Mount,
-    /// remove a pod from its network
-    Remove(RemoveArgs),
     /// inspect a pod with its configuration, connections, etc
     Inspect,
+    /// remove a pod from its network
+    Remove(RemoveArgs),
 }
 
 #[derive(clap::Args)]
@@ -26,7 +30,7 @@ enum Cli {
 struct PodArgs {
     /// Change to DIRECTORY before doing anything
     #[arg(long, short = 'C')]
-    path: Option<std::path::PathBuf>,
+    path: Option<WhPath>,
 }
 
 #[derive(clap::Args)]
@@ -40,7 +44,7 @@ struct JoinArgs {
     additional_hosts: Option<Vec<String>>,
     /// Change to DIRECTORY before doing anything
     #[arg(long, short = 'C')]
-    path: Option<std::path::PathBuf>,
+    path: Option<WhPath>,
 }
 
 #[derive(clap::Args)]
@@ -51,7 +55,7 @@ struct TemplateArg {
     name: Option<String>,
     /// Change to DIRECTORY before doing anything
     #[arg(long, short = 'C')]
-    path: Option<std::path::PathBuf>,
+    path: Option<WhPath>,
 }
 
 #[derive(clap::Args)]
@@ -66,19 +70,18 @@ struct RemoveArgs {
     delete: bool,
     /// Change to DIRECTORY before doing anything
     #[arg(long, short = 'C')]
-    path: Option<std::path::PathBuf>,
+    path: Option<WhPath>,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     match Cli::parse() {
-        Cli::Join(args) => {
-            println!("joining {}", args.url);
-            println!("(additional hosts: {:?})", args.additional_hosts);
-            commands::join(
-                &args.path.unwrap_or(".".into()),
-                args.url,
-                args.additional_hosts.unwrap_or(vec![]),
-            )?;
+        Cli::Start => {
+            println!("starting service");
+            todo!("start");
+        }
+        Cli::Stop => {
+            println!("stoping service");
+            todo!("stop");
         }
         Cli::Template(args) => {
             println!(
@@ -88,6 +91,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             commands::templates(
                 &args.path.unwrap_or(".".into()),
                 &args.name.unwrap_or("default".into()),
+            )?;
+        }
+        Cli::Init(args) => {
+            println!("init service");
+            commands::init(&args.path.unwrap_or(".".into()))?;
+            todo!("init");
+        }
+        Cli::Join(args) => {
+            println!("joining {}", args.url);
+            println!("(additional hosts: {:?})", args.additional_hosts);
+            commands::join(
+                &args.path.unwrap_or(".".into()),
+                args.url,
+                args.additional_hosts.unwrap_or(vec![]),
             )?;
         }
         Cli::Remove(args) => {
@@ -100,10 +117,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 _ => unreachable!("multiple exclusive options"),
             };
             commands::remove(&args.path.unwrap_or(".".into()), mode)?;
-        }
-        Cli::Mount => {
-            println!("mounting pod");
-            todo!("mount");
         }
         Cli::Inspect => {
             println!("inspecting pod");
