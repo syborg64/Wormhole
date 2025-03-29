@@ -49,9 +49,7 @@ pub async fn initiate(
             let first_ipc = PeerIPC::connect(first_contact.to_owned(), tx.clone()).await;
 
             if let Some(ipc) = first_ipc {
-                let _ = ipc
-                    .sender
-                    .send(MessageContent::RequestFs(server_address.clone()));
+                let _ = ipc.sender.send(MessageContent::RequestFs);
 
                 loop {
                     let FromNetworkMessage { origin: _, content } = match rx.recv().await {

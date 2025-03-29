@@ -356,8 +356,8 @@ impl FsInterface {
     // !SECTION
 
     // SECTION remote -> read
-    pub fn send_filesystem(&self, to: Address, real_address: Address) -> io::Result<()> {
-        self.network_interface.send_arbo(to, real_address)
+    pub fn send_filesystem(&self, to: Address) -> io::Result<()> {
+        self.network_interface.send_arbo(to)
     }
 
     pub fn register_new_node(&self, socket: Address, addr: Address) {

@@ -439,7 +439,7 @@ impl NetworkInterface {
 
         self.to_network_message_tx
             .send(ToNetworkMessage::SpecificMessage(
-                MessageContent::RequestFs(self.self_addr.clone()), //TODO: Removed member
+                MessageContent::RequestFs,
                 vec![to],
             ))
             .expect("request_arbo: unable to update modification on the network thread");
@@ -459,7 +459,7 @@ impl NetworkInterface {
         }
     }
 
-    pub fn send_arbo(&self, to: Address, real_address: Address) -> io::Result<()> {
+    pub fn send_arbo(&self, to: Address) -> io::Result<()> {
         let arbo = Arbo::read_lock(&self.arbo, "send_arbo")?;
         let mut entries = arbo.get_raw_entries();
 
@@ -483,7 +483,7 @@ impl NetworkInterface {
                         },
                         peers_address_list,
                     ),
-                    vec![real_address],
+                    vec![to],
                 ))
                 .expect("send_arbo: unable to update modification on the network thread");
             Ok(())
@@ -532,10 +532,7 @@ impl NetworkInterface {
                 }
                 MessageContent::Remove(id) => fs_interface.recept_remove_inode(id),
                 MessageContent::RequestFile(inode, peer) => fs_interface.send_file(inode, peer),
-                MessageContent::RequestFs(origin_addr) => {
-                    //TODO: Removed origin_addr redundent
-                    fs_interface.send_filesystem(origin, origin_addr)
-                }
+                MessageContent::RequestFs => fs_interface.send_filesystem(origin),
                 MessageContent::Register(addr) => Ok(fs_interface.register_new_node(origin, addr)),
                 MessageContent::Rename(parent, new_parent, name, new_name) => {
                     fs_interface.accept_rename(parent, new_parent, &name, &new_name)

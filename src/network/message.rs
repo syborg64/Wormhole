@@ -13,10 +13,10 @@ pub enum MessageContent {
     Inode(Inode, InodeId),
     RequestFile(InodeId, Address),
     PullAnswer(InodeId, Vec<u8>),
-    RequestFs(Address),                       //TODO: Removed member
     Rename(InodeId, InodeId, String, String), //Parent, New Parent, Name, New Name
     EditHosts(InodeId, Vec<Address>),
     EditMetadata(InodeId, Metadata, Address),
+    RequestFs,
     FsAnswer(FileSystemSerialized, Vec<Address>),
 }
 
