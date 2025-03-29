@@ -59,16 +59,16 @@ pub async fn initiate_connection(
                 }
 
                 loop {
-                    let file_system: FileSystemSerialized;
-                    let mut peers_address: Vec<Address>;
-
                     match rx.recv().await {
                         Some(FromNetworkMessage {
                             origin: _,
-                            content: MessageContent::FsAnswer(fs, address),
+                            content: MessageContent::FsAnswer(fs, mut peers_address),
                         }) => {
-                            file_system = fs;
-                            peers_address = address;
+                            // remove itself from peers and first_connect because the connection is already existing
+                            peers_address.retain(|address| {
+                                *address != server_address && *address != first_contact
+                            });
+                            return Some((fs, peers_address, ipc));
                         }
                         Some(_) => {
                             info!(
@@ -79,10 +79,6 @@ pub async fn initiate_connection(
                         }
                         None => continue,
                     };
-
-                    peers_address
-                        .retain(|address| *address != server_address && *address != first_contact);
-                    return Some((file_system, peers_address, ipc));
                 }
             }
         }
@@ -117,7 +113,6 @@ impl Pod {
         )
         .await
         {
-            // remove itself from peers and first_connect because the connection is already existing
             peers = PeerIPC::peer_startup(peers_addrs, from_network_message_tx.clone()).await;
             peers.push(ipc);
             arbo.overwrite_self(fs_serialized.fs_index);
