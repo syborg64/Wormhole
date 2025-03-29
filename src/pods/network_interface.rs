@@ -389,42 +389,6 @@ impl NetworkInterface {
          * Or send a bunch of Specific messages
          */
     }
-    /*
-    Scenario 1:
-
-    for peer in known_peers:
-        send peer => IM CONNECTING
-        if answer {
-            send answer.all_peers => I exist guys, don't forget about me
-            arbo = answer.arbo
-            known_peers = answer.all_peers
-            break;
-        }
-
-
-    Actuellement:
-        send known_peers => I exist guys, don't forget about me
-        send known_peers[0] => give me arbo
-        arbo = answer.arbo
-
-    */
-
-    // pub async fn initiate(
-    //     &self,
-    //     know_addresses: &Vec<Address>,
-    //     from_network_message_tx: UnboundedSender<FromNetworkMessage>,
-    // ) -> io::Result<()> {
-    //     let callback = self.callbacks.create(Callback::PullFs)?;
-
-    //     //self.register_to_others();
-
-    //     //info!("Will pull filesystem from remote... {:?}", peers_addrs);
-    //     //self.request_arbo(peers_addrs[0].clone()).await?;
-    //     Err(std::io::Error::new(
-    //         io::ErrorKind::AddrNotAvailable,
-    //         "No valid address given",
-    //     ))
-    // }
 
     pub fn register_to_others(&self) {
         self.to_network_message_tx
@@ -498,19 +462,6 @@ impl NetworkInterface {
     pub fn register_new_node(&self, socket: Address, addr: Address) {
         self.edit_peer_ip(socket, addr);
     }
-
-    // // NOTE - meant only for pulling the arbo at startup !
-    // // Does not care for currently ongoing business when called
-
-    // //REMOVE FROM NETWORK INTERFACE
-    // pub async fn replace_arbo(
-    //     &self,
-    //     new: FileSystemSerialized,
-    //     first_connect: Address,
-    //     mut address: Vec<Address>,
-    // ) -> io::Result<()> {
-
-    // }
 
     pub async fn network_airport(
         mut network_reception: UnboundedReceiver<FromNetworkMessage>,

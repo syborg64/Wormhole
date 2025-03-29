@@ -1,6 +1,6 @@
-use crate::network::message::{Address, FileSystemSerialized};
+use crate::network::message::Address;
 
-use super::arbo::{self, Metadata};
+use super::arbo::Metadata;
 use super::network_interface::Callback;
 use super::whpath::WhPath;
 use super::{
@@ -9,7 +9,6 @@ use super::{
     network_interface::NetworkInterface,
 };
 use parking_lot::RwLock;
-use std::cmp::max;
 use std::io::{self};
 use std::sync::Arc;
 
@@ -245,17 +244,6 @@ impl FsInterface {
     // !SECTION
 
     // SECTION - remote -> write
-
-    // pub async fn replace_arbo(
-    //     &self,
-    //     new: FileSystemSerialized,
-    //     first_connect: Address,
-    //     address: Vec<Address>,
-    // ) -> io::Result<()> {
-    //     self.network_interface
-    //         .replace_arbo(new, first_connect, address)
-    //         .await
-    // }
 
     pub fn recept_inode(&self, inode: Inode, id: InodeId) -> io::Result<()> {
         self.network_interface.acknowledge_new_file(inode, id)?;
