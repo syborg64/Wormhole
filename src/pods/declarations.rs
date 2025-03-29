@@ -86,7 +86,7 @@ pub async fn initiate_connection(
                 }
             }
         }
-        info!("Non of the known address answered correctly, starting a FS.")
+        info!("None of the known address answered correctly, starting a FS.")
     }
     None
 }
