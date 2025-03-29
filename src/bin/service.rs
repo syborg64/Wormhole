@@ -19,18 +19,105 @@
  */
 use std::{env, path::PathBuf, sync::Arc};
 
+use futures_util::sink::SinkExt;
+use futures_util::{StreamExt, TryStreamExt};
 use log::info;
+use tokio::net::TcpListener;
+use tokio::sync::mpsc;
+use tokio_tungstenite::accept_async;
+use tokio_tungstenite::tungstenite::Message;
 #[cfg(target_os = "windows")]
 use winfsp::winfsp_init;
 use wormhole::config;
 use wormhole::config::types::{
     GeneralGlobalConfig, GeneralLocalConfig, GlobalConfig, LocalConfig, RedundancyConfig,
 };
+use wormhole::network::peer_ipc::PeerIPC;
 use wormhole::pods::whpath::{JoinPath, WhPath};
 use wormhole::{network::server::Server, pods::declarations::Pod};
 
+fn central_hub(cmd: Message) -> Result<String, Box<dyn std::error::Error>> {
+    let msg = cmd.into_text().unwrap_or("Error".to_string());
+    match msg.as_str() {
+        "join" => {
+            println!("you join a wormhole network");
+            Ok("retunred from join".to_string())
+        }
+        "status" => Ok("status not implemented".to_string()),
+        _ => Err("command not recognized".to_string().into()),
+    }
+}
+
+async fn handle_cli_command(ws_stream: tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>) {
+    let (mut write, mut read) = ws_stream.split();
+    if let Some(message) = read.next().await {
+        match message {
+            Ok(msg) => {
+                println!("Message receive: {}", msg);
+                let response = central_hub(msg);
+                if let Err(e) = write
+                    .send(Message::Text(
+                        response.unwrap_or("Error in central hub".to_string()),
+                    ))
+                    .await
+                {
+                    eprintln!("Erreur lors de l'envoi du message : {}", e);
+                }
+            }
+            Err(e) => {
+                eprintln!("Connexion error: {}", e);
+            }
+        }
+    }
+    // Fermer la connexion proprement
+    if let Err(e) = write.close().await {
+        eprintln!("Erreur lors de la fermeture de la connexion : {}", e);
+    }
+}
+
+async fn start_cli_listener() {
+    let listener = TcpListener::bind("127.0.0.1:8081")
+        .await
+        .expect("Échec de la liaison au port 8081");
+    info!("Écoute des commandes CLI sur 127.0.0.1:8081");
+    while let Ok((stream, _)) = listener.accept().await {
+        let ws_stream = accept_async(stream)
+            .await
+            .expect("Échec de la négociation WebSocket");
+        let _ = tokio::spawn(handle_cli_command(ws_stream)).await;
+    }
+}
+
 #[tokio::main]
 async fn main() {
+    tokio::spawn(start_cli_listener());
+
+    let terminal_handle = tokio::spawn(terminal_watchdog());
+    log::info!("Started");
+    terminal_handle.await.unwrap(); // keeps the main process alive until interruption from this watchdog;
+    log::info!("Stopping");
+}
+
+// NOTE - old watchdog brought here for debug purposes
+pub async fn terminal_watchdog() {
+    let mut stdin = tokio::io::stdin();
+    let mut buf = vec![0; 1024];
+
+    loop {
+        let read = tokio::io::AsyncReadExt::read(&mut stdin, &mut buf).await;
+
+        // NOTE -  on ctrl-D -> quit
+        match read {
+            Err(_) | Ok(0) => {
+                println!("Quiting!");
+                break;
+            }
+            _ => (),
+        };
+    }
+}
+
+async fn main1() {
     let mut pods: Vec<Pod> = Vec::new();
 
     env_logger::init();
@@ -113,29 +200,10 @@ async fn main() {
         .expect("failed to create the pod"),
     );
 
-    let local_cli_handle = tokio::spawn(local_cli_watchdog());
-    log::info!("Started");
-    local_cli_handle.await.unwrap(); // keeps the main process alive until interruption from this watchdog;
-    log::info!("Stopping");
-}
-
-// NOTE - old watchdog brought here for debug purposes
-pub async fn local_cli_watchdog() {
-    let mut stdin = tokio::io::stdin();
-    let mut buf = vec![0; 1024];
-
-    loop {
-        let read = tokio::io::AsyncReadExt::read(&mut stdin, &mut buf).await;
-
-        // NOTE -  on ctrl-D -> quit
-        match read {
-            Err(_) | Ok(0) => {
-                println!("Quiting!");
-                break;
-            }
-            _ => (),
-        };
-    }
+    // let local_cli_handle = tokio::spawn(local_cli_watchdog());
+    // log::info!("Started");
+    // local_cli_handle.await.unwrap(); // keeps the main process alive until interruption from this watchdog;
+    // log::info!("Stopping");
 }
 
 /*

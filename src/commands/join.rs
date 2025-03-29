@@ -2,18 +2,22 @@
 // In code we trust
 // AgarthaSoftware - 2024
 
+use tokio::runtime::Runtime;
+
 use crate::{
-    commands,
+    commands::{
+        self,
+        message::{cli_messager, CliMessage},
+    },
     config::{self, types::Config},
 };
-use std::error::Error;
 
 #[must_use]
 pub fn join(
     path: &std::path::PathBuf,
     url: String,
     mut additional_hosts: Vec<String>,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<(), Box<dyn std::error::Error>> {
     let split = url.split(':');
     let slice = &(split.collect::<Vec<_>>())[..];
     if let [address_str, network_name_str] = *slice {
@@ -23,6 +27,11 @@ pub fn join(
         let network = config::Network::new(peers, network_name_str.to_owned());
         commands::templates(path, network_name_str)?;
         network.write((&path).join(".wormhole/network.toml"))?;
+
+        let rt = Runtime::new().unwrap();
+        rt.block_on(cli_messager(CliMessage {
+            command: "join".to_string(),
+        }))?;
         return Ok(());
     } else {
         println!("errored: {:?}", slice);

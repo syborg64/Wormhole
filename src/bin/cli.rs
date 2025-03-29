@@ -73,7 +73,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     match Cli::parse() {
         Cli::Join(args) => {
             println!("joining {}", args.url);
-            println!("({:?})", args.additional_hosts);
+            println!("(additional hosts: {:?})", args.additional_hosts);
             commands::join(
                 &args.path.unwrap_or(".".into()),
                 args.url,
