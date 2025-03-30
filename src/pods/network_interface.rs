@@ -405,6 +405,36 @@ impl NetworkInterface {
         Arbo::write_lock(&self.arbo, "aknowledge_new_hosts")?.add_inode_hosts(id, new_hosts)
     }
 
+
+
+    /// Remove hosts from the inode and propagate on the network.
+    ///
+    /// Will remove the requested hosts from the inode, (ignoring hosts already not owning this inode)
+    /// Will send RemoveHosts message to the network to propagate added hosts
+    ///
+    /// Preferred to update_remote_hosts as it suffers less from race conditions
+    ///
+    /// * `id` - InodeId
+    /// * `remove_hosts` - Vec<Address> hosts to add
+    pub fn declare_host_removal(&self, id: InodeId, remove_hosts: Vec<Address>) -> io::Result<()> {
+        let inode = Arbo::read_lock(&self.arbo, "declare_host_removal")?
+            .get_inode(id)?
+            .clone();
+
+        Arbo::write_lock(&self.arbo, "declare_host_removal")?.remove_inode_hosts(id, remove_hosts.clone())?;
+
+        self.to_network_message_tx
+            .send(ToNetworkMessage::BroadcastMessage(
+                MessageContent::RemoveHosts(inode.id, remove_hosts),
+            ))
+            .expect("update_remote_hosts: unable to update modification on the network thread");
+        Ok(())
+    }
+
+    pub fn aknowledge_hosts_removal(&self, id: InodeId, new_hosts: Vec<Address>) -> io::Result<()> {
+        Arbo::write_lock(&self.arbo, "aknowledge_hosts_removal")?.remove_inode_hosts(id, new_hosts)
+    }
+
     pub fn update_metadata(&self, id: InodeId, meta: Metadata) -> io::Result<()> {
         let mut arbo = Arbo::write_lock(&self.arbo, "fs_interface::get_inode_attributes")?;
         arbo.set_inode_meta(id, meta.clone())?;
@@ -584,6 +614,7 @@ impl NetworkInterface {
                 MessageContent::Inode(inode, id) => fs_interface.recept_inode(inode, id),
                 MessageContent::EditHosts(id, hosts) => fs_interface.recept_edit_hosts(id, hosts),
                 MessageContent::AddHosts(id, hosts) => fs_interface.recept_add_hosts(id, hosts),
+                MessageContent::RemoveHosts(id, hosts) => fs_interface.recept_remove_hosts(id, hosts),
                 MessageContent::EditMetadata(id, meta, host) => {
                     fs_interface.recept_edit_metadata(id, meta, host)
                 }

@@ -379,6 +379,10 @@ impl FsInterface {
         self.network_interface.aknowledge_new_hosts(id, hosts)
     }
 
+    pub fn recept_remove_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
+        self.network_interface.aknowledge_hosts_removal(id, hosts)
+    }
+
     pub fn recept_edit_metadata(
         &self,
         id: InodeId,
