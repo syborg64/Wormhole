@@ -397,7 +397,7 @@ impl NetworkInterface {
     // !SECTION ^ Redundancy related
 
     pub fn apply_redundancy(&self, file_id: InodeId) -> io::Result<()> {
-        let hosts: Vec<String> = {
+        let mut hosts: Vec<String> = {
             let arbo = Arbo::read_lock(&self.arbo, "apply_redundancy")?;
 
             if let FsEntry::File(hosts) = &arbo.get_inode(file_id)?.entry {
@@ -411,21 +411,21 @@ impl NetworkInterface {
         };
 
         if hosts.len() < REDUNDANCY_NB {
-            let possible_hosts: Vec<String> =
+            let mut possible_hosts: Vec<String> =
                 if let Some(peers) = self.peers.try_read_for(LOCK_TIMEOUT) {
                     peers
                         .iter()
                         .map(|peer| peer.address.clone())
-                        .filter(|addr| *addr != self.self_addr)
-                        .take(REDUNDANCY_NB)
-                        .collect()
+                        .filter(|addr| *addr != self.self_addr && !hosts.contains(addr))
+                        .take(REDUNDANCY_NB - hosts.len())
+                        .collect::<Vec<String>>()
                 } else {
                     return Err(io::Error::new(
                         io::ErrorKind::Other,
                         "apply_redundancy: can't lock peers mutex",
                     ));
                 };
-
+            possible_hosts.append(&mut hosts);
             if possible_hosts.len() < REDUNDANCY_NB {
                 todo!("redundancy needs enough hosts")
             }
