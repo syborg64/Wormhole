@@ -468,7 +468,7 @@ impl NetworkInterface {
                 ));
             };
 
-        if possible_hosts.len() < REDUNDANCY_NB {
+        if (current_hosts.len() + possible_hosts.len()) < REDUNDANCY_NB {
             todo!("redundancy needs enough hosts")
         }
 
