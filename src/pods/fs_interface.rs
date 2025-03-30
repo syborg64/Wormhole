@@ -325,13 +325,7 @@ impl FsInterface {
             arbo.get_path_from_inode_id(id)?
         };
 
-        // REVIEW - should be ok that file is not on disk
-        match self.disk.remove_file(to_remove_path) {
-            Ok(_) => (),
-            Err(e) => {
-                return Err(e);
-            }
-        };
+        let _ = self.disk.remove_file(to_remove_path);
 
         self.network_interface.acknowledge_unregister_file(id)?;
 
