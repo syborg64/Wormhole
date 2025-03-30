@@ -382,6 +382,8 @@ impl NetworkInterface {
     /// Will add the requested hosts to the inode, (ignoring hosts already owning this inode)
     /// Will send AddHosts message to the network to propagate added hosts
     ///
+    /// Preferred to update_remote_hosts as it suffers less from race conditions
+    ///
     /// * `id` - InodeId
     /// * `new_hosts` - Vec<Address> hosts to add
     pub fn declare_new_host(&self, id: InodeId, new_hosts: Vec<Address>) -> io::Result<()> {
@@ -389,35 +391,24 @@ impl NetworkInterface {
             .get_inode(id)?
             .clone();
 
-        let mut hosts;
-        let added_hosts: Vec<Address>;
+        let hosts;
         if let FsEntry::File(hosts_source) = &inode.entry {
             hosts = hosts_source.clone();
-
-            added_hosts = new_hosts
-                .into_iter()
-                .filter(|host| !hosts.contains(host))
-                .collect();
-
-            added_hosts.iter().for_each(|host| {
-                let idx = hosts.partition_point(|x| x <= host);
-                hosts.insert(idx, host.clone());
-            });
         } else {
             return Err(io::ErrorKind::InvalidInput.into());
         }
-        Arbo::write_lock(&self.arbo, "declare_new_host")?.set_inode_hosts(id, hosts.clone())?;
+        Arbo::write_lock(&self.arbo, "declare_new_host")?.add_inode_hosts(id, hosts.clone())?;
 
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::AddHosts(inode.id, added_hosts),
+                MessageContent::AddHosts(inode.id, hosts),
             ))
             .expect("update_remote_hosts: unable to update modification on the network thread");
         Ok(())
     }
 
     pub fn aknowledge_new_hosts(&self, id: InodeId, new_hosts: Vec<Address>) -> io::Result<()> {
-        Arbo::write_lock(&self.arbo, "accept_new_hosts")?.add_inode_hosts(id, new_hosts)
+        Arbo::write_lock(&self.arbo, "aknowledge_new_hosts")?.add_inode_hosts(id, new_hosts)
     }
 
     pub fn update_metadata(&self, id: InodeId, meta: Metadata) -> io::Result<()> {
