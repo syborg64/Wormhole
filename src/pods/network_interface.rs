@@ -405,8 +405,6 @@ impl NetworkInterface {
         Arbo::write_lock(&self.arbo, "aknowledge_new_hosts")?.add_inode_hosts(id, new_hosts)
     }
 
-
-
     /// Remove hosts from the inode and propagate on the network.
     ///
     /// Will remove the requested hosts from the inode, (ignoring hosts already not owning this inode)

@@ -8,6 +8,7 @@ use super::{
     disk_manager::DiskManager,
     network_interface::NetworkInterface,
 };
+use log::debug;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::cmp::max;
@@ -368,9 +369,11 @@ impl FsInterface {
 
     pub fn recept_edit_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
         if !hosts.contains(&self.network_interface.self_addr) {
-            self.disk.remove_file(
+            if let Err(e) = self.disk.remove_file(
                 Arbo::read_lock(&self.arbo, "recept_edit_hosts")?.get_path_from_inode_id(id)?,
-            )?
+            ) {
+                debug!("recept_edit_hosts: can't delete file. {}", e);
+            }
         }
         self.network_interface.acknowledge_hosts_edition(id, hosts)
     }
@@ -380,6 +383,14 @@ impl FsInterface {
     }
 
     pub fn recept_remove_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
+        if hosts.contains(&self.network_interface.self_addr) {
+            if let Err(e) = self.disk.remove_file(
+                Arbo::read_lock(&self.arbo, "recept_remove_hosts")?.get_path_from_inode_id(id)?,
+            ) {
+                debug!("recept_remove_hosts: can't delete file. {}", e);
+            }
+        }
+
         self.network_interface.aknowledge_hosts_removal(id, hosts)
     }
 
