@@ -400,7 +400,7 @@ impl NetworkInterface {
                 .filter(|host| !hosts.contains(host))
                 .collect();
 
-            added_hosts.iter().map(|host| {
+            added_hosts.iter().for_each(|host| {
                 let idx = hosts.partition_point(|x| x <= host);
                 hosts.insert(idx, host.clone());
             });
