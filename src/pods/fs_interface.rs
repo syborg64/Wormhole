@@ -207,7 +207,7 @@ impl FsInterface {
     pub fn pull_file(&self, file: InodeId) -> io::Result<()> {
         match self.network_interface.pull_file(file) {
             Ok(_) => Ok(()),
-            Err(e) => Err(e)
+            Err(e) => Err(e),
         }
     }
 
@@ -287,43 +287,44 @@ impl FsInterface {
     }
 
     pub fn recept_binary(&self, id: InodeId, binary: Vec<u8>) -> io::Result<()> {
-        let mut arbo = Arbo::write_lock(&self.arbo, "recept_binary")
-            .expect("recept_binary: can't write lock arbo");
-        let path = {
-            match arbo.get_path_from_inode_id(id) {
-                Ok(path) => path,
-                Err(_) => {
-                    drop(arbo);
-                    return self
-                        .network_interface
-                        .callbacks
-                        .resolve(Callback::Pull(id), false)
-                        .map(|_| ());
-                }
-            }
+        let (path, inode) = {
+            let arbo = Arbo::read_lock(&self.arbo, "recept_binary")
+                .expect("recept_binary: can't read lock arbo");
+            (
+                match arbo.get_path_from_inode_id(id) {
+                    Ok(path) => path,
+                    Err(_) => {
+                        return self
+                            .network_interface
+                            .callbacks
+                            .resolve(Callback::Pull(id), false)
+                            .map(|_| ());
+                    }
+                },
+                arbo.get_inode(id)?.clone(),
+            )
         };
+
         let status = self.disk.write_file(path, &binary, 0).is_ok();
         self.network_interface
             .callbacks
             .resolve(Callback::Pull(id), status)?;
         if status {
             let mut hosts;
-            {
-                let inode = arbo.get_inode(id)?;
-                if let FsEntry::File(hosts_source) = &inode.entry {
-                    hosts = hosts_source.clone();
-                    let self_addr = self.network_interface.self_addr.clone();
-                    let idx = hosts.partition_point(|x| x <= &self_addr);
-                    hosts.insert(idx, self_addr);
-                } else {
-                    return Err(io::ErrorKind::InvalidInput.into());
-                }
+            if let FsEntry::File(hosts_source) = &inode.entry {
+                hosts = hosts_source.clone();
+                let self_addr = self.network_interface.self_addr.clone();
+                let idx = hosts.partition_point(|x| x <= &self_addr);
+                hosts.insert(idx, self_addr);
+            } else {
+                return Err(io::ErrorKind::InvalidInput.into());
             }
-            arbo.set_inode_hosts(id, hosts)?;
-            let inode = arbo.get_inode(id)?;
-            self.network_interface.update_remote_hosts(inode)
+            Arbo::write_lock(&self.arbo, "recept_binary")
+                .expect("recept_binary: can't write lock arbo")
+                .set_inode_hosts(id, hosts)?;
+            self.network_interface.update_remote_hosts(&inode)
         } else {
-            Ok(())
+            Ok(()) // REVIEW - should be error ?
         }
     }
 
