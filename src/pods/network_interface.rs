@@ -377,6 +377,48 @@ impl NetworkInterface {
         }
     }
 
+    /// Add new hosts to the inode and propagate on the network.
+    ///
+    /// Will add the requested hosts to the inode, (ignoring hosts already owning this inode)
+    /// Will send AddHosts message to the network to propagate added hosts
+    ///
+    /// * `id` - InodeId
+    /// * `new_hosts` - Vec<Address> hosts to add
+    pub fn declare_new_host(&self, id: InodeId, new_hosts: Vec<Address>) -> io::Result<()> {
+        let inode = Arbo::read_lock(&self.arbo, "declare_new_host")
+            .expect("declare_new_host: can't read lock arbo")
+            .get_inode(id)?
+            .clone();
+
+        let mut hosts;
+        let added_hosts: Vec<Address>;
+        if let FsEntry::File(hosts_source) = &inode.entry {
+            hosts = hosts_source.clone();
+
+            added_hosts = new_hosts
+                .into_iter()
+                .filter(|host| !hosts.contains(host))
+                .collect();
+
+            added_hosts.iter().map(|host| {
+                let idx = hosts.partition_point(|x| x <= host);
+                hosts.insert(idx, host.clone());
+            });
+        } else {
+            return Err(io::ErrorKind::InvalidInput.into());
+        }
+        Arbo::write_lock(&self.arbo, "declare_new_host")
+            .expect("declare_new_host: can't write lock arbo")
+            .set_inode_hosts(id, hosts.clone())?;
+
+        self.to_network_message_tx
+            .send(ToNetworkMessage::BroadcastMessage(
+                MessageContent::AddHosts(inode.id, added_hosts),
+            ))
+            .expect("update_remote_hosts: unable to update modification on the network thread");
+        Ok(())
+    }
+
     pub fn update_metadata(&self, id: InodeId, meta: Metadata) -> io::Result<()> {
         let mut arbo = Arbo::write_lock(&self.arbo, "fs_interface::get_inode_attributes")?;
         arbo.set_inode_meta(id, meta.clone())?;
@@ -454,7 +496,9 @@ impl NetworkInterface {
                     MessageContent::DiscardRedundancy(file_id),
                     discard_hosts,
                 ))
-                .expect("apply_redundancy: unable to send discard redundancy on the network thread");
+                .expect(
+                    "apply_redundancy: unable to send discard redundancy on the network thread",
+                );
         }
         Ok(())
     }
@@ -553,6 +597,7 @@ impl NetworkInterface {
                 MessageContent::PullAnswer(id, binary) => fs_interface.recept_binary(id, binary),
                 MessageContent::Inode(inode, id) => fs_interface.recept_inode(inode, id),
                 MessageContent::EditHosts(id, hosts) => fs_interface.recept_edit_hosts(id, hosts),
+                MessageContent::AddHosts(id, hosts) => todo!(),
                 MessageContent::EditMetadata(id, meta, host) => {
                     fs_interface.recept_edit_metadata(id, meta, host)
                 }

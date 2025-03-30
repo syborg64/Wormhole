@@ -16,6 +16,7 @@ pub enum MessageContent {
     RequestFs(Address),
     Rename(InodeId, InodeId, String, String), //Parent, New Parent, Name, New Name
     EditHosts(InodeId, Vec<Address>),
+    AddHosts(InodeId, Vec<Address>),
     EditMetadata(InodeId, Metadata, Address),
     FsAnswer(FileSystemSerialized),
 
