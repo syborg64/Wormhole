@@ -391,17 +391,11 @@ impl NetworkInterface {
             .get_inode(id)?
             .clone();
 
-        let hosts;
-        if let FsEntry::File(hosts_source) = &inode.entry {
-            hosts = hosts_source.clone();
-        } else {
-            return Err(io::ErrorKind::InvalidInput.into());
-        }
-        Arbo::write_lock(&self.arbo, "declare_new_host")?.add_inode_hosts(id, hosts.clone())?;
+        Arbo::write_lock(&self.arbo, "declare_new_host")?.add_inode_hosts(id, new_hosts.clone())?;
 
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::AddHosts(inode.id, hosts),
+                MessageContent::AddHosts(inode.id, new_hosts),
             ))
             .expect("update_remote_hosts: unable to update modification on the network thread");
         Ok(())
