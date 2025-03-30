@@ -17,8 +17,6 @@
           pkgs.fuse3
         ];
         RUST_SRC_PATH = "${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
-#        PKG_CONFIG_PATH = "${pkgs.fuse3}/lib/pkgconfig";
-#        LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [pkgs.fuse3];
       };
     });
 }
