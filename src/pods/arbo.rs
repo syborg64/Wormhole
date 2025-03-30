@@ -410,6 +410,35 @@ impl Arbo {
         Ok(())
     }
 
+    /// Add hosts to an inode
+    /// 
+    /// Only works on inodes pointing files (no folders)
+    /// Ignore already existing hosts to avoid duplicates
+    pub fn add_inode_hosts(&mut self, ino: InodeId, new_hosts: Vec<Address>) -> io::Result<()> {
+        let inode = self.get_inode_mut(ino)?;
+
+        inode.entry = match &inode.entry {
+            FsEntry::File(old_hosts) => FsEntry::File(
+                [
+                    old_hosts.as_slice(),
+                    new_hosts
+                        .into_iter()
+                        .filter(|host| !old_hosts.contains(host))
+                        .collect::<Vec<Address>>()
+                        .as_slice(),
+                ]
+                .concat(),
+            ),
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    "can't edit hosts on folder",
+                ))
+            }
+        };
+        Ok(())
+    }
+
     pub fn set_inode_meta(&mut self, ino: InodeId, meta: Metadata) -> io::Result<()> {
         let inode = self.get_inode_mut(ino)?;
 

@@ -375,6 +375,10 @@ impl FsInterface {
         self.network_interface.acknowledge_hosts_edition(id, hosts)
     }
 
+    pub fn recept_add_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
+        self.network_interface.aknowledge_new_hosts(id, hosts)
+    }
+
     pub fn recept_edit_metadata(
         &self,
         id: InodeId,

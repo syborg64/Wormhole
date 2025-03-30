@@ -385,8 +385,7 @@ impl NetworkInterface {
     /// * `id` - InodeId
     /// * `new_hosts` - Vec<Address> hosts to add
     pub fn declare_new_host(&self, id: InodeId, new_hosts: Vec<Address>) -> io::Result<()> {
-        let inode = Arbo::read_lock(&self.arbo, "declare_new_host")
-            .expect("declare_new_host: can't read lock arbo")
+        let inode = Arbo::read_lock(&self.arbo, "declare_new_host")?
             .get_inode(id)?
             .clone();
 
@@ -407,9 +406,7 @@ impl NetworkInterface {
         } else {
             return Err(io::ErrorKind::InvalidInput.into());
         }
-        Arbo::write_lock(&self.arbo, "declare_new_host")
-            .expect("declare_new_host: can't write lock arbo")
-            .set_inode_hosts(id, hosts.clone())?;
+        Arbo::write_lock(&self.arbo, "declare_new_host")?.set_inode_hosts(id, hosts.clone())?;
 
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
@@ -417,6 +414,10 @@ impl NetworkInterface {
             ))
             .expect("update_remote_hosts: unable to update modification on the network thread");
         Ok(())
+    }
+
+    pub fn aknowledge_new_hosts(&self, id: InodeId, new_hosts: Vec<Address>) -> io::Result<()> {
+        Arbo::write_lock(&self.arbo, "accept_new_hosts")?.add_inode_hosts(id, new_hosts)
     }
 
     pub fn update_metadata(&self, id: InodeId, meta: Metadata) -> io::Result<()> {
@@ -597,7 +598,7 @@ impl NetworkInterface {
                 MessageContent::PullAnswer(id, binary) => fs_interface.recept_binary(id, binary),
                 MessageContent::Inode(inode, id) => fs_interface.recept_inode(inode, id),
                 MessageContent::EditHosts(id, hosts) => fs_interface.recept_edit_hosts(id, hosts),
-                MessageContent::AddHosts(id, hosts) => todo!(),
+                MessageContent::AddHosts(id, hosts) => fs_interface.recept_add_hosts(id, hosts),
                 MessageContent::EditMetadata(id, meta, host) => {
                     fs_interface.recept_edit_metadata(id, meta, host)
                 }
