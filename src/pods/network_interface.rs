@@ -281,6 +281,10 @@ impl NetworkInterface {
         Ok(removed_inode)
     }
 
+    pub fn acknowledge_discard_redundancy(&self, id: InodeId) -> io::Result<()> {
+        Ok(())
+    }
+
     pub fn acknowledge_hosts_edition(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
         let mut arbo = Arbo::write_lock(&self.arbo, "acknowledge_hosts_edition")?;
 
@@ -563,7 +567,7 @@ impl NetworkInterface {
                 }
                 MessageContent::FsAnswer(fs) => fs_interface.replace_arbo(fs),
                 MessageContent::RequestPull(id) => fs_interface.pull_file(id),
-                MessageContent::DiscardRedundancy(id) => todo!(),
+                MessageContent::DiscardRedundancy(id) => fs_interface.discard_redundancy(id),
             };
             if let Err(error) = action_result {
                 log::error!("Network airport couldn't operate this operation: {error}");
