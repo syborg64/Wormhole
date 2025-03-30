@@ -411,7 +411,7 @@ impl Arbo {
     }
 
     /// Add hosts to an inode
-    /// 
+    ///
     /// Only works on inodes pointing files (no folders)
     /// Ignore already existing hosts to avoid duplicates
     pub fn add_inode_hosts(&mut self, ino: InodeId, new_hosts: Vec<Address>) -> io::Result<()> {
@@ -429,6 +429,28 @@ impl Arbo {
                 ]
                 .concat(),
             ),
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    "can't edit hosts on folder",
+                ))
+            }
+        };
+        Ok(())
+    }
+
+    /// Remove hosts from an inode
+    ///
+    /// Only works on inodes pointing files (no folders)
+    pub fn remove_inode_hosts(
+        &mut self,
+        ino: InodeId,
+        remove_hosts: Vec<Address>,
+    ) -> io::Result<()> {
+        let inode = self.get_inode_mut(ino)?;
+
+        match &mut inode.entry {
+            FsEntry::File(old_hosts) => old_hosts.retain(|host| !remove_hosts.contains(host)),
             _ => {
                 return Err(io::Error::new(
                     io::ErrorKind::Other,
