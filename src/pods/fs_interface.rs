@@ -348,25 +348,6 @@ impl FsInterface {
         Ok(())
     }
 
-    pub fn discard_redundancy(&self, id: InodeId) -> io::Result<()> {
-        let to_remove_path = {
-            let arbo = Arbo::read_lock(&self.arbo, "cecept_remove_inode")?;
-            arbo.get_path_from_inode_id(id)?
-        };
-
-        // REVIEW - should be ok that file is not on disk
-        match self.disk.remove_file(to_remove_path) {
-            Ok(_) => (),
-            Err(e) => {
-                return Err(e);
-            }
-        };
-
-        self.network_interface.acknowledge_discard_redundancy(id)?;
-
-        Ok(())
-    }
-
     pub fn recept_edit_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
         if !hosts.contains(&self.network_interface.self_addr) {
             if let Err(e) = self.disk.remove_file(

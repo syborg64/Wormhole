@@ -20,9 +20,7 @@ pub enum MessageContent {
     RemoveHosts(InodeId, Vec<Address>),
     EditMetadata(InodeId, Metadata, Address),
     FsAnswer(FileSystemSerialized),
-
     RequestPull(InodeId),
-    DiscardRedundancy(InodeId),
 }
 
 pub type Address = String;
