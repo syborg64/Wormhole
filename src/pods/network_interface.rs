@@ -192,6 +192,7 @@ impl NetworkInterface {
         }
         // TODO - if unable to update for some reason, should be passed to the background worker
 
+        self.apply_redundancy(new_inode_id)?;
         Ok(new_inode_id)
     }
 
@@ -350,7 +351,7 @@ impl NetworkInterface {
                 MessageContent::EditHosts(id, vec![self.self_addr.clone()]),
             ))
             .expect("revoke_remote_hosts: unable to update modification on the network thread");
-        Ok(())
+        self.apply_redundancy(id)
         /* REVIEW
          * This system (and others broadcasts systems) should be reviewed as they don't check success.
          * In this case, if another host misses this order, it will not update it's file.

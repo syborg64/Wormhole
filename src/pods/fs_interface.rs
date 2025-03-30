@@ -138,7 +138,7 @@ impl FsInterface {
             self.disk.write_file(path, data, offset)?
         };
 
-        self.network_interface.revoke_remote_hosts(id)?; // TODO - manage this error to prevent remote/local desync
+        self.network_interface.revoke_remote_hosts(id)?;
         Ok(written)
     }
 
@@ -149,6 +149,7 @@ impl FsInterface {
         self.disk.set_file_size(path, meta.size)?;
         self.network_interface.update_metadata(ino, meta)
     }
+
     fn construct_file_path(&self, parent: InodeId, name: &String) -> io::Result<WhPath> {
         let arbo = Arbo::read_lock(&self.arbo, "fs_interface.get_begin_path_end_path")?;
         let parent_path = arbo.get_path_from_inode_id(parent)?;
