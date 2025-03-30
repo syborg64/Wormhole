@@ -43,6 +43,10 @@ fn central_hub(cmd: Message) -> Result<String, Box<dyn std::error::Error>> {
             println!("you join a wormhole network");
             Ok("retunred from join".to_string())
         }
+        "init" => {
+            println!("you init a wormhole network");
+            Ok("init not implemented".to_string())
+        }
         "status" => Ok("status not implemented".to_string()),
         _ => Err("command not recognized".to_string().into()),
     }

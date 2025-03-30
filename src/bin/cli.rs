@@ -96,7 +96,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Cli::Init(args) => {
             println!("init service");
             commands::init(&WhPath::from(args.path.unwrap_or(".".into())))?;
-            todo!("init");
+            // todo!("init");
         }
         Cli::Join(args) => {
             println!("joining {}", args.url);

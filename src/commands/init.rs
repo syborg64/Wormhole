@@ -1,7 +1,36 @@
 use std::fs;
 
-use crate::pods::whpath::WhPath;
+use tokio::runtime::Runtime;
+
+use crate::{
+    commands::message::{cli_messager, CliMessage},
+    config::{types::Config, GlobalConfig, LocalConfig},
+    pods::whpath::WhPath,
+};
+
+fn check_config_file(
+    path: &WhPath,
+    files_name: Vec<&str>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    for file_name in files_name {
+        println!("file_name: {}", path.clone().push(file_name).inner);
+        if fs::metadata(path.clone().push(file_name).inner.clone()).is_err() {
+            return Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("The file config {} does not exist", file_name),
+            )));
+        }
+    }
+    Ok(())
+}
+
 pub fn init(path: &WhPath) -> Result<(), Box<dyn std::error::Error>> {
-    fs::read_dir(path.inner.clone()).map(|_| ())?;
+    fs::read_dir(&path.inner).map(|_| ())?;
+    let files_name = vec![".local_config.toml", ".global_config.toml"];
+    check_config_file(&path, files_name)?;
+    let rt = Runtime::new().unwrap();
+    rt.block_on(cli_messager(CliMessage {
+        command: "init".to_string(),
+    }))?;
     Ok(())
 }

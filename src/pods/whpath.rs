@@ -19,31 +19,6 @@ pub trait JoinPath {
     fn as_str(&self) -> &str;
 }
 
-pub trait JoinParam<T: JoinPath + ?Sized> {
-    fn get_segment(&self) -> &T;
-    fn is_hidden(&self) -> bool;
-}
-
-// Implémentation pour les types non-Sized
-impl<T: JoinPath + ?Sized> JoinParam<T> for &T {
-    fn get_segment(&self) -> &T {
-        self
-    }
-    fn is_hidden(&self) -> bool {
-        false
-    }
-}
-
-// Implémentation pour le tuple avec hidden_file
-impl<T: JoinPath + ?Sized> JoinParam<T> for (&T, bool) {
-    fn get_segment(&self) -> &T {
-        self.0
-    }
-    fn is_hidden(&self) -> bool {
-        self.1
-    }
-}
-
 impl JoinPath for OsStr {
     fn as_str(&self) -> &str {
         self.to_str().expect("OsStr conversion to str failed")
@@ -135,18 +110,15 @@ impl WhPath {
     /// If the segment is hidden (`is_hidden()` return true), the segment is added as is, without adding a slash.
     /// # Examples
     ///
-    pub fn join<P, T>(&self, params: P) -> Self
+    pub fn join<T>(&self, segment: &T) -> Self
     where
         T: JoinPath + ?Sized,
-        P: JoinParam<T>,
     {
         let mut pth = self.clone();
 
-        if !params.is_hidden() {
-            pth.add_last_slash();
-        }
+        pth.add_last_slash();
 
-        let seg = Self::remove_leading_slash(params.get_segment().as_str());
+        let seg = Self::remove_leading_slash(segment.as_str());
         pth.inner = format!("{}{}", pth.inner, seg);
         pth
     }
@@ -314,15 +286,27 @@ impl WhPath {
     ///!SECTION - Est-ce qu'il faudra modifier pour Windows en rajoutant le '\' ??
     ///!SECTION- A modifier pour prendre en compte les fichiers cachés ?
     fn remove_leading_slash(segment: &str) -> &str {
-        let mut i = 0;
-        for c in segment.chars() {
-            if c == '.' || c == '/' {
-                i += 1;
+        let mut j = 0;
+        for i in 0..segment.len() {
+            if segment.chars().nth(i) == Some('.')
+                && (segment.chars().nth(i + 1) == Some('/')
+                    || segment.chars().nth(i + 1) == Some('.'))
+            {
+                j += 2;
+            } else if segment.chars().nth(i) == Some('/') {
+                j += 1;
             } else {
                 break;
             }
         }
-        return &segment[i..];
+        // for c in segment.chars() {
+        //     if (c == '.' && c. == '/') || c == '/' {
+        //         i += 1;
+        //     } else {
+        //         break;
+        //     }
+        // }
+        return &segment[j..];
     }
 
     // !SECTION - Est-ce qu'il faudra modifier pour Windows en rajoutant le '\' ??
