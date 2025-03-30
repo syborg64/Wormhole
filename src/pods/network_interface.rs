@@ -426,6 +426,7 @@ impl NetworkInterface {
                     ));
                 };
             possible_hosts.append(&mut hosts);
+
             if possible_hosts.len() < REDUNDANCY_NB {
                 todo!("redundancy needs enough hosts")
             }
