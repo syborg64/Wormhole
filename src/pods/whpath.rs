@@ -19,6 +19,31 @@ pub trait JoinPath {
     fn as_str(&self) -> &str;
 }
 
+pub trait JoinParam<T: JoinPath + ?Sized> {
+    fn get_segment(&self) -> &T;
+    fn is_hidden(&self) -> bool;
+}
+
+// Implémentation pour les types non-Sized
+impl<T: JoinPath + ?Sized> JoinParam<T> for &T {
+    fn get_segment(&self) -> &T {
+        self
+    }
+    fn is_hidden(&self) -> bool {
+        false
+    }
+}
+
+// Implémentation pour le tuple avec hidden_file
+impl<T: JoinPath + ?Sized> JoinParam<T> for (&T, bool) {
+    fn get_segment(&self) -> &T {
+        self.0
+    }
+    fn is_hidden(&self) -> bool {
+        self.1
+    }
+}
+
 impl JoinPath for OsStr {
     fn as_str(&self) -> &str {
         self.to_str().expect("OsStr conversion to str failed")
@@ -89,8 +114,11 @@ impl WhPath {
         }
     }
 
-    //TODO - Faire un join pour de WhPath
-    //NOTE - join deux paths dans l'ordre indiqué, résoud le conflit si le second commence avec ./ ou / ou rien
+    /// Add a segment to the current WhPath. If the segment starts with a `/` or `./` or `../`, the leading slash is removed.
+    /// If the current WhPath is empty, the segment is added as is.
+    /// If the current WhPath is not empty, the segment is added after adding a slash at the end of the current WhPath.
+    /// # Examples
+    ///
     pub fn push<T>(&mut self, segment: &T) -> &Self
     where
         T: JoinPath + ?Sized,
@@ -101,16 +129,24 @@ impl WhPath {
         self
     }
 
-    //TODO - Faire un join pour de WhPath
-    //NOTE - join deux paths dans l'ordre indiqué, résoud le conflit si le second commence avec ./ ou / ou rien
-    pub fn join<T>(&self, segment: &T) -> Self
+    /// Join the current path with a new segment. If the segment starts with a `/` or `./` or `../`, the leading slash is removed.
+    /// If the current path is empty, the segment is added as is.
+    /// If the current path is not empty, the segment is added after adding a slash at the end of the current path.
+    /// If the segment is hidden (`is_hidden()` return true), the segment is added as is, without adding a slash.
+    /// # Examples
+    ///
+    pub fn join<P, T>(&self, params: P) -> Self
     where
         T: JoinPath + ?Sized,
+        P: JoinParam<T>,
     {
         let mut pth = self.clone();
 
-        pth.add_last_slash();
-        let seg = Self::remove_leading_slash(segment.as_str());
+        if !params.is_hidden() {
+            pth.add_last_slash();
+        }
+
+        let seg = Self::remove_leading_slash(params.get_segment().as_str());
         pth.inner = format!("{}{}", pth.inner, seg);
         pth
     }

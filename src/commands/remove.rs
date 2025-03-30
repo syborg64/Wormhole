@@ -4,6 +4,7 @@
 
 use crate::commands;
 use crate::config::types::Config;
+use crate::pods::whpath::WhPath;
 use std::error::Error;
 use std::fs;
 
@@ -23,7 +24,7 @@ pub enum Mode {
 }
 
 #[must_use]
-pub fn remove(path: &std::path::PathBuf, mode: Mode) -> Result<(), Box<dyn Error>> {
+pub fn remove(path: &WhPath, mode: Mode) -> Result<(), Box<dyn Error>> {
     if mode != Mode::Take {
         println!("todo!: implement redistribute");
     }
@@ -31,12 +32,12 @@ pub fn remove(path: &std::path::PathBuf, mode: Mode) -> Result<(), Box<dyn Error
         todo!("clone")
     }
 
-    let name = crate::config::Network::read(path.join(".wormhole/network.toml"))?.name;
+    let name = crate::config::Network::read(path.join(".wormhole/network.toml").inner)?.name;
 
     commands::unregister(&name)?;
-    fs::remove_dir_all((&path).join(".wormhole"))?;
+    fs::remove_dir_all((&path).join(".wormhole").inner)?;
     if mode == Mode::Clean {
-        fs::remove_dir_all(path)?;
+        fs::remove_dir_all(path.inner.clone())?;
     }
     Ok(())
 }

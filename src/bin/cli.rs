@@ -95,7 +95,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Cli::Init(args) => {
             println!("init service");
-            commands::init(&args.path.unwrap_or(".".into()))?;
+            commands::init(&WhPath::from(args.path.unwrap_or(".".into())))?;
             todo!("init");
         }
         Cli::Join(args) => {
@@ -116,7 +116,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 (false, false, false) => commands::Mode::Simple,
                 _ => unreachable!("multiple exclusive options"),
             };
-            commands::remove(&args.path.unwrap_or(".".into()), mode)?;
+            commands::remove(&WhPath::from(args.path.unwrap_or(".".into())), mode)?;
         }
         Cli::Inspect => {
             println!("inspecting pod");

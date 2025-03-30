@@ -10,11 +10,12 @@ use crate::{
         message::{cli_messager, CliMessage},
     },
     config::{self, types::Config},
+    pods::whpath::WhPath,
 };
 
 #[must_use]
 pub fn join(
-    path: &std::path::PathBuf,
+    path: &WhPath,
     url: String,
     mut additional_hosts: Vec<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -26,7 +27,7 @@ pub fn join(
         peers.append(&mut additional_hosts);
         let network = config::Network::new(peers, network_name_str.to_owned());
         commands::templates(path, network_name_str)?;
-        network.write((&path).join(".wormhole/network.toml"))?;
+        network.write(path.join(".wormhole/network.toml").inner)?;
 
         let rt = Runtime::new().unwrap();
         rt.block_on(cli_messager(CliMessage {

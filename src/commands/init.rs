@@ -1,5 +1,7 @@
 use std::fs;
-pub fn init(path: &std::path::PathBuf) -> Result<(), Box<dyn std::error::Error>> {
-    fs::read_dir(path).map(|_| ())?;
+
+use crate::pods::whpath::WhPath;
+pub fn init(path: &WhPath) -> Result<(), Box<dyn std::error::Error>> {
+    fs::read_dir(path.inner.clone()).map(|_| ())?;
     Ok(())
 }
