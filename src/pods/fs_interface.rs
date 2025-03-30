@@ -103,19 +103,19 @@ impl FsInterface {
             )
         };
 
-        match entry {
+        let _ = match entry {
             FsEntry::File(_) => self.disk.remove_file(to_remove_path),
             FsEntry::Directory(children) => {
                 if children.is_empty() {
                     self.disk.remove_dir(to_remove_path)
                 } else {
-                    Err(io::Error::new(
+                    return Err(io::Error::new(
                         io::ErrorKind::InvalidData,
                         "remove_inode: can't remove non-empty dir",
                     ))
                 }
             }
-        }?;
+        };
 
         self.network_interface.unregister_file(id)?;
 
