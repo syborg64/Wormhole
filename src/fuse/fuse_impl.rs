@@ -6,7 +6,6 @@ use fuser::{
     ReplyDirectory, ReplyEntry, Request, TimeOrNow,
 };
 use libc::{EIO, ENOENT};
-use log::debug;
 use std::ffi::OsStr;
 use std::io;
 use std::sync::Arc;

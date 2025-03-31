@@ -92,6 +92,15 @@ pub async fn initiate_connection(
     None
 }
 
+fn register_to_others(peers: &Vec<PeerIPC>, self_address: &Address) -> std::io::Result<()> {
+    for peer in peers {
+        peer.sender
+            .send(MessageContent::Register(self_address.clone()))
+            .map_err(|err| std::io::Error::new(io::ErrorKind::HostUnreachable, err))?;
+    }
+    Ok(())
+}
+
 impl Pod {
     pub async fn new(
         mount_point: WhPath,
@@ -120,6 +129,7 @@ impl Pod {
         {
             peers = PeerIPC::peer_startup(peers_addrs, from_network_message_tx.clone()).await;
             peers.push(ipc);
+            register_to_others(&peers, &server_address)?;
             arbo.overwrite_self(fs_serialized.fs_index);
         }
 

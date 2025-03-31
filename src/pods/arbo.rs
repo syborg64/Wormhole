@@ -1,5 +1,4 @@
 use crate::network::message::Address;
-use log::debug;
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use serde::{Deserialize, Serialize};
 use std::{

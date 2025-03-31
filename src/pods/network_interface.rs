@@ -1,4 +1,8 @@
-use std::{collections::HashMap, io, sync::Arc};
+use std::{
+    collections::HashMap,
+    io::{self, ErrorKind},
+    sync::Arc,
+};
 
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::{
@@ -390,14 +394,6 @@ impl NetworkInterface {
          */
     }
 
-    pub fn register_to_others(&self) {
-        self.to_network_message_tx
-            .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::Register(self.self_addr.clone()),
-            ))
-            .expect("register_to_others: unable to update modification on the network thread");
-    }
-
     pub async fn request_arbo(&self, to: Address) -> io::Result<bool> {
         let callback = self.callbacks.create(Callback::PullFs)?;
 
@@ -489,7 +485,8 @@ impl NetworkInterface {
                     fs_interface.accept_rename(parent, new_parent, &name, &new_name)
                 }
                 MessageContent::FsAnswer(_, _) => {
-                    todo!("Late answer from first connection");
+                    Err(io::Error::new(ErrorKind::InvalidInput,
+                        "Late answer from first connection, loaded network interface shouldn't recieve FsAnswer"))
                 }
             };
             if let Err(error) = action_result {
