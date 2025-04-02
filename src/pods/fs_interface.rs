@@ -103,19 +103,19 @@ impl FsInterface {
             )
         };
 
-        match entry {
+        let _ = match entry {
             FsEntry::File(_) => self.disk.remove_file(to_remove_path),
             FsEntry::Directory(children) => {
                 if children.is_empty() {
                     self.disk.remove_dir(to_remove_path)
                 } else {
-                    Err(io::Error::new(
+                    return Err(io::Error::new(
                         io::ErrorKind::InvalidData,
                         "remove_inode: can't remove non-empty dir",
                     ))
                 }
             }
-        }?;
+        };
 
         self.network_interface.unregister_file(id)?;
 
@@ -325,13 +325,7 @@ impl FsInterface {
             arbo.get_path_from_inode_id(id)?
         };
 
-        // REVIEW - should be ok that file is not on disk
-        match self.disk.remove_file(to_remove_path) {
-            Ok(_) => (),
-            Err(e) => {
-                return Err(e);
-            }
-        };
+        let _ = self.disk.remove_file(to_remove_path);
 
         self.network_interface.acknowledge_unregister_file(id)?;
 
