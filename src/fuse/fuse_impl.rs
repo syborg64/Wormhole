@@ -56,27 +56,6 @@ const MOUNT_DIR_ATTR: FileAttr = FileAttr {
     blksize: 512,
 };
 
-pub const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
-    ino: 2,
-    size: 0,
-    blocks: 1,
-    atime: UNIX_EPOCH, // 1970-01-01 00:00:00
-    mtime: UNIX_EPOCH,
-    ctime: UNIX_EPOCH,
-    crtime: UNIX_EPOCH,
-    kind: FileType::RegularFile,
-    perm: 0o777,
-    nlink: 1,
-    uid: 501,
-    gid: 20,
-    rdev: 0,
-    flags: 0,
-    blksize: 512,
-};
-// ^ placeholders
-
-// const MIRROR_PTH: &str = "./wh_mirror/";
-
 impl Into<FileAttr> for Metadata {
     fn into(self) -> FileAttr {
         FileAttr {
