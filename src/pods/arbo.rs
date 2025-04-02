@@ -106,7 +106,7 @@ impl Inode {
             uid: 0,
             gid: 0,
             rdev: 0,
-            blksize: 0,
+            blksize: 1,
             flags: 0,
         };
 
