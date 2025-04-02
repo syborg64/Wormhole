@@ -1,6 +1,6 @@
 use crate::network::message::{Address, FileSystemSerialized};
 
-use super::arbo::{self, Metadata};
+use super::arbo::Metadata;
 use super::network_interface::Callback;
 use super::whpath::WhPath;
 use super::{
@@ -10,8 +10,7 @@ use super::{
 };
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use std::cmp::max;
-use std::io::{self};
+use std::io;
 use std::sync::Arc;
 
 pub struct FsInterface {
