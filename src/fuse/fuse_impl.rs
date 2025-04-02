@@ -38,45 +38,6 @@ impl Into<SimpleFileType> for FileType {
     }
 }
 
-const MOUNT_DIR_ATTR: FileAttr = FileAttr {
-    ino: 1,
-    size: 0,
-    blocks: 0,
-    atime: UNIX_EPOCH, // 1970-01-01 00:00:00
-    mtime: UNIX_EPOCH,
-    ctime: UNIX_EPOCH,
-    crtime: UNIX_EPOCH,
-    kind: FileType::Directory,
-    perm: 0o755,
-    nlink: 2,
-    uid: 501,
-    gid: 20,
-    rdev: 0,
-    flags: 0,
-    blksize: 512,
-};
-
-pub const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
-    ino: 2,
-    size: 0,
-    blocks: 1,
-    atime: UNIX_EPOCH, // 1970-01-01 00:00:00
-    mtime: UNIX_EPOCH,
-    ctime: UNIX_EPOCH,
-    crtime: UNIX_EPOCH,
-    kind: FileType::RegularFile,
-    perm: 0o777,
-    nlink: 1,
-    uid: 501,
-    gid: 20,
-    rdev: 0,
-    flags: 0,
-    blksize: 512,
-};
-// ^ placeholders
-
-// const MIRROR_PTH: &str = "./wh_mirror/";
-
 impl Into<FileAttr> for Metadata {
     fn into(self) -> FileAttr {
         FileAttr {
@@ -94,7 +55,7 @@ impl Into<FileAttr> for Metadata {
             gid: self.gid,
             rdev: self.rdev,
             flags: self.flags,
-            blksize: 1,
+            blksize: self.blksize,
         }
     }
 }
@@ -318,15 +279,7 @@ impl Filesystem for FuseController {
             name.to_string_lossy().to_string(),
             SimpleFileType::File,
         ) {
-            Ok((id, _)) => {
-                // creating metadata to return
-                let mut new_attr = TEMPLATE_FILE_ATTR;
-                new_attr.ino = id;
-                new_attr.kind = FileType::RegularFile;
-                new_attr.size = 0;
-
-                reply.entry(&TTL, &new_attr, 0)
-            }
+            Ok(node) => reply.entry(&TTL, &node.meta.into(), 0),
             Err(err) => {
                 log::error!("fuse_impl error: {:?}", err);
                 reply.error(err.raw_os_error().unwrap_or(EIO))
@@ -348,15 +301,7 @@ impl Filesystem for FuseController {
             name.to_string_lossy().to_string(),
             SimpleFileType::Directory,
         ) {
-            Ok((id, _)) => {
-                // creating metadata to return
-                let mut new_attr = TEMPLATE_FILE_ATTR;
-                new_attr.ino = id;
-                new_attr.kind = FileType::Directory;
-                new_attr.size = 0;
-
-                reply.entry(&TTL, &new_attr, 0)
-            }
+            Ok(inode) => reply.entry(&TTL, &inode.meta.into(), 0),
             Err(err) => {
                 log::error!("fuse_impl error: {:?}", err);
                 reply.error(err.raw_os_error().unwrap_or(EIO))
@@ -458,15 +403,7 @@ impl Filesystem for FuseController {
             name.to_string_lossy().to_string(),
             SimpleFileType::File,
         ) {
-            Ok((id, _)) => {
-                // creating metadata to return
-                let mut new_attr = TEMPLATE_FILE_ATTR;
-                new_attr.ino = id;
-                new_attr.kind = FileType::RegularFile;
-                new_attr.size = 0;
-
-                reply.created(&TTL, &new_attr, 0, new_attr.ino, flags as u32);
-            }
+            Ok(inode) => reply.created(&TTL, &inode.meta.into(), 0, inode.id, flags as u32),
             Err(err) => {
                 log::error!("fuse_impl error: {:?}", err);
                 reply.error(err.raw_os_error().unwrap_or(EIO))

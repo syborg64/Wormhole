@@ -1,6 +1,6 @@
 use crate::network::message::{Address, FileSystemSerialized};
 
-use super::arbo::{self, Metadata};
+use super::arbo::Metadata;
 use super::network_interface::Callback;
 use super::whpath::WhPath;
 use super::{
@@ -10,8 +10,7 @@ use super::{
 };
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use std::cmp::max;
-use std::io::{self};
+use std::io;
 use std::sync::Arc;
 
 pub struct FsInterface {
@@ -58,7 +57,7 @@ impl FsInterface {
         parent_ino: u64,
         name: String,
         kind: SimpleFileType,
-    ) -> io::Result<(InodeId, Inode)> {
+    ) -> io::Result<Inode> {
         let new_entry = match kind {
             SimpleFileType::File => FsEntry::File(vec![self.network_interface.self_addr.clone()]),
             SimpleFileType::Directory => FsEntry::Directory(Vec::new()),
@@ -91,7 +90,7 @@ impl FsInterface {
             SimpleFileType::Directory => self.disk.new_dir(new_path)?,
         };
 
-        Ok((new_inode_id, new_inode))
+        Ok(new_inode)
     }
 
     pub fn remove_inode(&self, id: InodeId) -> io::Result<()> {
