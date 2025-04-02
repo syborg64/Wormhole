@@ -58,7 +58,7 @@ impl FsInterface {
         parent_ino: u64,
         name: String,
         kind: SimpleFileType,
-    ) -> io::Result<(InodeId, Inode)> {
+    ) -> io::Result<Inode> {
         let new_entry = match kind {
             SimpleFileType::File => FsEntry::File(vec![self.network_interface.self_addr.clone()]),
             SimpleFileType::Directory => FsEntry::Directory(Vec::new()),
@@ -91,7 +91,7 @@ impl FsInterface {
             SimpleFileType::Directory => self.disk.new_dir(new_path)?,
         };
 
-        Ok((new_inode_id, new_inode))
+        Ok(new_inode)
     }
 
     pub fn remove_inode(&self, id: InodeId) -> io::Result<()> {

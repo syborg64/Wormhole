@@ -94,7 +94,7 @@ impl Into<FileAttr> for Metadata {
             gid: self.gid,
             rdev: self.rdev,
             flags: self.flags,
-            blksize: 1,
+            blksize: self.blksize,
         }
     }
 }
@@ -318,15 +318,7 @@ impl Filesystem for FuseController {
             name.to_string_lossy().to_string(),
             SimpleFileType::File,
         ) {
-            Ok((id, _)) => {
-                // creating metadata to return
-                let mut new_attr = TEMPLATE_FILE_ATTR;
-                new_attr.ino = id;
-                new_attr.kind = FileType::RegularFile;
-                new_attr.size = 0;
-
-                reply.entry(&TTL, &new_attr, 0)
-            }
+            Ok(node) => reply.entry(&TTL, &node.meta.into(), 0),
             Err(err) => {
                 log::error!("fuse_impl error: {:?}", err);
                 reply.error(err.raw_os_error().unwrap_or(EIO))
@@ -348,15 +340,7 @@ impl Filesystem for FuseController {
             name.to_string_lossy().to_string(),
             SimpleFileType::Directory,
         ) {
-            Ok((id, _)) => {
-                // creating metadata to return
-                let mut new_attr = TEMPLATE_FILE_ATTR;
-                new_attr.ino = id;
-                new_attr.kind = FileType::Directory;
-                new_attr.size = 0;
-
-                reply.entry(&TTL, &new_attr, 0)
-            }
+            Ok(inode) => reply.entry(&TTL, &inode.meta.into(), 0),
             Err(err) => {
                 log::error!("fuse_impl error: {:?}", err);
                 reply.error(err.raw_os_error().unwrap_or(EIO))
@@ -458,15 +442,7 @@ impl Filesystem for FuseController {
             name.to_string_lossy().to_string(),
             SimpleFileType::File,
         ) {
-            Ok((id, _)) => {
-                // creating metadata to return
-                let mut new_attr = TEMPLATE_FILE_ATTR;
-                new_attr.ino = id;
-                new_attr.kind = FileType::RegularFile;
-                new_attr.size = 0;
-
-                reply.created(&TTL, &new_attr, 0, new_attr.ino, flags as u32);
-            }
+            Ok(inode) => reply.created(&TTL, &inode.meta.into(), 0, inode.id, flags as u32),
             Err(err) => {
                 log::error!("fuse_impl error: {:?}", err);
                 reply.error(err.raw_os_error().unwrap_or(EIO))
