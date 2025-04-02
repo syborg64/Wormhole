@@ -105,7 +105,7 @@ impl Inode {
             uid: 0,
             gid: 0,
             rdev: 0,
-            blksize: 0,
+            blksize: 1,
             flags: 0,
         };
 
@@ -141,12 +141,12 @@ impl Arbo {
                     ctime: SystemTime::now(),
                     crtime: SystemTime::now(),
                     kind: SimpleFileType::Directory,
-                    perm: 0o777,
+                    perm: 0o666,
                     nlink: 0,
                     uid: 0,
                     gid: 0,
                     rdev: 0,
-                    blksize: 0,
+                    blksize: 1,
                     flags: 0,
                 },
             },
