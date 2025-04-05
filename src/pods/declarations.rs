@@ -96,7 +96,7 @@ fn register_to_others(peers: &Vec<PeerIPC>, self_address: &Address) -> std::io::
     for peer in peers {
         peer.sender
             .send(MessageContent::Register(self_address.clone()))
-            .map_err(|err| std::io::Error::new(io::ErrorKind::HostUnreachable, err))?;
+            .map_err(|err| std::io::Error::new(io::ErrorKind::NotConnected, err))?;
     }
     Ok(())
 }

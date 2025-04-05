@@ -449,7 +449,7 @@ impl NetworkInterface {
             Ok(())
         } else {
             Err(std::io::Error::new(
-                io::ErrorKind::Deadlock,
+                io::ErrorKind::WouldBlock,
                 "Deadlock while trying to read peers",
             ))
         }
