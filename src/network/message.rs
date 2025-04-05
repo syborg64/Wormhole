@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use tokio::sync::{mpsc::UnboundedSender, oneshot};
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::pods::arbo::{ArboIndex, Inode, InodeId, Metadata};
 
@@ -14,14 +14,14 @@ pub enum MessageContent {
     Inode(Inode, InodeId),
     RequestFile(InodeId, Address),
     PullAnswer(InodeId, Vec<u8>),
-    RequestFs(Address),
     Rename(InodeId, InodeId, String, String), //Parent, New Parent, Name, New Name
     EditHosts(InodeId, Vec<Address>),
     AddHosts(InodeId, Vec<Address>),
     RemoveHosts(InodeId, Vec<Address>),
     EditMetadata(InodeId, Metadata, Address),
-    FsAnswer(FileSystemSerialized),
+    RequestFs,
     RequestPull(InodeId),
+    FsAnswer(FileSystemSerialized, Vec<Address>),
 }
 
 pub type MessageAndFeedback = (MessageContent, Option<UnboundedSender<Feedback>>);
@@ -47,10 +47,7 @@ pub enum Feedback {
 #[derive(Debug)]
 pub enum ToNetworkMessage {
     BroadcastMessage(MessageContent),
-    SpecificMessage(
-        MessageAndFeedback,
-        Vec<Address>,
-    ),
+    SpecificMessage(MessageAndFeedback, Vec<Address>),
 }
 
 #[serde_as]
