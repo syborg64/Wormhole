@@ -205,15 +205,12 @@ impl FsInterface {
     }
 
     // NOTE - ignores the callback. To pull a file normaly, please use a process similar to read_file
-    pub fn pull_file(&self, file: InodeId) -> io::Result<()> {
-        match self.network_interface.pull_file(file) {
-            Ok(_) => Ok(()),
-            Err(e) => Err(e),
-        }
+    pub async fn pull_file_non_blocking(&self, file: InodeId) -> io::Result<()> {
+        self.network_interface.pull_file_non_blocking(file).await
     }
 
     pub fn read_file(&self, file: InodeId, offset: u64, len: u64) -> io::Result<Vec<u8>> {
-        let cb = self.network_interface.pull_file(file)?;
+        let cb = self.network_interface.pull_file_blocking(file)?;
 
         let status = match cb {
             None => true,
@@ -302,9 +299,9 @@ impl FsInterface {
         };
 
         let status = self.disk.write_file(path, &binary, 0).is_ok();
-        self.network_interface
+        let _ = self.network_interface
             .callbacks
-            .resolve(Callback::Pull(id), status)?;
+            .resolve(Callback::Pull(id), status);
         if status {
             let mut hosts;
             if let FsEntry::File(hosts_source) = &inode.entry {
