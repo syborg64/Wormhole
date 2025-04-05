@@ -18,7 +18,7 @@ pub async fn forward_receiver_to_write<T>(
     while let Some((message, feedback)) = rx.recv().await {
         let serialized = bincode::serialize(&message).unwrap();
         if let Some(feedback) = feedback {
-            match write.send(Message::binary(serialized)).await {
+            let _ = match write.send(Message::binary(serialized)).await {
                 Ok(_) => feedback.send(Feedback::Sent),
                 Err(_) => feedback.send(Feedback::Error),
             };

@@ -300,7 +300,6 @@ impl FsInterface {
                             .network_interface
                             .callbacks
                             .resolve(Callback::Pull(id), false)
-                            .map(|_| ());
                     }
                 },
                 arbo.get_inode(id)?.clone(),

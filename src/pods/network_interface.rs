@@ -12,7 +12,7 @@ use super::{
 };
 use crate::network::{
     message::{
-        self, Address, FileSystemSerialized, FromNetworkMessage, MessageAndFeedback,
+        self, Address, Feedback, FileSystemSerialized, FromNetworkMessage, MessageAndFeedback,
         MessageContent, ToNetworkMessage,
     },
     peer_ipc::PeerIPC,
@@ -324,18 +324,37 @@ impl NetworkInterface {
             Ok(None)
         } else {
             let callback = self.callbacks.create(Callback::Pull(file))?;
+            let (feedback_tx, mut feedback_rx) = tokio::sync::mpsc::unbounded_channel::<Feedback>();
+            let mut pull_from = 0;
 
-            self.to_network_message_tx
-                .send(ToNetworkMessage::SpecificMessage(
-                    (
-                        MessageContent::RequestFile(file, self.self_addr.clone()),
-                        None,
-                    ),
-                    vec![hosts[0].clone()], // NOTE - naive choice for now
-                ))
-                .expect("pull_file: unable to request on the network thread");
+            // will try to pull on all redundancies untill success
+            loop {
+                // if no more hosts to try - fail
+                if pull_from >= hosts.len() {
+                    let _ = self.callbacks.resolve(callback, true);
+                    return Err(io::ErrorKind::NotConnected.into());
+                }
 
-            Ok(Some(callback))
+                // trying on host `pull_from`
+                self.to_network_message_tx
+                    .send(ToNetworkMessage::SpecificMessage(
+                        (
+                            MessageContent::RequestFile(file, self.self_addr.clone()),
+                            Some(feedback_tx.clone()),
+                        ),
+                        vec![hosts[pull_from].clone()], // NOTE - naive choice for now
+                    ))
+                    .expect("pull_file: unable to request on the network thread");
+
+                // processing feedback
+                match feedback_rx
+                    .blocking_recv()
+                    .expect("pull_file: unable to get feedback from the network thread")
+                {
+                    Feedback::Sent => return Ok(Some(callback)),
+                    Feedback::Error => pull_from += 1,
+                }
+            }
         }
     }
 
