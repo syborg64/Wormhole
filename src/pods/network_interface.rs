@@ -12,7 +12,8 @@ use super::{
 };
 use crate::network::{
     message::{
-        self, Address, FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
+        self, Address, FileSystemSerialized, FromNetworkMessage, MessageAndFeedback,
+        MessageContent, ToNetworkMessage,
     },
     peer_ipc::PeerIPC,
     server::Server,
@@ -326,7 +327,10 @@ impl NetworkInterface {
 
             self.to_network_message_tx
                 .send(ToNetworkMessage::SpecificMessage(
-                    message::MessageContent::RequestFile(file, self.self_addr.clone()),
+                    (
+                        MessageContent::RequestFile(file, self.self_addr.clone()),
+                        None,
+                    ),
                     vec![hosts[0].clone()], // NOTE - naive choice for now
                 ))
                 .expect("pull_file: unable to request on the network thread");
@@ -338,7 +342,7 @@ impl NetworkInterface {
     pub fn send_file(&self, inode: InodeId, data: Vec<u8>, to: Address) -> io::Result<()> {
         self.to_network_message_tx
             .send(ToNetworkMessage::SpecificMessage(
-                MessageContent::PullAnswer(inode, data),
+                (MessageContent::PullAnswer(inode, data), None),
                 vec![to],
             ))
             .expect("send_file: unable to update modification on the network thread");
@@ -474,7 +478,7 @@ impl NetworkInterface {
 
         self.to_network_message_tx
             .send(ToNetworkMessage::SpecificMessage(
-                MessageContent::RequestPull(file_id),
+                (MessageContent::RequestPull(file_id), None),
                 possible_hosts,
             ))
             .expect("apply_redundancy: unable to send redundancy on the network thread");
@@ -538,7 +542,7 @@ impl NetworkInterface {
 
         self.to_network_message_tx
             .send(ToNetworkMessage::SpecificMessage(
-                MessageContent::RequestFs(self.self_addr.clone()),
+                (MessageContent::RequestFs(self.self_addr.clone()), None),
                 vec![to],
             ))
             .expect("request_arbo: unable to update modification on the network thread");
@@ -572,10 +576,13 @@ impl NetworkInterface {
 
         self.to_network_message_tx
             .send(ToNetworkMessage::SpecificMessage(
-                MessageContent::FsAnswer(FileSystemSerialized {
-                    fs_index: entries,
-                    next_inode: self.get_next_inode()?,
-                }),
+                (
+                    MessageContent::FsAnswer(FileSystemSerialized {
+                        fs_index: entries,
+                        next_inode: self.get_next_inode()?,
+                    }),
+                    None,
+                ),
                 vec![real_address],
             ))
             .expect("send_arbo: unable to update modification on the network thread");
@@ -646,11 +653,11 @@ impl NetworkInterface {
         peers_list: Arc<RwLock<Vec<PeerIPC>>>,
         mut rx: UnboundedReceiver<ToNetworkMessage>,
     ) {
-        // on message reception, broadcast it to all peers senders
         while let Some(message) = rx.recv().await {
-            let peer_tx: Vec<(UnboundedSender<MessageContent>, String)> = peers_list
+            // geeting all peers network senders
+            let peers_tx: Vec<(UnboundedSender<MessageAndFeedback>, String)> = peers_list
                 .try_read_for(LOCK_TIMEOUT)
-                .unwrap() // TODO - handle timeout
+                .expect("mutext error on contact_peers") // TODO - handle timeout
                 .iter()
                 .map(|peer| (peer.sender.clone(), peer.address.clone()))
                 .collect();
@@ -666,20 +673,20 @@ impl NetworkInterface {
             );
             match message {
                 ToNetworkMessage::BroadcastMessage(message_content) => {
-                    peer_tx.iter().for_each(|(channel, address)| {
+                    peers_tx.iter().for_each(|(channel, address)| {
                         println!("peer: {}", address);
                         channel
-                            .send(message_content.clone())
+                            .send((message_content.clone(), None))
                             .expect(&format!("failed to send message to peer {}", address))
                     });
                 }
-                ToNetworkMessage::SpecificMessage(message_content, origins) => {
-                    peer_tx
+                ToNetworkMessage::SpecificMessage((message_content, feedback), origins) => {
+                    peers_tx
                         .iter()
                         .filter(|&(_, address)| origins.contains(address))
                         .for_each(|(channel, address)| {
                             channel
-                                .send(message_content.clone())
+                                .send((message_content.clone(), feedback.clone()))
                                 .expect(&format!("failed to send message to peer {}", address))
                         });
                 }

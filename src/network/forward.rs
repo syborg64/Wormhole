@@ -6,16 +6,23 @@ use tokio_tungstenite::tungstenite::Message;
 
 use crate::network::message::MessageContent;
 
-use super::message::FromNetworkMessage;
+use super::message::{Feedback, FromNetworkMessage, MessageAndFeedback};
 
-pub async fn forward_receiver_to_write<T>(mut write: T, rx: &mut UnboundedReceiver<MessageContent>)
-where
+pub async fn forward_receiver_to_write<T>(
+    mut write: T,
+    rx: &mut UnboundedReceiver<MessageAndFeedback>,
+) where
     T: Sink<Message> + Unpin,
     <T as Sink<Message>>::Error: Debug,
 {
-    while let Some(message) = rx.recv().await {
+    while let Some((message, feedback)) = rx.recv().await {
         let serialized = bincode::serialize(&message).unwrap();
-        write.send(Message::binary(serialized)).await.unwrap();
+        if let Some(feedback) = feedback {
+            match write.send(Message::binary(serialized)).await {
+                Ok(_) => feedback.send(Feedback::Sent),
+                Err(_) => feedback.send(Feedback::Error),
+            };
+        }
     }
 }
 

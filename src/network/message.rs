@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+use tokio::sync::{mpsc::UnboundedSender, oneshot};
 
 use crate::pods::arbo::{ArboIndex, Inode, InodeId, Metadata};
 
@@ -23,6 +24,8 @@ pub enum MessageContent {
     RequestPull(InodeId),
 }
 
+pub type MessageAndFeedback = (MessageContent, Option<UnboundedSender<Feedback>>);
+
 pub type Address = String;
 
 /// Message Coming from Network
@@ -33,12 +36,21 @@ pub struct FromNetworkMessage {
     pub content: MessageContent,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub enum Feedback {
+    Sent,
+    Error,
+}
+
 /// Message Going To Network
 /// Messages sent from fuser to process communicating to the peers
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Debug)]
 pub enum ToNetworkMessage {
     BroadcastMessage(MessageContent),
-    SpecificMessage(MessageContent, Vec<Address>),
+    SpecificMessage(
+        MessageAndFeedback,
+        Vec<Address>,
+    ),
 }
 
 #[serde_as]
