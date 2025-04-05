@@ -1,4 +1,4 @@
-use crate::network::message::{Address, FileSystemSerialized};
+use crate::network::message::Address;
 
 use super::arbo::Metadata;
 use super::network_interface::Callback;
@@ -111,7 +111,7 @@ impl FsInterface {
                     return Err(io::Error::new(
                         io::ErrorKind::InvalidData,
                         "remove_inode: can't remove non-empty dir",
-                    ))
+                    ));
                 }
             }
         };
@@ -255,10 +255,6 @@ impl FsInterface {
 
     // SECTION - remote -> write
 
-    pub fn replace_arbo(&self, new: FileSystemSerialized) -> io::Result<()> {
-        self.network_interface.replace_arbo(new)
-    }
-
     pub fn recept_inode(&self, inode: Inode, id: InodeId) -> io::Result<()> {
         self.network_interface.acknowledge_new_file(inode, id)?;
 
@@ -351,8 +347,8 @@ impl FsInterface {
     // !SECTION
 
     // SECTION remote -> read
-    pub fn send_filesystem(&self, to: Address, real_address: Address) -> io::Result<()> {
-        self.network_interface.send_arbo(to, real_address)
+    pub fn send_filesystem(&self, to: Address) -> io::Result<()> {
+        self.network_interface.send_arbo(to)
     }
 
     pub fn register_new_node(&self, socket: Address, addr: Address) {
