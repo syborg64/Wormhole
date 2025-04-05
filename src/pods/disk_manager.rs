@@ -13,6 +13,7 @@ impl AsPath for WhPath {
     }
 }
 
+#[derive(Debug)]
 pub struct DiskManager {
     handle: Dir,
     mount_point: WhPath, // mountpoint on linux and mirror mountpoint on windows

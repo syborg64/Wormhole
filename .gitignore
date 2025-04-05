@@ -28,3 +28,4 @@ Folder*
 
 .vscode
 .wormhole
+.direnv/

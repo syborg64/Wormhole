@@ -3,8 +3,10 @@ use std::fs;
 use tokio::runtime::Runtime;
 
 use crate::{
-    commands::message::{cli_messager, CliMessage},
-    config::{types::Config, GlobalConfig, LocalConfig},
+    commands::{
+        cli::message::cli_messager,
+        cli_commands::{Cli, PodArgs},
+    },
     pods::whpath::WhPath,
 };
 
@@ -24,13 +26,16 @@ fn check_config_file(
     Ok(())
 }
 
-pub fn init(path: &WhPath) -> Result<(), Box<dyn std::error::Error>> {
+pub fn init(ip: &str, path: &WhPath) -> Result<(), Box<dyn std::error::Error>> {
     fs::read_dir(&path.inner).map(|_| ())?;
     let files_name = vec![".local_config.toml", ".global_config.toml"];
     check_config_file(&path, files_name)?;
     let rt = Runtime::new().unwrap();
-    rt.block_on(cli_messager(CliMessage {
-        command: "init".to_string(),
-    }))?;
+    rt.block_on(cli_messager(
+        ip,
+        Cli::Init(PodArgs {
+            path: Some(path.clone()),
+        }),
+    ))?;
     Ok(())
 }

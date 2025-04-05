@@ -2,7 +2,7 @@ use std::{io, sync::Arc};
 
 #[cfg(target_os = "linux")]
 use fuser;
-use log::{debug, info};
+use log::info;
 use parking_lot::RwLock;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -28,6 +28,7 @@ use super::{
 pub type PodConfig = u64;
 
 #[allow(dead_code)]
+#[derive(Debug)]
 pub struct Pod {
     network_interface: Arc<NetworkInterface>,
     fs_interface: Arc<FsInterface>,

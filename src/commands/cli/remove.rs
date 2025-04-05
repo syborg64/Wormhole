@@ -34,7 +34,7 @@ pub fn remove(path: &WhPath, mode: Mode) -> Result<(), Box<dyn Error>> {
 
     let name = crate::config::Network::read(path.join(".wormhole/network.toml").inner)?.name;
 
-    commands::unregister(&name)?;
+    commands::cli::unregister(&name)?;
     fs::remove_dir_all((&path).join(".wormhole").inner)?;
     if mode == Mode::Clean {
         fs::remove_dir_all(path.inner.clone())?;

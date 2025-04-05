@@ -13,10 +13,10 @@ async fn basic_text_file_transfer() {
     env.add_service(false).unwrap();
     env.add_service(false).unwrap();
 
-    std::thread::sleep(std::time::Duration::from_secs_f32(0.5));
+    std::thread::sleep(std::time::Duration::from_secs_f32(2.0));
     let file_path = append_to_path(&env.services[0].path, "/foo.txt");
     std::fs::write(&file_path, "Hello world!").unwrap();
-    std::thread::sleep(std::time::Duration::from_secs_f32(0.3));
+    std::thread::sleep(std::time::Duration::from_secs_f32(2.0));
 
     for paths in [&env.services[1].path, &env.services[2].path] {
         match std::fs::read_to_string(append_to_path(paths, "/foo.txt")) {

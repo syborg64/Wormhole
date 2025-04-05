@@ -3,77 +3,22 @@
 // AgarthaSoftware - 2024
 
 use clap::Parser;
-use wormhole::{commands, pods::whpath::WhPath};
-
-#[derive(Parser)] // requires `derive` feature
-#[command(name = "wormhole")]
-#[command(bin_name = "wormhole")]
-enum Cli {
-    /// start the service
-    Start,
-    /// stop the service
-    Stop,
-    /// create a new network (template)
-    Template(TemplateArg),
-    /// make a pod and create a new network
-    Init(PodArgs),
-    /// make a pod and join a network
-    Join(JoinArgs),
-    /// inspect a pod with its configuration, connections, etc
-    Inspect,
-    /// remove a pod from its network
-    Remove(RemoveArgs),
-}
-
-#[derive(clap::Args)]
-#[command(version, about, long_about = None)]
-struct PodArgs {
-    /// Change to DIRECTORY before doing anything
-    #[arg(long, short = 'C')]
-    path: Option<WhPath>,
-}
-
-#[derive(clap::Args)]
-#[command(version, about, long_about = None)]
-struct JoinArgs {
-    /// network url as <address of node to join from> + ':' + <network name>'
-    #[arg()]
-    url: String,
-    /// additional hosts to try to join from as a backup
-    #[arg()]
-    additional_hosts: Option<Vec<String>>,
-    /// Change to DIRECTORY before doing anything
-    #[arg(long, short = 'C')]
-    path: Option<WhPath>,
-}
-
-#[derive(clap::Args)]
-#[command(version, about, long_about = None)]
-struct TemplateArg {
-    /// name of the network to create
-    #[arg()]
-    name: Option<String>,
-    /// Change to DIRECTORY before doing anything
-    #[arg(long, short = 'C')]
-    path: Option<WhPath>,
-}
-
-#[derive(clap::Args)]
-#[command(version, about, long_about = None)]
-struct RemoveArgs {
-    /// name of the network to create
-    #[arg(short = 'x', group = "mode")]
-    take: bool,
-    #[arg(short = 'c', group = "mode")]
-    clone: bool,
-    #[arg(short = 'd', group = "mode")]
-    delete: bool,
-    /// Change to DIRECTORY before doing anything
-    #[arg(long, short = 'C')]
-    path: Option<WhPath>,
-}
+use std::{env, path::PathBuf, sync::Arc};
+use wormhole::{
+    commands::{
+        self,
+        cli_commands::{self, Cli},
+    },
+    pods::whpath::WhPath,
+};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    env_logger::init();
+    let ip: String = env::args()
+        .nth(2)
+        .unwrap_or("127.0.0.1:8081".to_string())
+        .into();
+    println!("Starting cli on {}", ip);
     match Cli::parse() {
         Cli::Start => {
             println!("starting service");
@@ -88,20 +33,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "creating network {:?}",
                 args.name.clone().unwrap_or("default".into())
             );
-            commands::templates(
+            commands::cli::templates(
                 &args.path.unwrap_or(".".into()),
                 &args.name.unwrap_or("default".into()),
             )?;
         }
         Cli::Init(args) => {
             println!("init service");
-            commands::init(&WhPath::from(args.path.unwrap_or(".".into())))?;
+            commands::cli::init(ip.as_str(), &WhPath::from(args.path.unwrap_or(".".into())))?;
             // todo!("init");
         }
         Cli::Join(args) => {
             println!("joining {}", args.url);
             println!("(additional hosts: {:?})", args.additional_hosts);
-            commands::join(
+            commands::cli::join(
+                ip.as_str(),
                 &args.path.unwrap_or(".".into()),
                 args.url,
                 args.additional_hosts.unwrap_or(vec![]),
@@ -110,13 +56,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Cli::Remove(args) => {
             println!("removing pod");
             let mode = match (args.clone, args.delete, args.take) {
-                (true, false, false) => commands::Mode::Clone,
-                (false, true, false) => commands::Mode::Clean,
-                (false, false, true) => commands::Mode::Take,
-                (false, false, false) => commands::Mode::Simple,
+                (true, false, false) => commands::cli::Mode::Clone,
+                (false, true, false) => commands::cli::Mode::Clean,
+                (false, false, true) => commands::cli::Mode::Take,
+                (false, false, false) => commands::cli::Mode::Simple,
                 _ => unreachable!("multiple exclusive options"),
             };
-            commands::remove(&WhPath::from(args.path.unwrap_or(".".into())), mode)?;
+            commands::cli::remove(&WhPath::from(args.path.unwrap_or(".".into())), mode)?;
         }
         Cli::Inspect => {
             println!("inspecting pod");

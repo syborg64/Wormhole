@@ -4,11 +4,9 @@
 
 use std::fs;
 
-use serde::Serialize;
-
-use crate::{config::types::Config, pods::whpath::WhPath};
-
 use super::{default_global_config, default_local_config};
+use crate::config::types::Config;
+use crate::pods::whpath::WhPath;
 
 #[must_use]
 pub fn templates(path: &WhPath, name: &str) -> Result<(), Box<dyn std::error::Error>> {
