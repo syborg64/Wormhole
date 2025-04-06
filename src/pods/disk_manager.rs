@@ -57,7 +57,7 @@ impl DiskManager {
     }
 
     pub fn read_file(&self, path: WhPath, offset: u64, len: u64) -> io::Result<Vec<u8>> {
-        let file = self.handle.open_file(path.set_relative())?;
+        let file = std::io::BufReader::new(self.handle.open_file(path.set_relative())?);
         let mut buf = Vec::<u8>::new();
         buf.splice(
             0..0,
