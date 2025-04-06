@@ -199,21 +199,10 @@ impl Pod {
         drop(self.fuse_handle);
 
         // REVIEW - maybe change type to only InodeId
-        let files_to_regularize: Vec<Inode> =
-            Arbo::read_lock(&self.network_interface.arbo, "Pod::stop 1")
-                .expect("Pod::stop arbo read lock")
-                .iter()
-                .filter_map(|(_, inode)| match &inode.entry {
-                    FsEntry::Directory(_) => None,
-                    FsEntry::File(hosts) => {
-                        if hosts.len() == 1 && hosts.contains(&self.network_interface.self_addr) {
-                            Some(inode.clone())
-                        } else {
-                            None
-                        }
-                    }
-                })
-                .collect();
+        let files_to_regularize = self
+            .network_interface
+            .files_hosted_only_by(&self.network_interface.self_addr)
+            .unwrap();
 
         let arbo = Arbo::read_lock(&self.network_interface.arbo, "Pod::stop 2")
             .expect("Pod::stop arbo read lock");

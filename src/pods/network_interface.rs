@@ -534,6 +534,22 @@ impl NetworkInterface {
          */
     }
 
+    pub fn files_hosted_only_by(&self, host: &Address) -> io::Result<Vec<Inode>> {
+        Ok(Arbo::read_lock(&self.arbo, "files_hosted_only_by")?
+            .iter()
+            .filter_map(|(_, inode)| match &inode.entry {
+                FsEntry::Directory(_) => None,
+                FsEntry::File(hosts) => {
+                    if hosts.len() == 1 && hosts.contains(&host) {
+                        Some(inode.clone())
+                    } else {
+                        None
+                    }
+                }
+            })
+            .collect())
+    }
+
     // SECTION Redundancy related
 
     fn add_redundancy(&self, file_id: InodeId, current_hosts: Vec<Address>) -> io::Result<()> {
