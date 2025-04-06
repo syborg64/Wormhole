@@ -452,14 +452,13 @@ impl Arbo {
 
 // !SECTION
 
-///
-/// Reserved Inodes:
-/// 1 - "/"
-/// 2 - ".global_config.toml"
-/// 3 - ".local_config.toml"
+/// Reserved files names
 pub const GLOBAL_CONFIG_INO: u64 = 2;
+pub const GLOBAL_CONFIG_FNAME: &str = ".global_config.toml";
 pub const LOCAL_CONFIG_INO: u64 = 3;
+pub const LOCAL_CONFIG_FNAME: &str = ".local_config.toml";
 pub const ARBO_FILE_INO: u64 = 4;
+pub const ARBO_FILE_FNAME: &str = ".arbo";
 
 fn index_folder_recursive(
     arbo: &mut Arbo,
@@ -476,9 +475,9 @@ fn index_folder_recursive(
         let meta = entry.metadata()?;
 
         let used_ino = match (fname.as_str(), parent) {
-            (".global_config.toml", 1) => GLOBAL_CONFIG_INO,
-            (".local_config.toml", 1) => LOCAL_CONFIG_INO,
-            (".arbo", 1) => ARBO_FILE_INO,
+            (GLOBAL_CONFIG_FNAME, 1) => GLOBAL_CONFIG_INO,
+            (LOCAL_CONFIG_FNAME, 1) => LOCAL_CONFIG_INO,
+            (ARBO_FILE_FNAME, 1) => ARBO_FILE_INO,
             _ => {
                 let used = *ino;
                 *ino += 1;
