@@ -4,6 +4,7 @@ use std::{io, sync::Arc};
 use fuser;
 use log::info;
 use parking_lot::RwLock;
+use serde::Serialize;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::task::JoinHandle;
 #[cfg(target_os = "windows")]
@@ -17,6 +18,7 @@ use crate::winfsp::winfsp_impl::mount_fsp;
 
 use crate::network::{message::Address, peer_ipc::PeerIPC, server::Server};
 
+use super::arbo::{FsEntry, Inode};
 use super::{
     arbo::{index_folder, Arbo},
     disk_manager::DiskManager,
@@ -187,5 +189,28 @@ impl Pod {
             peer_broadcast_handle,
             new_peer_handle,
         })
+    }
+
+    pub fn stop(self) {
+        drop(self.fuse_handle);
+        let arbo = Arbo::read_lock(&self.network_interface.arbo, "Pod::stop")
+            .expect("Pod::stop arbo read lock");
+
+        // REVIEW - maybe change type to only InodeId
+        let files_to_regularize: Vec<Inode> = arbo
+            .iter()
+            .filter_map(|(_, inode)| match &inode.entry {
+                FsEntry::Directory(_) => None,
+                FsEntry::File(hosts) => {
+                    if hosts.len() == 1 && hosts.contains(&self.network_interface.self_addr) {
+                        Some(inode.clone())
+                    } else {
+                        None
+                    }
+                }
+            })
+            .collect();
+
+            // self.fs_interface.disk.write_file(".arbo", arbo.serialize(serializer), 0);
     }
 }
