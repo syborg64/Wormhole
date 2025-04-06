@@ -1,16 +1,15 @@
 use crate::pods::arbo::{FsEntry, Inode, Metadata};
-use crate::pods::fs_interface::{self, FsInterface, SimpleFileType};
+use crate::pods::fs_interface::{FsInterface, SimpleFileType};
 use crate::pods::whpath::WhPath;
 use fuser::{
     BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData,
     ReplyDirectory, ReplyEntry, Request, TimeOrNow,
 };
 use libc::{EIO, ENOENT};
-use log::debug;
 use std::ffi::OsStr;
 use std::io;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime};
 
 // NOTE - placeholders
 const TTL: Duration = Duration::from_secs(1);

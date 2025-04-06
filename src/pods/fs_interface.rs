@@ -111,7 +111,7 @@ impl FsInterface {
                     return Err(io::Error::new(
                         io::ErrorKind::InvalidData,
                         "remove_inode: can't remove non-empty dir",
-                    ))
+                    ));
                 }
             }
         };
