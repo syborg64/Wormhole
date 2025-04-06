@@ -1,6 +1,6 @@
 use crate::network::message::Address;
 
-use super::arbo::{Metadata, GLOBAL_CONFIG_INO, LOCAL_CONFIG_INO};
+use super::arbo::{Metadata, ARBO_FILE_FNAME, ARBO_FILE_INO, GLOBAL_CONFIG_FNAME, GLOBAL_CONFIG_INO, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO};
 use super::network_interface::Callback;
 use super::whpath::WhPath;
 use super::{
@@ -65,8 +65,9 @@ impl FsInterface {
         };
 
         let new_inode_id = match (name.as_str(), parent_ino) {
-            (".global_config.toml", 1) => GLOBAL_CONFIG_INO,
-            (".local_config.toml", 1) => LOCAL_CONFIG_INO,
+            (GLOBAL_CONFIG_FNAME, 1) => GLOBAL_CONFIG_INO,
+            (LOCAL_CONFIG_FNAME, 1) => LOCAL_CONFIG_INO,
+            (ARBO_FILE_FNAME, 1) => ARBO_FILE_INO,
             _ => self.network_interface.get_next_inode()?,
         };
 
