@@ -162,6 +162,10 @@ impl Arbo {
         self.entries.clone()
     }
 
+    pub fn iter(&self) -> std::collections::hash_map::Iter<'_, InodeId, Inode> {
+        self.entries.iter()
+    }
+
     #[must_use]
     pub fn read_lock<'a>(
         arbo: &'a Arc<RwLock<Arbo>>,
