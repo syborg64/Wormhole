@@ -18,7 +18,7 @@ use crate::winfsp::winfsp_impl::mount_fsp;
 
 use crate::network::{message::Address, peer_ipc::PeerIPC, server::Server};
 
-use super::arbo::{FsEntry, Inode};
+use super::arbo::{FsEntry, Inode, ARBO_FILE_FNAME};
 use super::{
     arbo::{index_folder, Arbo},
     disk_manager::DiskManager,
@@ -192,25 +192,39 @@ impl Pod {
     }
 
     pub fn stop(self) {
+        // NOTE
+        // in actual state, all operations (request from network other than just pulling the asked files)
+        // made after calling this function but before dropping the pod are undefined behavior.
+
         drop(self.fuse_handle);
-        let arbo = Arbo::read_lock(&self.network_interface.arbo, "Pod::stop")
-            .expect("Pod::stop arbo read lock");
 
         // REVIEW - maybe change type to only InodeId
-        let files_to_regularize: Vec<Inode> = arbo
-            .iter()
-            .filter_map(|(_, inode)| match &inode.entry {
-                FsEntry::Directory(_) => None,
-                FsEntry::File(hosts) => {
-                    if hosts.len() == 1 && hosts.contains(&self.network_interface.self_addr) {
-                        Some(inode.clone())
-                    } else {
-                        None
+        let files_to_regularize: Vec<Inode> =
+            Arbo::read_lock(&self.network_interface.arbo, "Pod::stop 1")
+                .expect("Pod::stop arbo read lock")
+                .iter()
+                .filter_map(|(_, inode)| match &inode.entry {
+                    FsEntry::Directory(_) => None,
+                    FsEntry::File(hosts) => {
+                        if hosts.len() == 1 && hosts.contains(&self.network_interface.self_addr) {
+                            Some(inode.clone())
+                        } else {
+                            None
+                        }
                     }
-                }
-            })
-            .collect();
+                })
+                .collect();
 
-            // self.fs_interface.disk.write_file(".arbo", arbo.serialize(serializer), 0);
+        let arbo = Arbo::read_lock(&self.network_interface.arbo, "Pod::stop 2")
+            .expect("Pod::stop arbo read lock");
+        let _ = self.fs_interface.disk.remove_file(ARBO_FILE_FNAME.into());
+        self.fs_interface
+            .disk
+            .write_file(
+                ARBO_FILE_FNAME.into(),
+                &bincode::serialize(&*arbo).expect("can't serialize arbo to bincode"),
+                0,
+            )
+            .expect("can't write arbo to disk");
     }
 }
