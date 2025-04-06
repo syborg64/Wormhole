@@ -1,5 +1,5 @@
 use crate::network::message::Address;
-use crate::pods::arbo::{Arbo, FsEntry, Inode, InodeId, Metadata, LOCK_TIMEOUT};
+use crate::pods::arbo::{Arbo, FsEntry, Inode, InodeId, Metadata, GLOBAL_CONFIG_INO, LOCAL_CONFIG_INO, LOCK_TIMEOUT};
 use crate::pods::disk_manager::DiskManager;
 use crate::pods::network_interface::{Callback, NetworkInterface};
 use crate::pods::whpath::WhPath;
@@ -61,8 +61,8 @@ impl FsInterface {
         };
 
         let new_inode_id = match (name.as_str(), parent_ino) {
-            (".global_config.toml", 1) => 2u64,
-            (".local_config.toml", 1) => 3u64,
+            (".global_config.toml", 1) => GLOBAL_CONFIG_INO,
+            (".local_config.toml", 1) => LOCAL_CONFIG_INO,
             _ => self.network_interface.get_next_inode()?,
         };
 
