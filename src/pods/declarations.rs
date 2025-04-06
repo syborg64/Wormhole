@@ -12,13 +12,15 @@ use winfsp::host::FileSystemHost;
 
 #[cfg(target_os = "linux")]
 use crate::fuse::fuse_impl::mount_fuse;
-use crate::network::message::{FileSystemSerialized, FromNetworkMessage, MessageContent};
+use crate::network::message::{
+    Feedback, FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
+};
 #[cfg(target_os = "windows")]
 use crate::winfsp::winfsp_impl::mount_fsp;
 
 use crate::network::{message::Address, peer_ipc::PeerIPC, server::Server};
 
-use super::arbo::{FsEntry, Inode, ARBO_FILE_FNAME};
+use super::arbo::{FsEntry, Inode, InodeId, ARBO_FILE_FNAME};
 use super::{
     arbo::{index_folder, Arbo},
     disk_manager::DiskManager,
@@ -191,18 +193,78 @@ impl Pod {
         })
     }
 
+    /// for a given file, will try to send it to one host,
+    /// trying each until succes
+    /// panic on failure
+    fn send_file_to_possible_hosts(
+        &self,
+        possible_hosts: &Vec<Address>,
+        ino: InodeId,
+        path: WhPath,
+    ) {
+        let mut host_nb = 0;
+
+        loop {
+            if possible_hosts.len() <= host_nb {
+                panic!("Pod::stop no hosts can receive the file");
+            }
+            let file_content = self
+                .fs_interface
+                .disk
+                .read_file_to_end(path.clone())
+                .expect("Pod::stop: unable to read file from disk");
+
+            let (feedback_tx, mut feedback_rx) = tokio::sync::mpsc::unbounded_channel::<Feedback>();
+
+            self.network_interface
+                .to_network_message_tx
+                .send(ToNetworkMessage::SpecificMessage(
+                    (
+                        MessageContent::PullAnswer(ino, file_content),
+                        Some(feedback_tx.clone()),
+                    ),
+                    vec![possible_hosts[0].clone()],
+                ))
+                .unwrap();
+
+            match feedback_rx.blocking_recv().unwrap() {
+                Feedback::Sent => return,
+                Feedback::Error => host_nb += 1,
+            };
+        }
+    }
+
     pub fn stop(self) {
         // NOTE
         // in actual state, all operations (request from network other than just pulling the asked files)
         // made after calling this function but before dropping the pod are undefined behavior.
 
-        drop(self.fuse_handle);
+        // drop(self.fuse_handle); // FIXME - do something like block the filesystem
 
-        // REVIEW - maybe change type to only InodeId
-        let files_to_regularize = self
+        let possible_hosts: Vec<Address> = self
+            .peers
+            .read()
+            .iter()
+            .map(|peer| peer.address.clone())
+            .collect();
+
+        let files_to_send: Vec<(u64, WhPath)> = self
             .network_interface
             .files_hosted_only_by(&self.network_interface.self_addr)
-            .unwrap();
+            .unwrap()
+            .into_iter()
+            .map(|inode| {
+                let path = Arbo::read_lock(&self.network_interface.arbo, "Pod::stop 1")
+                    .unwrap()
+                    .get_path_from_inode_id(inode.id)
+                    .unwrap();
+                (inode.id, path)
+            })
+            .collect();
+
+        files_to_send.into_iter().for_each(|(id, path)| {
+            self.send_file_to_possible_hosts(&possible_hosts, id, path.clone());
+        });
 
         let arbo = Arbo::read_lock(&self.network_interface.arbo, "Pod::stop 2")
             .expect("Pod::stop arbo read lock");
