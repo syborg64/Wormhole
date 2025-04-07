@@ -1,9 +1,9 @@
 use crate::pods::arbo::{FsEntry, Inode, Metadata};
-use crate::pods::fs_interface::{FsInterface, SimpleFileType};
+use crate::pods::interface::fs_interface::{FsInterface, SimpleFileType};
 use crate::pods::whpath::WhPath;
 use fuser::{
     BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData,
-    ReplyDirectory, ReplyEntry, Request, TimeOrNow,
+    ReplyDirectory, ReplyEntry, ReplyXattr, Request, TimeOrNow,
 };
 use libc::{EIO, ENOENT};
 use std::ffi::OsStr;
@@ -130,17 +130,17 @@ impl Filesystem for FuseController {
         &mut self,
         _req: &Request<'_>,
         ino: u64,
-        mode: Option<u32>,
+        _mode: Option<u32>,
         uid: Option<u32>,
         gid: Option<u32>,
         size: Option<u64>,
         atime: Option<fuser::TimeOrNow>,
         mtime: Option<fuser::TimeOrNow>,
         ctime: Option<std::time::SystemTime>,
-        fh: Option<u64>,
+        _fh: Option<u64>,
         crtime: Option<std::time::SystemTime>,
-        chgtime: Option<std::time::SystemTime>,
-        bkuptime: Option<std::time::SystemTime>,
+        _chgtime: Option<std::time::SystemTime>,
+        _bkuptime: Option<std::time::SystemTime>,
         flags: Option<u32>,
         reply: ReplyAttr,
     ) {
@@ -205,23 +205,28 @@ impl Filesystem for FuseController {
     fn getxattr(
         &mut self,
         _req: &Request<'_>,
-        _ino: u64,
-        _name: &OsStr,
+        ino: u64,
+        name: &OsStr,
         _size: u32,
         reply: ReplyXattr,
     ) {
-        log::error!("getxattr called!");
-        reply.error(libc::ERANGE);
-        // let ino_attrs = self.fs_interface.get_inode_attributes(ino);
+        let ino_attr = self
+            .fs_interface
+            .get_inode_x_attribute(ino, &name.to_string_lossy().to_string());
 
-        // let xattr = match ino_attrs {
-        //     Ok(attrs) => (),
-        //     Err(err) => {
-        //         log::error!("fuse_impl error: {:?}", err);
-        //         reply.error(err.raw_os_error().unwrap_or(EIO));
-        //         return;
-        //     }
-        // };
+        let xattr = match ino_attr {
+            Ok(None) => {
+                reply.error(libc::ERANGE);
+                return;
+            }
+            Ok(Some(attr)) => attr,
+            Err(err) => {
+                log::error!("fuse_impl error: {:?}", err);
+                reply.error(err.raw_os_error().unwrap_or(EIO));
+                return;
+            }
+        };
+        reply.data(&xattr);
     }
 
     fn read(

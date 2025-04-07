@@ -33,7 +33,7 @@ pub enum FsEntry {
     Directory(Vec<InodeId>),
 }
 
-pub type XAttrs = HashMap<String, [u8]>;
+pub type XAttrs = HashMap<String, Vec<u8>>;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Inode {
