@@ -8,8 +8,9 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use super::{interface::xattrs::WHError, whpath::WhPath};
+use crate::error::WHError;
 use crate::pods::interface::fs_interface::SimpleFileType;
+use crate::pods::whpath::WhPath;
 
 // SECTION consts
 

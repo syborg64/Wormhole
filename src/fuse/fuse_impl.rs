@@ -1,6 +1,6 @@
 use crate::pods::arbo::{FsEntry, Inode, Metadata};
 use crate::pods::interface::fs_interface::{FsInterface, SimpleFileType};
-use crate::pods::interface::xattrs::{GetXAttrError, WHError};
+use crate::pods::interface::xattrs::GetXAttrError;
 use crate::pods::whpath::WhPath;
 use fuser::{
     BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData,

@@ -1,5 +1,6 @@
 use std::{collections::HashMap, io, sync::Arc};
 
+use crate::error::WHError;
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::{
     broadcast,
@@ -7,8 +8,7 @@ use tokio::sync::{
 };
 
 use super::{
-    arbo::{self, FsEntry, Metadata},
-    interface::xattrs::WHError,
+    arbo::{FsEntry, Metadata},
     whpath::WhPath,
 };
 use crate::network::{
