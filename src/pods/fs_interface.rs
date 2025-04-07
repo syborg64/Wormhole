@@ -230,6 +230,13 @@ impl FsInterface {
         Ok(arbo.get_inode(ino)?.meta.clone())
     }
 
+    pub fn get_inode_x_attribute(&self, ino: InodeId, key: &String) -> io::Result<Option<Vec<u8>>> {
+        let arbo = Arbo::read_lock(&self.arbo, "fs_interface::get_inode_x_attribute")?;
+        let inode = arbo.get_inode(ino)?;
+
+        return Ok(inode.xattrs.get(key).map(|value| value.clone()));
+    }
+
     pub fn set_inode_attributes(&self, ino: InodeId, meta: Metadata) -> io::Result<()> {
         self.network_interface.update_metadata(ino, meta)
     }
