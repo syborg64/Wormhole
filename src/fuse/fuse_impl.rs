@@ -1,12 +1,12 @@
 use crate::pods::arbo::{FsEntry, Inode, Metadata};
 use crate::pods::interface::fs_interface::{FsInterface, SimpleFileType};
-use crate::pods::interface::xattrs::{WHError, XAttrError};
+use crate::pods::interface::xattrs::{GetXAttrError, WHError};
 use crate::pods::whpath::WhPath;
 use fuser::{
     BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData,
-    ReplyDirectory, ReplyEntry, ReplyXattr, Request, TimeOrNow,
+    ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyXattr, Request, TimeOrNow,
 };
-use libc::{EIO, ENOENT};
+use libc::{EIO, ENOENT, XATTR_CREATE, XATTR_REPLACE};
 use std::ffi::OsStr;
 use std::io;
 use std::sync::Arc;
@@ -213,15 +213,15 @@ impl Filesystem for FuseController {
     ) {
         let attr = self
             .fs_interface
-            .get_inode_x_attribute(ino, &name.to_string_lossy().to_string());
+            .get_inode_xattr(ino, &name.to_string_lossy().to_string());
 
         let data = match attr {
             Ok(data) => data,
-            Err(XAttrError::KeyNotFound) => {
+            Err(GetXAttrError::KeyNotFound) => {
                 reply.error(libc::ERANGE);
                 return;
             }
-            Err(XAttrError::WHerror { source }) => {
+            Err(GetXAttrError::WHerror { source }) => {
                 reply.error(source.to_libc());
                 return;
             }
@@ -231,6 +231,53 @@ impl Filesystem for FuseController {
             reply.size(data.len() as u32);
         } else {
             reply.data(&data);
+        }
+    }
+
+    fn setxattr(
+        &mut self,
+        _req: &Request<'_>,
+        ino: u64,
+        name: &OsStr,
+        value: &[u8],
+        flags: i32,
+        _position: u32, // Postion undocumented
+        reply: ReplyEmpty,
+    ) {
+        // As we follow linux implementation in spirit, value size limit at 64kb
+        if value.len() > 64000 {
+            return reply.error(libc::ENOSPC);
+        }
+
+        let key = name.to_string_lossy().to_string();
+
+        if flags == XATTR_CREATE || flags == XATTR_REPLACE {
+            match self.fs_interface.xattr_exists(ino, &key) {
+                Ok(true) => {
+                    if flags == XATTR_CREATE {
+                        return reply.error(libc::EEXIST);
+                    }
+                }
+                Ok(false) => {
+                    if flags == XATTR_REPLACE {
+                        return reply.error(libc::ENODATA);
+                    }
+                }
+                Err(err) => {
+                    return reply.error(err.to_libc());
+                }
+            }
+        }
+
+        //TODO: Implement After permission implementation
+        // let attr = self.fs_interface.get_inode_attributes(ino);
+        // if attr.unwrap().perm == valid {
+        //     reply.error(libc::EPERM);
+        // }
+
+        match self.fs_interface.set_inode_xattr(ino, key, value.to_vec()) {
+            Ok(_) => reply.ok(),
+            Err(err) => reply.error(err.to_libc()),
         }
     }
 

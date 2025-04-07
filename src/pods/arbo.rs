@@ -190,13 +190,9 @@ impl Arbo {
         arbo: &'a Arc<RwLock<Arbo>>,
         called_from: &'a str,
     ) -> Result<RwLockReadGuard<'a, Arbo>, WHError> {
-        if let Some(arbo) = arbo.try_read_for(LOCK_TIMEOUT) {
-            Ok(arbo)
-        } else {
-            Err(WHError::WouldBlock {
-                called_from: called_from.to_owned(),
-            })
-        }
+        arbo.try_read_for(LOCK_TIMEOUT).ok_or(WHError::WouldBlock {
+            called_from: called_from.to_owned(),
+        })
     }
 
     #[must_use]
@@ -212,6 +208,16 @@ impl Arbo {
                 format!("{}: unable to write_lock arbo", called_from),
             ))
         }
+    }
+
+    #[must_use]
+    pub fn n_write_lock<'a>(
+        arbo: &'a Arc<RwLock<Arbo>>,
+        called_from: &'a str,
+    ) -> Result<RwLockWriteGuard<'a, Arbo>, WHError> {
+        arbo.try_write_for(LOCK_TIMEOUT).ok_or(WHError::WouldBlock {
+            called_from: called_from.to_owned(),
+        })
     }
 
     #[must_use]
@@ -316,10 +322,7 @@ impl Arbo {
 
     #[must_use]
     pub fn n_get_inode(&self, ino: InodeId) -> Result<&Inode, WHError> {
-        match self.entries.get(&ino) {
-            Some(inode) => Ok(inode),
-            None => Err(WHError::InodeNotFound),
-        }
+        self.entries.get(&ino).ok_or(WHError::InodeNotFound)
     }
 
     #[must_use]
@@ -354,6 +357,12 @@ impl Arbo {
         self.entries
             .get_mut(&ino)
             .ok_or(io::Error::new(io::ErrorKind::NotFound, "entry not found"))
+    }
+
+    // not public as the modifications are not automaticly propagated on other related inodes
+    #[must_use]
+    fn n_get_inode_mut(&mut self, ino: InodeId) -> Result<&mut Inode, WHError> {
+        self.entries.get_mut(&ino).ok_or(WHError::InodeNotFound)
     }
 
     #[must_use]
@@ -422,6 +431,18 @@ impl Arbo {
         let inode = self.get_inode_mut(ino)?;
 
         inode.meta = meta;
+        Ok(())
+    }
+
+    pub fn set_inode_xattr(
+        &mut self,
+        ino: InodeId,
+        key: String,
+        data: Vec<u8>,
+    ) -> Result<(), WHError> {
+        let inode = self.n_get_inode_mut(ino)?;
+
+        inode.xattrs.insert(key, data);
         Ok(())
     }
 }

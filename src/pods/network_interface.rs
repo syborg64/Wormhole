@@ -7,7 +7,8 @@ use tokio::sync::{
 };
 
 use super::{
-    arbo::{FsEntry, Metadata},
+    arbo::{self, FsEntry, Metadata},
+    interface::xattrs::WHError,
     whpath::WhPath,
 };
 use crate::network::{
@@ -372,7 +373,7 @@ impl NetworkInterface {
     }
 
     pub fn update_metadata(&self, id: InodeId, meta: Metadata) -> io::Result<()> {
-        let mut arbo = Arbo::write_lock(&self.arbo, "fs_interface::get_inode_attributes")?;
+        let mut arbo = Arbo::write_lock(&self.arbo, "network_interface::update_metadata")?;
         arbo.set_inode_meta(id, meta.clone())?;
 
         self.to_network_message_tx
@@ -388,6 +389,34 @@ impl NetworkInterface {
          * before resend or fail declaration.
          * Or send a bunch of Specific messages
          */
+    }
+
+    pub fn set_inode_xattr(&self, ino: InodeId, key: String, data: Vec<u8>) -> Result<(), WHError> {
+        let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface::get_inode_xattr")?;
+        arbo.set_inode_xattr(ino, key.clone(), data.clone())?;
+
+        self.to_network_message_tx
+            .send(ToNetworkMessage::BroadcastMessage(
+                MessageContent::SetXAttr(ino, key, data),
+            ))
+            .or(Err(WHError::NetworkDied {
+                called_from: "set_inode_xattr".to_string(),
+            }))
+    }
+
+    pub fn recept_inode_xattr(
+        &self,
+        ino: InodeId,
+        key: String,
+        data: Vec<u8>,
+    ) -> std::io::Result<()> {
+        //TODO replace by WHResult<()> when network airport is compatible
+        let mut arbo = Arbo::write_lock(&self.arbo, "network_interface::get_inode_xattr")?;
+        arbo.set_inode_xattr(ino, key.clone(), data)
+            .or(Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "not found",
+            )))
     }
 
     pub fn register_to_others(&self) {
@@ -495,6 +524,9 @@ impl NetworkInterface {
                     fs_interface.accept_rename(parent, new_parent, &name, &new_name)
                 }
                 MessageContent::FsAnswer(fs) => fs_interface.replace_arbo(fs),
+                MessageContent::SetXAttr(ino, key, data) => {
+                    fs_interface.recept_inode_xattr(ino, key, data)
+                }
             };
             if let Err(error) = action_result {
                 log::error!("Network airport couldn't operate this operation: {error}");
