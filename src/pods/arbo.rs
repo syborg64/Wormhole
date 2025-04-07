@@ -8,7 +8,8 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use super::{fs_interface::SimpleFileType, whpath::WhPath};
+use super::{interface::xattrs::WHError, whpath::WhPath};
+use crate::pods::interface::fs_interface::SimpleFileType;
 
 // SECTION consts
 
@@ -185,6 +186,20 @@ impl Arbo {
     }
 
     #[must_use]
+    pub fn n_read_lock<'a>(
+        arbo: &'a Arc<RwLock<Arbo>>,
+        called_from: &'a str,
+    ) -> Result<RwLockReadGuard<'a, Arbo>, WHError> {
+        if let Some(arbo) = arbo.try_read_for(LOCK_TIMEOUT) {
+            Ok(arbo)
+        } else {
+            Err(WHError::WouldBlock {
+                called_from: called_from.to_owned(),
+            })
+        }
+    }
+
+    #[must_use]
     pub fn write_lock<'a>(
         arbo: &'a Arc<RwLock<Arbo>>,
         called_from: &'a str,
@@ -296,6 +311,14 @@ impl Arbo {
         match self.entries.get(&ino) {
             Some(inode) => Ok(inode),
             None => Err(io::Error::new(io::ErrorKind::NotFound, "entry not found")),
+        }
+    }
+
+    #[must_use]
+    pub fn n_get_inode(&self, ino: InodeId) -> Result<&Inode, WHError> {
+        match self.entries.get(&ino) {
+            Some(inode) => Ok(inode),
+            None => Err(WHError::InodeNotFound),
         }
     }
 

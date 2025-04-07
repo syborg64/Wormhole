@@ -16,10 +16,10 @@ use crate::winfsp::winfsp_impl::mount_fsp;
 
 use crate::network::{message::Address, peer_ipc::PeerIPC, server::Server};
 
-use super::{
+use crate::pods::{
     arbo::{index_folder, Arbo},
     disk_manager::DiskManager,
-    fs_interface::FsInterface,
+    interface::fs_interface::FsInterface,
     network_interface::NetworkInterface,
     whpath::WhPath,
 };

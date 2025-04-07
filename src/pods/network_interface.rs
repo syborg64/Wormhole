@@ -18,9 +18,9 @@ use crate::network::{
     server::Server,
 };
 
-use super::{
+use crate::pods::{
     arbo::{Arbo, Inode, InodeId, LOCK_TIMEOUT},
-    fs_interface::FsInterface,
+    interface::fs_interface::FsInterface,
 };
 
 #[derive(Eq, Hash, PartialEq, Clone, Copy, Debug)]

@@ -1,5 +1,6 @@
 use crate::pods::arbo::{FsEntry, Inode, Metadata};
 use crate::pods::interface::fs_interface::{FsInterface, SimpleFileType};
+use crate::pods::interface::xattrs::{WHError, XAttrError};
 use crate::pods::whpath::WhPath;
 use fuser::{
     BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData,
@@ -207,26 +208,30 @@ impl Filesystem for FuseController {
         _req: &Request<'_>,
         ino: u64,
         name: &OsStr,
-        _size: u32,
+        size: u32,
         reply: ReplyXattr,
     ) {
-        let ino_attr = self
+        let attr = self
             .fs_interface
             .get_inode_x_attribute(ino, &name.to_string_lossy().to_string());
 
-        let xattr = match ino_attr {
-            Ok(None) => {
+        let data = match attr {
+            Ok(data) => data,
+            Err(XAttrError::KeyNotFound) => {
                 reply.error(libc::ERANGE);
                 return;
             }
-            Ok(Some(attr)) => attr,
-            Err(err) => {
-                log::error!("fuse_impl error: {:?}", err);
-                reply.error(err.raw_os_error().unwrap_or(EIO));
+            Err(XAttrError::WHerror { source }) => {
+                reply.error(source.to_libc());
                 return;
             }
         };
-        reply.data(&xattr);
+
+        if size == 0 {
+            reply.size(data.len() as u32);
+        } else {
+            reply.data(&data);
+        }
     }
 
     fn read(

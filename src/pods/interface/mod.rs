@@ -1,2 +1,2 @@
-mod fs_interface;
-mod xattrs;
+pub mod fs_interface;
+pub mod xattrs;
