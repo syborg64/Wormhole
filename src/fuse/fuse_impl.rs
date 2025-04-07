@@ -202,6 +202,28 @@ impl Filesystem for FuseController {
         }
     }
 
+    fn getxattr(
+        &mut self,
+        _req: &Request<'_>,
+        _ino: u64,
+        _name: &OsStr,
+        _size: u32,
+        reply: ReplyXattr,
+    ) {
+        log::error!("getxattr called!");
+        reply.error(libc::ERANGE);
+        // let ino_attrs = self.fs_interface.get_inode_attributes(ino);
+
+        // let xattr = match ino_attrs {
+        //     Ok(attrs) => (),
+        //     Err(err) => {
+        //         log::error!("fuse_impl error: {:?}", err);
+        //         reply.error(err.raw_os_error().unwrap_or(EIO));
+        //         return;
+        //     }
+        // };
+    }
+
     fn read(
         &mut self,
         _req: &Request,

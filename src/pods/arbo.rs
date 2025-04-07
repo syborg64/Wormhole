@@ -33,6 +33,8 @@ pub enum FsEntry {
     Directory(Vec<InodeId>),
 }
 
+pub type XAttrs = HashMap<String, [u8]>;
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Inode {
     pub parent: InodeId,
@@ -40,6 +42,7 @@ pub struct Inode {
     pub name: String,
     pub entry: FsEntry,
     pub meta: Metadata,
+    pub xattrs: XAttrs,
 }
 
 pub type ArboIndex = HashMap<InodeId, Inode>;
@@ -109,12 +112,15 @@ impl Inode {
             flags: 0,
         };
 
+        let xattrs = HashMap::new();
+
         Self {
             parent: parent_ino,
             id: id,
             name: name,
             entry: entry,
             meta,
+            xattrs,
         }
     }
 }
@@ -149,6 +155,7 @@ impl Arbo {
                     blksize: 1,
                     flags: 0,
                 },
+                xattrs: HashMap::new(),
             },
         );
         arbo
@@ -217,30 +224,9 @@ impl Arbo {
                     name: _,
                     entry: FsEntry::Directory(parent_children),
                     meta: _,
+                    xattrs: _,
                 }) => {
-                    let new_entry = Inode {
-                        parent: parent_ino,
-                        id: ino,
-                        name: name,
-                        entry: entry,
-                        meta: Metadata {
-                            ino: ino,
-                            size: 0,
-                            blocks: 1,
-                            atime: SystemTime::now(),
-                            mtime: SystemTime::now(),
-                            ctime: SystemTime::now(),
-                            crtime: SystemTime::now(),
-                            kind: SimpleFileType::Directory,
-                            perm: 0o777,
-                            nlink: 0,
-                            uid: 0,
-                            gid: 0,
-                            rdev: 0,
-                            blksize: 1,
-                            flags: 0,
-                        },
-                    };
+                    let new_entry = Inode::new(name, parent_ino, ino, entry);
                     parent_children.push(ino);
                     self.entries.insert(ino, new_entry);
                     Ok(())
