@@ -10,6 +10,7 @@ custom_error! {pub WHError
 }
 
 impl WHError {
+    //TODO move to own file
     pub fn to_libc(&self) -> i32 {
         match self {
             WHError::InodeNotFound => libc::ENOENT,
@@ -37,7 +38,7 @@ impl FsInterface {
     }
 
     pub fn xattr_exists(&self, ino: InodeId, key: &String) -> Result<bool, WHError> {
-        let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface::get_inode_xattr")?;
+        let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface::xattr_exists")?;
         let inode = arbo.n_get_inode(ino)?;
 
         Ok(inode.xattrs.contains_key(key))
