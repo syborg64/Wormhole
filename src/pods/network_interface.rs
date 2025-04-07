@@ -329,7 +329,7 @@ impl NetworkInterface {
         } else {
             let (feedback_tx, mut feedback_rx) = tokio::sync::mpsc::unbounded_channel::<Feedback>();
 
-            // will try to pull on all redundancies untill success
+            // will try to pull on all redundancies until success
             for host in hosts {
                 // trying on host `pull_from`
                 self.to_network_message_tx
@@ -383,7 +383,7 @@ impl NetworkInterface {
             let (feedback_tx, mut feedback_rx) = tokio::sync::mpsc::unbounded_channel::<Feedback>();
             let mut pull_from = 0;
 
-            // will try to pull on all redundancies untill success
+            // will try to pull on all redundancies until success
             loop {
                 // if no more hosts to try - fail
                 if pull_from >= hosts.len() {
