@@ -328,15 +328,9 @@ impl NetworkInterface {
             Ok(())
         } else {
             let (feedback_tx, mut feedback_rx) = tokio::sync::mpsc::unbounded_channel::<Feedback>();
-            let mut pull_from = 0;
 
             // will try to pull on all redundancies untill success
-            loop {
-                // if no more hosts to try - fail
-                if pull_from >= hosts.len() {
-                    return Err(io::ErrorKind::NotConnected.into());
-                }
-
+            for host in hosts {
                 // trying on host `pull_from`
                 self.to_network_message_tx
                     .send(ToNetworkMessage::SpecificMessage(
@@ -344,7 +338,7 @@ impl NetworkInterface {
                             MessageContent::RequestFile(file, self.self_addr.clone()),
                             Some(feedback_tx.clone()),
                         ),
-                        vec![hosts[pull_from].clone()], // NOTE - naive choice for now
+                        vec![host.clone()], // NOTE - naive choice for now
                     ))
                     .expect("pull_file: unable to request on the network thread");
 
@@ -355,9 +349,10 @@ impl NetworkInterface {
                     .expect("pull_file: unable to get feedback from the network thread")
                 {
                     Feedback::Sent => return Ok(()),
-                    Feedback::Error => pull_from += 1,
+                    Feedback::Error => continue,
                 }
             }
+            return Err(io::ErrorKind::NotConnected.into());
         }
     }
 
