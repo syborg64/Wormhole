@@ -1,4 +1,4 @@
-use crate::network::message::{Address, FileSystemSerialized};
+use crate::network::message::Address;
 use crate::pods::arbo::{Arbo, FsEntry, Inode, InodeId, Metadata, LOCK_TIMEOUT};
 use crate::pods::disk_manager::DiskManager;
 use crate::pods::network_interface::{Callback, NetworkInterface};
@@ -251,10 +251,6 @@ impl FsInterface {
 
     // SECTION - remote -> write
 
-    pub fn replace_arbo(&self, new: FileSystemSerialized) -> io::Result<()> {
-        self.network_interface.replace_arbo(new)
-    }
-
     pub fn recept_inode(&self, inode: Inode, id: InodeId) -> io::Result<()> {
         self.network_interface.acknowledge_new_file(inode, id)?;
 
@@ -347,8 +343,8 @@ impl FsInterface {
     // !SECTION
 
     // SECTION remote -> read
-    pub fn send_filesystem(&self, to: Address, real_address: Address) -> io::Result<()> {
-        self.network_interface.send_arbo(to, real_address)
+    pub fn send_filesystem(&self, to: Address) -> io::Result<()> {
+        self.network_interface.send_arbo(to)
     }
 
     pub fn register_new_node(&self, socket: Address, addr: Address) {

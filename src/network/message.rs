@@ -13,13 +13,13 @@ pub enum MessageContent {
     Inode(Inode, InodeId),
     RequestFile(InodeId, Address),
     PullAnswer(InodeId, Vec<u8>),
-    RequestFs(Address),
     Rename(InodeId, InodeId, String, String), //Parent, New Parent, Name, New Name
     EditHosts(InodeId, Vec<Address>),
     EditMetadata(InodeId, Metadata, Address),
     SetXAttr(InodeId, String, Vec<u8>),
     RemoveXAttr(InodeId, String),
-    FsAnswer(FileSystemSerialized),
+    RequestFs,
+    FsAnswer(FileSystemSerialized, Vec<Address>),
 }
 
 pub type Address = String;

@@ -1,4 +1,8 @@
-use std::{collections::HashMap, io, sync::Arc};
+use std::{
+    collections::HashMap,
+    io::{self, ErrorKind},
+    sync::Arc,
+};
 
 use crate::error::{WhError, WhResult};
 use parking_lot::{Mutex, RwLock};
@@ -440,7 +444,7 @@ impl NetworkInterface {
 
         self.to_network_message_tx
             .send(ToNetworkMessage::SpecificMessage(
-                MessageContent::RequestFs(self.self_addr.clone()),
+                MessageContent::RequestFs,
                 vec![to],
             ))
             .expect("request_arbo: unable to update modification on the network thread");
@@ -460,7 +464,7 @@ impl NetworkInterface {
         }
     }
 
-    pub fn send_arbo(&self, to: Address, real_address: Address) -> io::Result<()> {
+    pub fn send_arbo(&self, to: Address) -> io::Result<()> {
         let arbo = Arbo::read_lock(&self.arbo, "send_arbo")?;
         let mut entries = arbo.get_raw_entries();
 
@@ -472,36 +476,32 @@ impl NetworkInterface {
             }
         });
 
-        self.to_network_message_tx
-            .send(ToNetworkMessage::SpecificMessage(
-                MessageContent::FsAnswer(FileSystemSerialized {
-                    fs_index: entries,
-                    next_inode: self.get_next_inode()?,
-                }),
-                vec![real_address],
+        if let Some(peers) = self.peers.try_read_for(LOCK_TIMEOUT) {
+            let peers_address_list = peers.iter().map(|peer| peer.address.clone()).collect();
+
+            self.to_network_message_tx
+                .send(ToNetworkMessage::SpecificMessage(
+                    MessageContent::FsAnswer(
+                        FileSystemSerialized {
+                            fs_index: entries,
+                            next_inode: self.get_next_inode()?,
+                        },
+                        peers_address_list,
+                    ),
+                    vec![to],
+                ))
+                .expect("send_arbo: unable to update modification on the network thread");
+            Ok(())
+        } else {
+            Err(std::io::Error::new(
+                io::ErrorKind::WouldBlock,
+                "Deadlock while trying to read peers",
             ))
-            .expect("send_arbo: unable to update modification on the network thread");
-        Ok(())
+        }
     }
 
     pub fn register_new_node(&self, socket: Address, addr: Address) {
         self.edit_peer_ip(socket, addr);
-    }
-
-    // NOTE - meant only for pulling the arbo at startup !
-    // Does not care for currently ongoing business when called
-    pub fn replace_arbo(&self, new: FileSystemSerialized) -> io::Result<()> {
-        let mut arbo = Arbo::write_lock(&self.arbo, "replace_arbo")?;
-        arbo.overwrite_self(new.fs_index);
-
-        let mut next_inode = self
-            .next_inode
-            .try_lock_for(LOCK_TIMEOUT)
-            .expect("couldn't lock next_inode");
-        *next_inode = new.next_inode;
-
-        // resolve callback :
-        self.callbacks.resolve(Callback::PullFs, true)
     }
 
     pub async fn network_airport(
@@ -524,14 +524,11 @@ impl NetworkInterface {
                 }
                 MessageContent::Remove(id) => fs_interface.recept_remove_inode(id),
                 MessageContent::RequestFile(inode, peer) => fs_interface.send_file(inode, peer),
-                MessageContent::RequestFs(origin_addr) => {
-                    fs_interface.send_filesystem(origin, origin_addr)
-                }
+                MessageContent::RequestFs => fs_interface.send_filesystem(origin),
                 MessageContent::Register(addr) => Ok(fs_interface.register_new_node(origin, addr)),
                 MessageContent::Rename(parent, new_parent, name, new_name) => {
                     fs_interface.accept_rename(parent, new_parent, &name, &new_name)
                 }
-                MessageContent::FsAnswer(fs) => fs_interface.replace_arbo(fs),
                 MessageContent::SetXAttr(ino, key, data) => fs_interface
                     .recept_inode_xattr(ino, key, data)
                     .or_else(|err| {
@@ -548,6 +545,10 @@ impl NetworkInterface {
                             format!("WhError: {err}"),
                         ))
                     }),
+                MessageContent::FsAnswer(_, _) => {
+                    Err(io::Error::new(ErrorKind::InvalidInput,
+                        "Late answer from first connection, loaded network interface shouldn't recieve FsAnswer"))
+                }
             };
             if let Err(error) = action_result {
                 log::error!("Network airport couldn't operate this operation: {error}");
