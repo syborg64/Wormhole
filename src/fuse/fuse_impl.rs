@@ -239,13 +239,13 @@ impl Filesystem for FuseController {
         _req: &Request<'_>,
         ino: u64,
         name: &OsStr,
-        value: &[u8],
+        data: &[u8],
         flags: i32,
         _position: u32, // Postion undocumented
         reply: ReplyEmpty,
     ) {
-        // As we follow linux implementation in spirit, value size limit at 64kb
-        if value.len() > 64000 {
+        // As we follow linux implementation in spirit, data size limit at 64kb
+        if data.len() > 64000 {
             return reply.error(libc::ENOSPC);
         }
 
@@ -275,7 +275,23 @@ impl Filesystem for FuseController {
         //     reply.error(libc::EPERM);
         // }
 
-        match self.fs_interface.set_inode_xattr(ino, key, value.to_vec()) {
+        match self.fs_interface.set_inode_xattr(ino, key, data.to_vec()) {
+            Ok(_) => reply.ok(),
+            Err(err) => reply.error(err.to_libc()),
+        }
+    }
+
+    fn removexattr(
+        &mut self,
+        _req: &fuser::Request<'_>,
+        ino: u64,
+        name: &OsStr,
+        reply: ReplyEmpty,
+    ) {
+        match self
+            .fs_interface
+            .remove_inode_xattr(ino, name.to_string_lossy().to_string())
+        {
             Ok(_) => reply.ok(),
             Err(err) => reply.error(err.to_libc()),
         }
@@ -471,8 +487,8 @@ impl Filesystem for FuseController {
         _req: &Request<'_>,
         parent: u64,
         name: &OsStr,
-        mode: u32,
-        umask: u32,
+        _mode: u32,
+        _umask: u32,
         flags: i32,
         reply: fuser::ReplyCreate,
     ) {

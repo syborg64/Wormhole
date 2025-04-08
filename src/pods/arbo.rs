@@ -446,6 +446,13 @@ impl Arbo {
         inode.xattrs.insert(key, data);
         Ok(())
     }
+
+    pub fn remove_inode_xattr(&mut self, ino: InodeId, key: String) -> Result<(), WHError> {
+        let inode = self.n_get_inode_mut(ino)?;
+
+        inode.xattrs.remove(&key);
+        Ok(())
+    }
 }
 
 // !SECTION

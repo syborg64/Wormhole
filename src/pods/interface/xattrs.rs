@@ -38,4 +38,12 @@ impl FsInterface {
     ) -> std::io::Result<()> {
         self.network_interface.recept_inode_xattr(ino, key, data)
     }
+
+    pub fn remove_inode_xattr(&self, ino: InodeId, key: String) -> Result<(), WHError> {
+        self.network_interface.remove_inode_xattr(ino, key)
+    }
+
+    pub fn recept_remove_inode_xattr(&self, ino: InodeId, key: String) -> std::io::Result<()> {
+        self.network_interface.recept_remove_inode_xattr(ino, key)
+    }
 }
