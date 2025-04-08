@@ -8,7 +8,6 @@ custom_error! {pub WhError
 }
 
 impl WhError {
-    //TODO move to own file
     pub fn to_libc(&self) -> i32 {
         match self {
             WhError::InodeNotFound => libc::ENOENT,
