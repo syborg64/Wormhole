@@ -11,10 +11,6 @@ use tokio::sync::{
     mpsc::{UnboundedReceiver, UnboundedSender},
 };
 
-use super::{
-    arbo::{FsEntry, Metadata},
-    whpath::WhPath,
-};
 use crate::network::{
     message::{
         self, Address, FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
@@ -22,10 +18,14 @@ use crate::network::{
     peer_ipc::PeerIPC,
     server::Server,
 };
+use crate::pods::{
+    arbo::{FsEntry, Metadata},
+    whpath::WhPath,
+};
 
 use crate::pods::{
     arbo::{Arbo, Inode, InodeId, LOCK_TIMEOUT},
-    interface::fs_interface::FsInterface,
+    filesystem::fs_interface::FsInterface,
 };
 
 #[derive(Eq, Hash, PartialEq, Clone, Copy, Debug)]

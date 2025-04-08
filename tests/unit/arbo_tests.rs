@@ -5,7 +5,7 @@ use std::{
 };
 use wormhole::pods::{
     arbo::{Arbo, FsEntry, Inode, Metadata, ROOT},
-    interface::fs_interface::SimpleFileType,
+    filesystem::fs_interface::SimpleFileType,
 };
 
 fn arbo_values(inode: &Inode, expected_result: Inode) {

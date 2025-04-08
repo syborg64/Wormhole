@@ -20,8 +20,8 @@ use crate::network::{message::Address, peer_ipc::PeerIPC, server::Server};
 use crate::pods::{
     arbo::{index_folder, Arbo},
     disk_manager::DiskManager,
-    interface::fs_interface::FsInterface,
-    network_interface::NetworkInterface,
+    filesystem::fs_interface::FsInterface,
+    network::network_interface::NetworkInterface,
     whpath::WhPath,
 };
 
