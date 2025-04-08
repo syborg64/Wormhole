@@ -297,6 +297,31 @@ impl Filesystem for FuseController {
         }
     }
 
+    fn listxattr(&mut self, _req: &Request<'_>, ino: u64, size: u32, reply: ReplyXattr) {
+        match self.fs_interface.list_inode_xattr(ino) {
+            Ok(keys) => {
+                let mut bytes = vec![];
+
+                for key in keys {
+                    bytes.extend(key.bytes());
+                    bytes.push(0);
+                }
+                if size == 0 {
+                    reply.size(bytes.len() as u32);
+                } else if size >= bytes.len() as u32 {
+                    reply.data(&bytes);
+                } else {
+                    reply.error(libc::ERANGE)
+                }
+                return;
+            }
+            Err(err) => match err.to_libc() {
+                libc::ENOENT => reply.error(libc::EBADF), // Not found became Bad file descriptor
+                or => reply.error(or),
+            },
+        }
+    }
+
     fn read(
         &mut self,
         _req: &Request,

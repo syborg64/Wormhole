@@ -41,4 +41,11 @@ impl FsInterface {
     pub fn recept_remove_inode_xattr(&self, ino: InodeId, key: String) -> WhResult<()> {
         self.network_interface.recept_remove_inode_xattr(ino, key)
     }
+
+    pub fn list_inode_xattr(&self, ino: InodeId) -> WhResult<Vec<String>> {
+        let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface::get_inode_xattr")?;
+        let inode = arbo.n_get_inode(ino)?;
+
+        Ok(inode.xattrs.keys().map(|key| key.clone()).collect())
+    }
 }
