@@ -4,7 +4,7 @@ pub mod declarations;
 #[path = "./linux/disk_manager.rs"]
 pub mod disk_manager;
 #[cfg(target_os = "windows")]
-#[path = "./windows/disk_manager.rs"]
+#[path = "./dummy/disk_manager.rs"]
 pub mod disk_manager;
 pub mod fs_interface;
 pub mod network_interface;
