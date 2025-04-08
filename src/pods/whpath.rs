@@ -1,7 +1,7 @@
 use std::ffi::OsStr;
 use std::{fmt, path::Path};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum PathType {
     Absolute,
     Relative,
@@ -9,7 +9,7 @@ pub enum PathType {
     Empty,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WhPath {
     pub inner: String,
     pub kind: PathType,
