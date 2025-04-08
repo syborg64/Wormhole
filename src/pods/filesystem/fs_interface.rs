@@ -1,7 +1,7 @@
 use crate::network::message::Address;
 use crate::pods::arbo::{Arbo, FsEntry, Inode, InodeId, Metadata, LOCK_TIMEOUT};
 use crate::pods::disk_manager::DiskManager;
-use crate::pods::network_interface::{Callback, NetworkInterface};
+use crate::pods::network::network_interface::{Callback, NetworkInterface};
 use crate::pods::whpath::WhPath;
 
 use parking_lot::RwLock;

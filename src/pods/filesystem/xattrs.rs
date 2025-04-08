@@ -1,6 +1,6 @@
 use crate::error::{WhError, WhResult};
 use crate::pods::arbo::{Arbo, InodeId};
-use crate::pods::interface::fs_interface::FsInterface;
+use crate::pods::filesystem::fs_interface::FsInterface;
 use custom_error::custom_error;
 
 custom_error! {pub GetXAttrError
