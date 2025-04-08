@@ -1,10 +1,10 @@
-use crate::error::WHError;
+use crate::error::{WhError, WhResult};
 use crate::pods::arbo::{Arbo, InodeId};
 use crate::pods::interface::fs_interface::FsInterface;
 use custom_error::custom_error;
 
 custom_error! {pub GetXAttrError
-    WHerror{source: WHError} = "{source}",
+    WhError{source: WhError} = "{source}",
     KeyNotFound = "Key not found"
 }
 
@@ -19,14 +19,14 @@ impl FsInterface {
         }
     }
 
-    pub fn xattr_exists(&self, ino: InodeId, key: &String) -> Result<bool, WHError> {
+    pub fn xattr_exists(&self, ino: InodeId, key: &String) -> WhResult<bool> {
         let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface::xattr_exists")?;
         let inode = arbo.n_get_inode(ino)?;
 
         Ok(inode.xattrs.contains_key(key))
     }
 
-    pub fn set_inode_xattr(&self, ino: InodeId, key: String, data: Vec<u8>) -> Result<(), WHError> {
+    pub fn set_inode_xattr(&self, ino: InodeId, key: String, data: Vec<u8>) -> WhResult<()> {
         self.network_interface.set_inode_xattr(ino, key, data)
     }
 
@@ -39,7 +39,7 @@ impl FsInterface {
         self.network_interface.recept_inode_xattr(ino, key, data)
     }
 
-    pub fn remove_inode_xattr(&self, ino: InodeId, key: String) -> Result<(), WHError> {
+    pub fn remove_inode_xattr(&self, ino: InodeId, key: String) -> WhResult<()> {
         self.network_interface.remove_inode_xattr(ino, key)
     }
 

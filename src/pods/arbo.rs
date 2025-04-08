@@ -1,4 +1,4 @@
-use crate::network::message::Address;
+use crate::{error::WhResult, network::message::Address};
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -8,7 +8,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use crate::error::WHError;
+use crate::error::WhError;
 use crate::pods::interface::fs_interface::SimpleFileType;
 use crate::pods::whpath::WhPath;
 
@@ -190,8 +190,8 @@ impl Arbo {
     pub fn n_read_lock<'a>(
         arbo: &'a Arc<RwLock<Arbo>>,
         called_from: &'a str,
-    ) -> Result<RwLockReadGuard<'a, Arbo>, WHError> {
-        arbo.try_read_for(LOCK_TIMEOUT).ok_or(WHError::WouldBlock {
+    ) -> WhResult<RwLockReadGuard<'a, Arbo>> {
+        arbo.try_read_for(LOCK_TIMEOUT).ok_or(WhError::WouldBlock {
             called_from: called_from.to_owned(),
         })
     }
@@ -215,8 +215,8 @@ impl Arbo {
     pub fn n_write_lock<'a>(
         arbo: &'a Arc<RwLock<Arbo>>,
         called_from: &'a str,
-    ) -> Result<RwLockWriteGuard<'a, Arbo>, WHError> {
-        arbo.try_write_for(LOCK_TIMEOUT).ok_or(WHError::WouldBlock {
+    ) -> WhResult<RwLockWriteGuard<'a, Arbo>> {
+        arbo.try_write_for(LOCK_TIMEOUT).ok_or(WhError::WouldBlock {
             called_from: called_from.to_owned(),
         })
     }
@@ -322,8 +322,8 @@ impl Arbo {
     }
 
     #[must_use]
-    pub fn n_get_inode(&self, ino: InodeId) -> Result<&Inode, WHError> {
-        self.entries.get(&ino).ok_or(WHError::InodeNotFound)
+    pub fn n_get_inode(&self, ino: InodeId) -> WhResult<&Inode> {
+        self.entries.get(&ino).ok_or(WhError::InodeNotFound)
     }
 
     #[must_use]
@@ -362,8 +362,8 @@ impl Arbo {
 
     // not public as the modifications are not automaticly propagated on other related inodes
     #[must_use]
-    fn n_get_inode_mut(&mut self, ino: InodeId) -> Result<&mut Inode, WHError> {
-        self.entries.get_mut(&ino).ok_or(WHError::InodeNotFound)
+    fn n_get_inode_mut(&mut self, ino: InodeId) -> WhResult<&mut Inode> {
+        self.entries.get_mut(&ino).ok_or(WhError::InodeNotFound)
     }
 
     #[must_use]
@@ -435,19 +435,14 @@ impl Arbo {
         Ok(())
     }
 
-    pub fn set_inode_xattr(
-        &mut self,
-        ino: InodeId,
-        key: String,
-        data: Vec<u8>,
-    ) -> Result<(), WHError> {
+    pub fn set_inode_xattr(&mut self, ino: InodeId, key: String, data: Vec<u8>) -> WhResult<()> {
         let inode = self.n_get_inode_mut(ino)?;
 
         inode.xattrs.insert(key, data);
         Ok(())
     }
 
-    pub fn remove_inode_xattr(&mut self, ino: InodeId, key: String) -> Result<(), WHError> {
+    pub fn remove_inode_xattr(&mut self, ino: InodeId, key: String) -> WhResult<()> {
         let inode = self.n_get_inode_mut(ino)?;
 
         inode.xattrs.remove(&key);

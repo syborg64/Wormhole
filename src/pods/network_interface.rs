@@ -1,6 +1,6 @@
 use std::{collections::HashMap, io, sync::Arc};
 
-use crate::error::WHError;
+use crate::error::{WhError, WhResult};
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::{
     broadcast,
@@ -391,7 +391,7 @@ impl NetworkInterface {
          */
     }
 
-    pub fn set_inode_xattr(&self, ino: InodeId, key: String, data: Vec<u8>) -> Result<(), WHError> {
+    pub fn set_inode_xattr(&self, ino: InodeId, key: String, data: Vec<u8>) -> WhResult<()> {
         let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface::get_inode_xattr")?;
         arbo.set_inode_xattr(ino, key.clone(), data.clone())?;
 
@@ -399,7 +399,7 @@ impl NetworkInterface {
             .send(ToNetworkMessage::BroadcastMessage(
                 MessageContent::SetXAttr(ino, key, data),
             ))
-            .or(Err(WHError::NetworkDied {
+            .or(Err(WhError::NetworkDied {
                 called_from: "set_inode_xattr".to_string(),
             }))
     }
@@ -410,7 +410,7 @@ impl NetworkInterface {
         key: String,
         data: Vec<u8>,
     ) -> std::io::Result<()> {
-        //TODO replace by WHResult<()> when network airport is compatible
+        //TODO replace by WhResult<()> when network airport is compatible
         let mut arbo = Arbo::write_lock(&self.arbo, "network_interface::get_inode_xattr")?;
         arbo.set_inode_xattr(ino, key.clone(), data)
             .or(Err(std::io::Error::new(
@@ -419,7 +419,7 @@ impl NetworkInterface {
             )))
     }
 
-    pub fn remove_inode_xattr(&self, ino: InodeId, key: String) -> Result<(), WHError> {
+    pub fn remove_inode_xattr(&self, ino: InodeId, key: String) -> WhResult<()> {
         let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface::get_inode_xattr")?;
         arbo.remove_inode_xattr(ino, key.clone())?;
 
@@ -427,13 +427,13 @@ impl NetworkInterface {
             .send(ToNetworkMessage::BroadcastMessage(
                 MessageContent::RemoveXAttr(ino, key),
             ))
-            .or(Err(WHError::NetworkDied {
+            .or(Err(WhError::NetworkDied {
                 called_from: "set_inode_xattr".to_string(),
             }))
     }
 
     pub fn recept_remove_inode_xattr(&self, ino: InodeId, key: String) -> std::io::Result<()> {
-        //TODO replace by WHResult<()> when network airport is compatible
+        //TODO replace by WhResult<()> when network airport is compatible
         let mut arbo = Arbo::write_lock(&self.arbo, "network_interface::get_inode_xattr")?;
         arbo.remove_inode_xattr(ino, key.clone())
             .or(Err(std::io::Error::new(

@@ -221,7 +221,7 @@ impl Filesystem for FuseController {
                 reply.error(libc::ERANGE);
                 return;
             }
-            Err(GetXAttrError::WHerror { source }) => {
+            Err(GetXAttrError::WhError { source }) => {
                 reply.error(source.to_libc());
                 return;
             }
