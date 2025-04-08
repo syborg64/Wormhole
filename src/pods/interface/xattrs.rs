@@ -30,12 +30,7 @@ impl FsInterface {
         self.network_interface.set_inode_xattr(ino, key, data)
     }
 
-    pub fn recept_inode_xattr(
-        &self,
-        ino: InodeId,
-        key: String,
-        data: Vec<u8>,
-    ) -> std::io::Result<()> {
+    pub fn recept_inode_xattr(&self, ino: InodeId, key: String, data: Vec<u8>) -> WhResult<()> {
         self.network_interface.recept_inode_xattr(ino, key, data)
     }
 
@@ -43,7 +38,7 @@ impl FsInterface {
         self.network_interface.remove_inode_xattr(ino, key)
     }
 
-    pub fn recept_remove_inode_xattr(&self, ino: InodeId, key: String) -> std::io::Result<()> {
+    pub fn recept_remove_inode_xattr(&self, ino: InodeId, key: String) -> WhResult<()> {
         self.network_interface.recept_remove_inode_xattr(ino, key)
     }
 }

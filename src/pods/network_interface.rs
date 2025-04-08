@@ -404,19 +404,9 @@ impl NetworkInterface {
             }))
     }
 
-    pub fn recept_inode_xattr(
-        &self,
-        ino: InodeId,
-        key: String,
-        data: Vec<u8>,
-    ) -> std::io::Result<()> {
-        //TODO replace by WhResult<()> when network airport is compatible
-        let mut arbo = Arbo::write_lock(&self.arbo, "network_interface::get_inode_xattr")?;
+    pub fn recept_inode_xattr(&self, ino: InodeId, key: String, data: Vec<u8>) -> WhResult<()> {
+        let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface::get_inode_xattr")?;
         arbo.set_inode_xattr(ino, key.clone(), data)
-            .or(Err(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                "not found",
-            )))
     }
 
     pub fn remove_inode_xattr(&self, ino: InodeId, key: String) -> WhResult<()> {
@@ -432,14 +422,9 @@ impl NetworkInterface {
             }))
     }
 
-    pub fn recept_remove_inode_xattr(&self, ino: InodeId, key: String) -> std::io::Result<()> {
-        //TODO replace by WhResult<()> when network airport is compatible
-        let mut arbo = Arbo::write_lock(&self.arbo, "network_interface::get_inode_xattr")?;
+    pub fn recept_remove_inode_xattr(&self, ino: InodeId, key: String) -> WhResult<()> {
+        let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface::get_inode_xattr")?;
         arbo.remove_inode_xattr(ino, key.clone())
-            .or(Err(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                "not found",
-            )))
     }
 
     pub fn register_to_others(&self) {
@@ -547,12 +532,22 @@ impl NetworkInterface {
                     fs_interface.accept_rename(parent, new_parent, &name, &new_name)
                 }
                 MessageContent::FsAnswer(fs) => fs_interface.replace_arbo(fs),
-                MessageContent::SetXAttr(ino, key, data) => {
-                    fs_interface.recept_inode_xattr(ino, key, data)
-                }
-                MessageContent::RemoveXAttr(ino, key) => {
-                    fs_interface.recept_remove_inode_xattr(ino, key)
-                }
+                MessageContent::SetXAttr(ino, key, data) => fs_interface
+                    .recept_inode_xattr(ino, key, data)
+                    .or_else(|err| {
+                        Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            format!("WhError: {err}"),
+                        ))
+                    }),
+                MessageContent::RemoveXAttr(ino, key) => fs_interface
+                    .recept_remove_inode_xattr(ino, key)
+                    .or_else(|err| {
+                        Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            format!("WhError: {err}"),
+                        ))
+                    }),
             };
             if let Err(error) = action_result {
                 log::error!("Network airport couldn't operate this operation: {error}");
