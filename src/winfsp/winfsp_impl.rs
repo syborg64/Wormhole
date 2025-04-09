@@ -83,6 +83,7 @@ impl Into<FileInfo> for &Metadata {
 pub struct WormholeHandle(u64);
 
 pub struct FSPController {
+    pub volume_label: Arc<RwLock<String>>,
     pub fs_interface: Arc<FsInterface>,
     pub dummy_file: OsString,
     // pub provider: Arc<RwLock<Provider<WindowsFolderHandle>>>,
@@ -96,6 +97,7 @@ pub fn mount_fsp(
 
     println!("created volume params...");
     let wormhole_context = FSPController {
+        volume_label: Arc::new(RwLock::new("wormhole_fs".into())),
         fs_interface,
         dummy_file: "dummy".into(), // dummy_file: (&path.clone().rename(&("dummy_file").to_string()).inner).into(),
     };
@@ -504,22 +506,29 @@ impl FileSystemContext for FSPController {
     //     Err(NTSTATUS(STATUS_INVALID_DEVICE_REQUEST).into())
     // }
 
-    // fn get_volume_info(
-    //     &self,
-    //     out_volume_info: &mut winfsp::filesystem::VolumeInfo,
-    // ) -> winfsp::Result<()> {
-    //     log::info!("winfsp::get_volume_info");
-    //     Ok(())
-    //     // Err(NTSTATUS(STATUS_INVALID_DEVICE_REQUEST).into())
-    // }
+    fn get_volume_info(
+        &self,
+        out_volume_info: &mut winfsp::filesystem::VolumeInfo,
+    ) -> winfsp::Result<()> {
+        log::info!("winfsp::get_volume_info");
+        out_volume_info.free_size = self.fs_interface.disk.free_size()? as u64;
+        out_volume_info.total_size = self.fs_interface.disk.size()? as u64;
+        out_volume_info.set_volume_label(&*self.volume_label.read().expect("winfsp::volume_label"));
+        Ok(())
+    }
 
-    // fn set_volume_label(
-    //     &self,
-    //     volume_label: &winfsp::U16CStr,
-    //     volume_info: &mut winfsp::filesystem::VolumeInfo,
-    // ) -> winfsp::Result<()> {
-    //     Err(NTSTATUS(STATUS_INVALID_DEVICE_REQUEST).into())
-    // }
+    fn set_volume_label(
+        &self,
+        volume_label: &winfsp::U16CStr,
+        volume_info: &mut winfsp::filesystem::VolumeInfo,
+    ) -> winfsp::Result<()> {
+        log::info!("winfsp::set_volume_info");
+        volume_info.free_size = self.fs_interface.disk.free_size()? as u64;
+        volume_info.total_size = self.fs_interface.disk.size()? as u64;
+        *self.volume_label.write().expect("winfsp::volume_label") = volume_label.to_string_lossy();
+        volume_info.set_volume_label(&*self.volume_label.read().expect("winfsp::volume_label"));
+        Ok(())
+    }
 
     // fn get_stream_info(
     //     &self,
