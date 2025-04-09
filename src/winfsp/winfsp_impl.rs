@@ -461,7 +461,7 @@ impl FileSystemContext for FSPController {
         log::info!("winfsp::read({:?})", context);
         let data = self
             .fs_interface
-            .read_file(context.0, offset, buffer.len() as u64)?;
+            .read_file(context.0, offset as usize, buffer.len())?;
         let len = min(data.len(), buffer.len());
         buffer[0..len].copy_from_slice(&data[0..len]);
         Ok(len as u32)
@@ -477,7 +477,19 @@ impl FileSystemContext for FSPController {
         file_info: &mut winfsp::filesystem::FileInfo,
     ) -> winfsp::Result<u32> {
         log::info!("winfsp::write({:?})", context);
+        let size = Arbo::read_lock(&self.fs_interface.arbo, "winfsp::write")?.get_inode(context.0)?.meta.size;
+        let offset = if write_to_eof {
+            size
+        } else {
+            offset as usize
+        };
+        let buffer = if constrained_io {
+            &buffer[0..std::cmp::min(buffer.len(), size)]
+        } else {
+            buffer
+        };
         let size = self.fs_interface.write(context.0, buffer, offset)?;
+        self.get_file_info(context, file_info)?;
         Ok(size as u32)
     }
 
