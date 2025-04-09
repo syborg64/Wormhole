@@ -16,6 +16,8 @@ pub enum MessageContent {
     Rename(InodeId, InodeId, String, String), //Parent, New Parent, Name, New Name
     EditHosts(InodeId, Vec<Address>),
     EditMetadata(InodeId, Metadata, Address),
+    SetXAttr(InodeId, String, Vec<u8>),
+    RemoveXAttr(InodeId, String),
     RequestFs,
     FsAnswer(FileSystemSerialized, Vec<Address>),
 }

@@ -6,6 +6,6 @@ pub mod disk_manager;
 #[cfg(target_os = "windows")]
 #[path = "./windows/disk_manager.rs"]
 pub mod disk_manager;
-pub mod fs_interface;
+pub mod interface;
 pub mod network_interface;
 pub mod whpath;
