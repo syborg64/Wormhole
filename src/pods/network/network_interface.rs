@@ -4,17 +4,12 @@ use std::{
     sync::Arc,
 };
 
-use crate::error::{WhError, WhResult};
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::{
     broadcast,
     mpsc::{UnboundedReceiver, UnboundedSender},
 };
 
-use super::{
-    arbo::{FsEntry, Metadata},
-    whpath::WhPath,
-};
 use crate::network::{
     message::{
         self, Address, FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
@@ -22,10 +17,14 @@ use crate::network::{
     peer_ipc::PeerIPC,
     server::Server,
 };
+use crate::pods::{
+    arbo::{FsEntry, Metadata},
+    whpath::WhPath,
+};
 
 use crate::pods::{
     arbo::{Arbo, Inode, InodeId, LOCK_TIMEOUT},
-    interface::fs_interface::FsInterface,
+    filesystem::fs_interface::FsInterface,
 };
 
 #[derive(Eq, Hash, PartialEq, Clone, Copy, Debug)]
@@ -393,42 +392,6 @@ impl NetworkInterface {
          * before resend or fail declaration.
          * Or send a bunch of Specific messages
          */
-    }
-
-    pub fn set_inode_xattr(&self, ino: InodeId, key: String, data: Vec<u8>) -> WhResult<()> {
-        let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface::get_inode_xattr")?;
-        arbo.set_inode_xattr(ino, key.clone(), data.clone())?;
-
-        self.to_network_message_tx
-            .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::SetXAttr(ino, key, data),
-            ))
-            .or(Err(WhError::NetworkDied {
-                called_from: "set_inode_xattr".to_string(),
-            }))
-    }
-
-    pub fn recept_inode_xattr(&self, ino: InodeId, key: String, data: Vec<u8>) -> WhResult<()> {
-        let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface::get_inode_xattr")?;
-        arbo.set_inode_xattr(ino, key.clone(), data)
-    }
-
-    pub fn remove_inode_xattr(&self, ino: InodeId, key: String) -> WhResult<()> {
-        let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface::get_inode_xattr")?;
-        arbo.remove_inode_xattr(ino, key.clone())?;
-
-        self.to_network_message_tx
-            .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::RemoveXAttr(ino, key),
-            ))
-            .or(Err(WhError::NetworkDied {
-                called_from: "set_inode_xattr".to_string(),
-            }))
-    }
-
-    pub fn recept_remove_inode_xattr(&self, ino: InodeId, key: String) -> WhResult<()> {
-        let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface::get_inode_xattr")?;
-        arbo.remove_inode_xattr(ino, key.clone())
     }
 
     pub fn register_to_others(&self) {
