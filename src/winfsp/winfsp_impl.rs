@@ -1,23 +1,16 @@
-use std::{cmp::min, ffi::OsString, io::ErrorKind, sync::Arc, time::UNIX_EPOCH};
+use std::{cmp::min, ffi::OsString, io::ErrorKind, sync::{Arc, RwLock}, time::SystemTime};
 
 use nt_time::FileTime;
 use ntapi::ntioapi::FILE_DIRECTORY_FILE;
-use winapi::{
-    shared::{
-        ntstatus::{STATUS_INVALID_DEVICE_REQUEST, STATUS_SUCCESS},
+use winapi::shared::{
+        ntstatus::STATUS_INVALID_DEVICE_REQUEST,
         winerror::{
-            ERROR_ALREADY_EXISTS, ERROR_FILE_NOT_FOUND, ERROR_GEN_FAILURE, ERROR_INVALID_NAME,
-            ERROR_NOT_FOUND,
+            ERROR_ALREADY_EXISTS, ERROR_GEN_FAILURE, ERROR_INVALID_NAME,
         },
-    },
-    um::winnt::{
-        FILE_ALL_ACCESS, FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_NORMAL, FILE_READ_ATTRIBUTES,
-        FILE_WRITE_ATTRIBUTES,
-    },
-};
-use windows::Win32::Foundation::{NTSTATUS, WIN32_ERROR};
+    };
+use windows::Win32::{Foundation::{NTSTATUS, STATUS_OBJECT_NAME_NOT_FOUND, WIN32_ERROR}, Storage::FileSystem::{FILE_ATTRIBUTE_ARCHIVE, FILE_ATTRIBUTE_DIRECTORY}};
 use winfsp::{
-    filesystem::{DirInfo, FileInfo, FileSecurity, FileSystemContext, WideNameInfo}, host::{FileSystemHost, VolumeParams}, U16CStr, U16CString
+    filesystem::{DirInfo, FileInfo, FileSecurity, FileSystemContext, WideNameInfo}, host::{FileSystemHost, VolumeParams}
 };
 use winfsp_sys::FILE_ACCESS_RIGHTS;
 
