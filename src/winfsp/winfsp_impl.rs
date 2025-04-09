@@ -126,23 +126,18 @@ impl FileSystemContext for FSPController {
             file_name.to_string_lossy(),
             security_descriptor.as_ref().map(|s| s.len())
         );
-        
+
         if let Some(security) = reparse_point_resolver(file_name) {
             return Ok(security);
         }
-
-        // return Err(winfsp::FspError::WIN32(ERROR_NOT_FOUND));
-
-        //let arbo: &Arbo = &self.fs_interface.arbo.read();
-        //let arbo = Arbo::read_lock(&self.fs_interface.arbo, "get_security_by_name")?;
 
         let path: WhPath = file_name
             .try_into()
             .inspect_err(|e| log::error!("{}:{:?}", file_name.to_string_lossy(), e))?;
 
-        let file_type: SimpleFileType = (&Arbo::read_lock(&self.fs_interface.arbo, "get_security_by_name")?
+        let file_info: FileInfo = (&Arbo::read_lock(&self.fs_interface.arbo, "get_security_by_name")?
         .get_inode_from_path(&path)
-        .inspect_err(|e| log::error!("{}:{:?}", &path.inner, e))?.entry).into();
+        .inspect_err(|e| log::error!("{}:{:?}", &path.inner, e))?.meta).into();
         // let mut descriptor_size = 0;
         // let option_sd = if security_descriptor.is_some() {
         //     Some(
@@ -164,18 +159,10 @@ impl FileSystemContext for FSPController {
         //         }
         //     };
         // }
-        let mut attributes: u32 = FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES;
-        attributes |= match file_type {
-            SimpleFileType::File => FILE_ATTRIBUTE_NORMAL,
-            SimpleFileType::Directory => FILE_ATTRIBUTE_DIRECTORY,
-            // SimpleFileType::Link => FILE_ATTRIBUTE_REPARSE_POINT,
-            // SimpleFileType::Other => FILE_ATTRIBUTE_READONLY, // TODO: remove ?
-        };
         let sec = FileSecurity {
             reparse: false,
             sz_security_descriptor: 0,
-            // sz_security_descriptor: descriptor_size as u64,
-            attributes,
+            attributes: file_info.file_attributes,
         };
         log::info!("ok({:?})", sec);
         winfsp::Result::Ok(sec)
@@ -197,15 +184,7 @@ impl FileSystemContext for FSPController {
         })?;
         return match Arbo::read_lock(&self.fs_interface.arbo, "winfsp::open")?.get_inode_from_path(&path) {
             Ok(inode) => {
-                let mut attributes: u32 = FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES;
-                attributes |= match (&inode.entry).into() {
-                    SimpleFileType::File => FILE_ATTRIBUTE_NORMAL,
-                    SimpleFileType::Directory => FILE_ATTRIBUTE_DIRECTORY,
-                    // SimpleFileType::Link => FILE_ATTRIBUTE_REPARSE_POINT,
-                    // SimpleFileType::Other => FILE_ATTRIBUTE_READONLY, // TODO: remove ?
-                };
                 *file_info.as_mut() = (&inode.meta).into();
-                file_info.as_mut().file_attributes = attributes;
                 file_info.set_normalized_name(file_name.as_slice(), None);
                 log::info!("ok:{}", inode.id);
                 Ok(WormholeHandle(inode.id))
@@ -213,7 +192,7 @@ impl FileSystemContext for FSPController {
             Err(err) => {
                 log::error!("{:?}", err);
                 if err.kind() == ErrorKind::NotFound {
-                    Err(winfsp::FspError::WIN32(ERROR_FILE_NOT_FOUND))
+                    Err(STATUS_OBJECT_NAME_NOT_FOUND.into())
                 } else {
                     Err(winfsp::FspError::WIN32(ERROR_GEN_FAILURE))
                 }
@@ -231,12 +210,12 @@ impl FileSystemContext for FSPController {
         &self,
         file_name: &winfsp::U16CStr,
         create_options: u32,
-        granted_access: FILE_ACCESS_RIGHTS,
-        file_attributes: winfsp_sys::FILE_FLAGS_AND_ATTRIBUTES,
-        security_descriptor: Option<&[std::ffi::c_void]>,
-        allocation_size: u64,
-        extra_buffer: Option<&[u8]>,
-        extra_buffer_is_reparse_point: bool,
+        _granted_access: FILE_ACCESS_RIGHTS,
+        _file_attributes: winfsp_sys::FILE_FLAGS_AND_ATTRIBUTES,
+        _security_descriptor: Option<&[std::ffi::c_void]>,
+        _allocation_size: u64,
+        _extra_buffer: Option<&[u8]>,
+        _extra_buffer_is_reparse_point: bool,
         file_info: &mut winfsp::filesystem::OpenFileInfo,
     ) -> winfsp::Result<Self::FileContext> {
         let file_type = match (create_options & FILE_DIRECTORY_FILE) != 0 {
@@ -256,23 +235,14 @@ impl FileSystemContext for FSPController {
 
         let parent = arbo
             .get_inode_from_path(&(&folder).into())
-            .map_err(|_| winfsp::FspError::WIN32(ERROR_NOT_FOUND))?.id;
+            .map_err(|_| STATUS_OBJECT_NAME_NOT_FOUND)?.id;
 
         drop(arbo);
-
-        let mut attributes: u32 = FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES;
-        attributes |= match file_type {
-            SimpleFileType::File => FILE_ATTRIBUTE_NORMAL,
-            SimpleFileType::Directory => FILE_ATTRIBUTE_DIRECTORY,
-            // SimpleFileType::Link => FILE_ATTRIBUTE_REPARSE_POINT,
-            // SimpleFileType::Other => FILE_ATTRIBUTE_READONLY, // TODO: remove ?
-        };
         let (id, inode) = self
             .fs_interface
             .make_inode(parent, name, file_type)
             .inspect_err(|e| log::error!("make_inode:{e}"))?;
         *file_info.as_mut() = (&inode.meta).into();
-        file_info.as_mut().file_attributes = attributes;
         file_info.set_normalized_name(file_name.as_slice(), None);
 
         Ok(WormholeHandle(id))
@@ -303,25 +273,16 @@ impl FileSystemContext for FSPController {
         log::info!("winfsp::get_file_info({:?})", context);
 
         let arbo = Arbo::read_lock(&self.fs_interface.arbo, "winfsp::get_file_info")?;
-        let path = arbo.get_path_from_inode_id(context.0)?;
 
         return match arbo.get_inode(context.0) {
             Ok(inode) => {
-                let mut attributes: u32 = FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES;
-                attributes |= match (&inode.entry).into() {
-                    SimpleFileType::File => FILE_ATTRIBUTE_NORMAL,
-                    SimpleFileType::Directory => FILE_ATTRIBUTE_DIRECTORY,
-                    // SimpleFileType::Link => FILE_ATTRIBUTE_REPARSE_POINT,
-                    // SimpleFileType::Other => FILE_ATTRIBUTE_READONLY, // TODO: remove ?
-                };
                 *file_info = (&inode.meta).into();
-                file_info.file_attributes = attributes;
                 log::info!("ok:{:?}", file_info);
                 Ok(())
             }
             Err(err) => {
                 if err.kind() == ErrorKind::NotFound {
-                    Err(winfsp::FspError::WIN32(ERROR_FILE_NOT_FOUND))
+                    Err(STATUS_OBJECT_NAME_NOT_FOUND.into())
                 } else {
                     Err(winfsp::FspError::WIN32(ERROR_GEN_FAILURE))
                 }
@@ -369,12 +330,11 @@ impl FileSystemContext for FSPController {
     ) -> winfsp::Result<u32> {
         // thread::sleep(std::time::Duration::from_secs(2));
         log::info!("winfsp::read_directory({:?}, marker: {:?})", context, marker.inner_as_cstr().map(|s|s.to_string_lossy()));
-        // return Ok(STATUS_SUCCESS as u32);
         let mut entries = if let Ok(entries) = self.fs_interface.read_dir(context.0) {
             entries
         } else {
-            log::error!("err:{ERROR_NOT_FOUND}");
-            return Err(WIN32_ERROR(ERROR_NOT_FOUND).into());
+            log::error!("err:ERROR_NOT_FOUND");
+            return Err(STATUS_OBJECT_NAME_NOT_FOUND.into());
         };
 
         let mut cursor = 0;
@@ -388,16 +348,7 @@ impl FileSystemContext for FSPController {
             let mut dirinfo = DirInfo::<255>::default(); // !todo
                                                          // let mut info = dirinfo.file_info_mut();
             dirinfo.set_name(&entry.name)?;
-
-            let mut attributes: u32 = FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES;
-            attributes |= match (&entry.entry).into() {
-                SimpleFileType::File => FILE_ATTRIBUTE_NORMAL,
-                SimpleFileType::Directory => FILE_ATTRIBUTE_DIRECTORY,
-                // SimpleFileType::Link => FILE_ATTRIBUTE_REPARSE_POINT,
-                // SimpleFileType::Other => FILE_ATTRIBUTE_READONLY, // TODO: remove ?
-            };
             *dirinfo.file_info_mut() = (&entry.meta).into();
-            dirinfo.file_info_mut().file_attributes = attributes;
             log::info!("dirinfo:{}:{:?}", &entry.name, dirinfo.file_info_mut());
             if !dirinfo.append_to_buffer(buffer, &mut cursor) {
                 break;
