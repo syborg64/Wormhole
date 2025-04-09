@@ -493,6 +493,7 @@ impl NetworkInterface {
                     fs_interface.accept_rename(parent, new_parent, &name, &new_name)
                 }
                 MessageContent::SetXAttr(ino, key, data) => fs_interface
+                    .network_interface
                     .recept_inode_xattr(ino, key, data)
                     .or_else(|err| {
                         Err(std::io::Error::new(
@@ -501,6 +502,7 @@ impl NetworkInterface {
                         ))
                     }),
                 MessageContent::RemoveXAttr(ino, key) => fs_interface
+                    .network_interface
                     .recept_remove_inode_xattr(ino, key)
                     .or_else(|err| {
                         Err(std::io::Error::new(

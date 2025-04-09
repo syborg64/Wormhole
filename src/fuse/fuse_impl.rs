@@ -275,7 +275,11 @@ impl Filesystem for FuseController {
         //     reply.error(libc::EPERM);
         // }
 
-        match self.fs_interface.set_inode_xattr(ino, key, data.to_vec()) {
+        match self
+            .fs_interface
+            .network_interface
+            .set_inode_xattr(ino, key, data.to_vec())
+        {
             Ok(_) => reply.ok(),
             Err(err) => reply.error(err.to_libc()),
         }
@@ -290,6 +294,7 @@ impl Filesystem for FuseController {
     ) {
         match self
             .fs_interface
+            .network_interface
             .remove_inode_xattr(ino, name.to_string_lossy().to_string())
         {
             Ok(_) => reply.ok(),
