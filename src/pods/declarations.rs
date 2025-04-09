@@ -9,6 +9,7 @@ use tokio::task::JoinHandle;
 #[cfg(target_os = "windows")]
 use winfsp::host::FileSystemHost;
 
+use crate::config::GlobalConfig;
 #[cfg(target_os = "linux")]
 use crate::fuse::fuse_impl::mount_fuse;
 use crate::network::message::{FileSystemSerialized, FromNetworkMessage, MessageContent};
@@ -103,9 +104,9 @@ fn register_to_others(peers: &Vec<PeerIPC>, self_address: &Address) -> std::io::
 
 impl Pod {
     pub async fn new(
+        mut global_config: GlobalConfig,
         mount_point: WhPath,
         config: PodConfig,
-        mut know_peers: Vec<Address>,
         server: Arc<Server>,
         server_address: Address,
     ) -> io::Result<Self> {
@@ -115,12 +116,12 @@ impl Pod {
         let (to_network_message_tx, to_network_message_rx) = mpsc::unbounded_channel();
         let (from_network_message_tx, mut from_network_message_rx) = mpsc::unbounded_channel();
 
-        know_peers.retain(|x| *x != server_address);
+        global_config.general.peers.retain(|x| *x != server_address);
 
         let mut peers = vec![];
 
         if let Some((fs_serialized, peers_addrs, ipc)) = initiate_connection(
-            know_peers,
+            global_config.general.peers,
             server_address.clone(),
             &from_network_message_tx,
             &mut from_network_message_rx,
@@ -142,6 +143,7 @@ impl Pod {
             next_inode,
             Arc::new(RwLock::new(peers)),
             server_address,
+            global_config.redundancy,
         ));
 
         let disk_manager = DiskManager::new(mount_point.clone())?;

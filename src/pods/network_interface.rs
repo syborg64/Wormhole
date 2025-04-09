@@ -39,8 +39,6 @@ pub struct Callbacks {
     callbacks: RwLock<HashMap<Callback, broadcast::Sender<bool>>>,
 }
 
-const REDUNDANCY_NB: usize = 2;
-
 impl Callbacks {
     pub fn create(&self, call: Callback) -> io::Result<Callback> {
         if let Some(mut callbacks) = self.callbacks.try_write_for(LOCK_TIMEOUT) {
@@ -133,6 +131,7 @@ pub struct NetworkInterface {
     pub callbacks: Callbacks,
     pub peers: Arc<RwLock<Vec<PeerIPC>>>,
     pub self_addr: Address,
+    pub redundancy: u64,
 }
 
 impl NetworkInterface {
@@ -143,6 +142,7 @@ impl NetworkInterface {
         next_inode: InodeId,
         peers: Arc<RwLock<Vec<PeerIPC>>>,
         self_addr: Address,
+        redundancy: u64,
     ) -> Self {
         let next_inode = Mutex::new(next_inode);
 
@@ -156,6 +156,7 @@ impl NetworkInterface {
             },
             peers,
             self_addr,
+            redundancy,
         }
     }
 
@@ -539,7 +540,7 @@ impl NetworkInterface {
                     .iter()
                     .map(|peer| peer.address.clone())
                     .filter(|addr| !current_hosts.contains(addr))
-                    .take(REDUNDANCY_NB - current_hosts.len())
+                    .take(self.redundancy as usize - current_hosts.len())
                     .collect::<Vec<Address>>()
             } else {
                 return Err(io::Error::new(
@@ -548,7 +549,7 @@ impl NetworkInterface {
                 ));
             };
 
-        if (current_hosts.len() + possible_hosts.len()) < REDUNDANCY_NB {
+        if (current_hosts.len() + possible_hosts.len()) < self.redundancy as usize {
             log::warn!("redundancy needs enough hosts");
             return Ok(()) // TODO - should be handled (is not ok)
         }
@@ -567,7 +568,7 @@ impl NetworkInterface {
         let discard_hosts: Vec<String> = current_hosts
             .into_iter()
             .filter(|addr| *addr != self.self_addr)
-            .take(hosts_nb - REDUNDANCY_NB)
+            .take(hosts_nb - self.redundancy as usize)
             .collect();
 
         // NOTE - removing hosts also remove their file on disk upon reception
@@ -593,9 +594,9 @@ impl NetworkInterface {
             }
         };
 
-        if current_hosts.len() < REDUNDANCY_NB {
+        if current_hosts.len() < self.redundancy as usize {
             self.add_redundancy(file_id, current_hosts)
-        } else if current_hosts.len() > REDUNDANCY_NB {
+        } else if current_hosts.len() > self.redundancy as usize {
             self.remove_redundancy(file_id, current_hosts)
         } else {
             Ok(())
