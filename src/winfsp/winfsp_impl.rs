@@ -394,13 +394,38 @@ impl FileSystemContext for FSPController {
         creation_time: u64,
         last_access_time: u64,
         last_write_time: u64,
-        last_change_time: u64,
+        change_time: u64,
         file_info: &mut winfsp::filesystem::FileInfo,
     ) -> winfsp::Result<()> {
         log::info!("winfsp::set_basic_info({:?})", context);
 
-        Ok(())
-        // Err(NTSTATUS(STATUS_INVALID_DEVICE_REQUEST).into())
+        let arbo = Arbo::read_lock(&self.fs_interface.arbo, "winfsp::get_file_info")?;
+
+        let mut meta = match arbo.get_inode(context.0) {
+            Ok(inode) => {
+                log::info!("got_inode:{:?}", inode.meta);
+                Ok(inode.meta.clone())
+            }
+            Err(err) => {
+                if err.kind() == ErrorKind::NotFound {
+                    Err(STATUS_OBJECT_NAME_NOT_FOUND.into())
+                } else {
+                    Err(winfsp::FspError::WIN32(ERROR_GEN_FAILURE))
+                }
+            }
+        }?;
+
+        drop(arbo);
+        let now = SystemTime::now();
+
+        meta.atime = FileTime::new(last_access_time).try_into().unwrap_or_else(|_|now.clone());
+        meta.crtime = FileTime::new(creation_time).try_into().unwrap_or_else(|_|now.clone());
+        meta.mtime = FileTime::new(last_write_time).try_into().unwrap_or_else(|_|now.clone());
+        meta.ctime = FileTime::new(change_time).try_into().unwrap_or_else(|_|now.clone());
+
+        self.fs_interface.set_inode_meta(context.0, meta)?;
+
+        self.get_file_info(context, file_info)
     }
 
     fn set_delete(
