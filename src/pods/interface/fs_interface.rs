@@ -1,17 +1,12 @@
-use crate::network::message::{Address, FileSystemSerialized};
+use crate::network::message::Address;
+use crate::pods::arbo::{Arbo, FsEntry, Inode, InodeId, Metadata, LOCK_TIMEOUT};
+use crate::pods::disk_manager::DiskManager;
+use crate::pods::network_interface::{Callback, NetworkInterface};
+use crate::pods::whpath::WhPath;
 
-use super::arbo::{self, Metadata};
-use super::network_interface::Callback;
-use super::whpath::WhPath;
-use super::{
-    arbo::{Arbo, FsEntry, Inode, InodeId, LOCK_TIMEOUT},
-    disk_manager::DiskManager,
-    network_interface::NetworkInterface,
-};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use std::cmp::max;
-use std::io::{self};
+use std::io;
 use std::sync::Arc;
 
 pub struct FsInterface {
@@ -58,7 +53,7 @@ impl FsInterface {
         parent_ino: u64,
         name: String,
         kind: SimpleFileType,
-    ) -> io::Result<(InodeId, Inode)> {
+    ) -> io::Result<Inode> {
         let new_entry = match kind {
             SimpleFileType::File => FsEntry::File(vec![self.network_interface.self_addr.clone()]),
             SimpleFileType::Directory => FsEntry::Directory(Vec::new()),
@@ -91,7 +86,7 @@ impl FsInterface {
             SimpleFileType::Directory => self.disk.new_dir(new_path)?,
         };
 
-        Ok((new_inode_id, new_inode))
+        Ok(new_inode)
     }
 
     pub fn remove_inode(&self, id: InodeId) -> io::Result<()> {
@@ -103,19 +98,19 @@ impl FsInterface {
             )
         };
 
-        match entry {
+        let _ = match entry {
             FsEntry::File(_) => self.disk.remove_file(to_remove_path),
             FsEntry::Directory(children) => {
                 if children.is_empty() {
                     self.disk.remove_dir(to_remove_path)
                 } else {
-                    Err(io::Error::new(
+                    return Err(io::Error::new(
                         io::ErrorKind::InvalidData,
                         "remove_inode: can't remove non-empty dir",
-                    ))
+                    ));
                 }
             }
-        }?;
+        };
 
         self.network_interface.unregister_file(id)?;
 
@@ -165,9 +160,10 @@ impl FsInterface {
     ) -> io::Result<()> {
         let parent_path = self.construct_file_path(parent, name)?;
         let new_parent_path = self.construct_file_path(new_parent, new_name)?;
-        if std::path::Path::new(&parent_path.inner).exists() {
-            self.disk.mv_file(parent_path, new_parent_path)?;
-        }
+        let err = self
+            .disk
+            .mv_file(parent_path, new_parent_path)
+            .inspect_err(|err| log::error!("disk.mv_file fail: {err:?}"));
         self.network_interface
             .broadcast_rename_file(parent, new_parent, name, new_name)?;
         self.network_interface
@@ -236,7 +232,6 @@ impl FsInterface {
 
     pub fn read_dir(&self, ino: InodeId) -> io::Result<Vec<Inode>> {
         let arbo = Arbo::read_lock(&self.arbo, "fs_interface.read_dir")?;
-        arbo.log();
         let dir = arbo.get_inode(ino)?;
         let mut entries: Vec<Inode> = Vec::new();
 
@@ -256,16 +251,11 @@ impl FsInterface {
 
     // SECTION - remote -> write
 
-    pub fn replace_arbo(&self, new: FileSystemSerialized) -> io::Result<()> {
-        self.network_interface.replace_arbo(new)
-    }
-
     pub fn recept_inode(&self, inode: Inode, id: InodeId) -> io::Result<()> {
         self.network_interface.acknowledge_new_file(inode, id)?;
 
         let new_path = {
             let arbo = Arbo::read_lock(&self.arbo, "fs_interface.write")?;
-            arbo.log();
             arbo.get_path_from_inode_id(id)?
         };
 
@@ -326,13 +316,7 @@ impl FsInterface {
             arbo.get_path_from_inode_id(id)?
         };
 
-        // REVIEW - should be ok that file is not on disk
-        match self.disk.remove_file(to_remove_path) {
-            Ok(_) => (),
-            Err(e) => {
-                return Err(e);
-            }
-        };
+        let _ = self.disk.remove_file(to_remove_path);
 
         self.network_interface.acknowledge_unregister_file(id)?;
 
@@ -359,12 +343,15 @@ impl FsInterface {
     // !SECTION
 
     // SECTION remote -> read
-    pub fn send_filesystem(&self, to: Address, real_address: Address) -> io::Result<()> {
-        self.network_interface.send_arbo(to, real_address)
+    pub fn send_filesystem(&self, to: Address) -> io::Result<()> {
+        self.network_interface.send_arbo(to)
+    }
+
+    pub fn register_new_node(&self, socket: Address, addr: Address) {
+        self.network_interface.register_new_node(socket, addr);
     }
 
     pub fn send_file(&self, inode: InodeId, to: Address) -> io::Result<()> {
-        log::error!("GOT FILE PULL from {}", to);
         let arbo = Arbo::read_lock(&self.arbo, "send_arbo")?;
         let path = arbo.get_path_from_inode_id(inode)?;
         let data = self.disk.read_file(path, 0, u64::max_value())?;

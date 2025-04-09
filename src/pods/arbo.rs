@@ -1,12 +1,16 @@
-use crate::network::message::Address;
-use log::debug;
+use crate::{error::WhResult, network::message::Address};
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap, fs, io, sync::Arc, time::{Duration, SystemTime}
+    collections::HashMap,
+    fs, io,
+    sync::Arc,
+    time::{Duration, SystemTime},
 };
 
-use super::{fs_interface::SimpleFileType, whpath::WhPath};
+use crate::error::WhError;
+use crate::pods::interface::fs_interface::SimpleFileType;
+use crate::pods::whpath::WhPath;
 
 // SECTION consts
 
@@ -31,6 +35,8 @@ pub enum FsEntry {
     Directory(Vec<InodeId>),
 }
 
+pub type XAttrs = HashMap<String, Vec<u8>>;
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Inode {
     pub parent: InodeId,
@@ -38,6 +44,7 @@ pub struct Inode {
     pub name: String,
     pub entry: FsEntry,
     pub meta: Metadata,
+    pub xattrs: XAttrs,
 }
 
 pub type ArboIndex = HashMap<InodeId, Inode>;
@@ -103,9 +110,11 @@ impl Inode {
             uid: 0,
             gid: 0,
             rdev: 0,
-            blksize: 0,
+            blksize: 1,
             flags: 0,
         };
+
+        let xattrs = HashMap::new();
 
         Self {
             parent: parent_ino,
@@ -113,6 +122,7 @@ impl Inode {
             name: name,
             entry: entry,
             meta,
+            xattrs,
         }
     }
 }
@@ -139,14 +149,15 @@ impl Arbo {
                     ctime: SystemTime::now(),
                     crtime: SystemTime::now(),
                     kind: SimpleFileType::Directory,
-                    perm: 0o777,
+                    perm: 0o666,
                     nlink: 0,
                     uid: 0,
                     gid: 0,
                     rdev: 0,
-                    blksize: 0,
+                    blksize: 1,
                     flags: 0,
                 },
+                xattrs: HashMap::new(),
             },
         );
         arbo
@@ -176,6 +187,16 @@ impl Arbo {
     }
 
     #[must_use]
+    pub fn n_read_lock<'a>(
+        arbo: &'a Arc<RwLock<Arbo>>,
+        called_from: &'a str,
+    ) -> WhResult<RwLockReadGuard<'a, Arbo>> {
+        arbo.try_read_for(LOCK_TIMEOUT).ok_or(WhError::WouldBlock {
+            called_from: called_from.to_owned(),
+        })
+    }
+
+    #[must_use]
     pub fn write_lock<'a>(
         arbo: &'a Arc<RwLock<Arbo>>,
         called_from: &'a str,
@@ -188,6 +209,16 @@ impl Arbo {
                 format!("{}: unable to write_lock arbo", called_from),
             ))
         }
+    }
+
+    #[must_use]
+    pub fn n_write_lock<'a>(
+        arbo: &'a Arc<RwLock<Arbo>>,
+        called_from: &'a str,
+    ) -> WhResult<RwLockWriteGuard<'a, Arbo>> {
+        arbo.try_write_for(LOCK_TIMEOUT).ok_or(WhError::WouldBlock {
+            called_from: called_from.to_owned(),
+        })
     }
 
     #[must_use]
@@ -215,30 +246,9 @@ impl Arbo {
                     name: _,
                     entry: FsEntry::Directory(parent_children),
                     meta: _,
+                    xattrs: _,
                 }) => {
-                    let new_entry = Inode {
-                        parent: parent_ino,
-                        id: ino,
-                        name: name,
-                        entry: entry,
-                        meta: Metadata {
-                            ino: ino,
-                            size: 0,
-                            blocks: 1,
-                            atime: SystemTime::now(),
-                            mtime: SystemTime::now(),
-                            ctime: SystemTime::now(),
-                            crtime: SystemTime::now(),
-                            kind: SimpleFileType::Directory,
-                            perm: 0o777,
-                            nlink: 0,
-                            uid: 0,
-                            gid: 0,
-                            rdev: 0,
-                            blksize: 1,
-                            flags: 0,
-                        },
-                    };
+                    let new_entry = Inode::new(name, parent_ino, ino, entry);
                     parent_children.push(ino);
                     self.entries.insert(ino, new_entry);
                     Ok(())
@@ -312,6 +322,11 @@ impl Arbo {
     }
 
     #[must_use]
+    pub fn n_get_inode(&self, ino: InodeId) -> WhResult<&Inode> {
+        self.entries.get(&ino).ok_or(WhError::InodeNotFound)
+    }
+
+    #[must_use]
     pub fn mv_inode(
         &mut self,
         parent: InodeId,
@@ -343,6 +358,12 @@ impl Arbo {
         self.entries
             .get_mut(&ino)
             .ok_or(io::Error::new(io::ErrorKind::NotFound, "entry not found"))
+    }
+
+    // not public as the modifications are not automaticly propagated on other related inodes
+    #[must_use]
+    fn n_get_inode_mut(&mut self, ino: InodeId) -> WhResult<&mut Inode> {
+        self.entries.get_mut(&ino).ok_or(WhError::InodeNotFound)
     }
 
     #[must_use]
@@ -414,8 +435,18 @@ impl Arbo {
         Ok(())
     }
 
-    pub fn log(&self) {
-        debug!("{:#?}", self.entries);
+    pub fn set_inode_xattr(&mut self, ino: InodeId, key: String, data: Vec<u8>) -> WhResult<()> {
+        let inode = self.n_get_inode_mut(ino)?;
+
+        inode.xattrs.insert(key, data);
+        Ok(())
+    }
+
+    pub fn remove_inode_xattr(&mut self, ino: InodeId, key: String) -> WhResult<()> {
+        let inode = self.n_get_inode_mut(ino)?;
+
+        inode.xattrs.remove(&key);
+        Ok(())
     }
 }
 
@@ -527,7 +558,11 @@ impl TryInto<Metadata> for fs::Metadata {
             mtime: self.modified()?,
             ctime: self.modified()?,
             crtime: self.created()?,
-            kind: if self.is_file() { SimpleFileType::File } else { SimpleFileType::Directory },
+            kind: if self.is_file() {
+                SimpleFileType::File
+            } else {
+                SimpleFileType::Directory
+            },
             perm: 0o666 as u16,
             nlink: 0,
             uid: 0,

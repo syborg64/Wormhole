@@ -1,16 +1,16 @@
 use crate::pods::arbo::{FsEntry, Inode, Metadata};
-use crate::pods::fs_interface::{self, FsInterface, SimpleFileType};
+use crate::pods::interface::fs_interface::{FsInterface, SimpleFileType};
+use crate::pods::interface::xattrs::GetXAttrError;
 use crate::pods::whpath::WhPath;
 use fuser::{
     BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData,
-    ReplyDirectory, ReplyEntry, Request, TimeOrNow,
+    ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyXattr, Request, TimeOrNow,
 };
-use libc::{EIO, ENOENT};
-use log::debug;
+use libc::{EIO, ENOENT, XATTR_CREATE, XATTR_REPLACE};
 use std::ffi::OsStr;
 use std::io;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime};
 
 // NOTE - placeholders
 const TTL: Duration = Duration::from_secs(1);
@@ -24,44 +24,19 @@ impl Into<FileType> for SimpleFileType {
     }
 }
 
-const MOUNT_DIR_ATTR: FileAttr = FileAttr {
-    ino: 1,
-    size: 0,
-    blocks: 0,
-    atime: UNIX_EPOCH, // 1970-01-01 00:00:00
-    mtime: UNIX_EPOCH,
-    ctime: UNIX_EPOCH,
-    crtime: UNIX_EPOCH,
-    kind: FileType::Directory,
-    perm: 0o755,
-    nlink: 2,
-    uid: 501,
-    gid: 20,
-    rdev: 0,
-    flags: 0,
-    blksize: 512,
-};
-
-pub const TEMPLATE_FILE_ATTR: FileAttr = FileAttr {
-    ino: 2,
-    size: 0,
-    blocks: 1,
-    atime: UNIX_EPOCH, // 1970-01-01 00:00:00
-    mtime: UNIX_EPOCH,
-    ctime: UNIX_EPOCH,
-    crtime: UNIX_EPOCH,
-    kind: FileType::RegularFile,
-    perm: 0o777,
-    nlink: 1,
-    uid: 501,
-    gid: 20,
-    rdev: 0,
-    flags: 0,
-    blksize: 512,
-};
-// ^ placeholders
-
-// const MIRROR_PTH: &str = "./wh_mirror/";
+impl Into<SimpleFileType> for FileType {
+    fn into(self) -> SimpleFileType {
+        match self {
+            FileType::RegularFile => SimpleFileType::File,
+            FileType::Directory => SimpleFileType::Directory,
+            FileType::NamedPipe => todo!("file type not supported"),
+            FileType::CharDevice => todo!("file type not supported"),
+            FileType::BlockDevice => todo!("file type not supported"),
+            FileType::Symlink => todo!("file type not supported"),
+            FileType::Socket => todo!("file type not supported"),
+        }
+    }
+}
 
 impl Into<FileAttr> for Metadata {
     fn into(self) -> FileAttr {
@@ -73,14 +48,14 @@ impl Into<FileAttr> for Metadata {
             mtime: self.mtime,
             ctime: self.ctime,
             crtime: self.crtime,
-            kind: self.kind,
+            kind: self.kind.into(),
             perm: self.perm,
             nlink: self.nlink,
             uid: self.uid,
             gid: self.gid,
             rdev: self.rdev,
             flags: self.flags,
-            blksize: 1,
+            blksize: self.blksize,
         }
     }
 }
@@ -95,7 +70,7 @@ impl Into<Metadata> for FileAttr {
             mtime: self.mtime,
             ctime: self.ctime,
             crtime: self.crtime,
-            kind: self.kind,
+            kind: self.kind.into(),
             perm: self.perm,
             nlink: self.nlink,
             uid: self.uid,
@@ -113,7 +88,7 @@ pub struct FuseController {
 
 // NOTE for dev purpose while all metadata is not supported
 fn inode_to_fuse_fileattr(inode: Inode) -> FileAttr {
-    let mut attr : FileAttr = inode.meta.into();
+    let mut attr: FileAttr = inode.meta.into();
     attr.ino = inode.id;
     attr.kind = match inode.entry {
         FsEntry::Directory(_) => fuser::FileType::Directory,
@@ -127,29 +102,20 @@ impl Filesystem for FuseController {
     // READING
 
     fn lookup(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEntry) {
-        debug!(
-            "called lookup: {} > {}",
-            parent,
-            name.to_string_lossy().to_string()
-        );
-
         match self
             .fs_interface
             .get_entry_from_name(parent, name.to_string_lossy().to_string())
         {
             Ok(inode) => {
-                // debug!("yes entry for name {} - {}", parent, name.to_string_lossy().to_string());
                 reply.entry(&TTL, &inode_to_fuse_fileattr(inode), 0);
             }
             Err(_) => {
-                // debug!("no entry for name {} - {}", parent, name.to_string_lossy().to_string());
                 reply.error(ENOENT);
             }
         };
     }
 
     fn getattr(&mut self, _req: &Request, ino: u64, _: Option<u64>, reply: ReplyAttr) {
-        debug!("called getattr ino:{}", ino);
         let attrs = self.fs_interface.get_inode_attributes(ino);
 
         match attrs {
@@ -165,21 +131,20 @@ impl Filesystem for FuseController {
         &mut self,
         _req: &Request<'_>,
         ino: u64,
-        mode: Option<u32>,
+        _mode: Option<u32>,
         uid: Option<u32>,
         gid: Option<u32>,
         size: Option<u64>,
         atime: Option<fuser::TimeOrNow>,
         mtime: Option<fuser::TimeOrNow>,
         ctime: Option<std::time::SystemTime>,
-        fh: Option<u64>,
+        _fh: Option<u64>,
         crtime: Option<std::time::SystemTime>,
-        chgtime: Option<std::time::SystemTime>,
-        bkuptime: Option<std::time::SystemTime>,
+        _chgtime: Option<std::time::SystemTime>,
+        _bkuptime: Option<std::time::SystemTime>,
         flags: Option<u32>,
         reply: ReplyAttr,
     ) {
-        debug!("called setattr ino:{}", ino);
         let attrs = match self.fs_interface.get_inode_attributes(ino) {
             Ok(attrs) => Metadata {
                 ino: attrs.ino,
@@ -238,6 +203,130 @@ impl Filesystem for FuseController {
         }
     }
 
+    fn getxattr(
+        &mut self,
+        _req: &Request<'_>,
+        ino: u64,
+        name: &OsStr,
+        size: u32,
+        reply: ReplyXattr,
+    ) {
+        let attr = self
+            .fs_interface
+            .get_inode_xattr(ino, &name.to_string_lossy().to_string());
+
+        let data = match attr {
+            Ok(data) => data,
+            Err(GetXAttrError::KeyNotFound) => {
+                reply.error(libc::ERANGE);
+                return;
+            }
+            Err(GetXAttrError::WhError { source }) => {
+                reply.error(source.to_libc());
+                return;
+            }
+        };
+
+        if size == 0 {
+            reply.size(data.len() as u32);
+        } else {
+            reply.data(&data);
+        }
+    }
+
+    fn setxattr(
+        &mut self,
+        _req: &Request<'_>,
+        ino: u64,
+        name: &OsStr,
+        data: &[u8],
+        flags: i32,
+        _position: u32, // Postion undocumented
+        reply: ReplyEmpty,
+    ) {
+        // As we follow linux implementation in spirit, data size limit at 64kb
+        if data.len() > 64000 {
+            return reply.error(libc::ENOSPC);
+        }
+
+        let key = name.to_string_lossy().to_string();
+
+        if flags == XATTR_CREATE || flags == XATTR_REPLACE {
+            match self.fs_interface.xattr_exists(ino, &key) {
+                Ok(true) => {
+                    if flags == XATTR_CREATE {
+                        return reply.error(libc::EEXIST);
+                    }
+                }
+                Ok(false) => {
+                    if flags == XATTR_REPLACE {
+                        return reply.error(libc::ENODATA);
+                    }
+                }
+                Err(err) => {
+                    return reply.error(err.to_libc());
+                }
+            }
+        }
+
+        //TODO: Implement After permission implementation
+        // let attr = self.fs_interface.get_inode_attributes(ino);
+        // if attr.unwrap().perm == valid {
+        //     reply.error(libc::EPERM);
+        // }
+
+        match self
+            .fs_interface
+            .network_interface
+            .set_inode_xattr(ino, key, data.to_vec())
+        {
+            Ok(_) => reply.ok(),
+            Err(err) => reply.error(err.to_libc()),
+        }
+    }
+
+    fn removexattr(
+        &mut self,
+        _req: &fuser::Request<'_>,
+        ino: u64,
+        name: &OsStr,
+        reply: ReplyEmpty,
+    ) {
+        match self
+            .fs_interface
+            .network_interface
+            .remove_inode_xattr(ino, name.to_string_lossy().to_string())
+        {
+            Ok(_) => reply.ok(),
+            Err(err) => reply.error(err.to_libc()),
+        }
+    }
+
+    fn listxattr(&mut self, _req: &Request<'_>, ino: u64, size: u32, reply: ReplyXattr) {
+        match self.fs_interface.list_inode_xattr(ino) {
+            Ok(keys) => {
+                let mut bytes = vec![];
+
+                for key in keys {
+                    bytes.extend(key.bytes());
+                    bytes.push(0);
+                }
+                if size == 0 {
+                    reply.size(bytes.len() as u32);
+                } else if size >= bytes.len() as u32 {
+                    reply.data(&bytes);
+                } else {
+                    reply.error(libc::ERANGE)
+                }
+                return;
+            }
+            Err(err) => match err.to_libc() {
+                libc::ENOENT => reply.error(libc::EBADF), // Not found became Bad file descriptor
+                or => reply.error(or),
+            },
+        }
+    }
+
     fn read(
         &mut self,
         _req: &Request,
@@ -249,7 +338,6 @@ impl Filesystem for FuseController {
         _lock: Option<u64>,
         reply: ReplyData,
     ) {
-        debug!("called read ino:{}", ino);
         let content = self.fs_interface.read_file(
             ino,
             offset.try_into().expect("fuse_impl::read offset negative"),
@@ -273,7 +361,6 @@ impl Filesystem for FuseController {
         offset: i64,
         mut reply: ReplyDirectory,
     ) {
-        debug!("called readdir ino:{} offset:{}", ino, offset);
         let entries = match self.fs_interface.read_dir(ino) {
             Ok(entries) => entries,
             Err(e) => {
@@ -284,7 +371,6 @@ impl Filesystem for FuseController {
         };
 
         for (i, entry) in entries.into_iter().enumerate().skip(offset as usize) {
-            debug!("....readdir entries : {:?}", entry);
             if reply.add(
                 ino,
                 // i + 1 means offset of the next entry
@@ -292,7 +378,6 @@ impl Filesystem for FuseController {
                 entry.entry.get_filetype().into(),
                 entry.name,
             ) {
-                log::error!("BREAK?");
                 break;
             }
         }
@@ -318,15 +403,7 @@ impl Filesystem for FuseController {
             name.to_string_lossy().to_string(),
             SimpleFileType::File,
         ) {
-            Ok((id, _)) => {
-                // creating metadata to return
-                let mut new_attr = TEMPLATE_FILE_ATTR;
-                new_attr.ino = id;
-                new_attr.kind = FileType::RegularFile;
-                new_attr.size = 0;
-
-                reply.entry(&TTL, &new_attr, 0)
-            }
+            Ok(node) => reply.entry(&TTL, &node.meta.into(), 0),
             Err(err) => {
                 log::error!("fuse_impl error: {:?}", err);
                 reply.error(err.raw_os_error().unwrap_or(EIO))
@@ -348,15 +425,7 @@ impl Filesystem for FuseController {
             name.to_string_lossy().to_string(),
             SimpleFileType::Directory,
         ) {
-            Ok((id, _)) => {
-                // creating metadata to return
-                let mut new_attr = TEMPLATE_FILE_ATTR;
-                new_attr.ino = id;
-                new_attr.kind = FileType::Directory;
-                new_attr.size = 0;
-
-                reply.entry(&TTL, &new_attr, 0)
-            }
+            Ok(inode) => reply.entry(&TTL, &inode.meta.into(), 0),
             Err(err) => {
                 log::error!("fuse_impl error: {:?}", err);
                 reply.error(err.raw_os_error().unwrap_or(EIO))
@@ -428,7 +497,7 @@ impl Filesystem for FuseController {
             .try_into()
             .expect("fuser write: can't convert i64 to u64");
 
-        match self.fs_interface.write(ino, data.to_vec(), offset) {
+        match self.fs_interface.write(ino, data, offset) {
             Ok(written) => reply.written(
                 written
                     .try_into()
@@ -448,39 +517,25 @@ impl Filesystem for FuseController {
         _req: &Request<'_>,
         parent: u64,
         name: &OsStr,
-        mode: u32,
-        umask: u32,
+        _mode: u32,
+        _umask: u32,
         flags: i32,
         reply: fuser::ReplyCreate,
     ) {
-        debug!("CREATE called on parent {} for {:?}", parent, name);
-
         match self.fs_interface.make_inode(
             parent,
             name.to_string_lossy().to_string(),
             SimpleFileType::File,
         ) {
-            Ok((id, _)) => {
-                // creating metadata to return
-                let mut new_attr = TEMPLATE_FILE_ATTR;
-                new_attr.ino = id;
-                new_attr.kind = FileType::RegularFile;
-                new_attr.size = 0;
-
-                reply.created(&TTL, &new_attr, 0, new_attr.ino, flags as u32);
-            }
+            Ok(inode) => reply.created(&TTL, &inode.meta.into(), 0, inode.id, flags as u32),
             Err(err) => {
-                log::error!("fuse_impl::create : unable to create file. {:?}", err);
-                {
-                    log::error!("fuse_impl error: {:?}", err);
-                    reply.error(err.raw_os_error().unwrap_or(EIO))
-                }
+                log::error!("fuse_impl error: {:?}", err);
+                reply.error(err.raw_os_error().unwrap_or(EIO))
             }
         }
     }
 
     fn open(&mut self, _req: &Request<'_>, ino: u64, flags: i32, reply: fuser::ReplyOpen) {
-        log::error!("OPEN ON {}", ino);
         reply.opened(ino, flags as u32); // TODO - check flags ?
     }
 
@@ -494,7 +549,6 @@ impl Filesystem for FuseController {
         _flush: bool,
         reply: fuser::ReplyEmpty,
     ) {
-        log::error!("RELEASE CALLED");
         reply.ok();
     }
 }

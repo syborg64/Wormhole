@@ -1,11 +1,11 @@
 pub mod arbo;
 pub mod declarations;
 #[cfg(target_os = "linux")]
-#[path = "./linux/disk_manager.rs"]
+#[path = "./disk_manager.rs"]
 pub mod disk_manager;
 #[cfg(target_os = "windows")]
 #[path = "./dummy/disk_manager.rs"]
 pub mod disk_manager;
-pub mod fs_interface;
+pub mod interface;
 pub mod network_interface;
 pub mod whpath;

@@ -19,6 +19,7 @@ use windows::Win32::{
 use winfsp::{
     filesystem::{DirInfo, FileInfo, FileSecurity, FileSystemContext, WideNameInfo},
     host::{FileSystemHost, VolumeParams},
+    U16CStr, U16CString,
 };
 use winfsp_sys::FILE_ACCESS_RIGHTS;
 

@@ -19,7 +19,6 @@
  */
 use std::{env, path::PathBuf, sync::Arc};
 
-use log::info;
 #[cfg(target_os = "windows")]
 use winfsp::winfsp_init;
 use wormhole::config;
@@ -45,7 +44,10 @@ async fn main() {
     #[cfg(target_os = "windows")]
     match winfsp_init() {
         Ok(_token) => println!("got fsp token!"),
-        Err(err) => {println!("fsp error: {:?}", err); std::process::exit(84)}
+        Err(err) => {
+            println!("fsp error: {:?}", err);
+            std::process::exit(84)
+        }
     }
 
     let mut local_config_path = mount.clone();

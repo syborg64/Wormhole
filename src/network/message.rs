@@ -8,15 +8,18 @@ use crate::pods::arbo::{ArboIndex, Inode, InodeId, Metadata};
 /// through the network
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum MessageContent {
+    Register(Address),
     Remove(InodeId),
     Inode(Inode, InodeId),
     RequestFile(InodeId, Address),
     PullAnswer(InodeId, Vec<u8>),
-    RequestFs(Address),
     Rename(InodeId, InodeId, String, String), //Parent, New Parent, Name, New Name
     EditHosts(InodeId, Vec<Address>),
     EditMetadata(InodeId, Metadata, Address),
-    FsAnswer(FileSystemSerialized),
+    SetXAttr(InodeId, String, Vec<u8>),
+    RemoveXAttr(InodeId, String),
+    RequestFs,
+    FsAnswer(FileSystemSerialized, Vec<Address>),
 }
 
 pub type Address = String;
