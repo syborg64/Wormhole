@@ -26,22 +26,6 @@ impl FsInterface {
         Ok(inode.xattrs.contains_key(key))
     }
 
-    pub fn set_inode_xattr(&self, ino: InodeId, key: String, data: Vec<u8>) -> WhResult<()> {
-        self.network_interface.set_inode_xattr(ino, key, data)
-    }
-
-    pub fn recept_inode_xattr(&self, ino: InodeId, key: String, data: Vec<u8>) -> WhResult<()> {
-        self.network_interface.recept_inode_xattr(ino, key, data)
-    }
-
-    pub fn remove_inode_xattr(&self, ino: InodeId, key: String) -> WhResult<()> {
-        self.network_interface.remove_inode_xattr(ino, key)
-    }
-
-    pub fn recept_remove_inode_xattr(&self, ino: InodeId, key: String) -> WhResult<()> {
-        self.network_interface.recept_remove_inode_xattr(ino, key)
-    }
-
     pub fn list_inode_xattr(&self, ino: InodeId) -> WhResult<Vec<String>> {
         let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface::get_inode_xattr")?;
         let inode = arbo.n_get_inode(ino)?;
