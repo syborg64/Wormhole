@@ -360,15 +360,32 @@ impl FileSystemContext for FSPController {
         // Ok(STATUS_SUCCESS as u32)
     }
 
-    // fn rename(
-    //     &self,
-    //     context: &Self::FileContext,
-    //     file_name: &winfsp::U16CStr,
-    //     new_file_name: &winfsp::U16CStr,
-    //     replace_if_exists: bool,
-    // ) -> winfsp::Result<()> {
-    //     Err(NTSTATUS(STATUS_INVALID_DEVICE_REQUEST).into())
-    // }
+    fn rename(
+        &self,
+        context: &Self::FileContext,
+        file_name: &winfsp::U16CStr,
+        new_file_name: &winfsp::U16CStr,
+        replace_if_exists: bool,
+    ) -> winfsp::Result<()> {
+        log::info!("winfsp::rename({}, {})", file_name.display(), new_file_name.display());
+
+        let path: WhPath = file_name.try_into().map_err(|e| {
+            log::error!("{:?}", e);
+            e
+        })?;
+        let (folder, name) = path.split_folder_file();
+        let parent = Arbo::read_lock(&self.fs_interface.arbo, "winfsp::open")?.get_inode_from_path(&(&folder).into())?.id;
+
+        let new_path: WhPath = new_file_name.try_into().map_err(|e| {
+            log::error!("{:?}", e);
+            e
+        })?;
+        let (new_folder, new_name) = new_path.split_folder_file();
+        let new_parent = Arbo::read_lock(&self.fs_interface.arbo, "winfsp::open")?.get_inode_from_path(&(&new_folder).into())?.id;
+
+        self.fs_interface.rename(parent, new_parent, &name, &new_name)?;
+        Ok(())
+    }
 
     fn set_basic_info(
         &self,
