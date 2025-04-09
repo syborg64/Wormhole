@@ -20,6 +20,7 @@ pub enum Cli {
     Inspect,
     /// remove a pod from its network
     Remove(RemoveArgs),
+    Reload,
 }
 
 #[derive(Debug, clap::Args, Serialize, Deserialize)]

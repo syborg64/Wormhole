@@ -68,6 +68,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("inspecting pod");
             todo!("inspect");
         }
+        Cli::Reload => {
+            println!("reloading pod");
+            todo!("reload");
+        }
     }
     Ok(())
 }
