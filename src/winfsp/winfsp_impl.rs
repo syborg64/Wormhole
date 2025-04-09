@@ -1,16 +1,24 @@
-use std::{cmp::min, ffi::OsString, io::ErrorKind, sync::{Arc, RwLock}, time::SystemTime};
+use std::{
+    cmp::min,
+    ffi::OsString,
+    io::ErrorKind,
+    sync::{Arc, RwLock},
+    time::SystemTime,
+};
 
 use nt_time::FileTime;
 use ntapi::ntioapi::FILE_DIRECTORY_FILE;
 use winapi::shared::{
-        ntstatus::STATUS_INVALID_DEVICE_REQUEST,
-        winerror::{
-            ERROR_ALREADY_EXISTS, ERROR_GEN_FAILURE, ERROR_INVALID_NAME,
-        },
-    };
-use windows::Win32::{Foundation::{NTSTATUS, STATUS_OBJECT_NAME_NOT_FOUND, WIN32_ERROR}, Storage::FileSystem::{FILE_ATTRIBUTE_ARCHIVE, FILE_ATTRIBUTE_DIRECTORY}};
+    ntstatus::STATUS_INVALID_DEVICE_REQUEST,
+    winerror::{ERROR_ALREADY_EXISTS, ERROR_GEN_FAILURE, ERROR_INVALID_NAME},
+};
+use windows::Win32::{
+    Foundation::{NTSTATUS, STATUS_OBJECT_NAME_NOT_FOUND, WIN32_ERROR},
+    Storage::FileSystem::{FILE_ATTRIBUTE_ARCHIVE, FILE_ATTRIBUTE_DIRECTORY},
+};
 use winfsp::{
-    filesystem::{DirInfo, FileInfo, FileSecurity, FileSystemContext, WideNameInfo}, host::{FileSystemHost, VolumeParams}
+    filesystem::{DirInfo, FileInfo, FileSecurity, FileSystemContext, WideNameInfo},
+    host::{FileSystemHost, VolumeParams},
 };
 use winfsp_sys::FILE_ACCESS_RIGHTS;
 
@@ -128,9 +136,12 @@ impl FileSystemContext for FSPController {
             .try_into()
             .inspect_err(|e| log::error!("{}:{:?}", file_name.to_string_lossy(), e))?;
 
-        let file_info: FileInfo = (&Arbo::read_lock(&self.fs_interface.arbo, "get_security_by_name")?
-        .get_inode_from_path(&path)
-        .inspect_err(|e| log::error!("{}:{:?}", &path.inner, e))?.meta).into();
+        let file_info: FileInfo =
+            (&Arbo::read_lock(&self.fs_interface.arbo, "get_security_by_name")?
+                .get_inode_from_path(&path)
+                .inspect_err(|e| log::error!("{}:{:?}", &path.inner, e))?
+                .meta)
+                .into();
         // let mut descriptor_size = 0;
         // let option_sd = if security_descriptor.is_some() {
         //     Some(
@@ -175,7 +186,9 @@ impl FileSystemContext for FSPController {
             log::error!("{:?}", e);
             e
         })?;
-        return match Arbo::read_lock(&self.fs_interface.arbo, "winfsp::open")?.get_inode_from_path(&path) {
+        return match Arbo::read_lock(&self.fs_interface.arbo, "winfsp::open")?
+            .get_inode_from_path(&path)
+        {
             Ok(inode) => {
                 *file_info.as_mut() = (&inode.meta).into();
                 file_info.set_normalized_name(file_name.as_slice(), None);
@@ -196,7 +209,6 @@ impl FileSystemContext for FSPController {
     fn close(&self, context: Self::FileContext) {
         // thread::sleep(std::time::Duration::from_secs(2));
         log::info!("winfsp::close({:?})", context);
-
     }
 
     fn create(
@@ -228,7 +240,8 @@ impl FileSystemContext for FSPController {
 
         let parent = arbo
             .get_inode_from_path(&(&folder).into())
-            .map_err(|_| STATUS_OBJECT_NAME_NOT_FOUND)?.id;
+            .map_err(|_| STATUS_OBJECT_NAME_NOT_FOUND)?
+            .id;
 
         drop(arbo);
         let (id, inode) = self
@@ -322,7 +335,11 @@ impl FileSystemContext for FSPController {
         buffer: &mut [u8],
     ) -> winfsp::Result<u32> {
         // thread::sleep(std::time::Duration::from_secs(2));
-        log::info!("winfsp::read_directory({:?}, marker: {:?})", context, marker.inner_as_cstr().map(|s|s.to_string_lossy()));
+        log::info!(
+            "winfsp::read_directory({:?}, marker: {:?})",
+            context,
+            marker.inner_as_cstr().map(|s| s.to_string_lossy())
+        );
         let mut entries = if let Ok(entries) = self.fs_interface.read_dir(context.0) {
             entries
         } else {
@@ -360,23 +377,32 @@ impl FileSystemContext for FSPController {
         new_file_name: &winfsp::U16CStr,
         replace_if_exists: bool,
     ) -> winfsp::Result<()> {
-        log::info!("winfsp::rename({}, {})", file_name.display(), new_file_name.display());
+        log::info!(
+            "winfsp::rename({}, {})",
+            file_name.display(),
+            new_file_name.display()
+        );
 
         let path: WhPath = file_name.try_into().map_err(|e| {
             log::error!("{:?}", e);
             e
         })?;
         let (folder, name) = path.split_folder_file();
-        let parent = Arbo::read_lock(&self.fs_interface.arbo, "winfsp::open")?.get_inode_from_path(&(&folder).into())?.id;
+        let parent = Arbo::read_lock(&self.fs_interface.arbo, "winfsp::open")?
+            .get_inode_from_path(&(&folder).into())?
+            .id;
 
         let new_path: WhPath = new_file_name.try_into().map_err(|e| {
             log::error!("{:?}", e);
             e
         })?;
         let (new_folder, new_name) = new_path.split_folder_file();
-        let new_parent = Arbo::read_lock(&self.fs_interface.arbo, "winfsp::open")?.get_inode_from_path(&(&new_folder).into())?.id;
+        let new_parent = Arbo::read_lock(&self.fs_interface.arbo, "winfsp::open")?
+            .get_inode_from_path(&(&new_folder).into())?
+            .id;
 
-        self.fs_interface.rename(parent, new_parent, &name, &new_name)?;
+        self.fs_interface
+            .rename(parent, new_parent, &name, &new_name)?;
         Ok(())
     }
 
@@ -411,10 +437,18 @@ impl FileSystemContext for FSPController {
         drop(arbo);
         let now = SystemTime::now();
 
-        meta.atime = FileTime::new(last_access_time).try_into().unwrap_or_else(|_|now.clone());
-        meta.crtime = FileTime::new(creation_time).try_into().unwrap_or_else(|_|now.clone());
-        meta.mtime = FileTime::new(last_write_time).try_into().unwrap_or_else(|_|now.clone());
-        meta.ctime = FileTime::new(change_time).try_into().unwrap_or_else(|_|now.clone());
+        meta.atime = FileTime::new(last_access_time)
+            .try_into()
+            .unwrap_or_else(|_| now.clone());
+        meta.crtime = FileTime::new(creation_time)
+            .try_into()
+            .unwrap_or_else(|_| now.clone());
+        meta.mtime = FileTime::new(last_write_time)
+            .try_into()
+            .unwrap_or_else(|_| now.clone());
+        meta.ctime = FileTime::new(change_time)
+            .try_into()
+            .unwrap_or_else(|_| now.clone());
 
         self.fs_interface.set_inode_meta(context.0, meta)?;
 
@@ -470,12 +504,11 @@ impl FileSystemContext for FSPController {
         file_info: &mut winfsp::filesystem::FileInfo,
     ) -> winfsp::Result<u32> {
         log::info!("winfsp::write({:?})", context);
-        let size = Arbo::read_lock(&self.fs_interface.arbo, "winfsp::write")?.get_inode(context.0)?.meta.size;
-        let offset = if write_to_eof {
-            size
-        } else {
-            offset as usize
-        };
+        let size = Arbo::read_lock(&self.fs_interface.arbo, "winfsp::write")?
+            .get_inode(context.0)?
+            .meta
+            .size;
+        let offset = if write_to_eof { size } else { offset as usize };
         let buffer = if constrained_io {
             &buffer[0..std::cmp::min(buffer.len(), size)]
         } else {
