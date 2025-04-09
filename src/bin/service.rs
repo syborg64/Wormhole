@@ -66,7 +66,7 @@ async fn main() {
                 peers: args_other_addresses,
                 ignore_paths: vec![],
             },
-            redundancy: Some(RedundancyConfig { number: 2 }),
+            redundancy: RedundancyConfig { number: 2 },
         });
 
     global_config

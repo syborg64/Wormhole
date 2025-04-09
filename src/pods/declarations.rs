@@ -143,7 +143,7 @@ impl Pod {
             next_inode,
             Arc::new(RwLock::new(peers)),
             server_address,
-            global_config.redundancy,
+            global_config.redundancy.number,
         ));
 
         let disk_manager = DiskManager::new(mount_point.clone())?;
