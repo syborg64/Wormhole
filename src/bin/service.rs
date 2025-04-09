@@ -19,7 +19,6 @@
  */
 use std::{env, path::PathBuf, sync::Arc};
 
-use log::info;
 #[cfg(target_os = "windows")]
 use winfsp::winfsp_init;
 use wormhole::config;

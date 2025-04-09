@@ -19,6 +19,8 @@ pub enum MessageContent {
     AddHosts(InodeId, Vec<Address>),
     RemoveHosts(InodeId, Vec<Address>),
     EditMetadata(InodeId, Metadata, Address),
+    SetXAttr(InodeId, String, Vec<u8>),
+    RemoveXAttr(InodeId, String),
     RequestFs,
     RequestPull(InodeId),
     FsAnswer(FileSystemSerialized, Vec<Address>),
