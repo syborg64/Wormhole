@@ -1,20 +1,14 @@
-use crate::network::message::{Address, FileSystemSerialized};
+use crate::network::message::Address;
+use crate::pods::arbo::{Arbo, FsEntry, Inode, InodeId, Metadata, LOCK_TIMEOUT};
+use crate::pods::disk_manager::DiskManager;
+use crate::pods::network_interface::{Callback, NetworkInterface};
+use crate::pods::whpath::WhPath;
 
-use super::arbo::Metadata;
-use super::network_interface::Callback;
-use super::whpath::WhPath;
-use super::{
-    arbo::{Arbo, FsEntry, Inode, InodeId, LOCK_TIMEOUT},
-    disk_manager::DiskManager,
-    network_interface::NetworkInterface,
-};
-use bincode::de;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::io;
 use std::sync::Arc;
 
-#[derive(Debug)]
 pub struct FsInterface {
     pub network_interface: Arc<NetworkInterface>,
     pub disk: DiskManager,
@@ -113,7 +107,7 @@ impl FsInterface {
                     return Err(io::Error::new(
                         io::ErrorKind::InvalidData,
                         "remove_inode: can't remove non-empty dir",
-                    ))
+                    ));
                 }
             }
         };
@@ -257,10 +251,6 @@ impl FsInterface {
 
     // SECTION - remote -> write
 
-    pub fn replace_arbo(&self, new: FileSystemSerialized) -> io::Result<()> {
-        self.network_interface.replace_arbo(new)
-    }
-
     pub fn recept_inode(&self, inode: Inode, id: InodeId) -> io::Result<()> {
         self.network_interface.acknowledge_new_file(inode, id)?;
 
@@ -353,8 +343,8 @@ impl FsInterface {
     // !SECTION
 
     // SECTION remote -> read
-    pub fn send_filesystem(&self, to: Address, real_address: Address) -> io::Result<()> {
-        self.network_interface.send_arbo(to, real_address)
+    pub fn send_filesystem(&self, to: Address) -> io::Result<()> {
+        self.network_interface.send_arbo(to)
     }
 
     pub fn register_new_node(&self, socket: Address, addr: Address) {
