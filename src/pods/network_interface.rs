@@ -549,7 +549,8 @@ impl NetworkInterface {
             };
 
         if (current_hosts.len() + possible_hosts.len()) < REDUNDANCY_NB {
-            todo!("redundancy needs enough hosts")
+            log::warn!("redundancy needs enough hosts");
+            return Ok(()) // TODO - should be handled (is not ok)
         }
 
         self.to_network_message_tx
