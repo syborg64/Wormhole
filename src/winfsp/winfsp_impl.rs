@@ -1,5 +1,6 @@
 use std::{cmp::min, ffi::OsString, io::ErrorKind, sync::Arc, time::UNIX_EPOCH};
 
+use nt_time::FileTime;
 use ntapi::ntioapi::FILE_DIRECTORY_FILE;
 use winapi::{
     shared::{
@@ -45,33 +46,25 @@ impl WhPath {
 
 impl Into<FileInfo> for Metadata {
     fn into(self) -> FileInfo {
-        FileInfo {
-            file_attributes: 0,
-            reparse_tag: 0,
-            allocation_size: self.size,
-            file_size: self.size,
-            creation_time: self.crtime.duration_since(UNIX_EPOCH).map(|t|t.as_secs()).unwrap_or(0),
-            last_access_time: self.atime.duration_since(UNIX_EPOCH).map(|t|t.as_secs()).unwrap_or(0),
-            last_write_time: self.mtime.duration_since(UNIX_EPOCH).map(|t|t.as_secs()).unwrap_or(0),
-            change_time: self.ctime.duration_since(UNIX_EPOCH).map(|t|t.as_secs()).unwrap_or(0),
-            index_number: self.ino,
-            hard_links: 0,
-            ea_size: 0,
-        }
+        (&self).into()
     }
 }
 
 impl Into<FileInfo> for &Metadata {
     fn into(self) -> FileInfo {
+        let attributes = match self.kind {
+            SimpleFileType::File => FILE_ATTRIBUTE_ARCHIVE,
+            SimpleFileType::Directory => FILE_ATTRIBUTE_DIRECTORY,
+        };
         FileInfo {
-            file_attributes: 0,
+            file_attributes: attributes.0,
             reparse_tag: 0,
-            allocation_size: self.size,
-            file_size: self.size,
-            creation_time: self.crtime.duration_since(UNIX_EPOCH).map(|t|t.as_secs()).unwrap_or(0),
-            last_access_time: self.atime.duration_since(UNIX_EPOCH).map(|t|t.as_secs()).unwrap_or(0),
-            last_write_time: self.mtime.duration_since(UNIX_EPOCH).map(|t|t.as_secs()).unwrap_or(0),
-            change_time: self.ctime.duration_since(UNIX_EPOCH).map(|t|t.as_secs()).unwrap_or(0),
+            allocation_size: self.size as u64,
+            file_size: self.size as u64,
+            creation_time: FileTime::try_from(self.crtime).unwrap_or_default().to_raw(),
+            last_access_time: FileTime::try_from(self.atime).unwrap_or_default().to_raw(),
+            last_write_time: FileTime::try_from(self.mtime).unwrap_or_default().to_raw(),
+            change_time: FileTime::try_from(self.ctime).unwrap_or_default().to_raw(),
             index_number: self.ino,
             hard_links: 0,
             ea_size: 0,
