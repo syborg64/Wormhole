@@ -13,7 +13,7 @@ impl WhError {
             WhError::InodeNotFound => libc::ENOENT,
             WhError::DeadLock => libc::EDEADLOCK,
             WhError::NetworkDied { called_from: _ } => libc::ENETDOWN,
-            WhError::WouldBlock { called_from: _ } => libc::SIG_BLOCK,
+            WhError::WouldBlock { called_from: _ } => libc::EWOULDBLOCK,
         }
     }
 }
