@@ -293,27 +293,24 @@ impl FsInterface {
             )
         };
 
-        let status = self.disk.write_file(path, &binary, 0).is_ok();
-        let _ = self.network_interface
+        self.disk.write_file(path, &binary, 0)?;
+        let _ = self
+            .network_interface
             .callbacks
-            .resolve(Callback::Pull(id), status);
-        if status {
-            let mut hosts;
-            if let FsEntry::File(hosts_source) = &inode.entry {
-                hosts = hosts_source.clone();
-                let self_addr = self.network_interface.self_addr.clone();
-                let idx = hosts.partition_point(|x| x <= &self_addr);
-                hosts.insert(idx, self_addr);
-            } else {
-                return Err(io::ErrorKind::InvalidInput.into());
-            }
-            Arbo::write_lock(&self.arbo, "recept_binary")
-                .expect("recept_binary: can't write lock arbo")
-                .set_inode_hosts(id, hosts)?;
-            self.network_interface.update_remote_hosts(&inode)
+            .resolve(Callback::Pull(id), true);
+        let mut hosts;
+        if let FsEntry::File(hosts_source) = &inode.entry {
+            hosts = hosts_source.clone();
+            let self_addr = self.network_interface.self_addr.clone();
+            let idx = hosts.partition_point(|x| x <= &self_addr);
+            hosts.insert(idx, self_addr);
         } else {
-            Ok(()) // REVIEW - should be error ?
+            return Err(io::ErrorKind::InvalidInput.into());
         }
+        Arbo::write_lock(&self.arbo, "recept_binary")
+            .expect("recept_binary: can't write lock arbo")
+            .set_inode_hosts(id, hosts)?;
+        self.network_interface.update_remote_hosts(&inode)
     }
 
     pub fn recept_remove_inode(&self, id: InodeId) -> io::Result<()> {

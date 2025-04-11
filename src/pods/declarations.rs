@@ -104,12 +104,14 @@ fn register_to_others(peers: &Vec<PeerIPC>, self_address: &Address) -> std::io::
 
 impl Pod {
     pub async fn new(
-        mut global_config: GlobalConfig,
+        global_config: GlobalConfig,
         mount_point: WhPath,
         config: PodConfig,
         server: Arc<Server>,
         server_address: Address,
     ) -> io::Result<Self> {
+        let mut global_config = global_config;
+
         log::info!("mount point {}", mount_point);
         let (mut arbo, next_inode) =
             index_folder(&mount_point, &server_address).expect("unable to index folder");

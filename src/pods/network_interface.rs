@@ -465,15 +465,11 @@ impl NetworkInterface {
     /// * `id` - InodeId
     /// * `new_hosts` - Vec<Address> hosts to add
     pub fn declare_new_host(&self, id: InodeId, new_hosts: Vec<Address>) -> io::Result<()> {
-        let inode = Arbo::read_lock(&self.arbo, "declare_new_host")?
-            .get_inode(id)?
-            .clone();
-
         Arbo::write_lock(&self.arbo, "declare_new_host")?.add_inode_hosts(id, new_hosts.clone())?;
 
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::AddHosts(inode.id, new_hosts),
+                MessageContent::AddHosts(id, new_hosts),
             ))
             .expect("update_remote_hosts: unable to update modification on the network thread");
         Ok(())
@@ -493,16 +489,12 @@ impl NetworkInterface {
     /// * `id` - InodeId
     /// * `remove_hosts` - Vec<Address> hosts to add
     pub fn declare_host_removal(&self, id: InodeId, remove_hosts: Vec<Address>) -> io::Result<()> {
-        let inode = Arbo::read_lock(&self.arbo, "declare_host_removal")?
-            .get_inode(id)?
-            .clone();
-
         Arbo::write_lock(&self.arbo, "declare_host_removal")?
             .remove_inode_hosts(id, remove_hosts.clone())?;
 
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::RemoveHosts(inode.id, remove_hosts),
+                MessageContent::RemoveHosts(id, remove_hosts),
             ))
             .expect("update_remote_hosts: unable to update modification on the network thread");
         Ok(())
@@ -534,24 +526,22 @@ impl NetworkInterface {
     // SECTION Redundancy related
 
     fn add_redundancy(&self, file_id: InodeId, current_hosts: Vec<Address>) -> io::Result<()> {
-        let possible_hosts: Vec<Address> =
-            if let Some(peers) = self.peers.try_read_for(LOCK_TIMEOUT) {
-                peers
-                    .iter()
-                    .map(|peer| peer.address.clone())
-                    .filter(|addr| !current_hosts.contains(addr))
-                    .take(self.redundancy as usize - current_hosts.len())
-                    .collect::<Vec<Address>>()
-            } else {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    "apply_redundancy: can't lock peers mutex",
-                ));
-            };
+        let possible_hosts: Vec<Address> = self
+            .peers
+            .try_read_for(LOCK_TIMEOUT)
+            .ok_or(io::Error::new(
+                io::ErrorKind::Other,
+                "apply_redundancy: can't lock peers mutex",
+            ))?
+            .iter()
+            .map(|peer| peer.address.clone())
+            .filter(|addr| !current_hosts.contains(addr))
+            .take(self.redundancy as usize - current_hosts.len())
+            .collect::<Vec<Address>>();
 
         if (current_hosts.len() + possible_hosts.len()) < self.redundancy as usize {
             log::warn!("redundancy needs enough hosts");
-            return Ok(()) // TODO - should be handled (is not ok)
+            return Ok(()); // TODO - should be handled (is not ok)
         }
 
         self.to_network_message_tx
