@@ -1,15 +1,16 @@
 use crate::pods::arbo::{FsEntry, Inode, Metadata};
-use crate::pods::fs_interface::{FsInterface, SimpleFileType};
+use crate::pods::filesystem::fs_interface::{FsInterface, SimpleFileType};
+use crate::pods::filesystem::xattrs::GetXAttrError;
 use crate::pods::whpath::WhPath;
 use fuser::{
     BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData,
-    ReplyDirectory, ReplyEntry, Request, TimeOrNow,
+    ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyXattr, Request, TimeOrNow,
 };
-use libc::{EIO, ENOENT};
+use libc::{EIO, ENOENT, XATTR_CREATE, XATTR_REPLACE};
 use std::ffi::OsStr;
 use std::io;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime};
 
 // NOTE - placeholders
 const TTL: Duration = Duration::from_secs(1);
@@ -130,17 +131,17 @@ impl Filesystem for FuseController {
         &mut self,
         _req: &Request<'_>,
         ino: u64,
-        mode: Option<u32>,
+        _mode: Option<u32>,
         uid: Option<u32>,
         gid: Option<u32>,
         size: Option<u64>,
         atime: Option<fuser::TimeOrNow>,
         mtime: Option<fuser::TimeOrNow>,
         ctime: Option<std::time::SystemTime>,
-        fh: Option<u64>,
+        _fh: Option<u64>,
         crtime: Option<std::time::SystemTime>,
-        chgtime: Option<std::time::SystemTime>,
-        bkuptime: Option<std::time::SystemTime>,
+        _chgtime: Option<std::time::SystemTime>,
+        _bkuptime: Option<std::time::SystemTime>,
         flags: Option<u32>,
         reply: ReplyAttr,
     ) {
@@ -199,6 +200,130 @@ impl Filesystem for FuseController {
                 log::error!("fuse_impl::setattr: {:?}", err);
                 reply.error(err.raw_os_error().unwrap_or(EIO))
             }
+        }
+    }
+
+    fn getxattr(
+        &mut self,
+        _req: &Request<'_>,
+        ino: u64,
+        name: &OsStr,
+        size: u32,
+        reply: ReplyXattr,
+    ) {
+        let attr = self
+            .fs_interface
+            .get_inode_xattr(ino, &name.to_string_lossy().to_string());
+
+        let data = match attr {
+            Ok(data) => data,
+            Err(GetXAttrError::KeyNotFound) => {
+                reply.error(libc::ERANGE);
+                return;
+            }
+            Err(GetXAttrError::WhError { source }) => {
+                reply.error(source.to_libc());
+                return;
+            }
+        };
+
+        if size == 0 {
+            reply.size(data.len() as u32);
+        } else {
+            reply.data(&data);
+        }
+    }
+
+    fn setxattr(
+        &mut self,
+        _req: &Request<'_>,
+        ino: u64,
+        name: &OsStr,
+        data: &[u8],
+        flags: i32,
+        _position: u32, // Postion undocumented
+        reply: ReplyEmpty,
+    ) {
+        // As we follow linux implementation in spirit, data size limit at 64kb
+        if data.len() > 64000 {
+            return reply.error(libc::ENOSPC);
+        }
+
+        let key = name.to_string_lossy().to_string();
+
+        if flags == XATTR_CREATE || flags == XATTR_REPLACE {
+            match self.fs_interface.xattr_exists(ino, &key) {
+                Ok(true) => {
+                    if flags == XATTR_CREATE {
+                        return reply.error(libc::EEXIST);
+                    }
+                }
+                Ok(false) => {
+                    if flags == XATTR_REPLACE {
+                        return reply.error(libc::ENODATA);
+                    }
+                }
+                Err(err) => {
+                    return reply.error(err.to_libc());
+                }
+            }
+        }
+
+        //TODO: Implement After permission implementation
+        // let attr = self.fs_interface.get_inode_attributes(ino);
+        // if attr.unwrap().perm == valid {
+        //     reply.error(libc::EPERM);
+        // }
+
+        match self
+            .fs_interface
+            .network_interface
+            .set_inode_xattr(ino, key, data.to_vec())
+        {
+            Ok(_) => reply.ok(),
+            Err(err) => reply.error(err.to_libc()),
+        }
+    }
+
+    fn removexattr(
+        &mut self,
+        _req: &fuser::Request<'_>,
+        ino: u64,
+        name: &OsStr,
+        reply: ReplyEmpty,
+    ) {
+        match self
+            .fs_interface
+            .network_interface
+            .remove_inode_xattr(ino, name.to_string_lossy().to_string())
+        {
+            Ok(_) => reply.ok(),
+            Err(err) => reply.error(err.to_libc()),
+        }
+    }
+
+    fn listxattr(&mut self, _req: &Request<'_>, ino: u64, size: u32, reply: ReplyXattr) {
+        match self.fs_interface.list_inode_xattr(ino) {
+            Ok(keys) => {
+                let mut bytes = vec![];
+
+                for key in keys {
+                    bytes.extend(key.bytes());
+                    bytes.push(0);
+                }
+                if size == 0 {
+                    reply.size(bytes.len() as u32);
+                } else if size >= bytes.len() as u32 {
+                    reply.data(&bytes);
+                } else {
+                    reply.error(libc::ERANGE)
+                }
+                return;
+            }
+            Err(err) => match err.to_libc() {
+                libc::ENOENT => reply.error(libc::EBADF), // Not found became Bad file descriptor
+                or => reply.error(or),
+            },
         }
     }
 
@@ -392,8 +517,8 @@ impl Filesystem for FuseController {
         _req: &Request<'_>,
         parent: u64,
         name: &OsStr,
-        mode: u32,
-        umask: u32,
+        _mode: u32,
+        _umask: u32,
         flags: i32,
         reply: fuser::ReplyCreate,
     ) {

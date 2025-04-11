@@ -10,10 +10,6 @@ use tokio::sync::{
     mpsc::{UnboundedReceiver, UnboundedSender},
 };
 
-use super::{
-    arbo::{FsEntry, Metadata},
-    whpath::WhPath,
-};
 use crate::network::{
     message::{
         self, Address, Feedback, FileSystemSerialized, FromNetworkMessage, MessageAndFeedback,
@@ -22,10 +18,14 @@ use crate::network::{
     peer_ipc::PeerIPC,
     server::Server,
 };
+use crate::pods::{
+    arbo::{FsEntry, Metadata},
+    whpath::WhPath,
+};
 
-use super::{
+use crate::pods::{
     arbo::{Arbo, Inode, InodeId, LOCK_TIMEOUT},
-    fs_interface::FsInterface,
+    filesystem::fs_interface::FsInterface,
 };
 
 #[derive(Eq, Hash, PartialEq, Clone, Copy, Debug)]
@@ -516,7 +516,7 @@ impl NetworkInterface {
     }
 
     pub fn update_metadata(&self, id: InodeId, meta: Metadata) -> io::Result<()> {
-        let mut arbo = Arbo::write_lock(&self.arbo, "fs_interface::get_inode_attributes")?;
+        let mut arbo = Arbo::write_lock(&self.arbo, "network_interface::update_metadata")?;
         arbo.set_inode_meta(id, meta.clone())?;
 
         self.to_network_message_tx
@@ -731,6 +731,24 @@ impl NetworkInterface {
                     fs_interface.accept_rename(parent, new_parent, &name, &new_name)
                 }
                 MessageContent::RequestPull(id) => fs_interface.pull_file_non_blocking(id).await,
+                MessageContent::SetXAttr(ino, key, data) => fs_interface
+                    .network_interface
+                    .recept_inode_xattr(ino, key, data)
+                    .or_else(|err| {
+                        Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            format!("WhError: {err}"),
+                        ))
+                    }),
+                MessageContent::RemoveXAttr(ino, key) => fs_interface
+                    .network_interface
+                    .recept_remove_inode_xattr(ino, key)
+                    .or_else(|err| {
+                        Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            format!("WhError: {err}"),
+                        ))
+                    }),
                 MessageContent::FsAnswer(_, _) => {
                     Err(io::Error::new(ErrorKind::InvalidInput,
                         "Late answer from first connection, loaded network interface shouldn't recieve FsAnswer"))

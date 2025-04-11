@@ -1,8 +1,11 @@
 extern crate wormhole;
-use std::time::{Duration, SystemTime};
+use std::{
+    collections::HashMap,
+    time::{Duration, SystemTime},
+};
 use wormhole::pods::{
     arbo::{Arbo, FsEntry, Inode, Metadata, ROOT},
-    fs_interface::SimpleFileType,
+    filesystem::fs_interface::SimpleFileType,
 };
 
 fn arbo_values(inode: &Inode, expected_result: Inode) {
@@ -73,6 +76,7 @@ fn test_inserting_and_retreiving_files() {
             blksize: 1,
             flags: 0,
         },
+        xattrs: HashMap::new(),
     };
 
     let result_two = Inode {
@@ -97,6 +101,7 @@ fn test_inserting_and_retreiving_files() {
             blksize: 1,
             flags: 0,
         },
+        xattrs: HashMap::new(),
     };
     arbo_values(&arbo.get_inode(10).unwrap(), result_one);
     arbo_values(&arbo.get_inode(11).unwrap(), result_two);

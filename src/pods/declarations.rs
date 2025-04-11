@@ -20,14 +20,15 @@ use crate::winfsp::winfsp_impl::mount_fsp;
 
 use crate::network::{message::Address, peer_ipc::PeerIPC, server::Server};
 
-use super::arbo::{FsEntry, Inode, InodeId, ARBO_FILE_FNAME};
-use super::{
+use crate::pods::{
     arbo::{index_folder, Arbo},
     disk_manager::DiskManager,
-    fs_interface::FsInterface,
-    network_interface::NetworkInterface,
+    filesystem::fs_interface::FsInterface,
+    network::network_interface::NetworkInterface,
     whpath::WhPath,
 };
+
+use super::arbo::{InodeId, ARBO_FILE_FNAME};
 
 #[allow(dead_code)]
 pub struct Pod {
