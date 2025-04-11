@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 use std::io;
 use std::sync::Arc;
 
+use super::remove_inode::RemoveFile;
+
 pub struct FsInterface {
     pub network_interface: Arc<NetworkInterface>,
     pub disk: DiskManager,
@@ -114,6 +116,41 @@ impl FsInterface {
 
         self.network_interface.unregister_file(id)?;
 
+        Ok(())
+    }
+
+    pub fn n_remove_inode(&self, id: InodeId) -> Result<(), RemoveFile> {
+        let (to_remove_path, entry) = {
+            let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface::remove_inode")?;
+            (
+                arbo.n_get_path_from_inode_id(id)?,
+                arbo.n_get_inode(id)?.entry.clone(),
+            )
+        };
+
+        // REVIEW Previous method of removing file and letting fail silently if the host doesn't have it is confusing,
+        // It got me stuck for a while and isnt fool proof so I implement a check
+        match entry {
+            FsEntry::File(hosts) if hosts.contains(&self.network_interface.self_addr) => self
+                .disk
+                .remove_file(to_remove_path)
+                .map_err(|io| RemoveFile::LocalDeletionFailed { io })?,
+            FsEntry::File(_) => {}
+            FsEntry::Directory(children) => {
+                if children.is_empty() {
+                    self.disk
+                        .remove_dir(to_remove_path)
+                        .map_err(|io| RemoveFile::LocalDeletionFailed { io })?;
+                } else {
+                    return Err(RemoveFile::NonEmpty);
+                }
+            }
+        };
+        self.network_interface.n_remove_inode_from_arbo(id)?;
+
+        if id != 3u64 {
+            self.network_interface.n_unregister_file(id);
+        }
         Ok(())
     }
 
@@ -233,6 +270,7 @@ impl FsInterface {
     pub fn read_dir(&self, ino: InodeId) -> io::Result<Vec<Inode>> {
         let arbo = Arbo::read_lock(&self.arbo, "fs_interface.read_dir")?;
         let dir = arbo.get_inode(ino)?;
+        //log::debug!("dir: {dir}?");
         let mut entries: Vec<Inode> = Vec::new();
 
         if let FsEntry::Directory(children) = &dir.entry {
@@ -371,6 +409,23 @@ impl FsInterface {
         };
 
         self.remove_inode(target)
+    }
+
+    pub fn n_fuse_remove_inode(
+        &self,
+        parent: InodeId,
+        name: &std::ffi::OsStr,
+    ) -> Result<(), RemoveFile> {
+        let target = {
+            let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface::fuse_remove_inode")?;
+            let parent = arbo.n_get_inode(parent)?;
+            arbo.n_get_inode_child_by_name(parent, &name.to_string_lossy().to_string())?
+                .id
+        };
+
+        log::debug!("2 {}", target);
+
+        self.n_remove_inode(target)
     }
 
     // !SECTION

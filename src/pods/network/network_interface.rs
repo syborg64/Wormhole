@@ -14,7 +14,7 @@ use crate::{
     error::WhError,
     pods::{
         arbo::{FsEntry, Metadata},
-        filesystem::make_inode::MakeInode,
+        filesystem::{make_inode::MakeInode, remove_inode::RemoveInode},
         whpath::WhPath,
     },
 };
@@ -233,16 +233,17 @@ impl NetworkInterface {
         Ok(())
     }
 
-    /// Add the requested [Inode] to the [Arbo]
-    /// The [FsEntry] must fill the hosts preemptively
-    pub fn n_remove_inode(&self, id: InodeId) -> Result<(), MakeInode> {
+    /// Remove locally the requested [Inode] from the [Arbo]
+    /// He must have no children
+    pub fn n_remove_inode_from_arbo(&self, id: InodeId) -> Result<Inode, RemoveInode> {
+        log::debug!("a");
         let mut arbo = Arbo::n_write_lock(&self.arbo, "remove_inode")?;
+        log::debug!("b");
 
-        arbo.n_remove_inode(id)?;
-        Ok(())
+        arbo.n_remove_inode(id)
     }
 
-    /// Inform the network
+    /// Inform the network of a new inode creation
     pub fn n_register_new_file(&self, inode: Inode) {
         let inode_id = inode.id.clone();
 
@@ -324,7 +325,7 @@ impl NetworkInterface {
         Ok(())
     }
 
-    /// remove the requested entry to the arbo and inform the network
+    /// Remove the requested entry to the arbo and inform the network
     pub fn unregister_file(&self, id: InodeId) -> io::Result<Inode> {
         let removed_inode: Inode;
 
@@ -348,6 +349,19 @@ impl NetworkInterface {
         // TODO - if unable to update for some reason, should be passed to the background worker
 
         Ok(removed_inode)
+    }
+
+    /// Inform the network of the removal of an [Inode]
+    pub fn n_unregister_file(&self, id: InodeId) {
+        //REVIEW The content of unregister file as been moved to fs_interface
+        // just for the sake of consistency with the register_file changes wich seems important
+        self.to_network_message_tx
+            .send(ToNetworkMessage::BroadcastMessage(
+                message::MessageContent::Remove(id),
+            ))
+            .expect("mkfile: unable to update modification on the network thread");
+
+        // TODO - if unable to update for some reason, should be passed to the background worker
     }
 
     pub fn acknowledge_unregister_file(&self, id: InodeId) -> io::Result<Inode> {

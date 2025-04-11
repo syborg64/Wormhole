@@ -12,7 +12,7 @@ use crate::error::WhError;
 use crate::pods::filesystem::fs_interface::SimpleFileType;
 use crate::pods::whpath::WhPath;
 
-use super::filesystem::make_inode::MakeInode;
+use super::filesystem::{make_inode::MakeInode, remove_inode::RemoveInode};
 
 // SECTION consts
 
@@ -271,6 +271,7 @@ impl Arbo {
     #[must_use]
     /// Insert a given [Inode] inside the local arbo
     pub fn n_add_inode(&mut self, inode: Inode) -> Result<(), MakeInode> {
+        log::info!("keys {:?} entries {:?}", self.entries.keys(), self.entries);
         if self.entries.contains_key(&inode.id) {
             return Err(MakeInode::AlreadyExist);
         }
@@ -369,12 +370,22 @@ impl Arbo {
     }
 
     #[must_use]
-    pub fn n_remove_inode(&mut self, id: InodeId) -> WhResult<Inode> {
-        let removed = self.entries.remove(&id).ok_or(WhError::InodeNotFound)?;
+    /// Remove inode from the [Arbo]
+    pub fn n_remove_inode(&mut self, id: InodeId) -> Result<Inode, RemoveInode> {
+        let inode = self.n_get_inode(id)?;
+        log::debug!("c");
+        match &inode.entry {
+            FsEntry::File(_) => {}
+            FsEntry::Directory(children) if children.len() == 0 => {}
+            FsEntry::Directory(_) => return Err(RemoveInode::NonEmpty),
+        }
 
-        self.n_remove_children(removed.parent, id)?;
+        self.n_remove_children(inode.parent, inode.id)?;
+        log::debug!("d");
 
-        Ok(removed)
+        self.entries.remove(&id).ok_or(RemoveInode::WhError {
+            source: WhError::InodeNotFound,
+        })
     }
 
     #[must_use]
@@ -482,6 +493,22 @@ impl Arbo {
                 io::ErrorKind::Other,
                 "entry is not a directory",
             ))
+        }
+    }
+
+    #[must_use]
+    pub fn n_get_inode_child_by_name(&self, parent: &Inode, name: &String) -> WhResult<&Inode> {
+        if let Ok(children) = parent.entry.get_children() {
+            for child in children.iter() {
+                if let Some(child) = self.entries.get(child) {
+                    if child.name == *name {
+                        return Ok(child);
+                    }
+                }
+            }
+            Err(WhError::InodeNotFound)
+        } else {
+            Err(WhError::InodeIsNotADirectory)
         }
     }
 

@@ -1,7 +1,7 @@
-use crate::error::WhError;
-use crate::pods::arbo::{FsEntry, Inode, Metadata};
+use crate::pods::arbo::{FsEntry, Inode, Metadata, LOCK_TIMEOUT};
 use crate::pods::filesystem::fs_interface::{FsInterface, SimpleFileType};
 use crate::pods::filesystem::make_inode::MakeInode;
+use crate::pods::filesystem::remove_inode::RemoveFile;
 use crate::pods::filesystem::xattrs::GetXAttrError;
 use crate::pods::whpath::WhPath;
 use fuser::{
@@ -447,23 +447,29 @@ impl Filesystem for FuseController {
     }
 
     fn unlink(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: fuser::ReplyEmpty) {
-        match self.fs_interface.fuse_remove_inode(parent, name) {
+        log::debug!("He Said No");
+        match self.fs_interface.n_fuse_remove_inode(parent, name) {
             Ok(()) => reply.ok(),
-            Err(err) => {
-                log::error!("fuse_impl error: {:?}", err);
-                reply.error(err.raw_os_error().unwrap_or(EIO))
+            Err(RemoveFile::WhError { source }) => reply.error(source.to_libc()),
+            Err(RemoveFile::LocalDeletionFailed { io }) => {
+                reply.error(io.raw_os_error().expect(
+                    "Local creation error should always be the underling libc::open os error",
+                ))
             }
+            Err(RemoveFile::NonEmpty) => reply.error(libc::ENOTEMPTY),
         }
     }
 
     fn rmdir(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: fuser::ReplyEmpty) {
-        // should be only called on empty dirs ?
-        match self.fs_interface.fuse_remove_inode(parent, name) {
+        match self.fs_interface.n_fuse_remove_inode(parent, name) {
             Ok(()) => reply.ok(),
-            Err(err) => {
-                log::error!("fuse_impl error: {:?}", err);
-                reply.error(err.raw_os_error().unwrap_or(EIO))
+            Err(RemoveFile::WhError { source }) => reply.error(source.to_libc()),
+            Err(RemoveFile::LocalDeletionFailed { io }) => {
+                reply.error(io.raw_os_error().expect(
+                    "Local creation error should always be the underling libc::open os error",
+                ))
             }
+            Err(RemoveFile::NonEmpty) => reply.error(libc::ENOTEMPTY),
         }
     }
 
