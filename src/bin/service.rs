@@ -123,7 +123,12 @@ async fn main() {
                     if let Some(name) = stop_args.name {
                         info!("Stopping pod: {}", name);
                         if let Some(pod) = pods.get(&name) {
-                            pod.stop();
+                            if let Err(e) = pod.stop() {
+                                log::error!("Pod {name} can't stop: {e}");
+                            } else {
+                                info!("Pod {} stopped.", name);
+                                pods.remove(&name);
+                            }
                         } else {
                             log::error!("Pod {name} not found. Can't be stopped.")
                         }
