@@ -195,7 +195,7 @@ impl Pod {
 
     /// for a given file, will try to send it to one host,
     /// trying each until succes
-    /// panic on failure
+    /// log a warn on failure
     fn send_file_to_possible_hosts(
         &self,
         possible_hosts: &Vec<Address>,
@@ -206,7 +206,9 @@ impl Pod {
 
         loop {
             if possible_hosts.len() <= host_nb {
-                panic!("Pod::stop no hosts can receive the file");
+                log::warn!("Pod::stop no hosts can receive this file: {path}");
+                // TODO - while merge between pods is not implemented, the file is untracked
+                // (present on disk, but not tracked by wormhole, and not deleted either)
             }
             let file_content = self
                 .fs_interface
@@ -241,13 +243,14 @@ impl Pod {
 
         // drop(self.fuse_handle); // FIXME - do something like block the filesystem
 
-        let possible_hosts: Vec<Address> = self
+        let peers: Vec<Address> = self
             .peers
             .read()
             .iter()
             .map(|peer| peer.address.clone())
             .collect();
 
+        // files only hosted by this pod
         let files_to_send: Vec<(u64, WhPath)> = self
             .network_interface
             .files_hosted_only_by(&self.network_interface.self_addr)
@@ -263,7 +266,7 @@ impl Pod {
             .collect();
 
         files_to_send.into_iter().for_each(|(id, path)| {
-            self.send_file_to_possible_hosts(&possible_hosts, id, path.clone());
+            self.send_file_to_possible_hosts(&peers, id, path.clone());
         });
 
         let arbo = Arbo::read_lock(&self.network_interface.arbo, "Pod::stop 2")
