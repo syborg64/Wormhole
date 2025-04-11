@@ -19,106 +19,130 @@
  */
 use std::{env, path::PathBuf, sync::Arc};
 
+use futures_util::sink::SinkExt;
+use futures_util::StreamExt;
+use log::{error, info};
+use tokio::net::TcpListener;
+use tokio::sync::mpsc;
+use tokio_tungstenite::accept_async;
+use tokio_tungstenite::tungstenite::Message;
 #[cfg(target_os = "windows")]
 use winfsp::winfsp_init;
-use wormhole::config;
+use wormhole::commands::PodCommand;
 use wormhole::config::types::{
     GeneralGlobalConfig, GeneralLocalConfig, GlobalConfig, LocalConfig, RedundancyConfig,
 };
 use wormhole::pods::whpath::{JoinPath, WhPath};
+use wormhole::{
+    commands::{self, cli_commands::Cli},
+    config,
+};
 use wormhole::{network::server::Server, pods::declarations::Pod};
+
+async fn handle_cli_command(
+    tx: mpsc::UnboundedSender<PodCommand>,
+    ws_stream: tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>,
+) -> Result<(), String> {
+    let (mut writer, mut reader) = ws_stream.split();
+
+    if let Some(Ok(message)) = reader.next().await {
+        let message_bytes = message.into_data();
+
+        let cli_command: Cli = bincode::deserialize(&message_bytes)
+            .map_err(|e| format!("Deserialization error: {}", e))?;
+
+        let response_text = match cli_command {
+            Cli::Init(pod_args) => commands::service::init(tx.clone(), pod_args).await,
+            Cli::Join(join_args) => commands::service::join(tx.clone(), join_args).await,
+            Cli::Start(pod_args) => commands::service::start(tx.clone(), pod_args).await,
+            Cli::Stop(pod_args) => commands::service::stop(tx.clone(), pod_args).await,
+            _ => Err("Unrecognized command".to_string()),
+        };
+
+        writer
+            .send(Message::Text(response_text.unwrap_or_else(|e| e)))
+            .await
+            .map_err(|e| format!("Response send error: {}", e))?;
+    }
+
+    Ok(())
+}
+
+async fn handle_cli(stream: tokio::net::TcpStream, tx: mpsc::UnboundedSender<PodCommand>) {
+    match accept_async(stream).await {
+        Ok(ws_stream) => {
+            // Gérer la commande et logger les erreurs si elles surviennent
+            if let Err(e) = handle_cli_command(tx, ws_stream).await {
+                error!("Erreur dans handle_cli_command : {}", e);
+            }
+        }
+        Err(e) => error!("Erreur lors de la négociation WebSocket : {}", e),
+    }
+}
+
+// Gestion de l'écoute des connexions CLI
+async fn start_cli_listener(tx: mpsc::UnboundedSender<PodCommand>, ip: String) {
+    println!("Écoute des commandes CLI sur {}", ip);
+    let listener = TcpListener::bind(&ip)
+        .await
+        .expect(format!("Échec de la liaison au port {}", &ip).as_str());
+    info!("Écoute des commandes CLI sur {}", ip);
+
+    while let Ok((stream, _)) = listener.accept().await {
+        let tx_clone = tx.clone();
+        tokio::spawn(async move {
+            handle_cli(stream, tx_clone).await;
+        });
+    }
+}
 
 #[tokio::main]
 async fn main() {
-    let mut pods: Vec<Pod> = Vec::new();
+    // Créer un canal pour envoyer des commandes
+    let (tx, mut rx) = mpsc::unbounded_channel::<PodCommand>();
+    let mut pods = Vec::new();
 
-    env_logger::init();
-    let mount: PathBuf = env::args()
-        .nth(1)
-        .unwrap_or("./virtual/".to_string())
-        .into();
-
-    let mut global_config_path = mount.clone();
-    global_config_path.push(".global_config.toml");
-
-    #[cfg(target_os = "windows")]
-    match winfsp_init() {
-        Ok(_token) => println!("got fsp token!"),
-        Err(err) => {
-            println!("fsp error: {:?}", err);
-            std::process::exit(84)
-        }
-    }
-
-    let mut local_config_path = mount.clone();
-    local_config_path.push(".local_config.toml");
-
-    let mut args_other_addresses: Vec<String> = env::args().collect();
-    if args_other_addresses.len() >= 3 {
-        args_other_addresses.remove(0);
-        args_other_addresses.remove(0);
-        args_other_addresses.remove(0);
-    };
-
-    let mut global_config: GlobalConfig = config::parse_toml_file(global_config_path.as_str())
-        .unwrap_or(GlobalConfig {
-            general: GeneralGlobalConfig {
-                peers: args_other_addresses,
-                ignore_paths: vec![],
-            },
-            redundancy: Some(RedundancyConfig { number: 3 }),
-        });
-
-    global_config
-        .general
-        .ignore_paths
-        .push(".local_config.toml".to_string());
-
-    let local_config: LocalConfig = match config::parse_toml_file(local_config_path.as_str()) {
-        Err(error) => {
-            log::warn!("Local Config Not Found: {error}");
-
-            let own_addr = match env::args().nth(2) {
-                Some(address) => address,
-                None => {
-                    log::error!("Local config missing and own Address missing from args");
-                    return;
+    // Lancer la tâche centrale
+    tokio::spawn(async move {
+        while let Some(command) = rx.recv().await {
+            match command {
+                PodCommand::AddPod(pod) => {
+                    info!("Pod created: {:?}", pod);
+                    pods.push(pod);
                 }
-            };
-
-            LocalConfig {
-                general: GeneralLocalConfig {
-                    name: own_addr.clone(),
-                    address: own_addr,
-                },
+                PodCommand::JoinPod(pod) => {
+                    info!("Pod created and joined a network: {:?}", pod);
+                    pods.push(pod);
+                }
+                PodCommand::StartPod(start_args) => {
+                    info!("Pod started: {:?}", start_args);
+                    todo!("Check if pod existe and start it based one his name or path")
+                }
+                PodCommand::StopPod(stop_args) => {
+                    info!("Pod stopped: {:?}", stop_args);
+                    todo!("Check if pod existe and stop it based one his name or path")
+                }
             }
         }
-        Ok(found) => found,
-    };
+    });
 
-    log::info!("WHConfig: {global_config:?} {local_config:?}");
+    env_logger::init();
+    let ip: String = env::args()
+        .nth(1)
+        .unwrap_or("127.0.0.1:8081".to_string())
+        .into();
+    println!("Starting service on {}", ip);
+    let tx_clone = tx.clone();
+    tokio::spawn(start_cli_listener(tx_clone, ip));
 
-    let server = Arc::new(Server::setup(&local_config.general.address).await);
-
-    pods.push(
-        Pod::new(
-            WhPath::from(mount.as_path()),
-            global_config.general.peers,
-            server.clone(),
-            local_config.general.address,
-        )
-        .await
-        .expect("failed to create the pod"),
-    );
-
-    let local_cli_handle = tokio::spawn(local_cli_watchdog());
+    let terminal_handle = tokio::spawn(terminal_watchdog());
     log::info!("Started");
-    local_cli_handle.await.unwrap(); // keeps the main process alive until interruption from this watchdog;
+    terminal_handle.await.unwrap(); // keeps the main process alive until interruption from this watchdog;
     log::info!("Stopping");
 }
 
 // NOTE - old watchdog brought here for debug purposes
-pub async fn local_cli_watchdog() {
+pub async fn terminal_watchdog() {
     let mut stdin = tokio::io::stdin();
     let mut buf = vec![0; 1024];
 
@@ -136,65 +160,93 @@ pub async fn local_cli_watchdog() {
     }
 }
 
-/*
-#[tokio::main]
-async fn main2() {
-    env_logger::init();
-    // DOC - arguments: own_address other_addr1 other_addr2 mount_to source
-    let own_addr = env::args().nth(1).unwrap_or("127.0.0.1:8080".to_string());
-    let other_addr1 = env::args()
-        .nth(2)
-        .unwrap_or("ws://127.0.0.2:8080".to_string());
-    let other_addr2 = env::args()
-        .nth(3)
-        .unwrap_or("ws://127.0.0.3:8080".to_string());
-    let mount: PathBuf = env::args()
-        .nth(4)
-        .unwrap_or("./virtual/".to_string())
-        .into();
+//----------------------------------------------------------//
 
-    println!("own address: {}", own_addr);
-    println!("peer1 address: {}", other_addr1);
-    println!("peer2 address: {}", other_addr2);
-    println!("\nstarting");
-    //TODO - le service doit attendre une commande de la cli pour mounter fuse, ou rejoindre un network, une grande parti de ce code doit être modifié
-    let (nfa_tx, nfa_rx) = mpsc::unbounded_channel();
-    let (local_fuse_tx, local_fuse_rx) = mpsc::unbounded_channel();
-    let (_session, provider) = mount_fuse(&mount, local_fuse_tx.clone());
+// async fn main1() {
+//     let mut pods: Vec<Pod> = Vec::new();
 
-    let local_cli_handle = tokio::spawn(local_cli_watchdog());
-    let nfa_handle = tokio::spawn(network_file_actions(nfa_rx, provider));
-    let server = Server::setup(&own_addr).await;
+//     env_logger::init();
+//     let mount: PathBuf = env::args()
+//         .nth(1)
+//         .unwrap_or("./virtual/".to_string())
+//         .into();
 
-    let peers = peer_startup(vec![other_addr1, other_addr2], nfa_tx.clone()).await;
-    println!(
-        "successful peers at startup :\n{:?}",
-        peers
-            .iter()
-            .map(|p| p.address.clone())
-            .collect::<Vec<String>>()
-    );
-    let peers: Arc<Mutex<Vec<PeerIPC>>> = Arc::new(Mutex::new(peers));
+//     let mut global_config_path = mount.clone();
+//     global_config_path.push(".global_config.toml");
 
-    let new_conn_handle = tokio::spawn(incoming_connections_watchdog(
-        server,
-        nfa_tx.clone(),
-        peers.clone(),
-    ));
+//     #[cfg(target_os = "windows")]
+//     match winfsp_init() {
+//         Ok(_token) => println!("got fsp token!"),
+//         Err(err) => {
+//             println!("fsp error: {:?}", err);
+//             std::process::exit(84)
+//         }
+//     }
 
-    request_filesystem(peers.clone());
-    let peers_broadcast_handle = tokio::spawn(contact_peers(peers.clone(), local_fuse_rx));
-    // let remote_reception = tokio::spawn(all_peers_reception(connected_peers, nfa_tx));
+//     let mut local_config_path = mount.clone();
+//     local_config_path.push(".local_config.toml");
 
-    println!("started");
-    local_cli_handle.await.unwrap(); // keeps the main process alive until interruption from this watchdog;
-    println!("stopping");
-    new_conn_handle.abort();
-    peers.lock().unwrap().iter().for_each(|peer| {
-        peer.thread.abort();
-    });
-    nfa_handle.abort();
-    peers_broadcast_handle.abort();
-    println!("stopped");
-}
-*/
+//     let mut args_other_addresses: Vec<String> = env::args().collect();
+//     if args_other_addresses.len() >= 3 {
+//         args_other_addresses.remove(0);
+//         args_other_addresses.remove(0);
+//         args_other_addresses.remove(0);
+//     };
+
+//     let mut global_config: GlobalConfig = config::parse_toml_file(global_config_path.as_str())
+//         .unwrap_or(GlobalConfig {
+//             general: GeneralGlobalConfig {
+//                 peers: args_other_addresses,
+//                 ignore_paths: vec![],
+//             },
+//             redundancy: Some(RedundancyConfig { number: 3 }),
+//         });
+
+//     global_config
+//         .general
+//         .ignore_paths
+//         .push(".local_config.toml".to_string());
+
+//     let local_config: LocalConfig = match config::parse_toml_file(local_config_path.as_str()) {
+//         Err(error) => {
+//             log::warn!("Local Config Not Found: {error}");
+
+//             let own_addr = match env::args().nth(2) {
+//                 Some(address) => address,
+//                 None => {
+//                     log::error!("Local config missing and own Address missing from args");
+//                     return;
+//                 }
+//             };
+
+//             LocalConfig {
+//                 general: GeneralLocalConfig {
+//                     name: own_addr.clone(),
+//                     address: own_addr,
+//                 },
+//             }
+//         }
+//         Ok(found) => found,
+//     };
+
+//     log::info!("WHConfig: {global_config:?} {local_config:?}");
+
+//     let server = Arc::new(Server::setup(&local_config.general.address).await);
+
+//     pods.push(
+//         Pod::new(
+//             WhPath::from(mount.as_path()),
+//             1,
+//             global_config.general.peers,
+//             server.clone(),
+//             local_config.general.address,
+//         )
+//         .await
+//         .expect("failed to create the pod"),
+//     );
+
+//     // let local_cli_handle = tokio::spawn(local_cli_watchdog());
+//     // log::info!("Started");
+//     // local_cli_handle.await.unwrap(); // keeps the main process alive until interruption from this watchdog;
+//     // log::info!("Stopping");
+// }

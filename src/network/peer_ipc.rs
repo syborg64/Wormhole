@@ -14,6 +14,7 @@ use crate::network::forward::{forward_read_to_sender, forward_receiver_to_write}
 
 use super::message::{Address, FromNetworkMessage, MessageAndFeedback, MessageContent};
 
+#[derive(Debug)]
 pub struct PeerIPC {
     pub address: Address,
     pub thread: tokio::task::JoinHandle<()>,

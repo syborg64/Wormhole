@@ -34,6 +34,7 @@ pub enum Callback {
     PullFs,
 }
 
+#[derive(Debug)]
 pub struct Callbacks {
     callbacks: RwLock<HashMap<Callback, broadcast::Sender<bool>>>,
 }
@@ -124,6 +125,7 @@ impl Callbacks {
     }
 }
 
+#[derive(Debug)]
 pub struct NetworkInterface {
     pub arbo: Arc<RwLock<Arbo>>,
     pub mount_point: WhPath,

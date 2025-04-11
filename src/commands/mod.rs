@@ -1,12 +1,8 @@
-mod join;
-mod register;
-mod remove;
-mod templates;
-mod unregister;
+pub mod cli;
+pub mod cli_commands;
+pub mod service;
 
-pub use join::join;
-pub use register::register;
-pub use remove::remove;
-pub use remove::Mode;
-pub use templates::templates;
-pub use unregister::unregister;
+pub use cli_commands::{
+    Cli::{Init, Join, Start, Stop, Template},
+    PodCommand,
+};

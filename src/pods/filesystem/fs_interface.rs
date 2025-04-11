@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::io;
 use std::sync::Arc;
 
+#[derive(Debug)]
 pub struct FsInterface {
     pub network_interface: Arc<NetworkInterface>,
     pub disk: DiskManager,
