@@ -63,11 +63,17 @@ async fn main() {
     let mut global_config: GlobalConfig = config::parse_toml_file(global_config_path.as_str())
         .unwrap_or(GlobalConfig {
             general: GeneralGlobalConfig {
-                peers: args_other_addresses,
+                peers: vec![],
                 ignore_paths: vec![],
             },
             redundancy: Some(RedundancyConfig { number: 3 }),
         });
+
+    for adress in args_other_addresses {
+        global_config.general.peers.push(adress);
+    }
+    global_config.general.peers.sort();
+    global_config.general.peers.dedup();
 
     global_config
         .general
