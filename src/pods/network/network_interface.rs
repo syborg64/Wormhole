@@ -10,17 +10,20 @@ use tokio::sync::{
     mpsc::{UnboundedReceiver, UnboundedSender},
 };
 
-use crate::{error::WhResult, network::{
-    message::{
-        self, Address, Feedback, FileSystemSerialized, FromNetworkMessage, MessageAndFeedback,
-        MessageContent, ToNetworkMessage,
-    },
-    peer_ipc::PeerIPC,
-    server::Server,
-}};
 use crate::pods::{
     arbo::{FsEntry, Metadata},
     whpath::WhPath,
+};
+use crate::{
+    error::WhResult,
+    network::{
+        message::{
+            self, Address, Feedback, FileSystemSerialized, FromNetworkMessage, MessageAndFeedback,
+            MessageContent, ToNetworkMessage,
+        },
+        peer_ipc::PeerIPC,
+        server::Server,
+    },
 };
 
 use crate::pods::{
@@ -536,10 +539,12 @@ impl NetworkInterface {
          */
     }
 
-    pub fn files_hosted_only_by(&self, host: &Address) -> WhResult<Vec<Inode>> {
-        Ok(Arbo::n_read_lock(&self.arbo, "files_hosted_only_by")?
-            .iter()
-            .filter_map(|(_, inode)| match &inode.entry {
+    pub fn files_hosted_only_by<'a>(
+        arbo: &'a Arbo,
+        host: &'a Address,
+    ) -> impl Iterator<Item = Inode> + use<'a> {
+        arbo.iter()
+            .filter_map(move |(_, inode)| match &inode.entry {
                 FsEntry::Directory(_) => None,
                 FsEntry::File(hosts) => {
                     if hosts.len() == 1 && hosts.contains(&host) {
@@ -549,7 +554,6 @@ impl NetworkInterface {
                     }
                 }
             })
-            .collect())
     }
 
     // SECTION Redundancy related
