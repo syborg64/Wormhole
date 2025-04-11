@@ -20,6 +20,8 @@ pub enum MessageContent {
     RemoveXAttr(InodeId, String),
     RequestFs,
     FsAnswer(FileSystemSerialized, Vec<Address>),
+    RequestFileConfig,
+    PullFileConfig(Vec<u8>),
 }
 
 pub type Address = String;

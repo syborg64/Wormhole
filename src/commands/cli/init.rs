@@ -33,9 +33,11 @@ pub fn init(ip: &str, name: String, path: &WhPath) -> Result<(), Box<dyn std::er
     let rt = Runtime::new().unwrap();
     rt.block_on(cli_messager(
         ip,
-        Cli::Init(PodArgs {
+        Cli::New(PodArgs {
             name: name,
             path: Some(path.clone()),
+            url: None,
+            additional_hosts: None,
         }),
     ))?;
     Ok(())

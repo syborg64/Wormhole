@@ -103,6 +103,13 @@ fn register_to_others(peers: &Vec<PeerIPC>, self_address: &Address) -> std::io::
     Ok(())
 }
 
+/**TODO - dedans ou après initate_connection pull la config global depuis l'un des peers_addrs.
+ * Quel commande message doit être utilisé?
+ * RequestFile pour la demande et pullAnswer pour la réponse ?
+ * Ou je modifie juste fsAnswer ?
+ * Ou créer un nouveau type de message ? RequestFileConfig, PullFileConfig(Vec<u8>)
+ **/
+
 impl Pod {
     pub async fn new(
         name: String,

@@ -19,10 +19,8 @@ pub enum Cli {
     Stop(StatusPodArgs),
     /// create a new network (template)
     Template(TemplateArg),
-    /// make a pod and create a new network
-    Init(PodArgs),
-    /// make a pod and join a network
-    Join(JoinArgs),
+    /// create a new pod and join a network if he have peers in arguments or create a new network
+    New(PodArgs),
     /// inspect a pod with its configuration, connections, etc
     Inspect,
     /// remove a pod from its network
@@ -34,31 +32,25 @@ pub enum Cli {
 #[derive(Debug, clap::Args, Serialize, Deserialize)]
 #[command(version, about, long_about = None)]
 pub struct PodArgs {
+    /// Name of the pod
     pub name: String,
     /// Change to DIRECTORY before doing anything
     #[arg(long, short = 'C')]
     pub path: Option<WhPath>,
+    /// network url as <address of node to join from> + ':' + <network name>'
+    #[arg()]
+    pub url: Option<String>,
+    /// additional hosts to try to join from as a backup
+    #[arg()]
+    pub additional_hosts: Option<Vec<String>>,
 }
 
 #[derive(Debug, clap::Args, Serialize, Deserialize)]
 #[command(version, about, long_about = None)]
 pub struct StatusPodArgs {
+    /// Name of the pod for updating status pod. If the name equal 'None' the name will be read from the current directory
     pub name: Option<String>,
-    pub path: Option<WhPath>,
-}
-
-#[derive(Debug, clap::Args, Serialize, Deserialize)]
-#[command(version, about, long_about = None)]
-pub struct JoinArgs {
-    pub name: String,
-    /// network url as <address of node to join from> + ':' + <network name>'
-    #[arg()]
-    pub url: String,
-    /// additional hosts to try to join from as a backup
-    #[arg()]
-    pub additional_hosts: Option<Vec<String>>,
-    /// Change to DIRECTORY before doing anything
-    #[arg(long, short = 'C')]
+    /// Path is used uniquely if the pod name is 'None'
     pub path: Option<WhPath>,
 }
 

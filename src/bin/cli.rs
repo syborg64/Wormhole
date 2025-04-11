@@ -14,10 +14,7 @@ use wormhole::{
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
-    let ip: String = env::args()
-        .nth(2)
-        .unwrap_or("127.0.0.1:8081".to_string())
-        .into();
+    let ip: String = "127.0.0.1:8081".to_string();
     println!("Starting cli on {}", ip);
     match Cli::parse() {
         Cli::Start(args) => commands::cli::start(ip.as_str(), args)?,
@@ -32,24 +29,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 &args.name.unwrap_or("default".into()),
             )?;
         }
-        Cli::Init(args) => {
-            println!("init service");
-            commands::cli::init(
-                ip.as_str(),
-                args.name,
-                &WhPath::from(args.path.unwrap_or(".".into())),
-            )?;
-        }
-        Cli::Join(args) => {
-            println!("joining {}", args.url);
-            println!("(additional hosts: {:?})", args.additional_hosts);
-            commands::cli::join(
-                ip.as_str(),
-                args.name,
-                &args.path.unwrap_or(".".into()),
-                args.url,
-                args.additional_hosts.unwrap_or(vec![]),
-            )?;
+        Cli::New(args) => {
+            println!("creating pod");
+            commands::cli::new(ip.as_str(), args)?;
         }
         Cli::Remove(args) => {
             println!("removing pod");

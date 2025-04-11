@@ -52,8 +52,7 @@ async fn handle_cli_command(
             .map_err(|e| format!("Deserialization error: {}", e))?;
 
         let response_text = match cli_command {
-            Cli::Init(pod_args) => commands::service::init(tx.clone(), pod_args).await,
-            Cli::Join(join_args) => commands::service::join(tx.clone(), join_args).await,
+            Cli::New(pod_args) => commands::service::new(tx.clone(), pod_args).await,
             Cli::Start(pod_args) => commands::service::start(tx.clone(), pod_args).await,
             Cli::Stop(pod_args) => commands::service::stop(tx.clone(), pod_args).await,
             _ => Err("Unrecognized command".to_string()),

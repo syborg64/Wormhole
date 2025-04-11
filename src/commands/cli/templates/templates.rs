@@ -4,7 +4,7 @@
 
 use std::fs;
 
-use super::{default_global_config, default_local_config};
+use crate::commands::{default_global_config, default_local_config};
 use crate::config::types::Config;
 use crate::pods::whpath::WhPath;
 
