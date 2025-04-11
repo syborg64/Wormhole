@@ -104,7 +104,6 @@ async fn main() {
     pods.push(
         Pod::new(
             WhPath::from(mount.as_path()),
-            1,
             global_config.general.peers,
             server.clone(),
             local_config.general.address,

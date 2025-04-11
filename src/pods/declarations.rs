@@ -29,16 +29,12 @@ use super::{
     whpath::WhPath,
 };
 
-// TODO
-pub type PodConfig = u64;
-
 #[allow(dead_code)]
 pub struct Pod {
     network_interface: Arc<NetworkInterface>,
     fs_interface: Arc<FsInterface>,
     mount_point: WhPath,
     peers: Arc<RwLock<Vec<PeerIPC>>>,
-    pod_conf: PodConfig,
     #[cfg(target_os = "linux")]
     fuse_handle: fuser::BackgroundSession,
     #[cfg(target_os = "windows")]
@@ -108,7 +104,6 @@ fn register_to_others(peers: &Vec<PeerIPC>, self_address: &Address) -> std::io::
 impl Pod {
     pub async fn new(
         mount_point: WhPath,
-        config: PodConfig,
         mut know_peers: Vec<Address>,
         server: Arc<Server>,
         server_address: Address,
@@ -182,7 +177,6 @@ impl Pod {
             fs_interface: fs_interface.clone(),
             mount_point: mount_point.clone(),
             peers,
-            pod_conf: config,
             #[cfg(target_os = "linux")]
             fuse_handle: mount_fuse(&mount_point, fs_interface.clone())?,
             #[cfg(target_os = "windows")]
@@ -254,7 +248,7 @@ impl Pod {
         let files_to_send: Vec<(u64, WhPath)> = self
             .network_interface
             .files_hosted_only_by(&self.network_interface.self_addr)
-            .unwrap()
+            .expect("can't lock arbo")
             .into_iter()
             .map(|inode| {
                 let path = Arbo::read_lock(&self.network_interface.arbo, "Pod::stop 1")
