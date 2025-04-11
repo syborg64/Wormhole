@@ -1,7 +1,7 @@
 use crate::error::WhError;
 use crate::pods::arbo::{FsEntry, Inode, Metadata};
 use crate::pods::filesystem::fs_interface::{FsInterface, SimpleFileType};
-use crate::pods::filesystem::mkfile::MakeInode;
+use crate::pods::filesystem::make_inode::MakeInode;
 use crate::pods::filesystem::xattrs::GetXAttrError;
 use crate::pods::whpath::WhPath;
 use fuser::{

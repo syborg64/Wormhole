@@ -14,7 +14,7 @@ use crate::{
     error::WhError,
     pods::{
         arbo::{FsEntry, Metadata},
-        filesystem::mkfile::MakeInode,
+        filesystem::make_inode::MakeInode,
         whpath::WhPath,
     },
 };

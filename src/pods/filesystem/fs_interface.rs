@@ -9,8 +9,6 @@ use serde::{Deserialize, Serialize};
 use std::io;
 use std::sync::Arc;
 
-use super::mkfile::MakeInode;
-
 pub struct FsInterface {
     pub network_interface: Arc<NetworkInterface>,
     pub disk: DiskManager,

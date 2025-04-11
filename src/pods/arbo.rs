@@ -12,7 +12,7 @@ use crate::error::WhError;
 use crate::pods::filesystem::fs_interface::SimpleFileType;
 use crate::pods::whpath::WhPath;
 
-use super::filesystem::mkfile::MakeInode;
+use super::filesystem::make_inode::MakeInode;
 
 // SECTION consts
 
