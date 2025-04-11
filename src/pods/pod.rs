@@ -1,5 +1,14 @@
 use std::{io, sync::Arc};
 
+use crate::error::WhError;
+#[cfg(target_os = "linux")]
+use crate::fuse::fuse_impl::mount_fuse;
+use crate::network::message::{
+    Feedback, FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
+};
+#[cfg(target_os = "windows")]
+use crate::winfsp::winfsp_impl::mount_fsp;
+use custom_error::custom_error;
 #[cfg(target_os = "linux")]
 use fuser;
 use log::info;
@@ -9,14 +18,6 @@ use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::task::JoinHandle;
 #[cfg(target_os = "windows")]
 use winfsp::host::FileSystemHost;
-
-#[cfg(target_os = "linux")]
-use crate::fuse::fuse_impl::mount_fuse;
-use crate::network::message::{
-    Feedback, FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
-};
-#[cfg(target_os = "windows")]
-use crate::winfsp::winfsp_impl::mount_fsp;
 
 use crate::network::{message::Address, peer_ipc::PeerIPC, server::Server};
 
@@ -45,6 +46,11 @@ pub struct Pod {
     network_airport_handle: Option<JoinHandle<()>>,
     peer_broadcast_handle: Option<JoinHandle<()>>,
     new_peer_handle: Option<JoinHandle<()>>,
+}
+
+custom_error! {pub PodStopError
+    WhError{source: WhError} = "{source}",
+    KeyNotFound = "Key not found"
 }
 
 pub async fn initiate_connection(
@@ -235,7 +241,7 @@ impl Pod {
         }
     }
 
-    pub fn stop(&self) {
+    pub fn stop(&self) -> Result<(), PodStopError> {
         // NOTE
         // in actual state, all operations (request from network other than just pulling the asked files)
         // made after calling this function but before dropping the pod are undefined behavior.
@@ -250,19 +256,17 @@ impl Pod {
             .collect();
 
         // files only hosted by this pod
-        let files_to_send: Vec<(u64, WhPath)> = self
+        let files_to_send = self
             .network_interface
-            .files_hosted_only_by(&self.network_interface.self_addr)
-            .expect("can't lock arbo")
-            .into_iter()
-            .map(|inode| {
-                let path = Arbo::read_lock(&self.network_interface.arbo, "Pod::stop 1")
-                    .unwrap()
-                    .get_path_from_inode_id(inode.id)
-                    .unwrap();
-                (inode.id, path)
-            })
-            .collect();
+            .files_hosted_only_by(&self.network_interface.self_addr)?;
+
+        let files_to_send: Vec<(InodeId, WhPath)> = {
+            let arbo = Arbo::n_read_lock(&self.network_interface.arbo, "Pod::stop 1")?;
+            files_to_send
+                .into_iter()
+                .filter_map(|inode| Some((inode.id, arbo.n_get_path_from_inode_id(inode.id).ok()?)))
+                .collect()
+        };
 
         files_to_send.into_iter().for_each(|(id, path)| {
             self.send_file_to_possible_hosts(&peers, id, path.clone());
@@ -279,5 +283,6 @@ impl Pod {
                 0,
             )
             .expect("can't write arbo to disk");
+        Ok(())
     }
 }
