@@ -48,11 +48,6 @@ pub struct Pod {
     new_peer_handle: Option<JoinHandle<()>>,
 }
 
-custom_error! {pub PodStopError
-    WhError{source: WhError} = "{source}",
-    KeyNotFound = "Key not found"
-}
-
 pub async fn initiate_connection(
     peers_addrs: Vec<Address>,
     server_address: Address,
@@ -108,6 +103,11 @@ fn register_to_others(peers: &Vec<PeerIPC>, self_address: &Address) -> std::io::
             .map_err(|err| std::io::Error::new(io::ErrorKind::NotConnected, err))?;
     }
     Ok(())
+}
+
+custom_error! {pub PodStopError
+    WhError{source: WhError} = "{source}",
+    ArboSavingFailed{error_source: String} = @{format!("PodStopError: could not write arbo to disk: {error_source}")}
 }
 
 impl Pod {
@@ -241,27 +241,20 @@ impl Pod {
         }
     }
 
-    fn files_to_send_when_stopping(&self) -> Result<Vec<(InodeId, WhPath)>, PodStopError> {
-        let hosted_only_by_me = self
-            .network_interface
-            .files_hosted_only_by(&self.network_interface.self_addr)?;
-
-        let arbo = Arbo::n_read_lock(
-            &self.network_interface.arbo,
-            "Pod::files_to_send_when_stopping",
-        )?;
-
-        Ok(hosted_only_by_me
-            .into_iter()
+    /// Gets every file hosted by this pod only and sends them to other pods
+    fn send_files_when_stopping<'a>(&'a self, arbo: &'a Arbo, peers: Vec<Address>) {
+        NetworkInterface::files_hosted_only_by(&arbo, &self.network_interface.self_addr)
             .filter_map(|inode| {
                 Some((
                     inode.id,
                     arbo.n_get_path_from_inode_id(inode.id)
-                        .map_err(|e| log::error!("Pod::stop(2): {e}"))
+                        .map_err(|e| log::error!("Pod::files_to_send_when_stopping(2): {e}"))
                         .ok()?,
                 ))
             })
-            .collect())
+            .for_each(|(id, path)| {
+                self.send_file_to_possible_hosts(&peers, id, path.clone());
+            });
     }
 
     pub fn stop(&self) -> Result<(), PodStopError> {
@@ -271,6 +264,8 @@ impl Pod {
 
         // drop(self.fuse_handle); // FIXME - do something like block the filesystem
 
+        let arbo = Arbo::n_read_lock(&self.network_interface.arbo, "Pod::Pod::stop(1)")?;
+
         let peers: Vec<Address> = self
             .peers
             .read()
@@ -278,23 +273,18 @@ impl Pod {
             .map(|peer| peer.address.clone())
             .collect();
 
-        let files_to_send = self.files_to_send_when_stopping()?;
+        self.send_files_when_stopping(&arbo, peers);
 
-        files_to_send.into_iter().for_each(|(id, path)| {
-            self.send_file_to_possible_hosts(&peers, id, path.clone());
-        });
-
-        let arbo = Arbo::read_lock(&self.network_interface.arbo, "Pod::stop(3)")
-            .expect("Pod::stop arbo read lock");
         let _ = self.fs_interface.disk.remove_file(ARBO_FILE_FNAME.into());
-        self.fs_interface
-            .disk
-            .write_file(
-                ARBO_FILE_FNAME.into(),
-                &bincode::serialize(&*arbo).expect("can't serialize arbo to bincode"),
-                0,
-            )
-            .expect("can't write arbo to disk");
-        Ok(())
+        match self.fs_interface.disk.write_file(
+            ARBO_FILE_FNAME.into(),
+            &bincode::serialize(&*arbo).expect("can't serialize arbo to bincode"),
+            0,
+        ) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(PodStopError::ArboSavingFailed {
+                error_source: e.to_string(),
+            }),
+        }
     }
 }
