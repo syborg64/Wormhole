@@ -27,7 +27,7 @@ pub async fn join(
                 global_config
             };
             let new_pod = match Pod::new(
-                join_args.name,
+                join_args.name.clone(),
                 mount_point,
                 global_config.general.peers,
                 server.clone(),
@@ -38,7 +38,7 @@ pub async fn join(
                 Ok(pod) => pod,
                 Err(e) => return Err(format!("Pod creation error: {}", e)),
             };
-            match tx.send(PodCommand::JoinPod(new_pod)) {
+            match tx.send(PodCommand::JoinPod(join_args.name, new_pod)) {
                 Ok(_) => Ok("Pod joined successfully".to_string()),
                 Err(e) => Err(format!("PodCommand send error: {}", e)),
             }

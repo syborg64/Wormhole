@@ -20,7 +20,7 @@ pub async fn init(
     match pod_value(&pod_args).await {
         Ok((global_config, local_config, server, mount_point)) => {
             let new_pod = match Pod::new(
-                pod_args.name,
+                pod_args.name.clone(),
                 mount_point,
                 global_config.general.peers,
                 server.clone(),
@@ -32,7 +32,7 @@ pub async fn init(
                 Err(e) => return Err(format!("Pod creation error: {}", e)),
             };
 
-            match tx.send(PodCommand::AddPod(new_pod)) {
+            match tx.send(PodCommand::AddPod(pod_args.name, new_pod)) {
                 Ok(_) => Ok("Pod added successfully".to_string()),
                 Err(e) => Err(format!("PodCommand send error: {}", e)),
             }

@@ -3,8 +3,8 @@ use clap::Parser;
 use serde::{Deserialize, Serialize};
 
 pub enum PodCommand {
-    AddPod(Pod),
-    JoinPod(Pod),
+    AddPod(String, Pod),
+    JoinPod(String, Pod),
     StartPod(StatusPodArgs),
     StopPod(StatusPodArgs),
 }

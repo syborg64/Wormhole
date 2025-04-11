@@ -2,6 +2,7 @@
 // In code we trust
 // AgarthaSoftware - 2024
 
+use std::collections::HashMap;
 /**DOC
  * Important variables to know :
  * nfa_rx - nfa_tx
@@ -100,27 +101,35 @@ async fn start_cli_listener(tx: mpsc::UnboundedSender<PodCommand>, ip: String) {
 async fn main() {
     // Créer un canal pour envoyer des commandes
     let (tx, mut rx) = mpsc::unbounded_channel::<PodCommand>();
-    let mut pods = Vec::new();
+    let mut pods: HashMap<String, Pod> = HashMap::new();
 
     // Lancer la tâche centrale
     tokio::spawn(async move {
         while let Some(command) = rx.recv().await {
             match command {
-                PodCommand::AddPod(pod) => {
+                PodCommand::AddPod(name, pod) => {
                     info!("Pod created: {:?}", pod);
-                    pods.push(pod);
+                    pods.insert(name, pod);
                 }
-                PodCommand::JoinPod(pod) => {
+                PodCommand::JoinPod(name, pod) => {
                     info!("Pod created and joined a network: {:?}", pod);
-                    pods.push(pod);
+                    pods.insert(name, pod);
                 }
                 PodCommand::StartPod(start_args) => {
-                    info!("Pod started: {:?}", start_args);
+                    info!("Starting pod: {:?}", start_args);
                     todo!("Check if pod existe and start it based one his name or path")
                 }
                 PodCommand::StopPod(stop_args) => {
-                    info!("Pod stopped: {:?}", stop_args);
-                    todo!("Check if pod existe and stop it based one his name or path")
+                    if let Some(name) = stop_args.name {
+                        info!("Stopping pod: {}", name);
+                        if let Some(pod) = pods.get(&name) {
+                            pod.stop();
+                        } else {
+                            log::error!("Pod {name} not found. Can't be stopped.")
+                        }
+                    } else {
+                        log::error!("stopping pod without name is not supported.");
+                    }
                 }
             }
         }

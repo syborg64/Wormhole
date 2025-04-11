@@ -235,7 +235,7 @@ impl Pod {
         }
     }
 
-    pub fn stop(self) {
+    pub fn stop(&self) {
         // NOTE
         // in actual state, all operations (request from network other than just pulling the asked files)
         // made after calling this function but before dropping the pod are undefined behavior.
