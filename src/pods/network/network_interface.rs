@@ -10,14 +10,14 @@ use tokio::sync::{
     mpsc::{UnboundedReceiver, UnboundedSender},
 };
 
-use crate::network::{
+use crate::{error::WhResult, network::{
     message::{
         self, Address, Feedback, FileSystemSerialized, FromNetworkMessage, MessageAndFeedback,
         MessageContent, ToNetworkMessage,
     },
     peer_ipc::PeerIPC,
     server::Server,
-};
+}};
 use crate::pods::{
     arbo::{FsEntry, Metadata},
     whpath::WhPath,
@@ -536,8 +536,8 @@ impl NetworkInterface {
          */
     }
 
-    pub fn files_hosted_only_by(&self, host: &Address) -> io::Result<Vec<Inode>> {
-        Ok(Arbo::read_lock(&self.arbo, "files_hosted_only_by")?
+    pub fn files_hosted_only_by(&self, host: &Address) -> WhResult<Vec<Inode>> {
+        Ok(Arbo::n_read_lock(&self.arbo, "files_hosted_only_by")?
             .iter()
             .filter_map(|(_, inode)| match &inode.entry {
                 FsEntry::Directory(_) => None,
