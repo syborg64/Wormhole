@@ -31,6 +31,11 @@ impl DiskManager {
         self.handle.new_file(path.set_relative(), 0o644) // TODO look more in c mode_t value
     }
 
+    pub fn n_new_file(&self, path: WhPath, permissions: u16) -> io::Result<File> {
+        self.handle
+            .new_file(path.set_relative(), permissions as libc::mode_t) // TODO look more in c mode_t value
+    }
+
     pub fn remove_file(&self, path: WhPath) -> io::Result<()> {
         self.handle.remove_file(path.set_relative())
     }

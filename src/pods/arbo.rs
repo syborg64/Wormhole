@@ -324,6 +324,20 @@ impl Arbo {
     }
 
     #[must_use]
+    pub fn n_remove_children(&mut self, parent: InodeId, child: InodeId) -> WhResult<()> {
+        let parent = self.n_get_inode_mut(parent)?;
+
+        let children = match &mut parent.entry {
+            // REVIEW: Can we expect parent to always be a file to not flood wherror with errors that will never happen
+            FsEntry::File(_) => panic!("Parent is a file"),
+            FsEntry::Directory(children) => Ok(children),
+        }?;
+
+        children.retain(|v| *v != child);
+        Ok(())
+    }
+
+    #[must_use]
     pub fn add_children(&mut self, parent: InodeId, child: InodeId) -> io::Result<()> {
         let parent = self.get_inode_mut(parent)?;
 
@@ -350,6 +364,15 @@ impl Arbo {
         }?;
 
         self.remove_children(removed.parent, id)?;
+
+        Ok(removed)
+    }
+
+    #[must_use]
+    pub fn n_remove_inode(&mut self, id: InodeId) -> WhResult<Inode> {
+        let removed = self.entries.remove(&id).ok_or(WhError::InodeNotFound)?;
+
+        self.n_remove_children(removed.parent, id)?;
 
         Ok(removed)
     }
@@ -420,6 +443,25 @@ impl Arbo {
         };
 
         let mut parent_path = self.get_path_from_inode_id(inode.parent)?;
+        parent_path.push(&inode.name.clone());
+        Ok(parent_path)
+    }
+
+    #[must_use]
+    /// Recursively traverse the [Arbo] tree from the [Inode] to form a path
+    ///
+    /// Possible Errors:
+    ///   InodeNotFound: if the inode isn't inside the tree
+    pub fn n_get_path_from_inode_id(&self, inode_index: InodeId) -> WhResult<WhPath> {
+        if inode_index == ROOT {
+            return Ok(WhPath::from("/"));
+        }
+        let inode = self
+            .entries
+            .get(&inode_index)
+            .ok_or(WhError::InodeNotFound)?;
+
+        let mut parent_path = self.n_get_path_from_inode_id(inode.parent)?;
         parent_path.push(&inode.name.clone());
         Ok(parent_path)
     }

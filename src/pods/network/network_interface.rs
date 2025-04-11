@@ -10,16 +10,24 @@ use tokio::sync::{
     mpsc::{UnboundedReceiver, UnboundedSender},
 };
 
-use crate::network::{
-    message::{
-        self, Address, FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
+use crate::{
+    error::WhError,
+    pods::{
+        arbo::{FsEntry, Metadata},
+        filesystem::mkfile::MakeInode,
+        whpath::WhPath,
     },
-    peer_ipc::PeerIPC,
-    server::Server,
 };
-use crate::pods::{
-    arbo::{FsEntry, Metadata},
-    whpath::WhPath,
+use crate::{
+    error::WhResult,
+    network::{
+        message::{
+            self, Address, FileSystemSerialized, FromNetworkMessage, MessageContent,
+            ToNetworkMessage,
+        },
+        peer_ipc::PeerIPC,
+        server::Server,
+    },
 };
 
 use crate::pods::{
@@ -169,6 +177,25 @@ impl NetworkInterface {
         Ok(available_inode)
     }
 
+    /** TODO: Doc when reviews are finished */
+    pub fn n_get_next_inode(&self) -> WhResult<u64> {
+        let mut next_inode = self
+            .next_inode
+            .try_lock_for(LOCK_TIMEOUT)
+            // REVIEW: Would block is different than the previous Interrupted,
+            // but I chose it for consistency with the try_lock on the arbo
+            .ok_or(WhError::WouldBlock {
+                called_from: "get_next_inode".to_string(),
+            })?;
+
+        // REVIEW: next_inode being behind a mutex is weird and
+        // the function not taking a mutable ref feels weird, is next_inode behind a mutex just to allow a simple &self?
+        let available_inode = *next_inode;
+        *next_inode += 1;
+
+        Ok(available_inode)
+    }
+
     #[must_use]
     /// add the requested entry to the arbo and inform the network
     pub fn register_new_file(&self, inode: Inode) -> io::Result<u64> {
@@ -184,6 +211,61 @@ impl NetworkInterface {
         };
 
         // TODO - add myself to hosts
+
+        if new_inode_id != 3u64 {
+            self.to_network_message_tx
+                .send(ToNetworkMessage::BroadcastMessage(
+                    message::MessageContent::Inode(inode, new_inode_id),
+                ))
+                .expect("mkfile: unable to update modification on the network thread");
+        }
+        // TODO - if unable to update for some reason, should be passed to the background worker
+
+        Ok(new_inode_id)
+    }
+
+    /// Add the requested [Inode] to the [Arbo]
+    /// The [FsEntry] must fill the hosts preemptively
+    pub fn n_add_inode(&self, inode: Inode) -> Result<(), MakeInode> {
+        let mut arbo = Arbo::n_write_lock(&self.arbo, "add_inode")?;
+
+        arbo.n_add_inode(inode.clone())?;
+        Ok(())
+    }
+
+    /// Add the requested [Inode] to the [Arbo]
+    /// The [FsEntry] must fill the hosts preemptively
+    pub fn n_remove_inode(&self, id: InodeId) -> Result<(), MakeInode> {
+        let mut arbo = Arbo::n_write_lock(&self.arbo, "remove_inode")?;
+
+        arbo.n_remove_inode(id)?;
+        Ok(())
+    }
+
+    /// Inform the network
+    pub fn n_register_new_file(&self, inode: Inode) {
+        let inode_id = inode.id.clone();
+
+        self.to_network_message_tx
+            .send(ToNetworkMessage::BroadcastMessage(
+                message::MessageContent::Inode(inode, inode_id),
+            ))
+            .expect("mkfile: unable to update modification on the network thread");
+        // TODO - if unable to update for some reason, should be passed to the background worker
+    }
+
+    //REVIEW register new file if we dont like the register new file split
+    #[must_use]
+    /// Add the requested [Inode] to the [Arbo] and inform the network
+    /// The [FsEntry] must fill the hosts preemptively
+    pub fn n2_register_new_file(&self, inode: Inode) -> Result<u64, MakeInode> {
+        let new_inode_id = inode.id;
+
+        let mut arbo = Arbo::n_write_lock(&self.arbo, "register_new_file")?;
+        arbo.n_add_inode(inode.clone())?;
+
+        // REVIEW: Removed the TODO because it's made at the creation of the input Inode, in make_inode
+        // The Doc as been adapted to reflect this
 
         if new_inode_id != 3u64 {
             self.to_network_message_tx
