@@ -12,6 +12,8 @@ use crate::error::WhError;
 use crate::pods::filesystem::fs_interface::SimpleFileType;
 use crate::pods::whpath::WhPath;
 
+use super::filesystem::mkfile::MakeInode;
+
 // SECTION consts
 
 /*  NOTE - fuse root folder inode is 1.
@@ -264,6 +266,45 @@ impl Arbo {
     #[must_use]
     pub fn add_inode(&mut self, inode: Inode) -> io::Result<()> {
         self.add_inode_from_parameters(inode.name, inode.id, inode.parent, inode.entry)
+    }
+
+    #[must_use]
+    /// Insert a given [Inode] inside the local arbo
+    pub fn n_add_inode(&mut self, inode: Inode) -> Result<(), MakeInode> {
+        if self.entries.contains_key(&inode.id) {
+            return Err(MakeInode::AlreadyExist);
+        }
+
+        match self.entries.get_mut(&inode.parent) {
+            None => Err(MakeInode::ParentNotFound),
+            Some(Inode {
+                parent: _,
+                id: _,
+                name: _,
+                entry: FsEntry::Directory(parent_children),
+                meta: _,
+                xattrs: _,
+            }) => {
+                parent_children.push(inode.id);
+                self.entries.insert(inode.id, inode);
+                Ok(())
+            }
+            Some(_) => Err(MakeInode::ParentNotFolder),
+        }
+    }
+
+    #[must_use]
+    /// Create a new [Inode] from the given parameters and insert it inside the local arbo
+    pub fn n_add_inode_from_parameters(
+        &mut self,
+        name: String,
+        id: InodeId, //REVIEW: Renamed id to be more coherent with the Inode struct
+        parent_ino: InodeId,
+        entry: FsEntry,
+    ) -> Result<(), MakeInode> {
+        let inode = Inode::new(name, parent_ino, id, entry);
+
+        self.n_add_inode(inode)
     }
 
     #[must_use]
