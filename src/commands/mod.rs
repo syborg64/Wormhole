@@ -1,5 +1,8 @@
 pub mod cli;
-pub mod service;
 pub mod cli_commands;
+pub mod service;
 
-pub use cli_commands::Cli::{Start, Stop, Template, Init, Join};
+pub use cli_commands::{
+    Cli::{Init, Join, Start, Stop, Template},
+    PodCommand,
+};

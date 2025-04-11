@@ -20,14 +20,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .into();
     println!("Starting cli on {}", ip);
     match Cli::parse() {
-        Cli::Start => {
-            println!("starting service");
-            todo!("start");
-        }
-        Cli::Stop => {
-            println!("stoping service");
-            todo!("stop");
-        }
+        Cli::Start(args) => commands::cli::start(ip.as_str(), args)?,
+        Cli::Stop(args) => commands::cli::stop(ip.as_str(), args)?,
         Cli::Template(args) => {
             println!(
                 "creating network {:?}",
@@ -40,14 +34,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Cli::Init(args) => {
             println!("init service");
-            commands::cli::init(ip.as_str(), &WhPath::from(args.path.unwrap_or(".".into())))?;
-            // todo!("init");
+            commands::cli::init(
+                ip.as_str(),
+                args.name,
+                &WhPath::from(args.path.unwrap_or(".".into())),
+            )?;
         }
         Cli::Join(args) => {
             println!("joining {}", args.url);
             println!("(additional hosts: {:?})", args.additional_hosts);
             commands::cli::join(
                 ip.as_str(),
+                args.name,
                 &args.path.unwrap_or(".".into()),
                 args.url,
                 args.additional_hosts.unwrap_or(vec![]),
@@ -68,7 +66,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("inspecting pod");
             todo!("inspect");
         }
-        Cli::Reload => {
+        Cli::Reload(_args) => {
             println!("reloading pod");
             todo!("reload");
         }

@@ -1,15 +1,22 @@
-use crate::pods::whpath::WhPath;
+use crate::pods::{declarations::Pod, whpath::WhPath};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
+
+pub enum PodCommand {
+    AddPod(Pod),
+    JoinPod(Pod),
+    StartPod(StatusPodArgs),
+    StopPod(StatusPodArgs),
+}
 
 #[derive(Debug, Parser, Serialize, Deserialize)] // requires `derive` feature
 #[command(name = "wormhole")]
 #[command(bin_name = "wormhole")]
 pub enum Cli {
     /// start the service
-    Start,
+    Start(StatusPodArgs),
     /// stop the service
-    Stop,
+    Stop(StatusPodArgs),
     /// create a new network (template)
     Template(TemplateArg),
     /// make a pod and create a new network
@@ -20,12 +27,14 @@ pub enum Cli {
     Inspect,
     /// remove a pod from its network
     Remove(RemoveArgs),
-    Reload,
+    /// reload a pod
+    Reload(PodArgs),
 }
 
 #[derive(Debug, clap::Args, Serialize, Deserialize)]
 #[command(version, about, long_about = None)]
 pub struct PodArgs {
+    pub name: String,
     /// Change to DIRECTORY before doing anything
     #[arg(long, short = 'C')]
     pub path: Option<WhPath>,
@@ -33,7 +42,15 @@ pub struct PodArgs {
 
 #[derive(Debug, clap::Args, Serialize, Deserialize)]
 #[command(version, about, long_about = None)]
+pub struct StatusPodArgs {
+    pub name: Option<String>,
+    pub path: Option<WhPath>,
+}
+
+#[derive(Debug, clap::Args, Serialize, Deserialize)]
+#[command(version, about, long_about = None)]
 pub struct JoinArgs {
+    pub name: String,
     /// network url as <address of node to join from> + ':' + <network name>'
     #[arg()]
     pub url: String,

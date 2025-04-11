@@ -31,6 +31,7 @@ pub type PodConfig = u64;
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct Pod {
+    name: String,
     network_interface: Arc<NetworkInterface>,
     fs_interface: Arc<FsInterface>,
     mount_point: WhPath,
@@ -104,6 +105,7 @@ fn register_to_others(peers: &Vec<PeerIPC>, self_address: &Address) -> std::io::
 
 impl Pod {
     pub async fn new(
+        name: String,
         mount_point: WhPath,
         config: PodConfig,
         mut know_peers: Vec<Address>,
@@ -175,6 +177,7 @@ impl Pod {
         let peers = network_interface.peers.clone();
 
         Ok(Self {
+            name: name.clone(),
             network_interface,
             fs_interface: fs_interface.clone(),
             mount_point: mount_point.clone(),

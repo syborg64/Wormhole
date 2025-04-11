@@ -7,7 +7,8 @@ use tokio::runtime::Runtime;
 use crate::{
     commands::{
         self,
-        cli::message::cli_messager, cli_commands::{Cli, JoinArgs},
+        cli::message::cli_messager,
+        cli_commands::{Cli, JoinArgs},
     },
     config::{self, types::Config},
     pods::whpath::WhPath,
@@ -16,6 +17,7 @@ use crate::{
 #[must_use]
 pub fn join(
     ip: &str,
+    name: String,
     path: &WhPath,
     url: String,
     mut additional_hosts: Vec<String>,
@@ -31,7 +33,15 @@ pub fn join(
         network.write(path.join(".wormhole/network.toml").inner)?;
 
         let rt = Runtime::new().unwrap();
-        rt.block_on(cli_messager(ip, Cli::Join(JoinArgs { url: url.clone(), additional_hosts: None, path: Some(path.clone()) }) ))?;
+        rt.block_on(cli_messager(
+            ip,
+            Cli::Join(JoinArgs {
+                name: name.clone(),
+                url: url.clone(),
+                additional_hosts: None,
+                path: Some(path.clone()),
+            }),
+        ))?;
         return Ok(());
     } else {
         println!("errored: {:?}", slice);

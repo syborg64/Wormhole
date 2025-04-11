@@ -23,7 +23,6 @@ pub trait Config: Serialize + DeserializeOwned {
         Ok(())
     }
 
-
     fn read<S: AsRef<Path>>(path: S) -> Result<Self, Box<dyn std::error::Error>>
     where
         Self: Sized,
@@ -56,6 +55,7 @@ pub struct GlobalConfig {
 pub struct GeneralGlobalConfig {
     pub peers: Vec<String>,
     pub ignore_paths: Vec<String>,
+    pub pods_names: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]

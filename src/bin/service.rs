@@ -28,6 +28,7 @@ use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::Message;
 #[cfg(target_os = "windows")]
 use winfsp::winfsp_init;
+use wormhole::commands::PodCommand;
 use wormhole::config::types::{
     GeneralGlobalConfig, GeneralLocalConfig, GlobalConfig, LocalConfig, RedundancyConfig,
 };
@@ -38,60 +39,30 @@ use wormhole::{
 };
 use wormhole::{network::server::Server, pods::declarations::Pod};
 
-enum PodCommand {
-    AddPod(Pod),
-}
-
 async fn handle_cli_command(
     tx: mpsc::UnboundedSender<PodCommand>,
     ws_stream: tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>,
 ) -> Result<(), String> {
-    let (mut write, mut read) = ws_stream.split();
+    let (mut writer, mut reader) = ws_stream.split();
 
-    // Attendre un message de la CLI
-    if let Some(Ok(message)) = read.next().await {
-        let bytes = message.into_data();
+    if let Some(Ok(message)) = reader.next().await {
+        let message_bytes = message.into_data();
 
-        // Désérialisation de la commande CLI
-        let cli: Cli = bincode::deserialize(&bytes)
-            .map_err(|e| format!("Erreur de désérialisation : {}", e))?;
+        let cli_command: Cli = bincode::deserialize(&message_bytes)
+            .map_err(|e| format!("Deserialization error: {}", e))?;
 
-        // Traitement de la commande et préparation de la réponse
-        let response = match cli {
-            Cli::Init(pod_args) => {
-                match commands::service::init(pod_args).await {
-                    Ok((global_config, local_config, server, mount_point)) => {
-                        let new_pod = Pod::new(
-                            mount_point,
-                            1,
-                            global_config.general.peers,
-                            server.clone(),
-                            local_config.general.address,
-                        )
-                        .await
-                        .map_err(|e| format!("Erreur lors de la création du pod : {}", e))?;
-
-                        // Envoi de la commande pour ajouter le pod
-                        tx.send(PodCommand::AddPod(new_pod))
-                            .map_err(|e| format!("Erreur lors de l'envoi de PodCommand : {}", e))?;
-
-                        "Pod ajouté".to_string()
-                    }
-                    Err(e) => {
-                        let error_msg = format!("Erreur d'initialisation : {}", e);
-                        error!("{}", error_msg); // Log l'erreur dans le terminal
-                        error_msg // Renvoyer l'erreur à la CLI
-                    }
-                }
-            }
-            _ => "Commande non reconnue".to_string(),
+        let response_text = match cli_command {
+            Cli::Init(pod_args) => commands::service::init(tx.clone(), pod_args).await,
+            Cli::Join(join_args) => commands::service::join(tx.clone(), join_args).await,
+            Cli::Start(pod_args) => commands::service::start(tx.clone(), pod_args).await,
+            Cli::Stop(pod_args) => commands::service::stop(tx.clone(), pod_args).await,
+            _ => Err("Unrecognized command".to_string()),
         };
 
-        // Envoi de la réponse à la CLI
-        write
-            .send(Message::Text(response))
+        writer
+            .send(Message::Text(response_text.unwrap_or_else(|e| e)))
             .await
-            .map_err(|e| format!("Erreur lors de l'envoi de la réponse : {}", e))?;
+            .map_err(|e| format!("Response send error: {}", e))?;
     }
 
     Ok(())
@@ -136,8 +107,20 @@ async fn main() {
         while let Some(command) = rx.recv().await {
             match command {
                 PodCommand::AddPod(pod) => {
+                    info!("Pod created: {:?}", pod);
                     pods.push(pod);
-                    println!("Pods created: {:?}", pods);
+                }
+                PodCommand::JoinPod(pod) => {
+                    info!("Pod created and joined a network: {:?}", pod);
+                    pods.push(pod);
+                }
+                PodCommand::StartPod(start_args) => {
+                    info!("Pod started: {:?}", start_args);
+                    todo!("Check if pod existe and start it based one his name or path")
+                }
+                PodCommand::StopPod(stop_args) => {
+                    info!("Pod stopped: {:?}", stop_args);
+                    todo!("Check if pod existe and stop it based one his name or path")
                 }
             }
         }
