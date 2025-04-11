@@ -9,7 +9,7 @@ use std::{
 };
 
 use crate::error::WhError;
-use crate::pods::interface::fs_interface::SimpleFileType;
+use crate::pods::filesystem::fs_interface::SimpleFileType;
 use crate::pods::whpath::WhPath;
 
 // SECTION consts
