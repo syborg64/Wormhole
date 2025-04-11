@@ -241,6 +241,29 @@ impl Pod {
         }
     }
 
+    fn files_to_send_when_stopping(&self) -> Result<Vec<(InodeId, WhPath)>, PodStopError> {
+        let hosted_only_by_me = self
+            .network_interface
+            .files_hosted_only_by(&self.network_interface.self_addr)?;
+
+        let arbo = Arbo::n_read_lock(
+            &self.network_interface.arbo,
+            "Pod::files_to_send_when_stopping",
+        )?;
+
+        Ok(hosted_only_by_me
+            .into_iter()
+            .filter_map(|inode| {
+                Some((
+                    inode.id,
+                    arbo.n_get_path_from_inode_id(inode.id)
+                        .map_err(|e| log::error!("Pod::stop(2): {e}"))
+                        .ok()?,
+                ))
+            })
+            .collect())
+    }
+
     pub fn stop(&self) -> Result<(), PodStopError> {
         // NOTE
         // in actual state, all operations (request from network other than just pulling the asked files)
@@ -255,32 +278,7 @@ impl Pod {
             .map(|peer| peer.address.clone())
             .collect();
 
-        // files only hosted by this pod
-        let files_to_send = self
-            .network_interface
-            .files_hosted_only_by(&self.network_interface.self_addr)?;
-
-        let (files_to_send, errors) = {
-            let arbo = Arbo::n_read_lock(&self.network_interface.arbo, "Pod::stop(1)")?;
-            let mut errors: Vec<WhError> = Vec::new();
-
-            let files_to_send: Vec<(InodeId, WhPath)> = files_to_send
-                .into_iter()
-                .filter_map(|inode| {
-                    Some((
-                        inode.id,
-                        arbo.n_get_path_from_inode_id(inode.id)
-                            .map_err(|e| errors.push(e))
-                            .ok()?,
-                    ))
-                })
-                .collect();
-            (files_to_send, errors)
-        };
-        
-        errors
-            .into_iter()
-            .for_each(|e| log::error!("Pod::stop(2): {e}"));
+        let files_to_send = self.files_to_send_when_stopping()?;
 
         files_to_send.into_iter().for_each(|(id, path)| {
             self.send_file_to_possible_hosts(&peers, id, path.clone());
