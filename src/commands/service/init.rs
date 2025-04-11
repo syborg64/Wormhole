@@ -7,7 +7,7 @@ use crate::{
     commands::{cli_commands::PodArgs, PodCommand},
     config::{GlobalConfig, LocalConfig},
     network::server::Server,
-    pods::{declarations::Pod, whpath::WhPath},
+    pods::{pod::Pod, whpath::WhPath},
 };
 
 use super::read_config;

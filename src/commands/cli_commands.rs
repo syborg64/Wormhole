@@ -1,4 +1,4 @@
-use crate::pods::{declarations::Pod, whpath::WhPath};
+use crate::pods::{pod::Pod, whpath::WhPath};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 

@@ -38,7 +38,7 @@ use wormhole::{
     commands::{self, cli_commands::Cli},
     config,
 };
-use wormhole::{network::server::Server, pods::declarations::Pod};
+use wormhole::{network::server::Server, pods::pod::Pod};
 
 async fn handle_cli_command(
     tx: mpsc::UnboundedSender<PodCommand>,
