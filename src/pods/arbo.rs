@@ -371,6 +371,18 @@ impl Arbo {
     }
 
     #[must_use]
+    pub fn n_get_path_from_inode_id(&self, inode_index: InodeId) -> WhResult<WhPath> {
+        if inode_index == ROOT {
+            return Ok(WhPath::from("/"));
+        }
+        let inode = self.entries.get(&inode_index).ok_or(WhError::InodeNotFound)?;
+
+        let mut parent_path = self.n_get_path_from_inode_id(inode.parent)?;
+        parent_path.push(&inode.name.clone());
+        Ok(parent_path)
+    }
+
+    #[must_use]
     pub fn get_path_from_inode_id(&self, inode_index: InodeId) -> io::Result<WhPath> {
         if inode_index == ROOT {
             return Ok(WhPath::from("/"));
