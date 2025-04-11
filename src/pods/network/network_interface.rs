@@ -539,23 +539,6 @@ impl NetworkInterface {
          */
     }
 
-    pub fn files_hosted_only_by<'a>(
-        arbo: &'a Arbo,
-        host: &'a Address,
-    ) -> impl Iterator<Item = Inode> + use<'a> {
-        arbo.iter()
-            .filter_map(move |(_, inode)| match &inode.entry {
-                FsEntry::Directory(_) => None,
-                FsEntry::File(hosts) => {
-                    if hosts.len() == 1 && hosts.contains(&host) {
-                        Some(inode.clone())
-                    } else {
-                        None
-                    }
-                }
-            })
-    }
-
     // SECTION Redundancy related
 
     fn add_redundancy(&self, file_id: InodeId, current_hosts: Vec<Address>) -> io::Result<()> {

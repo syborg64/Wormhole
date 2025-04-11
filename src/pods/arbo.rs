@@ -225,6 +225,23 @@ impl Arbo {
         })
     }
 
+    pub fn files_hosted_only_by<'a>(
+        &'a self,
+        host: &'a Address,
+    ) -> impl Iterator<Item = Inode> + use<'a> {
+        self.iter()
+            .filter_map(move |(_, inode)| match &inode.entry {
+                FsEntry::Directory(_) => None,
+                FsEntry::File(hosts) => {
+                    if hosts.len() == 1 && hosts.contains(&host) {
+                        Some(inode.clone())
+                    } else {
+                        None
+                    }
+                }
+            })
+    }
+
     #[must_use]
     pub fn add_inode_from_parameters(
         &mut self,
@@ -375,7 +392,10 @@ impl Arbo {
         if inode_index == ROOT {
             return Ok(WhPath::from("/"));
         }
-        let inode = self.entries.get(&inode_index).ok_or(WhError::InodeNotFound)?;
+        let inode = self
+            .entries
+            .get(&inode_index)
+            .ok_or(WhError::InodeNotFound)?;
 
         let mut parent_path = self.n_get_path_from_inode_id(inode.parent)?;
         parent_path.push(&inode.name.clone());

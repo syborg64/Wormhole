@@ -242,8 +242,8 @@ impl Pod {
     }
 
     /// Gets every file hosted by this pod only and sends them to other pods
-    fn send_files_when_stopping<'a>(&'a self, arbo: &'a Arbo, peers: Vec<Address>) {
-        NetworkInterface::files_hosted_only_by(&arbo, &self.network_interface.self_addr)
+    fn send_files_when_stopping(&self, arbo: &Arbo, peers: Vec<Address>) {
+        arbo.files_hosted_only_by(&self.network_interface.self_addr)
             .filter_map(|inode| {
                 Some((
                     inode.id,
@@ -258,7 +258,7 @@ impl Pod {
     }
 
     pub fn stop(&self) -> Result<(), PodStopError> {
-        // NOTE
+        // TODO
         // in actual state, all operations (request from network other than just pulling the asked files)
         // made after calling this function but before dropping the pod are undefined behavior.
 
