@@ -213,6 +213,7 @@ impl Pod {
         loop {
             if possible_hosts.len() <= host_nb {
                 log::warn!("Pod::stop no hosts can receive this file: {path}");
+                return;
                 // TODO - while merge between pods is not implemented, the file is untracked
                 // (present on disk, but not tracked by wormhole, and not deleted either)
             }
