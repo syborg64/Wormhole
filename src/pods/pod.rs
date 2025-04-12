@@ -234,12 +234,22 @@ impl Pod {
                     ),
                     vec![possible_hosts[0].clone()],
                 ))
-                .unwrap();
+                .expect("to_network_message_tx closed.");
 
-            match feedback_rx.blocking_recv().unwrap() {
-                Feedback::Sent => return,
-                Feedback::Error => host_nb += 1,
-            };
+            if let Feedback::Sent = feedback_rx.blocking_recv().unwrap() {
+                self.network_interface
+                    .to_network_message_tx
+                    .send(ToNetworkMessage::BroadcastMessage(
+                        MessageContent::RemoveHosts(
+                            ino,
+                            vec![self.network_interface.self_addr.clone()],
+                        ),
+                    ))
+                    .expect("to_network_message_tx closed.");
+                return;
+            } else {
+                host_nb += 1
+            }
         }
     }
 
