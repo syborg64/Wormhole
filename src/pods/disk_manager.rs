@@ -35,6 +35,7 @@ impl DiskManager {
         })
     }
 
+    // Very simple util to log the content of a folder locally
     pub fn log_arbo(&self, path: String) -> io::Result<()> {
         let dirs = self.handle.list_dir(path)?;
         for dir in dirs {
@@ -58,17 +59,7 @@ impl DiskManager {
 
     #[must_use]
     pub fn remove_file(&self, path: WhPath) -> io::Result<()> {
-        let temp = self.handle.remove_file(path.clone().set_relative()); // Remove the clone
-
-        log::debug!(
-            "RMove File said: {:?} for path {},  path.set_relative().get_folder() {}",
-            temp,
-            path,
-            path.clone().set_relative().get_folder()
-        );
-        self.log_arbo(String::from("./")).expect("ROOT FAILED");
-        self.log_arbo(path.set_relative().get_folder())?;
-        temp
+        self.handle.remove_file(path.clone().set_relative())
     }
 
     #[must_use]
