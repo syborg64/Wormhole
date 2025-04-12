@@ -1,7 +1,7 @@
 use std::{io, sync::Arc};
 
 use crate::config::GlobalConfig;
-use crate::error::WhError;
+use crate::error::{WhError, WhResult};
 #[cfg(target_os = "linux")]
 use crate::fuse::fuse_impl::mount_fuse;
 use crate::network::message::{
@@ -227,7 +227,7 @@ impl Pod {
                 .read_file_to_end(path.clone())
                 .expect("Pod::stop: unable to read file from disk");
 
-            let (feedback_tx, mut feedback_rx) = tokio::sync::mpsc::unbounded_channel::<Feedback>();
+            let (feedback_tx, mut feedback_rx) = tokio::sync::mpsc::unbounded_channel::<WhResult<()>>();
 
             self.network_interface
                 .to_network_message_tx
@@ -240,7 +240,7 @@ impl Pod {
                 ))
                 .expect("to_network_message_tx closed.");
 
-            if let Feedback::Sent = feedback_rx.blocking_recv().unwrap() {
+            if let Ok(()) = feedback_rx.blocking_recv().unwrap() {
                 self.network_interface
                     .to_network_message_tx
                     .send(ToNetworkMessage::BroadcastMessage(

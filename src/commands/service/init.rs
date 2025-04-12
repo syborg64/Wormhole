@@ -21,8 +21,8 @@ pub async fn init(
         Ok((global_config, local_config, server, mount_point)) => {
             let new_pod = match Pod::new(
                 pod_args.name.clone(),
+                global_config,
                 mount_point,
-                global_config.general.peers,
                 server.clone(),
                 local_config.general.address,
             )

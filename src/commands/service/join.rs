@@ -28,8 +28,8 @@ pub async fn join(
             };
             let new_pod = match Pod::new(
                 join_args.name.clone(),
+                global_config,
                 mount_point,
-                global_config.general.peers,
                 server.clone(),
                 local_config.general.address,
             )
