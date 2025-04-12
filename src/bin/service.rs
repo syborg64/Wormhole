@@ -24,8 +24,9 @@ use futures_util::sink::SinkExt;
 use futures_util::StreamExt;
 use log::{error, info};
 use tokio::net::TcpListener;
-use tokio::sync::mpsc;
+use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot::Sender;
+use tokio::task::JoinError;
 use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::Message;
 #[cfg(target_os = "windows")]
@@ -33,6 +34,7 @@ use winfsp::winfsp_init;
 use wormhole::commands::cli_commands::StatusPodArgs;
 use wormhole::commands::PodCommand;
 use wormhole::commands::{self, cli_commands::Cli};
+use wormhole::error::WhResult;
 use wormhole::pods::pod::Pod;
 use wormhole::pods::pod::PodStopError;
 
@@ -93,39 +95,45 @@ async fn start_cli_listener(tx: mpsc::UnboundedSender<PodCommand>, ip: String) {
     }
 }
 
+async fn main_cli_airport(
+    mut rx: UnboundedReceiver<PodCommand>,
+    mut pods: HashMap<String, Pod>,
+) -> HashMap<String, Pod> {
+    while let Some(command) = rx.recv().await {
+        match command {
+            PodCommand::AddPod(name, pod) => {
+                info!("Pod created: {:?}", pod);
+                pods.insert(name, pod);
+            }
+            PodCommand::JoinPod(name, pod) => {
+                info!("Pod created and joined a network: {:?}", pod);
+                pods.insert(name, pod);
+            }
+            PodCommand::StartPod(start_args) => {
+                info!("Starting pod: {:?}", start_args);
+                todo!("Check if pod existe and start it based one his name or path")
+            }
+            PodCommand::StopPod(StatusPodArgs { name, path: _ }, responder) => {
+                let _ = responder.send(
+                    name.and_then(|name| pods.get(&name))
+                        .ok_or(PodStopError::PodNotRunning)
+                        .and_then(|pod| pod.stop())
+                        .map(|()| "Pod was stopped.".to_string()),
+                );
+            }
+            PodCommand::Interrupt => break,
+        }
+    }
+    pods
+}
+
 #[tokio::main]
 async fn main() {
     // Créer un canal pour envoyer des commandes
-    let (tx, mut rx) = mpsc::unbounded_channel::<PodCommand>();
-    let mut pods: HashMap<String, Pod> = HashMap::new();
+    let (tx, rx) = mpsc::unbounded_channel::<PodCommand>();
+    let pods: HashMap<String, Pod> = HashMap::new();
 
     // Lancer la tâche centrale
-    tokio::spawn(async move {
-        while let Some(command) = rx.recv().await {
-            match command {
-                PodCommand::AddPod(name, pod) => {
-                    info!("Pod created: {:?}", pod);
-                    pods.insert(name, pod);
-                }
-                PodCommand::JoinPod(name, pod) => {
-                    info!("Pod created and joined a network: {:?}", pod);
-                    pods.insert(name, pod);
-                }
-                PodCommand::StartPod(start_args) => {
-                    info!("Starting pod: {:?}", start_args);
-                    todo!("Check if pod existe and start it based one his name or path")
-                }
-                PodCommand::StopPod(StatusPodArgs { name, path: _ }, responder) => {
-                    let _ = responder.send(
-                        name.and_then(|name| pods.get(&name))
-                            .ok_or(PodStopError::PodNotRunning)
-                            .and_then(|pod| pod.stop())
-                            .map(|()| "Pod was stopped.".to_string()),
-                    );
-                }
-            }
-        }
-    });
 
     env_logger::init();
     let ip: String = env::args()
@@ -133,28 +141,40 @@ async fn main() {
         .unwrap_or("127.0.0.1:8081".to_string())
         .into();
     println!("Starting service on {}", ip);
-    let tx_clone = tx.clone();
-    tokio::spawn(start_cli_listener(tx_clone, ip));
 
-    let terminal_handle = tokio::spawn(terminal_watchdog());
+    let terminal_handle = tokio::spawn(terminal_watchdog(tx.clone()));
+    let cli_listener = tokio::spawn(start_cli_listener(tx, ip));
+    let cli_airport = tokio::spawn(main_cli_airport(rx, pods));
     log::info!("Started");
-    terminal_handle.await.unwrap(); // keeps the main process alive until interruption from this watchdog;
+
+    let pods = tokio::select! {
+        pods = cli_airport => Some(pods.expect("main: cli_airport didn't join properly")),
+        _ = terminal_handle => None,
+        _ = cli_listener => None,
+    }
+    .expect("runtime returned unexpectedly");
+
     log::info!("Stopping");
+    for (name, pod) in pods.iter() {
+        match pod.stop() {
+            Ok(()) => log::info!("Stopped pod {name}"),
+            Err(e) => log::error!("Pod {name} can't be stopped: {e}"),
+        }
+    }
+    log::info!("Stopped");
 }
 
 // NOTE - old watchdog brought here for debug purposes
-pub async fn terminal_watchdog() {
+pub async fn terminal_watchdog(tx: UnboundedSender<PodCommand>) {
     let mut stdin = tokio::io::stdin();
     let mut buf = vec![0; 1024];
 
-    loop {
-        let read = tokio::io::AsyncReadExt::read(&mut stdin, &mut buf).await;
-
+    while let Ok(read) = tokio::io::AsyncReadExt::read(&mut stdin, &mut buf).await {
         // NOTE -  on ctrl-D -> quit
         match read {
-            Err(_) | Ok(0) => {
+            0 => {
                 println!("Quiting!");
-                break;
+                let _ = tx.send(PodCommand::Interrupt);
             }
             _ => (),
         };

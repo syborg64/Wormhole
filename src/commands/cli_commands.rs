@@ -10,6 +10,7 @@ pub enum PodCommand {
         StatusPodArgs,
         tokio::sync::oneshot::Sender<Result<String, crate::pods::pod::PodStopError>>,
     ),
+    Interrupt,
 }
 
 #[derive(Debug, Parser, Serialize, Deserialize)] // requires `derive` feature
