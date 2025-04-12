@@ -31,7 +31,7 @@ pub fn new(ip: &str, args: PodArgs) -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     } else {
         let url = args.url.unwrap();
-        let mut additional_hosts = args.additional_hosts.unwrap();
+        let mut additional_hosts = args.additional_hosts.unwrap_or(vec![]);
         let split = url.split(':');
         let slice = &(split.collect::<Vec<_>>())[..];
         if let [address_str, network_name_str] = *slice {

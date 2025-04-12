@@ -45,7 +45,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
     let (ip, cli_args) = get_args(args);
 
-    println!("Starting service on {}", ip);
     println!("Starting cli on {}", ip);
     println!("cli args: {:?}", cli_args);
 
