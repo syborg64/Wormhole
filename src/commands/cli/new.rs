@@ -2,7 +2,7 @@
 // In code we trust
 // AgarthaSoftware - 2024
 
-use std::env;
+use std::{env, fs};
 
 use tokio::runtime::Runtime;
 
@@ -18,7 +18,22 @@ use crate::{
 
 use super::init;
 
-#[must_use]
+fn check_config_file(
+    path: &WhPath,
+    files_name: Vec<&str>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    for file_name in files_name {
+        println!("file_name: {}", path.clone().push(file_name).inner);
+        if fs::metadata(path.clone().push(file_name).inner.clone()).is_err() {
+            return Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("The file config {} does not exist", file_name),
+            )));
+        }
+    }
+    Ok(())
+}
+
 pub fn new(ip: &str, args: PodArgs) -> Result<(), Box<dyn std::error::Error>> {
     let path = if args.path == None {
         let path = env::current_dir()?;
@@ -26,39 +41,17 @@ pub fn new(ip: &str, args: PodArgs) -> Result<(), Box<dyn std::error::Error>> {
     } else {
         WhPath::from(args.path.unwrap())
     };
-    if (args.url == None) && (args.additional_hosts == None) {
-        init(ip, args.name, &path)?;
-        return Ok(());
-    } else {
-        let url = args.url.unwrap();
-        let mut additional_hosts = args.additional_hosts.unwrap_or(vec![]);
-        let split = url.split(':');
-        let slice = &(split.collect::<Vec<_>>())[..];
-        if let [address_str, network_name_str] = *slice {
-            println!("passed: {:?}", slice);
-            let mut peers = vec![address_str.to_owned()];
-            peers.append(&mut additional_hosts);
-            let network = config::Network::new(peers, network_name_str.to_owned());
-            commands::cli::templates(&path, network_name_str)?;
-            network.write(path.join(".wormhole/network.toml").inner)?;
-
-            let rt = Runtime::new().unwrap();
-            rt.block_on(cli_messager(
-                ip,
-                Cli::New(PodArgs {
-                    name: args.name.clone(),
-                    path: Some(path.clone()),
-                    url: Some(url.clone()),
-                    additional_hosts: None,
-                }),
-            ))?;
-            return Ok(());
-        } else {
-            println!("errored: {:?}", slice);
-            return Err(Box::new(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "url invalid",
-            )));
-        }
-    }
+    fs::read_dir(&path.inner)?;
+    let files_name = vec![".local_config.toml", ".global_config.toml"];
+    check_config_file(&path, files_name)?;
+    let rt = Runtime::new().unwrap();
+    rt.block_on(cli_messager(
+        ip,
+        Cli::New(PodArgs {
+            name: args.name,
+            path: Some(path.clone()),
+            url: args.url,
+            additional_hosts: args.additional_hosts,
+        }),
+    ))
 }
