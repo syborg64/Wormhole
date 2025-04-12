@@ -69,8 +69,8 @@ async fn main() {
             redundancy: Some(RedundancyConfig { number: 3 }),
         });
 
-    for adress in args_other_addresses {
-        global_config.general.peers.push(adress);
+    for address in args_other_addresses {
+        global_config.general.peers.push(address);
     }
     global_config.general.peers.sort();
     global_config.general.peers.dedup();
