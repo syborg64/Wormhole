@@ -4,7 +4,10 @@ use std::{
     sync::Arc,
 };
 
-use crate::error::{WhError, WhResult};
+use crate::{
+    config::types::Config,
+    error::{WhError, WhResult},
+};
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::{
     broadcast,
@@ -502,6 +505,9 @@ impl NetworkInterface {
         }
     }
 
+    pub fn send_config(&self, to: Address) {
+        
+    }
     pub fn register_new_node(&self, socket: Address, addr: Address) {
         self.edit_peer_ip(socket, addr);
     }
@@ -549,10 +555,15 @@ impl NetworkInterface {
                             format!("WhError: {err}"),
                         ))
                     }),
+                MessageContent::PullFileConfig(global_config) => {
+                    global_config.write(fs_interface.network_interface.mount_point.join(".global_config.toml").inner).
+                        map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to modify global config: {}", e)))
+                },
                 MessageContent::FsAnswer(_, _) => {
                     Err(io::Error::new(ErrorKind::InvalidInput,
                         "Late answer from first connection, loaded network interface shouldn't recieve FsAnswer"))
                 }
+                MessageContent::RequestFileConfig => { todo!() }
             };
             if let Err(error) = action_result {
                 log::error!("Network airport couldn't operate this operation: {error}");

@@ -9,6 +9,7 @@ use tokio::task::JoinHandle;
 #[cfg(target_os = "windows")]
 use winfsp::host::FileSystemHost;
 
+use crate::config::types::Config;
 #[cfg(target_os = "linux")]
 use crate::fuse::fuse_impl::mount_fuse;
 use crate::network::message::{FileSystemSerialized, FromNetworkMessage, MessageContent};
@@ -47,6 +48,7 @@ pub struct Pod {
 }
 
 pub async fn initiate_connection(
+    mount_point: WhPath,
     peers_addrs: Vec<Address>,
     server_address: Address,
     tx: &UnboundedSender<FromNetworkMessage>,
@@ -64,6 +66,15 @@ pub async fn initiate_connection(
                     );
                     continue;
                 }
+                if let Err(err) = ipc.sender.send(MessageContent::RequestFileConfig) {
+                    info!(
+                        "Connection with {first_contact} failed on file config request: {err}.\n
+                        Trying with next know address"
+                    );
+                    continue;
+                }
+                let mut fs_answer: Option<(FileSystemSerialized, Vec<Address>)> = None;
+                let mut pull_file_config_received = false;
 
                 loop {
                     match rx.recv().await {
@@ -75,7 +86,25 @@ pub async fn initiate_connection(
                             peers_address.retain(|address| {
                                 *address != server_address && *address != first_contact
                             });
-                            return Some((fs, peers_address, ipc));
+                            fs_answer = Some((fs.clone(), peers_address.clone()));
+                            if pull_file_config_received {
+                                return Some((fs, peers_address, ipc));
+                            }
+                        }
+                        Some(FromNetworkMessage {
+                            origin: _,
+                            content: MessageContent::PullFileConfig(global_config),
+                        }) => {
+                            if let Err(err) =
+                                global_config.write(mount_point.join(".global_config.toml").inner)
+                            {
+                                info!("Failed to write global config: {err}");
+                                continue;
+                            };
+                            pull_file_config_received = true;
+                            if let Some((fs, peers_address)) = fs_answer {
+                                return Some((fs, peers_address, ipc));
+                            }
                         }
                         Some(_) => {
                             info!(
@@ -130,6 +159,7 @@ impl Pod {
         let mut peers = vec![];
 
         if let Some((fs_serialized, peers_addrs, ipc)) = initiate_connection(
+            mount_point.clone(),
             know_peers,
             server_address.clone(),
             &from_network_message_tx,

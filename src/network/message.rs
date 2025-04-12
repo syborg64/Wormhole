@@ -1,7 +1,10 @@
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-use crate::pods::arbo::{ArboIndex, Inode, InodeId, Metadata};
+use crate::{
+    config::GlobalConfig,
+    pods::arbo::{ArboIndex, Inode, InodeId, Metadata},
+};
 
 /// Message Content
 /// Represent the content of the intern message but is also the struct sent
@@ -20,8 +23,8 @@ pub enum MessageContent {
     RemoveXAttr(InodeId, String),
     RequestFs,
     FsAnswer(FileSystemSerialized, Vec<Address>),
-    // RequestFileConfig,
-    // PullFileConfig(Vec<u8>),
+    RequestFileConfig,
+    PullFileConfig(GlobalConfig),
 }
 
 pub type Address = String;
