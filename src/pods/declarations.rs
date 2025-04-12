@@ -1,3 +1,4 @@
+use std::ops::Deref;
 use std::{io, sync::Arc};
 
 #[cfg(target_os = "linux")]
@@ -13,6 +14,9 @@ use crate::config::types::Config;
 #[cfg(target_os = "linux")]
 use crate::fuse::fuse_impl::mount_fuse;
 use crate::network::message::{FileSystemSerialized, FromNetworkMessage, MessageContent};
+use crate::network::peer_ipc;
+use crate::pods::arbo::GLOBAL_CONFIG_INO;
+use crate::pods::interface::fs_interface;
 #[cfg(target_os = "windows")]
 use crate::winfsp::winfsp_impl::mount_fsp;
 
@@ -48,7 +52,6 @@ pub struct Pod {
 }
 
 pub async fn initiate_connection(
-    mount_point: WhPath,
     peers_addrs: Vec<Address>,
     server_address: Address,
     tx: &UnboundedSender<FromNetworkMessage>,
@@ -66,15 +69,6 @@ pub async fn initiate_connection(
                     );
                     continue;
                 }
-                if let Err(err) = ipc.sender.send(MessageContent::RequestFileConfig) {
-                    info!(
-                        "Connection with {first_contact} failed on file config request: {err}.\n
-                        Trying with next know address"
-                    );
-                    continue;
-                }
-                let mut fs_answer: Option<(FileSystemSerialized, Vec<Address>)> = None;
-                let mut pull_file_config_received = false;
 
                 loop {
                     match rx.recv().await {
@@ -86,25 +80,7 @@ pub async fn initiate_connection(
                             peers_address.retain(|address| {
                                 *address != server_address && *address != first_contact
                             });
-                            fs_answer = Some((fs.clone(), peers_address.clone()));
-                            if pull_file_config_received {
-                                return Some((fs, peers_address, ipc));
-                            }
-                        }
-                        Some(FromNetworkMessage {
-                            origin: _,
-                            content: MessageContent::PullFileConfig(global_config),
-                        }) => {
-                            if let Err(err) =
-                                global_config.write(mount_point.join(".global_config.toml").inner)
-                            {
-                                info!("Failed to write global config: {err}");
-                                continue;
-                            };
-                            pull_file_config_received = true;
-                            if let Some((fs, peers_address)) = fs_answer {
-                                return Some((fs, peers_address, ipc));
-                            }
+                            return Some((fs, peers_address, ipc));
                         }
                         Some(_) => {
                             info!(
@@ -121,6 +97,58 @@ pub async fn initiate_connection(
         info!("None of the known address answered correctly, starting a FS.")
     }
     None
+}
+
+pub async fn pull_config(
+    fs_interface: &Arc<FsInterface>,
+    peers: &Arc<parking_lot::lock_api::RwLock<parking_lot::RawRwLock, Vec<PeerIPC>>>,
+    server_address: &Address,
+    tx: &UnboundedSender<FromNetworkMessage>,
+    rx: &mut UnboundedReceiver<FromNetworkMessage>,
+) {
+    let peers_guards = peers.read();
+    let peers_vec = peers_guards.deref();
+    for first_contact in peers_vec {
+        let first_ipc = PeerIPC::connect(first_contact.address.clone(), tx.clone()).await;
+
+        if let Some(ipc) = first_ipc {
+            if let Err(err) = ipc.sender.send(MessageContent::RequestFile(
+                GLOBAL_CONFIG_INO,
+                server_address.clone(),
+            )) {
+                info!(
+                    "Connection with {0} failed on file config request: {err}.\n
+                    Trying with next know address",
+                    first_contact.address
+                );
+            }
+
+            loop {
+                match rx.recv().await {
+                    Some(FromNetworkMessage {
+                        origin: _,
+                        content: MessageContent::PullAnswer(GLOBAL_CONFIG_INO, global_conf),
+                    }) => {
+                        let _ = fs_interface
+                            .recept_binary(GLOBAL_CONFIG_INO, global_conf.clone())
+                            .map_err(|e| {
+                                info!("Error while pulling global config: {e}");
+                            });
+                        break;
+                    }
+                    Some(_) => {
+                        info!(
+                            "Pull config with {0} failed: His answer is not the config file, corrupted client.\n
+                            Trying with next know address",
+                            first_contact.address
+                        );
+                        continue;
+                    }
+                    None => continue,
+                };
+            }
+        }
+    }
 }
 
 fn register_to_others(peers: &Vec<PeerIPC>, self_address: &Address) -> std::io::Result<()> {
@@ -159,7 +187,6 @@ impl Pod {
         let mut peers = vec![];
 
         if let Some((fs_serialized, peers_addrs, ipc)) = initiate_connection(
-            mount_point.clone(),
             know_peers,
             server_address.clone(),
             &from_network_message_tx,
@@ -191,6 +218,14 @@ impl Pod {
             arbo.clone(),
         ));
 
+        pull_config(
+            &fs_interface,
+            &network_interface.peers,
+            &network_interface.self_addr,
+            &from_network_message_tx,
+            &mut from_network_message_rx,
+        );
+
         // Start ability to recieve messages
         let network_airport_handle = Some(tokio::spawn(NetworkInterface::network_airport(
             from_network_message_rx,
@@ -206,7 +241,7 @@ impl Pod {
         let new_peer_handle = Some(tokio::spawn(
             NetworkInterface::incoming_connections_watchdog(
                 server,
-                from_network_message_tx,
+                from_network_message_tx.clone(),
                 network_interface.peers.clone(),
             ),
         ));

@@ -505,9 +505,6 @@ impl NetworkInterface {
         }
     }
 
-    pub fn send_config(&self, to: Address) {
-        
-    }
     pub fn register_new_node(&self, socket: Address, addr: Address) {
         self.edit_peer_ip(socket, addr);
     }
