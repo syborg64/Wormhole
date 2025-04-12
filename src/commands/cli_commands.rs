@@ -6,7 +6,10 @@ pub enum PodCommand {
     AddPod(String, Pod),
     JoinPod(String, Pod),
     StartPod(StatusPodArgs),
-    StopPod(StatusPodArgs),
+    StopPod(
+        StatusPodArgs,
+        tokio::sync::oneshot::Sender<Result<String, crate::pods::pod::PodStopError>>,
+    ),
 }
 
 #[derive(Debug, Parser, Serialize, Deserialize)] // requires `derive` feature
