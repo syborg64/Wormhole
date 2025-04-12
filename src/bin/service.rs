@@ -18,27 +18,23 @@ use std::collections::HashMap;
  *  reads a message (supposely emitted by a peer) related to files actions
  *  and execute instructions on the disk
  */
-use std::{env, path::PathBuf, sync::Arc};
+use std::env;
 
 use futures_util::sink::SinkExt;
 use futures_util::StreamExt;
 use log::{error, info};
 use tokio::net::TcpListener;
 use tokio::sync::mpsc;
+use tokio::sync::oneshot::Sender;
 use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::Message;
 #[cfg(target_os = "windows")]
 use winfsp::winfsp_init;
+use wormhole::commands::cli_commands::StatusPodArgs;
 use wormhole::commands::PodCommand;
-use wormhole::config::types::{
-    GeneralGlobalConfig, GeneralLocalConfig, GlobalConfig, LocalConfig, RedundancyConfig,
-};
-use wormhole::pods::whpath::{JoinPath, WhPath};
-use wormhole::{
-    commands::{self, cli_commands::Cli},
-    config,
-};
-use wormhole::{network::server::Server, pods::pod::Pod};
+use wormhole::commands::{self, cli_commands::Cli};
+use wormhole::pods::pod::Pod;
+use wormhole::pods::pod::PodStopError;
 
 async fn handle_cli_command(
     tx: mpsc::UnboundedSender<PodCommand>,
@@ -119,22 +115,13 @@ async fn main() {
                     info!("Starting pod: {:?}", start_args);
                     todo!("Check if pod existe and start it based one his name or path")
                 }
-                PodCommand::StopPod(stop_args) => {
-                    if let Some(name) = stop_args.name {
-                        info!("Stopping pod: {}", name);
-                        if let Some(pod) = pods.get(&name) {
-                            if let Err(e) = pod.stop() {
-                                log::error!("Pod {name} can't stop: {e}");
-                            } else {
-                                info!("Pod {} stopped.", name);
-                                pods.remove(&name);
-                            }
-                        } else {
-                            log::error!("Pod {name} not found. Can't be stopped.")
-                        }
-                    } else {
-                        log::error!("stopping pod without name is not supported.");
-                    }
+                PodCommand::StopPod(StatusPodArgs { name, path: _ }, responder) => {
+                    let _ = responder.send(
+                        name.and_then(|name| pods.get(&name))
+                            .ok_or(PodStopError::PodNotRunning)
+                            .and_then(|pod| pod.stop())
+                            .map(|()| "Pod was stopped.".to_string()),
+                    );
                 }
             }
         }

@@ -107,7 +107,8 @@ fn register_to_others(peers: &Vec<PeerIPC>, self_address: &Address) -> std::io::
 
 custom_error! {pub PodStopError
     WhError{source: WhError} = "{source}",
-    ArboSavingFailed{error_source: String} = @{format!("PodStopError: could not write arbo to disk: {error_source}")}
+    ArboSavingFailed{error_source: String} = @{format!("PodStopError: could not write arbo to disk: {error_source}")},
+    PodNotRunning = "No pod with this name was found running.",
 }
 
 impl Pod {
