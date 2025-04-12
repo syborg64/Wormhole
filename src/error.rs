@@ -3,8 +3,8 @@ use custom_error::custom_error;
 custom_error! {pub WhError
     InodeNotFound = "Entry not found",
     DeadLock = "A DeadLock occured",
-    NetworkDied{called_from: String} = @{format!("{called_from}: Unable to update modification on the network thread")},
-    WouldBlock{called_from: String} = @{format!("{called_from}: Unable to lock arbo")}
+    NetworkDied{called_from: String} = @{format!("{called_from}: Unable to update modification on the network")},
+    WouldBlock{called_from: String} = @{format!("{called_from}: Unable to lock arbo")},
 }
 
 impl WhError {

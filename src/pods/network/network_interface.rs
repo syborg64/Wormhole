@@ -10,17 +10,23 @@ use tokio::sync::{
     mpsc::{UnboundedReceiver, UnboundedSender},
 };
 
-use crate::network::{
-    message::{
-        self, Address, Feedback, FileSystemSerialized, FromNetworkMessage, MessageAndFeedback,
-        MessageContent, ToNetworkMessage,
+use crate::{
+    error::WhError,
+    pods::{
+        arbo::{FsEntry, Metadata},
+        whpath::WhPath,
     },
-    peer_ipc::PeerIPC,
-    server::Server,
 };
-use crate::pods::{
-    arbo::{FsEntry, Metadata},
-    whpath::WhPath,
+use crate::{
+    error::WhResult,
+    network::{
+        message::{
+            self, Address, FileSystemSerialized, FromNetworkMessage, MessageAndFeedback,
+            MessageContent, ToNetworkMessage,
+        },
+        peer_ipc::PeerIPC,
+        server::Server,
+    },
 };
 
 use crate::pods::{
@@ -329,7 +335,7 @@ impl NetworkInterface {
             Ok(None)
         } else {
             let callback = self.callbacks.create(Callback::Pull(file))?;
-            let (feedback_tx, mut feedback_rx) = tokio::sync::mpsc::unbounded_channel::<Feedback>();
+            let (status_tx, mut status_rx) = tokio::sync::mpsc::unbounded_channel::<WhResult<()>>();
 
             // will try to pull on all redundancies until success
             for host in hosts {
@@ -338,20 +344,20 @@ impl NetworkInterface {
                     .send(ToNetworkMessage::SpecificMessage(
                         (
                             MessageContent::RequestFile(file, self.self_addr.clone()),
-                            Some(feedback_tx.clone()),
+                            Some(status_tx.clone()),
                         ),
                         vec![host.clone()], // NOTE - naive choice for now
                     ))
                     .expect("pull_file: unable to request on the network thread");
 
-                // processing feedback
-                match feedback_rx
+                // processing status
+                match status_rx
                     .recv()
                     .await
-                    .expect("pull_file: unable to get feedback from the network thread")
+                    .expect("pull_file: unable to get status from the network thread")
                 {
-                    Feedback::Sent => return Ok(Some(callback)),
-                    Feedback::Error => continue,
+                    Ok(()) => return Ok(Some(callback)),
+                    Err(_) => continue,
                 }
             }
             let _ = self.callbacks.resolve(callback, true);
@@ -384,7 +390,7 @@ impl NetworkInterface {
             Ok(None)
         } else {
             let callback = self.callbacks.create(Callback::Pull(file))?;
-            let (feedback_tx, mut feedback_rx) = tokio::sync::mpsc::unbounded_channel::<Feedback>();
+            let (status_tx, mut status_rx) = tokio::sync::mpsc::unbounded_channel::<WhResult<()>>();
 
             // will try to pull on all redundancies until success
             for host in hosts {
@@ -393,19 +399,19 @@ impl NetworkInterface {
                     .send(ToNetworkMessage::SpecificMessage(
                         (
                             MessageContent::RequestFile(file, self.self_addr.clone()),
-                            Some(feedback_tx.clone()),
+                            Some(status_tx.clone()),
                         ),
                         vec![host.clone()], // NOTE - naive choice for now
                     ))
                     .expect("pull_file: unable to request on the network thread");
 
-                // processing feedback
-                match feedback_rx
+                // processing status
+                match status_rx
                     .blocking_recv()
-                    .expect("pull_file: unable to get feedback from the network thread")
+                    .expect("pull_file: unable to get status from the network thread")
                 {
-                    Feedback::Sent => return Ok(Some(callback)),
-                    Feedback::Error => continue,
+                    Ok(()) => return Ok(Some(callback)),
+                    Err(_) => continue,
                 }
             }
             let _ = self.callbacks.resolve(callback, true);
