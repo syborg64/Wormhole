@@ -10,19 +10,22 @@ use tokio::sync::{
     mpsc::{UnboundedReceiver, UnboundedSender},
 };
 
-use crate::pods::{
-    arbo::{FsEntry, Metadata},
-    whpath::WhPath,
-};
 use crate::{
     error::WhResult,
     network::{
         message::{
-            self, Address, Feedback, FileSystemSerialized, FromNetworkMessage, MessageAndFeedback,
-            MessageContent, ToNetworkMessage,
+            self, Address, FileSystemSerialized, FromNetworkMessage, MessageContent,
+            ToNetworkMessage,
         },
         peer_ipc::PeerIPC,
         server::Server,
+    },
+};
+use crate::{
+    network::message::MessageAndStatus,
+    pods::{
+        arbo::{FsEntry, Metadata},
+        whpath::WhPath,
     },
 };
 
@@ -41,8 +44,6 @@ pub enum Callback {
 pub struct Callbacks {
     callbacks: RwLock<HashMap<Callback, broadcast::Sender<bool>>>,
 }
-
-const REDUNDANCY_NB: usize = 2;
 
 impl Callbacks {
     pub fn create(&self, call: Callback) -> io::Result<Callback> {
@@ -137,6 +138,7 @@ pub struct NetworkInterface {
     pub callbacks: Callbacks,
     pub peers: Arc<RwLock<Vec<PeerIPC>>>,
     pub self_addr: Address,
+    pub redundancy: u64,
 }
 
 impl NetworkInterface {
@@ -147,6 +149,7 @@ impl NetworkInterface {
         next_inode: InodeId,
         peers: Arc<RwLock<Vec<PeerIPC>>>,
         self_addr: Address,
+        redundancy: u64,
     ) -> Self {
         let next_inode = Mutex::new(next_inode);
 
@@ -160,6 +163,7 @@ impl NetworkInterface {
             },
             peers,
             self_addr,
+            redundancy,
         }
     }
 
@@ -310,64 +314,7 @@ impl NetworkInterface {
     }
 
     // REVIEW - recheck and simplify this if possible
-    pub async fn pull_file_non_blocking(&self, file: InodeId) -> io::Result<()> {
-        let hosts = {
-            let arbo = Arbo::read_lock(&self.arbo, "pull_file")?;
-            if let FsEntry::File(hosts) = &arbo.get_inode(file)?.entry {
-                hosts.clone()
-            } else {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "pull_file: can't pull a folder",
-                ));
-            }
-        };
-
-        if hosts.len() == 0 {
-            log::error!("No hosts hold the file");
-            return Err(io::ErrorKind::InvalidData.into());
-        }
-
-        if hosts.contains(&self.self_addr) {
-            // if the asked file is already on disk
-            Ok(())
-        } else {
-            let (feedback_tx, mut feedback_rx) = tokio::sync::mpsc::unbounded_channel::<Feedback>();
-            let mut pull_from = 0;
-
-            // will try to pull on all redundancies untill success
-            loop {
-                // if no more hosts to try - fail
-                if pull_from >= hosts.len() {
-                    return Err(io::ErrorKind::NotConnected.into());
-                }
-
-                // trying on host `pull_from`
-                self.to_network_message_tx
-                    .send(ToNetworkMessage::SpecificMessage(
-                        (
-                            MessageContent::RequestFile(file, self.self_addr.clone()),
-                            Some(feedback_tx.clone()),
-                        ),
-                        vec![hosts[pull_from].clone()], // NOTE - naive choice for now
-                    ))
-                    .expect("pull_file: unable to request on the network thread");
-
-                // processing feedback
-                match feedback_rx
-                    .recv()
-                    .await
-                    .expect("pull_file: unable to get feedback from the network thread")
-                {
-                    Feedback::Sent => return Ok(()),
-                    Feedback::Error => pull_from += 1,
-                }
-            }
-        }
-    }
-
-    // REVIEW - recheck and simplify this if possible
-    pub fn pull_file_blocking(&self, file: InodeId) -> io::Result<Option<Callback>> {
+    pub async fn pull_file_async(&self, file: InodeId) -> io::Result<Option<Callback>> {
         let hosts = {
             let arbo = Arbo::read_lock(&self.arbo, "pull_file")?;
             if let FsEntry::File(hosts) = &arbo.get_inode(file)?.entry {
@@ -390,37 +337,88 @@ impl NetworkInterface {
             Ok(None)
         } else {
             let callback = self.callbacks.create(Callback::Pull(file))?;
-            let (feedback_tx, mut feedback_rx) = tokio::sync::mpsc::unbounded_channel::<Feedback>();
-            let mut pull_from = 0;
+            let (status_tx, mut status_rx) = tokio::sync::mpsc::unbounded_channel::<WhResult<()>>();
 
-            // will try to pull on all redundancies untill success
-            loop {
-                // if no more hosts to try - fail
-                if pull_from >= hosts.len() {
-                    let _ = self.callbacks.resolve(callback, true);
-                    return Err(io::ErrorKind::NotConnected.into());
-                }
-
+            // will try to pull on all redundancies until success
+            for host in hosts {
                 // trying on host `pull_from`
                 self.to_network_message_tx
                     .send(ToNetworkMessage::SpecificMessage(
                         (
                             MessageContent::RequestFile(file, self.self_addr.clone()),
-                            Some(feedback_tx.clone()),
+                            Some(status_tx.clone()),
                         ),
-                        vec![hosts[pull_from].clone()], // NOTE - naive choice for now
+                        vec![host.clone()], // NOTE - naive choice for now
                     ))
                     .expect("pull_file: unable to request on the network thread");
 
-                // processing feedback
-                match feedback_rx
-                    .blocking_recv()
-                    .expect("pull_file: unable to get feedback from the network thread")
+                // processing status
+                match status_rx
+                    .recv()
+                    .await
+                    .expect("pull_file: unable to get status from the network thread")
                 {
-                    Feedback::Sent => return Ok(Some(callback)),
-                    Feedback::Error => pull_from += 1,
+                    Ok(()) => return Ok(Some(callback)),
+                    Err(_) => continue,
                 }
             }
+            let _ = self.callbacks.resolve(callback, true);
+            log::error!("No host is currently able to send the file\nFile: {file}");
+            return Err(io::ErrorKind::NotConnected.into());
+        }
+    }
+
+    // REVIEW - recheck and simplify this if possible
+    pub fn pull_file_sync(&self, file: InodeId) -> io::Result<Option<Callback>> {
+        let hosts = {
+            let arbo = Arbo::read_lock(&self.arbo, "pull_file")?;
+            if let FsEntry::File(hosts) = &arbo.get_inode(file)?.entry {
+                hosts.clone()
+            } else {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "pull_file: can't pull a folder",
+                ));
+            }
+        };
+
+        if hosts.len() == 0 {
+            log::error!("No hosts hold the file");
+            return Err(io::ErrorKind::InvalidData.into());
+        }
+
+        if hosts.contains(&self.self_addr) {
+            // if the asked file is already on disk
+            Ok(None)
+        } else {
+            let callback = self.callbacks.create(Callback::Pull(file))?;
+            let (status_tx, mut status_rx) = tokio::sync::mpsc::unbounded_channel::<WhResult<()>>();
+
+            // will try to pull on all redundancies until success
+            for host in hosts {
+                // trying on host `pull_from`
+                self.to_network_message_tx
+                    .send(ToNetworkMessage::SpecificMessage(
+                        (
+                            MessageContent::RequestFile(file, self.self_addr.clone()),
+                            Some(status_tx.clone()),
+                        ),
+                        vec![host.clone()], // NOTE - naive choice for now
+                    ))
+                    .expect("pull_file: unable to request on the network thread");
+
+                // processing status
+                match status_rx
+                    .blocking_recv()
+                    .expect("pull_file: unable to get status from the network thread")
+                {
+                    Ok(()) => return Ok(Some(callback)),
+                    Err(_) => continue,
+                }
+            }
+            let _ = self.callbacks.resolve(callback, true);
+            log::error!("No host is currently able to send the file\nFile: {file}");
+            return Err(io::ErrorKind::NotConnected.into());
         }
     }
 
@@ -473,15 +471,11 @@ impl NetworkInterface {
     /// * `id` - InodeId
     /// * `new_hosts` - Vec<Address> hosts to add
     pub fn declare_new_host(&self, id: InodeId, new_hosts: Vec<Address>) -> io::Result<()> {
-        let inode = Arbo::read_lock(&self.arbo, "declare_new_host")?
-            .get_inode(id)?
-            .clone();
-
         Arbo::write_lock(&self.arbo, "declare_new_host")?.add_inode_hosts(id, new_hosts.clone())?;
 
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::AddHosts(inode.id, new_hosts),
+                MessageContent::AddHosts(id, new_hosts),
             ))
             .expect("update_remote_hosts: unable to update modification on the network thread");
         Ok(())
@@ -501,16 +495,12 @@ impl NetworkInterface {
     /// * `id` - InodeId
     /// * `remove_hosts` - Vec<Address> hosts to add
     pub fn declare_host_removal(&self, id: InodeId, remove_hosts: Vec<Address>) -> io::Result<()> {
-        let inode = Arbo::read_lock(&self.arbo, "declare_host_removal")?
-            .get_inode(id)?
-            .clone();
-
         Arbo::write_lock(&self.arbo, "declare_host_removal")?
             .remove_inode_hosts(id, remove_hosts.clone())?;
 
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::RemoveHosts(inode.id, remove_hosts),
+                MessageContent::RemoveHosts(id, remove_hosts),
             ))
             .expect("update_remote_hosts: unable to update modification on the network thread");
         Ok(())
@@ -542,23 +532,22 @@ impl NetworkInterface {
     // SECTION Redundancy related
 
     fn add_redundancy(&self, file_id: InodeId, current_hosts: Vec<Address>) -> io::Result<()> {
-        let possible_hosts: Vec<Address> =
-            if let Some(peers) = self.peers.try_read_for(LOCK_TIMEOUT) {
-                peers
-                    .iter()
-                    .map(|peer| peer.address.clone())
-                    .filter(|addr| !current_hosts.contains(addr))
-                    .take(REDUNDANCY_NB - current_hosts.len())
-                    .collect::<Vec<Address>>()
-            } else {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    "apply_redundancy: can't lock peers mutex",
-                ));
-            };
+        let possible_hosts: Vec<Address> = self
+            .peers
+            .try_read_for(LOCK_TIMEOUT)
+            .ok_or(io::Error::new(
+                io::ErrorKind::Other,
+                "apply_redundancy: can't lock peers mutex",
+            ))?
+            .iter()
+            .map(|peer| peer.address.clone())
+            .filter(|addr| !current_hosts.contains(addr))
+            .take(self.redundancy as usize - current_hosts.len())
+            .collect::<Vec<Address>>();
 
-        if (current_hosts.len() + possible_hosts.len()) < REDUNDANCY_NB {
-            todo!("redundancy needs enough hosts")
+        if (current_hosts.len() + possible_hosts.len()) < self.redundancy as usize {
+            log::warn!("redundancy needs enough hosts");
+            return Ok(()); // TODO - should be handled (is not ok)
         }
 
         self.to_network_message_tx
@@ -575,7 +564,7 @@ impl NetworkInterface {
         let discard_hosts: Vec<String> = current_hosts
             .into_iter()
             .filter(|addr| *addr != self.self_addr)
-            .take(hosts_nb - REDUNDANCY_NB)
+            .take(hosts_nb - self.redundancy as usize)
             .collect();
 
         // NOTE - removing hosts also remove their file on disk upon reception
@@ -601,9 +590,9 @@ impl NetworkInterface {
             }
         };
 
-        if current_hosts.len() < REDUNDANCY_NB {
+        if current_hosts.len() < self.redundancy as usize {
             self.add_redundancy(file_id, current_hosts)
-        } else if current_hosts.len() > REDUNDANCY_NB {
+        } else if current_hosts.len() > self.redundancy as usize {
             self.remove_redundancy(file_id, current_hosts)
         } else {
             Ok(())
@@ -719,7 +708,7 @@ impl NetworkInterface {
                 MessageContent::Rename(parent, new_parent, name, new_name) => {
                     fs_interface.accept_rename(parent, new_parent, &name, &new_name)
                 }
-                MessageContent::RequestPull(id) => fs_interface.pull_file_non_blocking(id).await,
+                MessageContent::RequestPull(id) => fs_interface.pull_file_async(id).await,
                 MessageContent::SetXAttr(ino, key, data) => fs_interface
                     .network_interface
                     .recept_inode_xattr(ino, key, data)
@@ -755,7 +744,7 @@ impl NetworkInterface {
     ) {
         while let Some(message) = rx.recv().await {
             // geeting all peers network senders
-            let peers_tx: Vec<(UnboundedSender<MessageAndFeedback>, String)> = peers_list
+            let peers_tx: Vec<(UnboundedSender<MessageAndStatus>, String)> = peers_list
                 .try_read_for(LOCK_TIMEOUT)
                 .expect("mutext error on contact_peers") // TODO - handle timeout
                 .iter()
@@ -780,13 +769,13 @@ impl NetworkInterface {
                             .expect(&format!("failed to send message to peer {}", address))
                     });
                 }
-                ToNetworkMessage::SpecificMessage((message_content, feedback), origins) => {
+                ToNetworkMessage::SpecificMessage((message_content, status_tx), origins) => {
                     peers_tx
                         .iter()
                         .filter(|&(_, address)| origins.contains(address))
                         .for_each(|(channel, address)| {
                             channel
-                                .send((message_content.clone(), feedback.clone()))
+                                .send((message_content.clone(), status_tx.clone()))
                                 .expect(&format!("failed to send message to peer {}", address))
                         });
                 }

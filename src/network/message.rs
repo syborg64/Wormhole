@@ -1,8 +1,13 @@
+use std::{fmt::Debug, sync::mpsc::SendError};
+
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::pods::arbo::{ArboIndex, Inode, InodeId, Metadata};
+use crate::{
+    error::WhResult,
+    pods::arbo::{ArboIndex, Inode, InodeId, Metadata},
+};
 
 /// Message Content
 /// Represent the content of the intern message but is also the struct sent
@@ -26,7 +31,7 @@ pub enum MessageContent {
     FsAnswer(FileSystemSerialized, Vec<Address>),
 }
 
-pub type MessageAndFeedback = (MessageContent, Option<UnboundedSender<Feedback>>);
+pub type MessageAndStatus = (MessageContent, Option<UnboundedSender<WhResult<()>>>);
 
 pub type Address = String;
 
@@ -38,18 +43,12 @@ pub struct FromNetworkMessage {
     pub content: MessageContent,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub enum Feedback {
-    Sent,
-    Error,
-}
-
 /// Message Going To Network
 /// Messages sent from fuser to process communicating to the peers
 #[derive(Debug)]
 pub enum ToNetworkMessage {
     BroadcastMessage(MessageContent),
-    SpecificMessage(MessageAndFeedback, Vec<Address>),
+    SpecificMessage(MessageAndStatus, Vec<Address>),
 }
 
 #[serde_as]

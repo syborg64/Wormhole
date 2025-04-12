@@ -48,7 +48,7 @@ pub struct GeneralLocalConfig {
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct GlobalConfig {
     pub general: GeneralGlobalConfig,
-    pub redundancy: Option<RedundancyConfig>,
+    pub redundancy: RedundancyConfig,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
