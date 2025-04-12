@@ -1,26 +1,25 @@
 FROM rust:1.78.0-buster AS builder
-# Installation des dépendances système
+
+# Installer les dépendances système
 RUN apt update && apt install -y \
     pkg-config \
     libfuse3-dev && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/wormhole
-COPY --chown=root:root . .
-RUN cargo build
+COPY . .
 
-# Création de l'utilisateur et configuration du répertoire
-RUN useradd -m user && \
-    groupadd -r fuse && \
-    usermod -a -G fuse user && \
-    mkdir -p /usr/src/wormhole/virtual && \
-    chown -R user:fuse /usr/src/wormhole/virtual && \
+# Construire les deux binaires
+RUN cargo build --bin wormhole-service && \
+    cargo build --bin wormhole-cli
+
+# Créer le répertoire utilisé par l'app (avec les bons droits)
+RUN mkdir -p /usr/src/wormhole/virtual && \
     chmod -R 775 /usr/src/wormhole/virtual
 
-USER user
-
 FROM debian:bullseye-slim
-# Installation minimale des dépendances
+
+# Dépendances minimales
 RUN apt-get update --no-install-recommends && \
     apt-get install -y --no-install-suggests fuse3 netcat-openbsd && \
     rm -rf /var/lib/apt/lists/*
@@ -29,13 +28,13 @@ RUN apt-get update --no-install-recommends && \
 RUN echo 'user_allow_other' | tee -a /etc/fuse.conf
 
 WORKDIR /usr/src/wormhole
-RUN useradd -m user && \
-    groupadd -r fuse && \
-    usermod -a -G fuse user && \
-    mkdir -p /usr/src/wormhole/virtual && \
-    chown -R user:fuse /usr/src/wormhole/virtual && \
+
+# Créer le dossier utilisé par l'app
+RUN mkdir -p /usr/src/wormhole/virtual && \
     chmod -R 775 /usr/src/wormhole/virtual
 
-USER user
-COPY --from=builder --chown=user:user /usr/src/wormhole/target/debug/wormhole-service .
-RUN ls -la /usr/src/wormhole
+# Copier les deux binaires depuis le builder
+COPY --from=builder /usr/src/wormhole/target/debug/wormhole-service .
+COPY --from=builder /usr/src/wormhole/target/debug/wormhole-cli .
+
+# Lancer avec root (pas besoin de USER)
