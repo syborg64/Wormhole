@@ -1,9 +1,7 @@
 use std::{ffi::CString, fs::File, io::Read, os::unix::fs::FileExt};
 
-use openat::{AsPath, Dir, Entry};
+use openat::{AsPath, Dir};
 use tokio::io;
-
-use crate::pods::whpath::JoinPath;
 
 use super::whpath::WhPath;
 
@@ -23,6 +21,14 @@ pub struct DiskManager {
 /// always takes a WhPath and infers the real disk path
 impl DiskManager {
     pub fn new(mount_point: WhPath) -> io::Result<Self> {
+        // /!\
+        // /!\
+
+        unsafe { libc::umask(0o000) }; //TODO: Remove when handling permissions
+
+        // /!\
+        // /!\
+
         Ok(Self {
             handle: Dir::open(mount_point.clone())?,
             mount_point,
@@ -109,6 +115,7 @@ impl DiskManager {
     #[must_use]
     pub fn n_new_dir(&self, path: WhPath, permissions: u16) -> io::Result<()> {
         self.handle
-            .create_dir(path.set_relative(), permissions as libc::mode_t) // TODO look more in c mode_t value
+            .create_dir(path.set_relative(), permissions as libc::mode_t)
+        // TODO look more in c mode_t value
     }
 }
