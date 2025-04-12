@@ -31,7 +31,7 @@ pub enum MessageContent {
     FsAnswer(FileSystemSerialized, Vec<Address>),
 }
 
-pub type MessageAndFeedback = (MessageContent, Option<UnboundedSender<WhResult<()>>>);
+pub type MessageAndStatus = (MessageContent, Option<UnboundedSender<WhResult<()>>>);
 
 pub type Address = String;
 
@@ -48,7 +48,7 @@ pub struct FromNetworkMessage {
 #[derive(Debug)]
 pub enum ToNetworkMessage {
     BroadcastMessage(MessageContent),
-    SpecificMessage(MessageAndFeedback, Vec<Address>),
+    SpecificMessage(MessageAndStatus, Vec<Address>),
 }
 
 #[serde_as]

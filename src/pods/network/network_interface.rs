@@ -21,7 +21,7 @@ use crate::{
     error::WhResult,
     network::{
         message::{
-            self, Address, FileSystemSerialized, FromNetworkMessage, MessageAndFeedback,
+            self, Address, FileSystemSerialized, FromNetworkMessage, MessageAndStatus,
             MessageContent, ToNetworkMessage,
         },
         peer_ipc::PeerIPC,
@@ -742,7 +742,7 @@ impl NetworkInterface {
     ) {
         while let Some(message) = rx.recv().await {
             // geeting all peers network senders
-            let peers_tx: Vec<(UnboundedSender<MessageAndFeedback>, String)> = peers_list
+            let peers_tx: Vec<(UnboundedSender<MessageAndStatus>, String)> = peers_list
                 .try_read_for(LOCK_TIMEOUT)
                 .expect("mutext error on contact_peers") // TODO - handle timeout
                 .iter()
@@ -767,13 +767,13 @@ impl NetworkInterface {
                             .expect(&format!("failed to send message to peer {}", address))
                     });
                 }
-                ToNetworkMessage::SpecificMessage((message_content, feedback), origins) => {
+                ToNetworkMessage::SpecificMessage((message_content, status_tx), origins) => {
                     peers_tx
                         .iter()
                         .filter(|&(_, address)| origins.contains(address))
                         .for_each(|(channel, address)| {
                             channel
-                                .send((message_content.clone(), feedback.clone()))
+                                .send((message_content.clone(), status_tx.clone()))
                                 .expect(&format!("failed to send message to peer {}", address))
                         });
                 }

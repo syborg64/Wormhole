@@ -7,11 +7,11 @@ use tokio_tungstenite::tungstenite::Message;
 use crate::error::WhError;
 use crate::network::message::MessageContent;
 
-use super::message::{FromNetworkMessage, MessageAndFeedback};
+use super::message::{FromNetworkMessage, MessageAndStatus};
 
 pub async fn forward_receiver_to_write<T>(
     mut write: T,
-    rx: &mut UnboundedReceiver<MessageAndFeedback>,
+    rx: &mut UnboundedReceiver<MessageAndStatus>,
 ) where
     T: Sink<Message> + Unpin,
     <T as Sink<Message>>::Error: Debug,
@@ -21,7 +21,7 @@ pub async fn forward_receiver_to_write<T>(
         let sent = write.send(Message::binary(serialized)).await;
 
         status_tx.inspect(|tx| {
-            tx.send(sent.map_err(|_| WhError::NetworkDied {
+            let _ = tx.send(sent.map_err(|_| WhError::NetworkDied {
                 called_from: "forward_receiver_to_write".to_string(),
             }));
         });
