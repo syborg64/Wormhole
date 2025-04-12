@@ -200,12 +200,15 @@ impl FsInterface {
     }
 
     // NOTE - ignores the callback. To pull a file normaly, please use a process similar to read_file
-    pub async fn pull_file_non_blocking(&self, file: InodeId) -> io::Result<()> {
-        self.network_interface.pull_file_non_blocking(file).await
+    pub async fn pull_file_async(&self, file: InodeId) -> io::Result<()> {
+        self.network_interface
+            .pull_file_async(file)
+            .await
+            .map(|_| ())
     }
 
     pub fn read_file(&self, file: InodeId, offset: u64, len: u64) -> io::Result<Vec<u8>> {
-        let cb = self.network_interface.pull_file_blocking(file)?;
+        let cb = self.network_interface.pull_file_sync(file)?;
 
         let status = match cb {
             None => true,

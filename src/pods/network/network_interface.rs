@@ -306,59 +306,7 @@ impl NetworkInterface {
     }
 
     // REVIEW - recheck and simplify this if possible
-    pub async fn pull_file_non_blocking(&self, file: InodeId) -> io::Result<()> {
-        let hosts = {
-            let arbo = Arbo::read_lock(&self.arbo, "pull_file")?;
-            if let FsEntry::File(hosts) = &arbo.get_inode(file)?.entry {
-                hosts.clone()
-            } else {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "pull_file: can't pull a folder",
-                ));
-            }
-        };
-
-        if hosts.len() == 0 {
-            log::error!("No hosts hold the file");
-            return Err(io::ErrorKind::InvalidData.into());
-        }
-
-        if hosts.contains(&self.self_addr) {
-            // if the asked file is already on disk
-            Ok(())
-        } else {
-            let (feedback_tx, mut feedback_rx) = tokio::sync::mpsc::unbounded_channel::<Feedback>();
-
-            // will try to pull on all redundancies until success
-            for host in hosts {
-                // trying on host `pull_from`
-                self.to_network_message_tx
-                    .send(ToNetworkMessage::SpecificMessage(
-                        (
-                            MessageContent::RequestFile(file, self.self_addr.clone()),
-                            Some(feedback_tx.clone()),
-                        ),
-                        vec![host.clone()], // NOTE - naive choice for now
-                    ))
-                    .expect("pull_file: unable to request on the network thread");
-
-                // processing feedback
-                match feedback_rx
-                    .recv()
-                    .await
-                    .expect("pull_file: unable to get feedback from the network thread")
-                {
-                    Feedback::Sent => return Ok(()),
-                    Feedback::Error => continue,
-                }
-            }
-            return Err(io::ErrorKind::NotConnected.into());
-        }
-    }
-
-    // REVIEW - recheck and simplify this if possible
-    pub fn pull_file_blocking(&self, file: InodeId) -> io::Result<Option<Callback>> {
+    pub async fn pull_file_async(&self, file: InodeId) -> io::Result<Option<Callback>> {
         let hosts = {
             let arbo = Arbo::read_lock(&self.arbo, "pull_file")?;
             if let FsEntry::File(hosts) = &arbo.get_inode(file)?.entry {
@@ -382,16 +330,9 @@ impl NetworkInterface {
         } else {
             let callback = self.callbacks.create(Callback::Pull(file))?;
             let (feedback_tx, mut feedback_rx) = tokio::sync::mpsc::unbounded_channel::<Feedback>();
-            let mut pull_from = 0;
 
             // will try to pull on all redundancies until success
-            loop {
-                // if no more hosts to try - fail
-                if pull_from >= hosts.len() {
-                    let _ = self.callbacks.resolve(callback, true);
-                    return Err(io::ErrorKind::NotConnected.into());
-                }
-
+            for host in hosts {
                 // trying on host `pull_from`
                 self.to_network_message_tx
                     .send(ToNetworkMessage::SpecificMessage(
@@ -399,7 +340,62 @@ impl NetworkInterface {
                             MessageContent::RequestFile(file, self.self_addr.clone()),
                             Some(feedback_tx.clone()),
                         ),
-                        vec![hosts[pull_from].clone()], // NOTE - naive choice for now
+                        vec![host.clone()], // NOTE - naive choice for now
+                    ))
+                    .expect("pull_file: unable to request on the network thread");
+
+                // processing feedback
+                match feedback_rx
+                    .recv()
+                    .await
+                    .expect("pull_file: unable to get feedback from the network thread")
+                {
+                    Feedback::Sent => return Ok(Some(callback)),
+                    Feedback::Error => continue,
+                }
+            }
+            let _ = self.callbacks.resolve(callback, true);
+            log::error!("No host is currently able to send the file\nFile: {file}");
+            return Err(io::ErrorKind::NotConnected.into());
+        }
+    }
+
+    // REVIEW - recheck and simplify this if possible
+    pub fn pull_file_sync(&self, file: InodeId) -> io::Result<Option<Callback>> {
+        let hosts = {
+            let arbo = Arbo::read_lock(&self.arbo, "pull_file")?;
+            if let FsEntry::File(hosts) = &arbo.get_inode(file)?.entry {
+                hosts.clone()
+            } else {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "pull_file: can't pull a folder",
+                ));
+            }
+        };
+
+        if hosts.len() == 0 {
+            log::error!("No hosts hold the file");
+            return Err(io::ErrorKind::InvalidData.into());
+        }
+
+        if hosts.contains(&self.self_addr) {
+            // if the asked file is already on disk
+            Ok(None)
+        } else {
+            let callback = self.callbacks.create(Callback::Pull(file))?;
+            let (feedback_tx, mut feedback_rx) = tokio::sync::mpsc::unbounded_channel::<Feedback>();
+
+            // will try to pull on all redundancies until success
+            for host in hosts {
+                // trying on host `pull_from`
+                self.to_network_message_tx
+                    .send(ToNetworkMessage::SpecificMessage(
+                        (
+                            MessageContent::RequestFile(file, self.self_addr.clone()),
+                            Some(feedback_tx.clone()),
+                        ),
+                        vec![host.clone()], // NOTE - naive choice for now
                     ))
                     .expect("pull_file: unable to request on the network thread");
 
@@ -409,9 +405,12 @@ impl NetworkInterface {
                     .expect("pull_file: unable to get feedback from the network thread")
                 {
                     Feedback::Sent => return Ok(Some(callback)),
-                    Feedback::Error => pull_from += 1,
+                    Feedback::Error => continue,
                 }
             }
+            let _ = self.callbacks.resolve(callback, true);
+            log::error!("No host is currently able to send the file\nFile: {file}");
+            return Err(io::ErrorKind::NotConnected.into());
         }
     }
 
@@ -701,7 +700,7 @@ impl NetworkInterface {
                 MessageContent::Rename(parent, new_parent, name, new_name) => {
                     fs_interface.accept_rename(parent, new_parent, &name, &new_name)
                 }
-                MessageContent::RequestPull(id) => fs_interface.pull_file_non_blocking(id).await,
+                MessageContent::RequestPull(id) => fs_interface.pull_file_async(id).await,
                 MessageContent::SetXAttr(ino, key, data) => fs_interface
                     .network_interface
                     .recept_inode_xattr(ino, key, data)
