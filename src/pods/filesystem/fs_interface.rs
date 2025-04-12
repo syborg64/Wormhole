@@ -1,4 +1,3 @@
-use crate::error::WhResult;
 use crate::network::message::Address;
 use crate::pods::arbo::{Arbo, FsEntry, Inode, InodeId, Metadata, LOCK_TIMEOUT};
 use crate::pods::disk_manager::DiskManager;
@@ -11,7 +10,6 @@ use std::io;
 use std::sync::Arc;
 
 use super::make_inode::MakeInode;
-use super::remove_inode::RemoveFile;
 
 pub struct FsInterface {
     pub network_interface: Arc<NetworkInterface>,
