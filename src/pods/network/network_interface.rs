@@ -243,28 +243,12 @@ impl NetworkInterface {
         Ok(new_inode_id)
     }
 
-    /// Add the requested [Inode] to the [Arbo]
-    /// The [FsEntry] must fill the hosts preemptively
-    pub fn n_add_inode(&self, inode: Inode) -> Result<(), MakeInode> {
-        let mut arbo = Arbo::n_write_lock(&self.arbo, "add_inode")?;
-
-        arbo.n_add_inode(inode.clone())?;
-        Ok(())
-    }
-
-    /// Remove locally the requested [Inode] from the [Arbo]
-    /// He must have no children
-    pub fn n_remove_inode_from_arbo(&self, id: InodeId) -> Result<Inode, RemoveInode> {
-        log::debug!("a");
-        let mut arbo = Arbo::n_write_lock(&self.arbo, "remove_inode")?;
-        log::debug!("b");
-
-        arbo.n_remove_inode(id)
-    }
-
-    /// Inform the network of a new inode creation
-    pub fn n_register_new_file(&self, inode: Inode) {
+    #[must_use]
+    /// Add the requested entry to the arbo and inform the network
+    pub fn n_register_new_file(&self, inode: Inode) -> Result<(), MakeInode> {
         let inode_id = inode.id.clone();
+        let mut arbo = Arbo::n_write_lock(&self.arbo, "register_new_file")?;
+        arbo.n_add_inode(inode.clone())?;
 
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
@@ -272,6 +256,7 @@ impl NetworkInterface {
             ))
             .expect("mkfile: unable to update modification on the network thread");
         // TODO - if unable to update for some reason, should be passed to the background worker
+        Ok(())
     }
 
     //REVIEW register new file if we dont like the register new file split
@@ -377,10 +362,12 @@ impl NetworkInterface {
         Ok(removed_inode)
     }
 
+    #[must_use]
     /// Inform the network of the removal of an [Inode]
-    pub fn n_unregister_file(&self, id: InodeId) {
-        //REVIEW The content of unregister file as been moved to fs_interface
-        // just for the sake of consistency with the register_file changes wich seems important
+    pub fn n_unregister_file(&self, id: InodeId) -> Result<(), RemoveInode> {
+        let mut arbo = Arbo::n_write_lock(&self.arbo, "register_new_file")?;
+        arbo.n_remove_inode(id)?;
+
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
                 message::MessageContent::Remove(id),
@@ -388,6 +375,7 @@ impl NetworkInterface {
             .expect("mkfile: unable to update modification on the network thread");
 
         // TODO - if unable to update for some reason, should be passed to the background worker
+        Ok(())
     }
 
     pub fn acknowledge_unregister_file(&self, id: InodeId) -> io::Result<Inode> {
@@ -600,7 +588,7 @@ impl NetworkInterface {
             };
             // log::debug!("message from {} : {:?}", origin, content);
 
-            let action_result = match content {
+            let action_result = match content.clone() { // remove scary clone
                 MessageContent::PullAnswer(id, binary) => fs_interface.recept_binary(id, binary),
                 MessageContent::Inode(inode, id) => fs_interface.n_recept_inode(inode, id).or_else(|err| {
                         Err(std::io::Error::new(
@@ -643,7 +631,9 @@ impl NetworkInterface {
                 }
             };
             if let Err(error) = action_result {
-                log::error!("Network airport couldn't operate this operation: {error}");
+                log::error!(
+                    "Network airport couldn't operate operation {content:?}, error found: {error}"
+                );
             }
         }
     }
