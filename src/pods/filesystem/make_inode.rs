@@ -5,10 +5,7 @@ use crate::{
     pods::arbo::{Arbo, FsEntry, Inode},
 };
 
-use super::{
-    fs_interface::{FsInterface, SimpleFileType},
-    remove_inode::RemoveInode,
-};
+use super::fs_interface::{FsInterface, SimpleFileType};
 
 custom_error! {pub MakeInode
     WhError{source: WhError} = "{source}",
@@ -39,56 +36,37 @@ impl FsInterface {
             _ => self.network_interface.n_get_next_inode()?,
         };
 
-        let new_inode = Inode::new(name, parent_ino, new_inode_id, new_entry);
+        let new_inode = Inode::new(name.clone(), parent_ino, new_inode_id, new_entry);
 
-        {
-            let arbo = Arbo::n_read_lock(&self.arbo, "make inode")?;
-            let parent = arbo.n_get_inode(new_inode.parent)?;
-            //check if already exist
-            match arbo.n_get_inode_child_by_name(&parent, &new_inode.name) {
-                Ok(_) => return Err(MakeInode::AlreadyExist),
-                Err(WhError::InodeNotFound) => {}
-                Err(err) => return Err(MakeInode::WhError { source: err }),
-            }
-        }
-        //REVIEW: VERY OPINIONATED, register inode as been split to just perform the network call
-        //this way we can act if the local creation fails (It might be over the top
-        // but prevent network creation if local creation fails, preventing fantom files)
-        // 1. add to the arbo
-        // 2. create the file
-        // IF FAIL
-        // 3. Remove from arbo
-        // ELSE
-        // 3. Register to network
-
-        self.network_interface.n_add_inode(new_inode.clone())?;
+        let mut new_path;
         let arbo = Arbo::n_read_lock(&self.arbo, "make inode")?;
-        let new_path = arbo.n_get_path_from_inode_id(new_inode_id)?;
+        let parent = arbo.n_get_inode(new_inode.parent)?;
+        //check if already exist
+        match arbo.n_get_inode_child_by_name(&parent, &new_inode.name) {
+            Ok(_) => return Err(MakeInode::AlreadyExist),
+            Err(WhError::InodeNotFound) => {}
+            Err(err) => return Err(MakeInode::WhError { source: err }),
+        }
+        new_path = arbo.n_get_path_from_inode_id(parent_ino)?;
+        new_path.push(&name);
 
-        let local_result = match kind {
+        drop(arbo);
+
+        match kind {
             SimpleFileType::File => self
                 .disk
                 .n_new_file(new_path, new_inode.meta.perm)
-                .map(|_| ()),
-            SimpleFileType::Directory => self.disk.n_new_dir(new_path, new_inode.meta.perm),
-        };
-
-        // Remove the inode from the arbo if the local write failed
-        if let Err(err) = local_result {
-            self.network_interface
-                .n_remove_inode_from_arbo(new_inode_id)
-                .map_err(|err| match err {
-                    RemoveInode::WhError { source } => MakeInode::WhError { source },
-                    RemoveInode::NonEmpty => {
-                        panic!("Just created folder should never be already filled")
-                    }
-                })?;
-            return Err(MakeInode::LocalCreationFailed { io: err });
-        }
+                .map(|_| ())
+                .map_err(|io| MakeInode::LocalCreationFailed { io }),
+            SimpleFileType::Directory => self
+                .disk
+                .n_new_dir(new_path, new_inode.meta.perm)
+                .map_err(|io| MakeInode::LocalCreationFailed { io }),
+        }?;
 
         if new_inode_id != 3u64 {
             self.network_interface
-                .n_register_new_file(new_inode.clone());
+                .n_register_new_file(new_inode.clone())?;
         }
         Ok(new_inode)
     }

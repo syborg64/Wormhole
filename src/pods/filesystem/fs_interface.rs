@@ -446,8 +446,6 @@ impl FsInterface {
             .id;
         drop(arbo);
 
-        log::debug!("2 {}", target);
-
         self.n_remove_inode(target)
     }
 
