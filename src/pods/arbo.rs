@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     fs, io,
+    os::unix::fs::{MetadataExt, PermissionsExt},
     sync::Arc,
     time::{Duration, SystemTime},
 };
@@ -271,8 +272,19 @@ impl Arbo {
     #[must_use]
     /// Insert a given [Inode] inside the local arbo
     pub fn n_add_inode(&mut self, inode: Inode) -> Result<(), MakeInode> {
-        log::info!("keys {:?} entries {:?}", self.entries.keys(), self.entries);
+        let a: Vec<(u64, String)> = self
+            .entries
+            .iter()
+            .map(|(id, inode)| (id.clone(), inode.name.clone()))
+            .collect();
+        log::info!(
+            "keys {:?} entries {:?} my new inode {:?}",
+            self.entries.keys(),
+            a,
+            inode
+        );
         if self.entries.contains_key(&inode.id) {
+            log::debug!("WHO TF SAID I EXIST?!");
             return Err(MakeInode::AlreadyExist);
         }
 
@@ -673,12 +685,12 @@ impl TryInto<Metadata> for fs::Metadata {
             } else {
                 SimpleFileType::Directory
             },
-            perm: 0o666 as u16,
-            nlink: 0,
-            uid: 0,
-            gid: 0,
-            rdev: 0,
-            blksize: 1,
+            perm: self.permissions().mode() as u16,
+            nlink: self.nlink() as u32,
+            uid: self.uid(),
+            gid: self.gid(),
+            rdev: self.rdev() as u32,
+            blksize: self.blksize() as u32,
             flags: 0,
         })
     }

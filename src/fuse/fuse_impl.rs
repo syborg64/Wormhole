@@ -1,4 +1,4 @@
-use crate::pods::arbo::{FsEntry, Inode, Metadata, LOCK_TIMEOUT};
+use crate::pods::arbo::{Arbo, FsEntry, Inode, Metadata, LOCK_TIMEOUT};
 use crate::pods::filesystem::fs_interface::{FsInterface, SimpleFileType};
 use crate::pods::filesystem::make_inode::MakeInode;
 use crate::pods::filesystem::remove_inode::RemoveFile;
@@ -447,8 +447,15 @@ impl Filesystem for FuseController {
     }
 
     fn unlink(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: fuser::ReplyEmpty) {
-        log::debug!("He Said No");
-        match self.fs_interface.n_fuse_remove_inode(parent, name) {
+        let debug = self.fs_interface.n_fuse_remove_inode(parent, name);
+        let arbo = Arbo::n_read_lock(&self.fs_interface.arbo, "blll").expect("bltltl");
+        let a: Vec<(u64, String)> = arbo
+            .get_raw_entries()
+            .iter()
+            .map(|(id, inode)| (id.clone(), inode.name.clone()))
+            .collect();
+        log::debug!("He Said {:?} for {:?}, with {:?}", debug, (parent, name), a);
+        match debug {
             Ok(()) => reply.ok(),
             Err(RemoveFile::WhError { source }) => reply.error(source.to_libc()),
             Err(RemoveFile::LocalDeletionFailed { io }) => {

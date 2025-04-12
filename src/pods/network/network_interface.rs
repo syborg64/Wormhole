@@ -197,6 +197,25 @@ impl NetworkInterface {
     }
 
     #[must_use]
+    pub fn n_promote_next_inode(&self, new: u64) -> WhResult<()> {
+        let mut next_inode = self
+            .next_inode
+            .try_lock_for(LOCK_TIMEOUT)
+            // REVIEW: Would block is different than the previous Interrupted,
+            // but I chose it for consistency with the try_lock on the arbo
+            .ok_or(WhError::WouldBlock {
+                called_from: "promote_next_inode".to_string(),
+            })?;
+
+        // REVIEW: next_inode being behind a mutex is weird and
+        // the function not taking a mutable ref feels weird, is next_inode behind a mutex just to allow a simple &self?
+        if *next_inode < new {
+            *next_inode = new;
+        };
+        Ok(())
+    }
+
+    #[must_use]
     /// add the requested entry to the arbo and inform the network
     pub fn register_new_file(&self, inode: Inode) -> io::Result<u64> {
         let new_inode_id = inode.id;
@@ -323,6 +342,13 @@ impl NetworkInterface {
         };
 
         Ok(())
+    }
+
+    #[must_use]
+    /// Get a new inode, add the requested entry to the arbo and inform the network
+    pub fn n_acknowledge_new_file(&self, inode: Inode, _id: InodeId) -> Result<(), MakeInode> {
+        let mut arbo = Arbo::n_write_lock(&self.arbo, "acknowledge_new_file")?;
+        arbo.n_add_inode(inode)
     }
 
     /// Remove the requested entry to the arbo and inform the network
@@ -576,7 +602,12 @@ impl NetworkInterface {
 
             let action_result = match content {
                 MessageContent::PullAnswer(id, binary) => fs_interface.recept_binary(id, binary),
-                MessageContent::Inode(inode, id) => fs_interface.recept_inode(inode, id),
+                MessageContent::Inode(inode, id) => fs_interface.n_recept_inode(inode, id).or_else(|err| {
+                        Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            format!("WhError: {err}"),
+                        ))
+                    }),
                 MessageContent::EditHosts(id, hosts) => fs_interface.recept_edit_hosts(id, hosts),
                 MessageContent::EditMetadata(id, meta, host) => {
                     fs_interface.recept_edit_metadata(id, meta, host)

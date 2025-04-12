@@ -1,7 +1,9 @@
 use std::{ffi::CString, fs::File, io::Read, os::unix::fs::FileExt};
 
-use openat::{AsPath, Dir};
+use openat::{AsPath, Dir, Entry};
 use tokio::io;
+
+use crate::pods::whpath::JoinPath;
 
 use super::whpath::WhPath;
 
@@ -27,6 +29,17 @@ impl DiskManager {
         })
     }
 
+    pub fn log_arbo(&self, path: String) -> io::Result<()> {
+        let dirs = self.handle.list_dir(path)?;
+        for dir in dirs {
+            match dir {
+                Ok(entry) => log::debug!("|{:?} => {:?}|", entry.file_name(), entry.simple_type()),
+                Err(err) => return Err(err),
+            }
+        }
+        Ok(())
+    }
+
     pub fn new_file(&self, path: WhPath) -> io::Result<File> {
         self.handle.new_file(path.set_relative(), 0o644) // TODO look more in c mode_t value
     }
@@ -39,7 +52,17 @@ impl DiskManager {
 
     #[must_use]
     pub fn remove_file(&self, path: WhPath) -> io::Result<()> {
-        self.handle.remove_file(path.set_relative())
+        let temp = self.handle.remove_file(path.clone().set_relative()); // Remove the clone
+
+        log::debug!(
+            "RMove File said: {:?} for path {},  path.set_relative().get_folder() {}",
+            temp,
+            path,
+            path.clone().set_relative().get_folder()
+        );
+        self.log_arbo(String::from("./")).expect("ROOT FAILED");
+        self.log_arbo(path.set_relative().get_folder())?;
+        temp
     }
 
     #[must_use]
