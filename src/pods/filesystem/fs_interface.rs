@@ -122,50 +122,31 @@ impl FsInterface {
     }
 
     pub fn n_remove_inode(&self, id: InodeId) -> Result<(), RemoveFile> {
-        let (to_remove_path, entry) = {
-            let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface::remove_inode")?;
-            (
-                arbo.n_get_path_from_inode_id(id)?,
-                arbo.n_get_inode(id)?.entry.clone(),
-            )
-        };
-        log::warn!("PASSED THE FIRST LOCK: {}entry {:?}", to_remove_path, entry);
+        let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface::remove_inode")?;
+        let to_remove_path = arbo.n_get_path_from_inode_id(id)?;
+        let entry = arbo.n_get_inode(id)?.entry.clone();
+        drop(arbo);
+
         // REVIEW Previous method of removing file and letting fail silently if the host doesn't have it is confusing,
         // It got me stuck for a while and isnt fool proof so I implement a check
-        match entry.clone() {
-            FsEntry::File(hosts) if hosts.contains(&self.network_interface.self_addr) => {
-                log::debug!("File contained:!!")
-            }
-            FsEntry::File(_) => {
-                log::debug!("File not contain")
-            }
-            FsEntry::Directory(children) => log::debug!("dir {children:?}"),
-        };
+        //
+        // This change made it necessary for make inode to not create files if the client isn't the host. I think its a good thing
         match entry {
             FsEntry::File(hosts) if hosts.contains(&self.network_interface.self_addr) => self
                 .disk
                 .remove_file(to_remove_path)
                 .map_err(|io| RemoveFile::LocalDeletionFailed { io })?,
-            FsEntry::File(_) => {}
-            FsEntry::Directory(children) => {
-                if children.is_empty() {
-                    self.disk
-                        .remove_dir(to_remove_path)
-                        .map_err(|io| RemoveFile::LocalDeletionFailed { io })?;
-                } else {
-                    return Err(RemoveFile::NonEmpty);
-                }
-            }
+            FsEntry::File(_) => { /* Nothing to do */ }
+            FsEntry::Directory(children) if children.is_empty() => self
+                .disk
+                .remove_dir(to_remove_path)
+                .map_err(|io| RemoveFile::LocalDeletionFailed { io })?,
+            FsEntry::Directory(_) => return Err(RemoveFile::NonEmpty),
         };
-        log::warn!("PASSED THE LOCAL DELETE,");
-
-        self.network_interface.n_remove_inode_from_arbo(id)?;
-        log::warn!("PASSED THE ARBO DEL");
 
         if id != 3u64 {
-            self.network_interface.n_unregister_file(id);
+            self.network_interface.n_unregister_file(id)?;
         }
-        log::warn!("PASSED THE UNREG");
         Ok(())
     }
 
@@ -332,13 +313,13 @@ impl FsInterface {
             arbo.n_get_path_from_inode_id(id)?
         };
 
-        log::info!("wsh: {:?}", inode.entry);
         match inode.entry {
-            FsEntry::File(_) => self
+            FsEntry::File(hosts) if hosts.contains(&self.network_interface.self_addr) => self
                 .disk
                 .n_new_file(new_path, inode.meta.perm)
                 .map(|_| ())
                 .map_err(|io| MakeInode::LocalCreationFailed { io }),
+            FsEntry::File(_) => Ok(()),
             FsEntry::Directory(_) => self
                 .disk
                 .n_new_dir(new_path, inode.meta.perm)
@@ -458,12 +439,12 @@ impl FsInterface {
         parent: InodeId,
         name: &std::ffi::OsStr,
     ) -> Result<(), RemoveFile> {
-        let target = {
-            let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface::fuse_remove_inode")?;
-            let parent = arbo.n_get_inode(parent)?;
-            arbo.n_get_inode_child_by_name(parent, &name.to_string_lossy().to_string())?
-                .id
-        };
+        let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface::fuse_remove_inode")?;
+        let parent = arbo.n_get_inode(parent)?;
+        let target = arbo
+            .n_get_inode_child_by_name(parent, &name.to_string_lossy().to_string())?
+            .id;
+        drop(arbo);
 
         log::debug!("2 {}", target);
 
