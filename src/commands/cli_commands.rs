@@ -1,5 +1,5 @@
 use crate::pods::{declarations::Pod, whpath::WhPath};
-use clap::Parser;
+use clap::{Args, Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
 
 pub enum PodCommand {
@@ -7,6 +7,7 @@ pub enum PodCommand {
     JoinPod(Pod),
     StartPod(StatusPodArgs),
     StopPod(StatusPodArgs),
+    RemovePod(RemoveArgs),
 }
 
 #[derive(Debug, Parser, Serialize, Deserialize)] // requires `derive` feature
@@ -65,17 +66,33 @@ pub struct TemplateArg {
     pub path: Option<WhPath>,
 }
 
-#[derive(Debug, clap::Args, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ValueEnum)]
+#[clap(rename_all = "lower")]
+pub enum Mode {
+    /// Simply remove the pod from the network without losing any data from the network
+    /// and leaving behind any data that was stored on the pod
+    Simple,
+    /// Remove the pod from the network without losing any data on the network,
+    /// and clone all data from the network into the folder where the pod was
+    /// making this folder into a real folder
+    Clone,
+    /// Remove the pod from the network and delete any data that was stored in the pod
+    Clean,
+    /// Remove this pod from the network without distributing its data to other nodes
+    Take,
+}
+
+// Structure RemoveArgs modifiée
+#[derive(Debug, Args, Serialize, Deserialize)]
 #[command(version, about, long_about = None)]
 pub struct RemoveArgs {
-    /// name of the network to create
-    #[arg(short = 'x', group = "mode")]
-    pub take: bool,
-    #[arg(short = 'c', group = "mode")]
-    pub clone: bool,
-    #[arg(short = 'd', group = "mode")]
-    pub delete: bool,
+    /// Name of the deleted pod
+    pub name: Option<String>,
     /// Change to DIRECTORY before doing anything
     #[arg(long, short = 'C')]
     pub path: Option<WhPath>,
+    /// Mode for pod removal
+    #[arg(long, default_value = "simple")]
+    pub mode: Mode,
 }
+

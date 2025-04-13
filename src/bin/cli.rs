@@ -44,13 +44,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Récupérer tous les arguments
     let args: Vec<String> = env::args().collect();
     let (ip, cli_args) = get_args(args);
-
+    let ip = ip.as_str();
     println!("Starting cli on {}", ip);
     println!("cli args: {:?}", cli_args);
 
     match Cli::parse_from(cli_args) {
-        Cli::Start(args) => commands::cli::start(ip.as_str(), args)?,
-        Cli::Stop(args) => commands::cli::stop(ip.as_str(), args)?,
+        Cli::Start(args) => commands::cli::start(ip, args)?,
+        Cli::Stop(args) => commands::cli::stop(ip, args)?,
         Cli::Template(args) => {
             println!(
                 "creating network {:?}",
@@ -63,18 +63,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Cli::New(args) => {
             println!("creating pod");
-            commands::cli::new(ip.as_str(), args)?;
+            commands::cli::new(ip, args)?;
         }
         Cli::Remove(args) => {
             println!("removing pod");
-            let mode = match (args.clone, args.delete, args.take) {
-                (true, false, false) => commands::cli::Mode::Clone,
-                (false, true, false) => commands::cli::Mode::Clean,
-                (false, false, true) => commands::cli::Mode::Take,
-                (false, false, false) => commands::cli::Mode::Simple,
-                _ => unreachable!("multiple exclusive options"),
-            };
-            commands::cli::remove(&WhPath::from(args.path.unwrap_or(".".into())), mode)?;
+            commands::cli::remove(ip, args)?;
         }
         Cli::Inspect => {
             println!("inspecting pod");

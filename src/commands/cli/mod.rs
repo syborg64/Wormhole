@@ -15,7 +15,6 @@ pub use new::new;
 pub use register::register;
 pub use reload::reload;
 pub use remove::remove;
-pub use remove::Mode;
 pub use start::start;
 pub use stop::stop;
 pub use templates::templates;

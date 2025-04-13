@@ -2,42 +2,26 @@
 // In code we trust
 // AgarthaSoftware - 2024
 
-use crate::commands;
-use crate::config::types::Config;
-use crate::pods::whpath::WhPath;
-use std::error::Error;
-use std::fs;
+use tokio::runtime::Runtime;
 
-#[derive(PartialEq)]
-pub enum Mode {
-    /// Simply remove the pod from the network without losing any data from the network
-    /// and leaving behind any data that was stored on the pod
-    Simple,
-    /// remove the pod from the network without losing any data on the network,
-    /// and clone all data from the network into the folder where the pod was
-    /// making this folder into a real folder
-    Clone,
-    /// remove the pod from the network and delete any data that was stored in the pod
-    Clean,
-    /// remove this pod from the network without distributing its data to other nodes
-    Take,
-}
+use crate::commands::cli_commands::{Cli, Mode, RemoveArgs};
+use crate::pods::whpath::WhPath;
+use std::{env, fs};
+
+use super::cli_messager;
 
 #[must_use]
-pub fn remove(path: &WhPath, mode: Mode) -> Result<(), Box<dyn Error>> {
-    if mode != Mode::Take {
-        println!("todo!: implement redistribute");
+pub fn remove(ip: &str, mut args: RemoveArgs) -> Result<(), Box<dyn std::error::Error>> {
+    let path = if args.name == None && args.path == None {
+        let path = env::current_dir()?;
+        args.path = Some(WhPath::from(&path.display().to_string()));
+        path.display().to_string()
+    } else {
+        args.path.clone().unwrap_or(WhPath::new()).inner
+    };
+    if args.mode == Mode::Clean {
+        fs::remove_dir_all(path)?;
     }
-    if mode == Mode::Clone {
-        todo!("clone")
-    }
-
-    let name = crate::config::Network::read(path.join(".wormhole/network.toml").inner)?.name;
-
-    commands::cli::unregister(&name)?;
-    fs::remove_dir_all((&path).join(".wormhole").inner)?;
-    if mode == Mode::Clean {
-        fs::remove_dir_all(path.inner.clone())?;
-    }
-    Ok(())
+    let rt = Runtime::new().unwrap();
+    rt.block_on(cli_messager(ip, Cli::Remove(args)))
 }

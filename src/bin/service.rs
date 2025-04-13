@@ -121,6 +121,10 @@ async fn main() {
                     info!("Pod stopped: {:?}", stop_args);
                     todo!("Check if pod existe and stop it based one his name or path")
                 }
+                PodCommand::RemovePod(remove_args) => {
+                    info!("Pod removed: {:?}", remove_args);
+                    todo!("Check if pod existe and remove it based one his name or path")
+                }
             }
         }
     });

@@ -19,6 +19,5 @@ pub fn start(ip: &str, mut start_args: StatusPodArgs) -> Result<(), Box<dyn std:
     }
 
     let rt = Runtime::new().unwrap();
-    rt.block_on(cli_messager(ip, Cli::Start(start_args)))?;
-    Ok(())
+    rt.block_on(cli_messager(ip, Cli::Start(start_args)))
 }
