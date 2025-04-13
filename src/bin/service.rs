@@ -48,6 +48,7 @@ async fn handle_cli_command(
             Cli::New(pod_args) => commands::service::new(tx.clone(), pod_args).await,
             Cli::Start(pod_args) => commands::service::start(tx.clone(), pod_args).await,
             Cli::Stop(pod_args) => commands::service::stop(tx.clone(), pod_args).await,
+            Cli::Remove(remove_arg) => commands::service::remove(tx, remove_arg).await,
             _ => Err(CliError::InvalidCommand),
         };
 
@@ -121,6 +122,7 @@ async fn main() {
                 }
                 PodCommand::RemovePod(remove_args) => {
                     info!("Pod removed: {:?}", remove_args);
+                    
                     todo!("Check if pod existe and remove it based one his name or path")
                 }
             }

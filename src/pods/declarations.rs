@@ -30,6 +30,8 @@ use crate::pods::{
     whpath::WhPath,
 };
 
+use super::arbo::LOCK_TIMEOUT;
+
 // TODO
 pub type PodConfig = u64;
 
@@ -100,16 +102,19 @@ pub async fn initiate_connection(
 }
 
 pub async fn pull_config(
-    fs_interface: &Arc<FsInterface>,
-    peers: &Arc<parking_lot::lock_api::RwLock<parking_lot::RawRwLock, Vec<PeerIPC>>>,
+    peers_list: Arc<RwLock<Vec<PeerIPC>>>,
     server_address: &Address,
     tx: &UnboundedSender<FromNetworkMessage>,
-    rx: &mut UnboundedReceiver<FromNetworkMessage>,
 ) {
-    let peers_guards = peers.read();
-    let peers_vec = peers_guards.deref();
-    for first_contact in peers_vec {
-        let first_ipc = PeerIPC::connect(first_contact.address.clone(), tx.clone()).await;
+    let peers_addr: Vec<String> = peers_list
+        .try_read_for(LOCK_TIMEOUT)
+        .unwrap() // TODO - handle timeout
+        .iter()
+        .map(|peer| (peer.address.clone()))
+        .collect();
+
+    for peer_addr in peers_addr {
+        let first_ipc = PeerIPC::connect(peer_addr.clone(), tx.clone()).await;
 
         if let Some(ipc) = first_ipc {
             if let Err(err) = ipc.sender.send(MessageContent::RequestFile(
@@ -119,33 +124,8 @@ pub async fn pull_config(
                 info!(
                     "Connection with {0} failed on file config request: {err}.\n
                     Trying with next know address",
-                    first_contact.address
+                    peer_addr
                 );
-            }
-
-            loop {
-                match rx.recv().await {
-                    Some(FromNetworkMessage {
-                        origin: _,
-                        content: MessageContent::PullAnswer(GLOBAL_CONFIG_INO, global_conf),
-                    }) => {
-                        let _ = fs_interface
-                            .recept_binary(GLOBAL_CONFIG_INO, global_conf.clone())
-                            .map_err(|e| {
-                                info!("Error while pulling global config: {e}");
-                            });
-                        break;
-                    }
-                    Some(_) => {
-                        info!(
-                            "Pull config with {0} failed: His answer is not the config file, corrupted client.\n
-                            Trying with next know address",
-                            first_contact.address
-                        );
-                        continue;
-                    }
-                    None => continue,
-                };
             }
         }
     }
@@ -218,14 +198,6 @@ impl Pod {
             arbo.clone(),
         ));
 
-        pull_config(
-            &fs_interface,
-            &network_interface.peers,
-            &network_interface.self_addr,
-            &from_network_message_tx,
-            &mut from_network_message_rx,
-        );
-
         // Start ability to recieve messages
         let network_airport_handle = Some(tokio::spawn(NetworkInterface::network_airport(
             from_network_message_rx,
@@ -237,6 +209,13 @@ impl Pod {
             network_interface.peers.clone(),
             to_network_message_rx,
         )));
+
+        pull_config(
+            network_interface.peers.clone(),
+            &network_interface.self_addr,
+            &from_network_message_tx,
+        )
+        .await;
 
         let new_peer_handle = Some(tokio::spawn(
             NetworkInterface::incoming_connections_watchdog(
