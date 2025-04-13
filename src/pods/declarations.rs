@@ -16,7 +16,7 @@ use crate::fuse::fuse_impl::mount_fuse;
 use crate::network::message::{FileSystemSerialized, FromNetworkMessage, MessageContent};
 use crate::network::peer_ipc;
 use crate::pods::arbo::GLOBAL_CONFIG_INO;
-use crate::pods::interface::fs_interface;
+use crate::pods::filesystem::fs_interface;
 #[cfg(target_os = "windows")]
 use crate::winfsp::winfsp_impl::mount_fsp;
 

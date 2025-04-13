@@ -4,13 +4,10 @@ use std::{
     sync::Arc,
 };
 
-<<<<<<< HEAD:src/pods/network_interface.rs
 use crate::{
     config::types::Config,
     error::{WhError, WhResult},
 };
-=======
->>>>>>> 026683f02976360416fc0770628c731f2e7d79c8:src/pods/network/network_interface.rs
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::{
     broadcast,
