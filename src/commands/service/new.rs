@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use log::error;
+use predicates::name;
 use tokio::{runtime::Runtime, sync::mpsc};
 
 use crate::{
@@ -9,14 +10,15 @@ use crate::{
         PodCommand,
     },
     config::{types::Config, GlobalConfig, LocalConfig},
+    error::{CliError, CliResult, CliSuccess},
     network::server::Server,
     pods::{declarations::Pod, whpath::WhPath},
 };
 
-pub async fn new(tx: mpsc::UnboundedSender<PodCommand>, args: PodArgs) -> Result<String, String> {
+pub async fn new(tx: mpsc::UnboundedSender<PodCommand>, args: PodArgs) -> CliResult {
     let (global_config, local_config, server, mount_point) = pod_value(&args).await;
     let new_pod = match Pod::new(
-        args.name,
+        args.name.clone(),
         mount_point,
         1,
         global_config.general.peers,
@@ -26,11 +28,13 @@ pub async fn new(tx: mpsc::UnboundedSender<PodCommand>, args: PodArgs) -> Result
     .await
     {
         Ok(pod) => pod,
-        Err(e) => return Err(format!("Pod creation error: {}", e)),
+        Err(e) => return Err(CliError::PodCreationFailed { reason: e }),
     };
     match tx.send(PodCommand::JoinPod(new_pod)) {
-        Ok(_) => Ok("Pod created successfully".to_string()),
-        Err(e) => Err(format!("PodCommand send error: {}", e)),
+        Ok(_) => Ok(CliSuccess::PodCreated { pod_id: args.name }),
+        Err(e) => Err(CliError::SendCommandFailed {
+            reason: e.to_string(),
+        }),
     }
 }
 
@@ -66,16 +70,4 @@ async fn pod_value(args: &PodArgs) -> (GlobalConfig, LocalConfig, Arc<Server>, W
     let mount_point = args.path.clone().unwrap_or_else(|| ".".into());
 
     (global_config, local_config, server, mount_point)
-}
-
-async fn pull_config(args: &PodArgs) -> Result<(), String> {
-    let rt = Runtime::new().unwrap();
-    // rt.block_on(cli_messager(
-    //     &args.url,
-    //     Cli::Init(PodArgs {
-    //         name: name,
-    //         path: Some(path.clone()),
-    //     }),
-    // ))?;
-    Ok(())
 }

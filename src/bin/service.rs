@@ -17,7 +17,7 @@
  *  reads a message (supposely emitted by a peer) related to files actions
  *  and execute instructions on the disk
  */
-use std::{env, path::PathBuf, sync::Arc};
+use std::env;
 
 use futures_util::sink::SinkExt;
 use futures_util::StreamExt;
@@ -29,15 +29,8 @@ use tokio_tungstenite::tungstenite::Message;
 #[cfg(target_os = "windows")]
 use winfsp::winfsp_init;
 use wormhole::commands::PodCommand;
-use wormhole::config::types::{
-    GeneralGlobalConfig, GeneralLocalConfig, GlobalConfig, LocalConfig, RedundancyConfig,
-};
-use wormhole::pods::whpath::{JoinPath, WhPath};
-use wormhole::{
-    commands::{self, cli_commands::Cli},
-    config,
-};
-use wormhole::{network::server::Server, pods::declarations::Pod};
+use wormhole::commands::{self, cli_commands::Cli};
+use wormhole::error::CliError;
 
 async fn handle_cli_command(
     tx: mpsc::UnboundedSender<PodCommand>,
@@ -55,11 +48,16 @@ async fn handle_cli_command(
             Cli::New(pod_args) => commands::service::new(tx.clone(), pod_args).await,
             Cli::Start(pod_args) => commands::service::start(tx.clone(), pod_args).await,
             Cli::Stop(pod_args) => commands::service::stop(tx.clone(), pod_args).await,
-            _ => Err("Unrecognized command".to_string()),
+            _ => Err(CliError::InvalidCommand),
+        };
+
+        let message = match response_text {
+            Ok(success) => success.to_string(),
+            Err(error) => error.to_string(),
         };
 
         writer
-            .send(Message::Text(response_text.unwrap_or_else(|e| e)))
+            .send(Message::Text(message))
             .await
             .map_err(|e| format!("Response send error: {}", e))?;
     }
