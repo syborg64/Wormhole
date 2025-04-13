@@ -1,7 +1,7 @@
 use crate::network::message::Address;
 use crate::pods::arbo::{Arbo, FsEntry, Inode, InodeId, Metadata, ARBO_FILE_FNAME, ARBO_FILE_INO, GLOBAL_CONFIG_FNAME, GLOBAL_CONFIG_INO, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO, LOCK_TIMEOUT};
 use crate::pods::disk_manager::DiskManager;
-use crate::pods::network_interface::{Callback, NetworkInterface};
+use crate::pods::network::network_interface::{Callback, NetworkInterface};
 use crate::pods::whpath::WhPath;
 
 use log::debug;
