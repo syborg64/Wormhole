@@ -243,4 +243,12 @@ impl Pod {
             new_peer_handle,
         })
     }
+
+    pub fn get_name(&self) -> &str {
+        return &self.name;
+    }
+
+    pub fn get_mount_point(&self) -> &WhPath {
+        return &self.mount_point;
+    }
 }

@@ -28,6 +28,7 @@ use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::Message;
 #[cfg(target_os = "windows")]
 use winfsp::winfsp_init;
+use wormhole::commands::cli_commands::Mode;
 use wormhole::commands::PodCommand;
 use wormhole::commands::{self, cli_commands::Cli};
 use wormhole::error::CliError;
@@ -120,9 +121,51 @@ async fn main() {
                     info!("Pod stopped: {:?}", stop_args);
                     todo!("Check if pod existe and stop it based one his name or path")
                 }
-                PodCommand::RemovePod(remove_args) => {
-                    info!("Pod removed: {:?}", remove_args);
-                    
+                PodCommand::RemovePod(args) => {
+                    info!("Pod removed: {:?}", args);
+
+                    let pod = pods.iter().find(|pod| {
+                        // Vérifie si le nom correspond (si présent dans args)
+                        let name_matches = args
+                            .name
+                            .as_ref()
+                            .map_or(false, |arg_name| arg_name == pod.get_name());
+                        // Vérifie si le chemin correspond (si présent dans args)
+                        let path_matches = args
+                            .path
+                            .as_ref()
+                            .map_or(false, |arg_path| arg_path == pod.get_mount_point());
+                        // Retourne vrai si au moins une condition est remplie
+                        name_matches || path_matches
+                    });
+                    if pod.is_none() {
+                        info!("Pod not found");
+                    } else {
+                        match args.mode {
+                            Mode::Simple => {
+                                //TODO - stop the pod
+                                //TODO - delete the pod
+                                todo!()
+                            }
+                            Mode::Clone => {
+                                //TODO - clone all data into a folder
+                                //TODO - stop the pod
+                                //TODO - delete the pod
+                                todo!()
+                            }
+                            Mode::Clean => {
+                                //TODO - stop the pod
+                                //TODO - delete all data
+                                //TODO - delete the pod
+                                todo!()
+                            }
+                            Mode::Take => {
+                                //TODO - stop the pod without distributing its data
+                                //TODO - delete the pod
+                                todo!()
+                            }
+                        }
+                    }
                     todo!("Check if pod existe and remove it based one his name or path")
                 }
             }
