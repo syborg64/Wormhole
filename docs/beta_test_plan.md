@@ -1,7 +1,6 @@
 ### **BETA TEST PLAN – Wormhole**
 
 ## **1. Core Functionalities for Beta Version**
-[List and describe the core functionalities that must be available for beta testing. Explain any changes made since the original Tech3 Action Plan.]
 
 | **Feature Name**              | **Description**                                                                                       | **Priority (High/Medium/Low)**                | **Changes Since Tech3**                                               |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------- | --------------------------------------------------------------------- |
@@ -25,7 +24,6 @@
 
 ## **2. Beta Testing Scenarios**
 ### **2.1 User Roles**
-[Define the different user roles that will be involved in testing, e.g., Admin, Regular User, Guest, External Partner.]
 
 | **Role Name**                | **Description**                                                                                                                                                                                 |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -211,19 +209,26 @@ For each core functionality, provide detailed test scenarios.
 - **Objective:** Verify the CLI works has expected
 - **Prerequisites:** Working wormhole service
 - **Test Steps:**
-  1. Execute all few listed cli commands
-  2. Verify the output is as expected
-- **Expected Outcome:** The cli must be able to create a network and operate it without failure
+  1. Use the CLI to generate a template pod configuration
+  2. Use the CLI to create a pod (new network) (with the template configuration)
+  3. Check that the created pod is working properly
+  4. Use the CLI to stop that pod.
+  5. Use the CLI to join a network (new pod)
+  6. Check that the pod is working correctly (access to network shared files)
+  7. Stop the pod using the cli, then restart it
+  8. Verify that you can still access the files.
+  9. Use the "inspect" command to have a basic report of the pod's state
+- **Expected Outcome:** The cli must be able to create a network, operate it and show the network state without failure
 
 #### **Senario 13: Error Resilience**
 - **Role Involved:** For Professionnal developper, home server user
 - **Objective:** Verify that fatal errors are handled properly on a network scale
 - **Prerequisites:** Wormhole network of multiple instances
 - **Test Steps:**
-  6. Execute a special crashing wormhole instance
-  7. Create files on this machine
-  8. Make it crash
-  9. Verify the state of the network
+  1. Execute a special crashing wormhole instance
+  2. Create files on this machine
+  3. Make it crash
+  4. Verify the state of the network
 - **Expected Outcome:** All the other network instances must continue working properly even if an instance has a fatal issue
 
 ---
