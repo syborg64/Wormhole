@@ -208,11 +208,12 @@ For each core functionality, provide detailed test scenarios.
 
 #### **Senario 12: CLI Interface**
 - **Role Involved:** For every role
-- **Objective:**
-- **Prerequisites:**
+- **Objective:** Verify the CLI works has expected
+- **Prerequisites:** Working wormhole service
 - **Test Steps:**
-  1. Step 1
-- **Expected Outcome:**
+  1. Execute all few listed cli commands
+  2. Verify the output is as expected
+- **Expected Outcome:** The cli must be able to create a network and operate it without failure
 
 #### **Senario 13: Error Resilience**
 - **Role Involved:** For Professionnal developper, home server user
@@ -239,8 +240,6 @@ The following criteria will be used to determine the success of the beta version
 | Performance   | 95% of individual files operation are completed in less than 10 seconds | 95% of files processed within 2 seconds |
 | Accuracy      | The wormhole drive behaves like any drive in the eyes of the system     | 90% correctness in drive tests          |
 
-Compliantce
-
 ---
 
 ## **4. Known Issues & Limitations**
@@ -250,6 +249,7 @@ Compliantce
 | -------------- | ----------------------------------------------- | --------------------------------------------- | ------------------------- |
 | Window support | Incomplete support of the windows system        | **<span style="color: red">High</span>**      | Yes                       |
 | Documentation  | Incomplete documentation for user or developper | **<span style="color: orange">Medium</span>** | Yes                       |
+... To expand with the current features when sharing the beta test plan with testers.
 
 ---
 
