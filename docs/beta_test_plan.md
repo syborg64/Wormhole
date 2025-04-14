@@ -11,8 +11,8 @@
 | Stability (Almost)            | Does not generate spontaneous errors. Can handle invalid input with safe failures                     | **<span style="color: red">High</span>**      | Improved                                                              |
 | Linux Support                 | Complete support for all majors Linux systems (Debian, Arch, etc.).                                   | **<span style="color: red">High</span>**      | Validated                                                             |
 | Mac Support (lack testing)    | Functional on mac systems.                                                                            | **<span style="color: yellow">Low</span>**    | Theorhetically added                                                  |
-| Windows Support               | support of the windows system post windows 10                                                         | **<span style="color: red">High</span>**      | Added                                                                 |
-| Complete User Documentation   | 50% of the user documentation is written.                                                             | **<span style="color: red">High</span>**      | Expanded                                                              |
+| Windows Support               | Support of the windows system post windows 10                                                         | **<span style="color: red">High</span>**      | Added                                                                 |
+| Complete User Documentation   | The user and developper documentation is clear and easy to use.                                       | **<span style="color: red">High</span>**      | Expanded                                                              |
 | Redudancy                     | Basic redundancy with a minimum of 3 pods.                                                            | **<span style="color: red">High</span>**      | Update redudancy (2 pods to a theoretically unlimited number of pods) |
 | Compliant Error Handling      | Software interacting with Wormhole may respond accordingly                                            | **<span style="color: orange">Medium</span>** | Fixed                                                                 |
 | Cache Handling                | Optimized cache management for improved performance.                                                  | **<span style="color: orange">Medium</span>** | Planned                                                               |
@@ -40,7 +40,7 @@ For each core functionality, provide detailed test scenarios.
 
 #### **Scenario 1: First Installation**
 - **Role Involved:** For every role
-- **Objective:** Verify that the process for a new user to start using wormhole is simple and clear.
+- **Objective:** Verify that the new user onboarding process is simple and clear.
 - **Prerequisites:** None
 - **Test Steps:**
   1. Get access to the wormhole documentation and installation page
@@ -80,8 +80,18 @@ For each core functionality, provide detailed test scenarios.
   23. Change permissions of a folder, retry previous relevant steps
 - **Expected Outcome:** No errors surprise the user. Actions that would be illegal on any filesystem return the correct error
 
-#### **Scenario _: Complex interactions**
-... Run an app inside a Wormhole instance, check the result on an other connected instance
+
+#### **Scenario 2: Complex interactions**
+- **Role Involved:** For every role
+- **Objective:** Run an app with its files hosted on an other Wormhole instance
+- **Prerequisites:** Installing Wormhole with two instances on the network
+- **Test Steps:**
+  1. Install Gimp on the first host
+  2. Open the app on the second host
+  3. Record the startup time
+  4. Create a simple image using the software
+  4. Foward the wormhole logs in case of any errors
+- **Expected Outcome:** The experience should feel seemless
 
 #### **Scenario 3: Docker Image**
 - **Role Involved:** Professionnal developper, home server user
@@ -91,8 +101,8 @@ For each core functionality, provide detailed test scenarios.
   1. Clone or download the Wormhole repository then build and run the provided simple Wormhole Docker image.
   2. Launch the Docker container with the appropriate command.
   3. Check that Wormhole mounts correctly by consulting the logs or the container status.
+  5. Launch a second docker container on another machine, and check that both instances are connected to each other.
   4. Performs tests similar to the Scenario 2 (Basic local interactions)
-  5. Launch a second docker container on another machine, and check that both instances are conntected to each other.
   6. Check for errors on the utilisation of this third party app.
 - **Expected Outcome:** The Docker image runs Wormhole correctly, and all basic file system operations run smoothly. Any errors are easily viewed through the docker container. Third party apps can function using the container.
 
@@ -131,7 +141,8 @@ For each core functionality, provide detailed test scenarios.
   1. Install Wormhole on any major Linux distribution.
   2. Execute common operations on a filesystem (creating, reading and editing files).
   3. Use and test advanced features with configuration files like redundancy.
-  4. Use this system accross many of your servers, with external apps that could benefit from large distributed storage (ex. storage of pictures like Immich), and see if they are able to operate normally.
+  4. Test linux specific features: xattr editions
+  5. Use this system accross many of your servers, with external apps that could benefit from large distributed storage (ex. storage of pictures like Immich), and see if they are able to operate normally.
 - **Expected Outcome:** Wormhole installs and runs correctly on several Linux distributions, and can be used by other programs that require file storage.
 
 #### **Scenario 7: Mac Support**
@@ -150,25 +161,13 @@ For each core functionality, provide detailed test scenarios.
 - **Objective:** Testing if Wormhole works on Windows systems.
 - **Prerequisites:** Installing Wormhole
 - **Test Steps:**
-  1. Install Wormhole on a Windows 10 or windows 11 system
+  1. Install Wormhole on a Windows 10 or windows 11 system.
   2. Perform basic operations: create, read, write, delete files and folders.
-  3. Test Windows-specific integrations.
-  4. Identify unimplemented or buggy features.
-- **Expected Outcome:** Wormhole installs and runs on Windows, with most features operational.
+  3. Test Windows-specific integrations (File explorer).
+  4. Identify unimplemented or buggy features (following the github issues).
+- **Expected Outcome:** Wormhole installs and runs smoothly on Windows, with most features operational.
 
-#### **Scenario 9: Complete User Documentation**
-- **Role Involved:** For every role
-- **Objective:** Check if the documentation is clear and easy to use for a new user.
-- **Prerequisites:** No required setup
-- **Test Steps:**
-  1. Read the documentation to install Wormhole
-  2. Read the documentation to use Wormhole
-  3. Read the documentation to configure Wormhole
-  4. Identify incomplete or unclear sections.
-  5. Suggest improvements or additions to the content.
-- **Expected Outcome:** If the documentation is clear and easy to use the user should be able to install, use, and configure Wormhole.
-
-#### **Scenario 10: Redudancy**
+#### **Scenario 9: Redudancy**
 - **Role Involved:** For every role
 - **Objective:** Testing the redundancy of the system.
 - **Prerequisites:** Installing Wormhole on 3 different computers: A, B, and C
@@ -184,10 +183,21 @@ For each core functionality, provide detailed test scenarios.
   8. Check that the modified file is updated on machine *A*.
 - **Expected Outcome:** The system maintains file availability and consistency, even in the event of a node failure, and changes are propagated correctly.
 
-#### **Scenario 10: Clean Error**
+#### **Scenario 10: Complete User Documentation**
+- **Role Involved:** For every role
+- **Objective:** Check if the documentation is clear and easy to use for a new user.
+- **Prerequisites:** Previous tasks
+- **Test Steps:**
+  1. During the scenario 1, the user read the documentation to install Wormhole.
+  2. During the scenario 4, the user read the documentation to configure Wormhole.
+  3. After experiencing in first hand the documentation, the user can identify sections that felt incomplete or unclear.
+  4. Suggest improvements or additions to the content.
+- **Expected Outcome:** If the documentation is clear and easy to use the user should be able to install, use, and configure Wormhole without any help.
+
+#### **Scenario 11: Clean Error Handling**
 - **Role Involved:** For every role
 - **Objective:** Testing the error handling of the system are complete and understandable by the user and interfacing software.
-- **Prerequisites:** Create a Wormhole network
+- **Prerequisites:** Wormhole network of multiple instances
 - **Test Steps:**
   1. Attempt an operation that should fail (e.g. write to a read-only file or access a non-existent file).
   2. Observe the error message or provided by Wormhole or the file manager interfacing with wormhole.
@@ -196,7 +206,7 @@ For each core functionality, provide detailed test scenarios.
   5. Check that errors are logged for debugging purposes.
 - **Expected Outcome:** Wormhole provides clear and useable error messages that the user can use for troubleshooting.
 
-#### **Senario 10: CLI Interface**
+#### **Senario 12: CLI Interface**
 - **Role Involved:** For every role
 - **Objective:**
 - **Prerequisites:**
@@ -204,13 +214,17 @@ For each core functionality, provide detailed test scenarios.
   1. Step 1
 - **Expected Outcome:**
 
-#### **Senario 10: Error Resilience**
-- **Role Involved:** For every role
-- **Objective:**
-- **Prerequisites:**
+#### **Senario 13: Error Resilience**
+- **Role Involved:** For Professionnal developper, home server user
+- **Objective:** Verify that fatal errors are handled properly on a network scale
+- **Prerequisites:** Wormhole network of multiple instances
 - **Test Steps:**
-  1. Step 1
-- **Expected Outcome:**
+  6. Execute a special crashing wormhole instance
+  7. Create files on this machine
+  8. Make it crash
+  9. Verify the state of the network
+- **Expected Outcome:** All the other network instances must continue working properly even if an instance has a fatal issue
+
 ---
 
 ## **3. Success Criteria**
