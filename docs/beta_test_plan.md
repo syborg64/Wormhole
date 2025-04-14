@@ -225,16 +225,18 @@ For each core functionality, provide detailed test scenarios.
 - **Objective:** Verify that fatal errors are handled properly on a network scale
 - **Prerequisites:** Wormhole network of multiple instances
 - **Test Steps:**
-  1. Execute a special crashing wormhole instance
-  2. Create files on this machine
-  3. Make it crash
-  4. Verify the state of the network
-- **Expected Outcome:** All the other network instances must continue working properly even if an instance has a fatal issue
+  1. Create a network with the following needs:
+     1. At least 3 pods
+     2. Redundancy at least 1
+  2. Create files on the network
+  3. Ensure created files are accessible on all pods
+  4. Pkill one of the pods
+  5. Check all files are present, can be read and modified.
+- **Expected Outcome:** All the other network instances must continue working properly even if an instance has a fatal issue. No files should be lost.
 
 ---
 
 ## **3. Success Criteria**
-[Define the metrics and conditions that determine if the beta version is successful.]
 
 The following criteria will be used to determine the success of the beta version.
 
