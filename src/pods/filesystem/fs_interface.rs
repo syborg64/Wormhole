@@ -294,7 +294,7 @@ impl FsInterface {
                 .n_new_dir(new_path, inode.meta.perm)
                 .map(|_| ())
                 .map_err(|io| MakeInode::LocalCreationFailed { io }),
-            // TODO:remove when merge is handled because new file should create folder
+            // TODO - remove when merge is handled because new file should create folder
             // FsEntry::Directory(_) => {}
         }
     }

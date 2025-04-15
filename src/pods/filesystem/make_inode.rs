@@ -39,18 +39,19 @@ impl FsInterface {
         let new_inode = Inode::new(name.clone(), parent_ino, new_inode_id, new_entry);
 
         let mut new_path;
-        let arbo = Arbo::n_read_lock(&self.arbo, "make inode")?;
-        let parent = arbo.n_get_inode(new_inode.parent)?;
-        //check if already exist
-        match arbo.n_get_inode_child_by_name(&parent, &new_inode.name) {
-            Ok(_) => return Err(MakeInode::AlreadyExist),
-            Err(WhError::InodeNotFound) => {}
-            Err(err) => return Err(MakeInode::WhError { source: err }),
-        }
-        new_path = arbo.n_get_path_from_inode_id(parent_ino)?;
-        new_path.push(&name);
+        {
+            let arbo = Arbo::n_read_lock(&self.arbo, "make inode")?;
 
-        drop(arbo);
+            let parent = arbo.n_get_inode(new_inode.parent)?;
+            //check if already exist
+            match arbo.n_get_inode_child_by_name(&parent, &new_inode.name) {
+                Ok(_) => return Err(MakeInode::AlreadyExist),
+                Err(WhError::InodeNotFound) => {}
+                Err(err) => return Err(MakeInode::WhError { source: err }),
+            }
+            new_path = arbo.n_get_path_from_inode_id(parent_ino)?;
+            new_path.push(&name);
+        }
 
         match kind {
             SimpleFileType::File => self
