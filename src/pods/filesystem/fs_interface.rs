@@ -278,7 +278,7 @@ impl FsInterface {
         self.network_interface.n_promote_next_inode(id + 1)?;
 
         let new_path = {
-            let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface.write")?;
+            let arbo = Arbo::n_read_lock(&self.arbo, "recept_inode")?;
             arbo.n_get_path_from_inode_id(id)?
         };
 
