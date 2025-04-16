@@ -272,14 +272,14 @@ impl FsInterface {
         Ok(())
     }
 
-    pub fn n_recept_inode(&self, inode: Inode, id: InodeId) -> Result<(), MakeInode> {
+    pub fn n_recept_inode(&self, inode: Inode) -> Result<(), MakeInode> {
         self.network_interface
-            .n_acknowledge_new_file(inode.clone(), id)?;
-        self.network_interface.n_promote_next_inode(id + 1)?;
+            .n_acknowledge_new_file(inode.clone(), inode.id)?;
+        self.network_interface.n_promote_next_inode(inode.id + 1)?;
 
         let new_path = {
             let arbo = Arbo::n_read_lock(&self.arbo, "recept_inode")?;
-            arbo.n_get_path_from_inode_id(id)?
+            arbo.n_get_path_from_inode_id(inode.id)?
         };
 
         match inode.entry {

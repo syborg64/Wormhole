@@ -10,7 +10,7 @@ use crate::pods::arbo::{ArboIndex, Inode, InodeId, Metadata};
 pub enum MessageContent {
     Register(Address),
     Remove(InodeId),
-    Inode(Inode, InodeId),
+    Inode(Inode),
     RequestFile(InodeId, Address),
     PullAnswer(InodeId, Vec<u8>),
     Rename(InodeId, InodeId, String, String), //Parent, New Parent, Name, New Name

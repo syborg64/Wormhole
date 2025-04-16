@@ -228,7 +228,7 @@ impl NetworkInterface {
         if new_inode_id != 3u64 {
             self.to_network_message_tx
                 .send(ToNetworkMessage::BroadcastMessage(
-                    message::MessageContent::Inode(inode, new_inode_id),
+                    message::MessageContent::Inode(inode),
                 ))
                 .expect("mkfile: unable to update modification on the network thread");
         }
@@ -246,7 +246,7 @@ impl NetworkInterface {
         if inode_id != 3u64 {
             self.to_network_message_tx
                 .send(ToNetworkMessage::BroadcastMessage(
-                    message::MessageContent::Inode(inode, inode_id),
+                    message::MessageContent::Inode(inode),
                 ))
                 .expect("mkfile: unable to update modification on the network thread");
         }
@@ -559,7 +559,7 @@ impl NetworkInterface {
 
             let action_result = match content.clone() { // remove scary clone
                 MessageContent::PullAnswer(id, binary) => fs_interface.recept_binary(id, binary),
-                MessageContent::Inode(inode, id) => fs_interface.n_recept_inode(inode, id).or_else(|err| {
+                MessageContent::Inode(inode) => fs_interface.n_recept_inode(inode).or_else(|err| {
                         Err(std::io::Error::new(
                             std::io::ErrorKind::Other,
                             format!("WhError: {err}"),
