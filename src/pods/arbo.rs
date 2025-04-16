@@ -272,19 +272,7 @@ impl Arbo {
     #[must_use]
     /// Insert a given [Inode] inside the local arbo
     pub fn n_add_inode(&mut self, inode: Inode) -> Result<(), MakeInode> {
-        let a: Vec<(u64, String)> = self
-            .entries
-            .iter()
-            .map(|(id, inode)| (id.clone(), inode.name.clone()))
-            .collect();
-        log::info!(
-            "keys {:?} entries {:?} my new inode {:?}",
-            self.entries.keys(),
-            a,
-            inode
-        );
         if self.entries.contains_key(&inode.id) {
-            log::debug!("WHO TF SAID I EXIST?!");
             return Err(MakeInode::AlreadyExist);
         }
 
@@ -385,7 +373,6 @@ impl Arbo {
     /// Remove inode from the [Arbo]
     pub fn n_remove_inode(&mut self, id: InodeId) -> Result<Inode, RemoveInode> {
         let inode = self.n_get_inode(id)?;
-        log::debug!("c");
         match &inode.entry {
             FsEntry::File(_) => {}
             FsEntry::Directory(children) if children.len() == 0 => {}
@@ -393,7 +380,6 @@ impl Arbo {
         }
 
         self.n_remove_children(inode.parent, inode.id)?;
-        log::debug!("d");
 
         self.entries.remove(&id).ok_or(RemoveInode::WhError {
             source: WhError::InodeNotFound,
