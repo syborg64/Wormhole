@@ -335,8 +335,7 @@ impl NetworkInterface {
     #[must_use]
     /// Inform the network of the removal of an [Inode]
     pub fn n_unregister_file(&self, id: InodeId) -> Result<(), RemoveInode> {
-        let mut arbo = Arbo::n_write_lock(&self.arbo, "register_new_file")?;
-        arbo.n_remove_inode(id)?;
+        Arbo::n_write_lock(&self.arbo, "unregister_new_file")?.n_remove_inode(id)?;
 
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
