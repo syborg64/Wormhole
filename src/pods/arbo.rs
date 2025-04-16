@@ -325,7 +325,7 @@ impl Arbo {
     }
 
     #[must_use]
-    pub fn n_remove_children(&mut self, parent: InodeId, child: InodeId) -> WhResult<()> {
+    pub fn n_remove_child(&mut self, parent: InodeId, child: InodeId) -> WhResult<()> {
         let parent = self.n_get_inode_mut(parent)?;
 
         let children = match &mut parent.entry {
@@ -334,7 +334,7 @@ impl Arbo {
             FsEntry::Directory(children) => Ok(children),
         }?;
 
-        children.retain(|v| *v != child);
+        children.retain(|parent_child| *parent_child != child);
         Ok(())
     }
 
@@ -379,7 +379,7 @@ impl Arbo {
             FsEntry::Directory(_) => return Err(RemoveInode::NonEmpty),
         }
 
-        self.n_remove_children(inode.parent, inode.id)?;
+        self.n_remove_child(inode.parent, inode.id)?;
 
         self.entries.remove(&id).ok_or(RemoveInode::WhError {
             source: WhError::InodeNotFound,
