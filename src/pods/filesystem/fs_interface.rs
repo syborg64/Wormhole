@@ -91,34 +91,6 @@ impl FsInterface {
         Ok(new_inode)
     }
 
-    pub fn remove_inode(&self, id: InodeId) -> io::Result<()> {
-        let (to_remove_path, entry) = {
-            let arbo = Arbo::read_lock(&self.arbo, "fs_interface::remove_inode")?;
-            (
-                arbo.get_path_from_inode_id(id)?,
-                arbo.get_inode(id)?.entry.clone(),
-            )
-        };
-
-        let _ = match entry {
-            FsEntry::File(_) => self.disk.remove_file(to_remove_path),
-            FsEntry::Directory(children) => {
-                if children.is_empty() {
-                    self.disk.remove_dir(to_remove_path)
-                } else {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        "remove_inode: can't remove non-empty dir",
-                    ));
-                }
-            }
-        };
-
-        self.network_interface.unregister_file(id)?;
-
-        Ok(())
-    }
-
     pub fn write(&self, id: InodeId, data: &[u8], offset: u64) -> io::Result<u64> {
         let written = {
             let arbo = Arbo::read_lock(&self.arbo, "fs_interface.write")?;
@@ -387,21 +359,4 @@ impl FsInterface {
         let data = self.disk.read_file(path, 0, u64::max_value())?;
         self.network_interface.send_file(inode, data, to)
     }
-    // !SECTION
-
-    // SECTION - Adapters
-    // NOTE - system specific (fuse/winfsp) code that need access to arbo or other classes
-
-    pub fn fuse_remove_inode(&self, parent: InodeId, name: &std::ffi::OsStr) -> io::Result<()> {
-        let target = {
-            let arbo = Arbo::read_lock(&self.arbo, "fs_interface::fuse_remove_inode")?;
-            let parent = arbo.get_inode(parent)?;
-            arbo.get_inode_child_by_name(parent, &name.to_string_lossy().to_string())?
-                .id
-        };
-
-        self.remove_inode(target)
-    }
-
-    // !SECTION
 }

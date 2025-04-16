@@ -32,7 +32,8 @@ impl From<RemoveInode> for RemoveFile {
 }
 
 impl FsInterface {
-    pub fn n_fuse_remove_inode(
+    // NOTE - system specific (fuse/winfsp) code that need access to arbo or other classes
+    pub fn fuse_remove_inode(
         &self,
         parent: InodeId,
         name: &std::ffi::OsStr,
@@ -44,10 +45,10 @@ impl FsInterface {
             .id;
         drop(arbo);
 
-        self.n_remove_inode(target)
+        self.remove_inode(target)
     }
 
-    pub fn n_remove_inode(&self, id: InodeId) -> Result<(), RemoveFile> {
+    pub fn remove_inode(&self, id: InodeId) -> Result<(), RemoveFile> {
         let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface::remove_inode")?;
         let to_remove_path = arbo.n_get_path_from_inode_id(id)?;
         let entry = arbo.n_get_inode(id)?.entry.clone();
@@ -66,9 +67,7 @@ impl FsInterface {
             FsEntry::Directory(_) => return Err(RemoveFile::NonEmpty),
         };
 
-        if id != 3u64 {
-            self.network_interface.n_unregister_file(id)?;
-        }
+        self.network_interface.unregister_file(id)?;
         Ok(())
     }
 }

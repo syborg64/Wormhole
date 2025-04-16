@@ -306,18 +306,10 @@ impl NetworkInterface {
         arbo.n_add_inode(inode)
     }
 
-    /// Remove the requested entry to the arbo and inform the network
-    pub fn unregister_file(&self, id: InodeId) -> io::Result<Inode> {
-        let removed_inode: Inode;
-
-        if let Some(mut arbo) = self.arbo.try_write_for(LOCK_TIMEOUT) {
-            removed_inode = arbo.remove_inode(id)?;
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::Interrupted,
-                "mkfile: can't write-lock arbo's RwLock",
-            ));
-        };
+    #[must_use]
+    /// Remove [Inode] from the [Arbo] and inform the network of the removal
+    pub fn unregister_file(&self, id: InodeId) -> Result<(), RemoveInode> {
+        Arbo::n_write_lock(&self.arbo, "unregister_new_file")?.n_remove_inode(id)?;
 
         if id != 3u64 {
             self.to_network_message_tx
@@ -326,23 +318,6 @@ impl NetworkInterface {
                 ))
                 .expect("mkfile: unable to update modification on the network thread");
         }
-
-        // TODO - if unable to update for some reason, should be passed to the background worker
-
-        Ok(removed_inode)
-    }
-
-    #[must_use]
-    /// Inform the network of the removal of an [Inode]
-    pub fn n_unregister_file(&self, id: InodeId) -> Result<(), RemoveInode> {
-        Arbo::n_write_lock(&self.arbo, "unregister_new_file")?.n_remove_inode(id)?;
-
-        self.to_network_message_tx
-            .send(ToNetworkMessage::BroadcastMessage(
-                message::MessageContent::Remove(id),
-            ))
-            .expect("mkfile: unable to update modification on the network thread");
-
         // TODO - if unable to update for some reason, should be passed to the background worker
         Ok(())
     }

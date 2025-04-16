@@ -447,7 +447,7 @@ impl Filesystem for FuseController {
     }
 
     fn unlink(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: fuser::ReplyEmpty) {
-        match self.fs_interface.n_fuse_remove_inode(parent, name) {
+        match self.fs_interface.fuse_remove_inode(parent, name) {
             Ok(()) => reply.ok(),
             Err(RemoveFile::WhError { source }) => reply.error(source.to_libc()),
             Err(RemoveFile::LocalDeletionFailed { io }) => {
@@ -460,7 +460,7 @@ impl Filesystem for FuseController {
     }
 
     fn rmdir(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: fuser::ReplyEmpty) {
-        match self.fs_interface.n_fuse_remove_inode(parent, name) {
+        match self.fs_interface.fuse_remove_inode(parent, name) {
             Ok(()) => reply.ok(),
             Err(RemoveFile::WhError { source }) => reply.error(source.to_libc()),
             Err(RemoveFile::LocalDeletionFailed { io }) => {
