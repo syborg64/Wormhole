@@ -247,8 +247,7 @@ impl NetworkInterface {
     /// Add the requested entry to the arbo and inform the network
     pub fn n_register_new_file(&self, inode: Inode) -> Result<(), MakeInode> {
         let inode_id = inode.id.clone();
-        let mut arbo =
-            Arbo::n_write_lock(&self.arbo, "register_new_file")?.n_add_inode(inode.clone())?;
+        Arbo::n_write_lock(&self.arbo, "register_new_file")?.n_add_inode(inode.clone())?;
 
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(

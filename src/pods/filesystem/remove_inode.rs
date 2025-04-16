@@ -37,7 +37,8 @@ impl FsInterface {
         parent: InodeId,
         name: &std::ffi::OsStr,
     ) -> Result<(), RemoveFile> {
-        Arbo::n_read_lock(&self.arbo, "fs_interface::fuse_remove_inode")?.n_get_inode(parent)?;
+        let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface::fuse_remove_inode")?;
+        let parent = arbo.n_get_inode(parent)?;
         let target = arbo
             .n_get_inode_child_by_name(parent, &name.to_string_lossy().to_string())?
             .id;
