@@ -53,10 +53,6 @@ impl FsInterface {
         let entry = arbo.n_get_inode(id)?.entry.clone();
         drop(arbo);
 
-        // REVIEW Previous method of removing file and letting fail silently if the host doesn't have it is confusing,
-        // It got me stuck for a while and isnt fool proof so I implement a check
-        //
-        // This change made it necessary for make inode to not create files if the client isn't the host. I think its a good thing
         match entry {
             FsEntry::File(hosts) if hosts.contains(&self.network_interface.self_addr) => self
                 .disk
