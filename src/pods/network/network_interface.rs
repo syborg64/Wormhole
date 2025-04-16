@@ -179,17 +179,13 @@ impl NetworkInterface {
 
     /** TODO: Doc when reviews are finished */
     pub fn n_get_next_inode(&self) -> WhResult<u64> {
-        let mut next_inode = self
-            .next_inode
-            .try_lock_for(LOCK_TIMEOUT)
-            // REVIEW: Would block is different than the previous Interrupted,
-            // but I chose it for consistency with the try_lock on the arbo
-            .ok_or(WhError::WouldBlock {
-                called_from: "get_next_inode".to_string(),
-            })?;
+        let mut next_inode =
+            self.next_inode
+                .try_lock_for(LOCK_TIMEOUT)
+                .ok_or(WhError::WouldBlock {
+                    called_from: "get_next_inode".to_string(),
+                })?;
 
-        // REVIEW: next_inode being behind a mutex is weird and
-        // the function not taking a mutable ref feels weird, is next_inode behind a mutex just to allow a simple &self?
         let available_inode = *next_inode;
         *next_inode += 1;
 
@@ -198,14 +194,12 @@ impl NetworkInterface {
 
     #[must_use]
     pub fn n_promote_next_inode(&self, new: u64) -> WhResult<()> {
-        let mut next_inode = self
-            .next_inode
-            .try_lock_for(LOCK_TIMEOUT)
-            // REVIEW: Would block is different than the previous Interrupted,
-            // but I chose it for consistency with the try_lock on the arbo
-            .ok_or(WhError::WouldBlock {
-                called_from: "promote_next_inode".to_string(),
-            })?;
+        let mut next_inode =
+            self.next_inode
+                .try_lock_for(LOCK_TIMEOUT)
+                .ok_or(WhError::WouldBlock {
+                    called_from: "promote_next_inode".to_string(),
+                })?;
 
         // REVIEW: next_inode being behind a mutex is weird and
         // the function not taking a mutable ref feels weird, is next_inode behind a mutex just to allow a simple &self?
@@ -249,38 +243,15 @@ impl NetworkInterface {
         let inode_id = inode.id.clone();
         Arbo::n_write_lock(&self.arbo, "register_new_file")?.n_add_inode(inode.clone())?;
 
-        self.to_network_message_tx
-            .send(ToNetworkMessage::BroadcastMessage(
-                message::MessageContent::Inode(inode, inode_id),
-            ))
-            .expect("mkfile: unable to update modification on the network thread");
-        // TODO - if unable to update for some reason, should be passed to the background worker
-        Ok(())
-    }
-
-    //REVIEW register new file if we dont like the register new file split
-    #[must_use]
-    /// Add the requested [Inode] to the [Arbo] and inform the network
-    /// The [FsEntry] must fill the hosts preemptively
-    pub fn n2_register_new_file(&self, inode: Inode) -> Result<u64, MakeInode> {
-        let new_inode_id = inode.id;
-
-        let mut arbo = Arbo::n_write_lock(&self.arbo, "register_new_file")?;
-        arbo.n_add_inode(inode.clone())?;
-
-        // REVIEW: Removed the TODO because it's made at the creation of the input Inode, in make_inode
-        // The Doc as been adapted to reflect this
-
-        if new_inode_id != 3u64 {
+        if inode_id != 3u64 {
             self.to_network_message_tx
                 .send(ToNetworkMessage::BroadcastMessage(
-                    message::MessageContent::Inode(inode, new_inode_id),
+                    message::MessageContent::Inode(inode, inode_id),
                 ))
                 .expect("mkfile: unable to update modification on the network thread");
         }
         // TODO - if unable to update for some reason, should be passed to the background worker
-
-        Ok(new_inode_id)
+        Ok(())
     }
 
     pub fn broadcast_rename_file(

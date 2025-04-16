@@ -65,10 +65,8 @@ impl FsInterface {
                 .map_err(|io| MakeInode::LocalCreationFailed { io }),
         }?;
 
-        if new_inode_id != 3u64 {
-            self.network_interface
-                .n_register_new_file(new_inode.clone())?;
-        }
+        self.network_interface
+            .n_register_new_file(new_inode.clone())?;
         Ok(new_inode)
     }
 }
