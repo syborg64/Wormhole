@@ -59,7 +59,7 @@ impl DiskManager {
 
     #[must_use]
     pub fn remove_file(&self, path: WhPath) -> io::Result<()> {
-        self.handle.remove_file(path.clone().set_relative())
+        self.handle.remove_file(path.set_relative())
     }
 
     #[must_use]
