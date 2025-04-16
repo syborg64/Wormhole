@@ -19,7 +19,7 @@ impl FsInterface {
     #[must_use]
     /// Create a new empty [Inode], define his informations and register both
     /// in the network and in the local filesystem
-    pub fn n_make_inode(
+    pub fn make_inode(
         &self,
         parent_ino: u64,
         name: String,
@@ -56,17 +56,17 @@ impl FsInterface {
         match kind {
             SimpleFileType::File => self
                 .disk
-                .n_new_file(new_path, new_inode.meta.perm)
+                .new_file(new_path, new_inode.meta.perm)
                 .map(|_| ())
                 .map_err(|io| MakeInode::LocalCreationFailed { io }),
             SimpleFileType::Directory => self
                 .disk
-                .n_new_dir(new_path, new_inode.meta.perm)
+                .new_dir(new_path, new_inode.meta.perm)
                 .map_err(|io| MakeInode::LocalCreationFailed { io }),
         }?;
 
         self.network_interface
-            .n_register_new_file(new_inode.clone())?;
+            .register_new_file(new_inode.clone())?;
         Ok(new_inode)
     }
 }

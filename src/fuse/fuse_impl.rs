@@ -400,7 +400,7 @@ impl Filesystem for FuseController {
         _rdev: u32,
         reply: ReplyEntry,
     ) {
-        match self.fs_interface.n_make_inode(
+        match self.fs_interface.make_inode(
             parent,
             name.to_string_lossy().to_string(),
             SimpleFileType::File,
@@ -428,7 +428,7 @@ impl Filesystem for FuseController {
         _umask: u32,
         reply: ReplyEntry,
     ) {
-        match self.fs_interface.n_make_inode(
+        match self.fs_interface.make_inode(
             parent,
             name.to_string_lossy().to_string(),
             SimpleFileType::Directory,
@@ -540,7 +540,7 @@ impl Filesystem for FuseController {
         flags: i32,
         reply: fuser::ReplyCreate,
     ) {
-        match self.fs_interface.n_make_inode(
+        match self.fs_interface.make_inode(
             parent,
             name.to_string_lossy().to_string(),
             SimpleFileType::File,

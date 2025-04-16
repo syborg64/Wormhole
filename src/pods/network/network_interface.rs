@@ -193,7 +193,7 @@ impl NetworkInterface {
     }
 
     #[must_use]
-    pub fn n_promote_next_inode(&self, new: u64) -> WhResult<()> {
+    pub fn promote_next_inode(&self, new: u64) -> WhResult<()> {
         let mut next_inode =
             self.next_inode
                 .try_lock_for(LOCK_TIMEOUT)
@@ -210,36 +210,8 @@ impl NetworkInterface {
     }
 
     #[must_use]
-    /// add the requested entry to the arbo and inform the network
-    pub fn register_new_file(&self, inode: Inode) -> io::Result<u64> {
-        let new_inode_id = inode.id;
-
-        if let Some(mut arbo) = self.arbo.try_write_for(LOCK_TIMEOUT) {
-            arbo.add_inode(inode.clone())?;
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::Interrupted,
-                "mkfile: can't write-lock arbo's RwLock",
-            ));
-        };
-
-        // TODO - add myself to hosts
-
-        if new_inode_id != 3u64 {
-            self.to_network_message_tx
-                .send(ToNetworkMessage::BroadcastMessage(
-                    message::MessageContent::Inode(inode),
-                ))
-                .expect("mkfile: unable to update modification on the network thread");
-        }
-        // TODO - if unable to update for some reason, should be passed to the background worker
-
-        Ok(new_inode_id)
-    }
-
-    #[must_use]
     /// Add the requested entry to the arbo and inform the network
-    pub fn n_register_new_file(&self, inode: Inode) -> Result<(), MakeInode> {
+    pub fn register_new_file(&self, inode: Inode) -> Result<(), MakeInode> {
         let inode_id = inode.id.clone();
         Arbo::n_write_lock(&self.arbo, "register_new_file")?.n_add_inode(inode.clone())?;
 
@@ -283,25 +255,7 @@ impl NetworkInterface {
 
     #[must_use]
     /// Get a new inode, add the requested entry to the arbo and inform the network
-    pub fn acknowledge_new_file(&self, inode: Inode, _id: InodeId) -> io::Result<()> {
-        if let Some(mut arbo) = self.arbo.try_write_for(LOCK_TIMEOUT) {
-            match arbo.add_inode(inode) {
-                Ok(()) => (),
-                Err(_) => todo!("acknowledge_new_file: file already existing: conflict"), // TODO
-            };
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::Interrupted,
-                "mkfile: can't write-lock arbo's RwLock",
-            ));
-        };
-
-        Ok(())
-    }
-
-    #[must_use]
-    /// Get a new inode, add the requested entry to the arbo and inform the network
-    pub fn n_acknowledge_new_file(&self, inode: Inode, _id: InodeId) -> Result<(), MakeInode> {
+    pub fn acknowledge_new_file(&self, inode: Inode, _id: InodeId) -> Result<(), MakeInode> {
         let mut arbo = Arbo::n_write_lock(&self.arbo, "acknowledge_new_file")?;
         arbo.n_add_inode(inode)
     }
@@ -534,7 +488,7 @@ impl NetworkInterface {
 
             let action_result = match content.clone() { // remove scary clone
                 MessageContent::PullAnswer(id, binary) => fs_interface.recept_binary(id, binary),
-                MessageContent::Inode(inode) => fs_interface.n_recept_inode(inode).or_else(|err| {
+                MessageContent::Inode(inode) => fs_interface.recept_inode(inode).or_else(|err| {
                         Err(std::io::Error::new(
                             std::io::ErrorKind::Other,
                             format!("WhError: {err}"),

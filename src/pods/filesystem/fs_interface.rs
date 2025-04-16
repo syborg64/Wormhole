@@ -1,5 +1,5 @@
 use crate::network::message::Address;
-use crate::pods::arbo::{Arbo, FsEntry, Inode, InodeId, Metadata, LOCK_TIMEOUT};
+use crate::pods::arbo::{Arbo, FsEntry, Inode, InodeId, Metadata};
 use crate::pods::disk_manager::DiskManager;
 use crate::pods::network::network_interface::{Callback, NetworkInterface};
 use crate::pods::whpath::WhPath;
@@ -49,48 +49,6 @@ impl FsInterface {
     }
 
     // SECTION - local -> write
-
-    pub fn make_inode(
-        &self,
-        parent_ino: u64,
-        name: String,
-        kind: SimpleFileType,
-    ) -> io::Result<Inode> {
-        let new_entry = match kind {
-            SimpleFileType::File => FsEntry::File(vec![self.network_interface.self_addr.clone()]),
-            SimpleFileType::Directory => FsEntry::Directory(Vec::new()),
-        };
-
-        let new_inode_id = match (name.as_str(), parent_ino) {
-            (".global_config.toml", 1) => 2u64,
-            (".local_config.toml", 1) => 3u64,
-            _ => self.network_interface.get_next_inode()?,
-        };
-
-        let new_inode: Inode = Inode::new(name, parent_ino, new_inode_id, new_entry);
-        self.network_interface
-            .register_new_file(new_inode.clone())?;
-
-        let new_path: WhPath = if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
-            arbo.get_path_from_inode_id(new_inode_id)?
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::Interrupted,
-                "mkfile: can't read lock arbo's RwLock",
-            ));
-        };
-
-        match kind {
-            SimpleFileType::File => {
-                self.disk.new_file(new_path)?;
-                ()
-            }
-            SimpleFileType::Directory => self.disk.new_dir(new_path)?,
-        };
-
-        Ok(new_inode)
-    }
-
     pub fn write(&self, id: InodeId, data: &[u8], offset: u64) -> io::Result<u64> {
         let written = {
             let arbo = Arbo::read_lock(&self.arbo, "fs_interface.write")?;
@@ -225,29 +183,10 @@ impl FsInterface {
     // !SECTION
 
     // SECTION - remote -> write
-
-    pub fn recept_inode(&self, inode: Inode, id: InodeId) -> io::Result<()> {
-        self.network_interface.acknowledge_new_file(inode, id)?;
-
-        let new_path = {
-            let arbo = Arbo::read_lock(&self.arbo, "fs_interface.write")?;
-            arbo.get_path_from_inode_id(id)?
-        };
-
-        match self.disk.new_file(new_path) {
-            Ok(_) => (),
-            Err(e) => {
-                return Err(e);
-            }
-        };
-
-        Ok(())
-    }
-
-    pub fn n_recept_inode(&self, inode: Inode) -> Result<(), MakeInode> {
+    pub fn recept_inode(&self, inode: Inode) -> Result<(), MakeInode> {
         self.network_interface
-            .n_acknowledge_new_file(inode.clone(), inode.id)?;
-        self.network_interface.n_promote_next_inode(inode.id + 1)?;
+            .acknowledge_new_file(inode.clone(), inode.id)?;
+        self.network_interface.promote_next_inode(inode.id + 1)?;
 
         let new_path = {
             let arbo = Arbo::n_read_lock(&self.arbo, "recept_inode")?;
@@ -257,13 +196,13 @@ impl FsInterface {
         match inode.entry {
             FsEntry::File(hosts) if hosts.contains(&self.network_interface.self_addr) => self
                 .disk
-                .n_new_file(new_path, inode.meta.perm)
+                .new_file(new_path, inode.meta.perm)
                 .map(|_| ())
                 .map_err(|io| MakeInode::LocalCreationFailed { io }),
             FsEntry::File(_) => Ok(()),
             FsEntry::Directory(_) => self
                 .disk
-                .n_new_dir(new_path, inode.meta.perm)
+                .new_dir(new_path, inode.meta.perm)
                 .map(|_| ())
                 .map_err(|io| MakeInode::LocalCreationFailed { io }),
             // TODO - remove when merge is handled because new file should create folder

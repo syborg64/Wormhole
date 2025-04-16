@@ -47,12 +47,8 @@ impl DiskManager {
         Ok(())
     }
 
-    pub fn new_file(&self, path: WhPath) -> io::Result<File> {
-        self.handle.new_file(path.set_relative(), 0o644) // TODO look more in c mode_t value
-    }
-
     #[must_use]
-    pub fn n_new_file(&self, path: WhPath, permissions: u16) -> io::Result<File> {
+    pub fn new_file(&self, path: WhPath, permissions: u16) -> io::Result<File> {
         self.handle
             .new_file(path.set_relative(), permissions as libc::mode_t) // TODO look more in c mode_t value
     }
@@ -99,12 +95,7 @@ impl DiskManager {
     }
 
     #[must_use]
-    pub fn new_dir(&self, path: WhPath) -> io::Result<()> {
-        self.handle.create_dir(path.set_relative(), 0o644) // TODO look more in c mode_t value
-    }
-
-    #[must_use]
-    pub fn n_new_dir(&self, path: WhPath, permissions: u16) -> io::Result<()> {
+    pub fn new_dir(&self, path: WhPath, permissions: u16) -> io::Result<()> {
         self.handle
             .create_dir(path.set_relative(), permissions as libc::mode_t)
         // TODO look more in c mode_t value
