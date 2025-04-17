@@ -205,9 +205,7 @@ impl Pod {
         })
     }
 
-    /// for a given file, will try to send it to one host,
-    /// trying each until succes
-    /// log a warn on failure
+    /// for a given file, will try to send it to one host, trying each until succes
     fn send_file_to_possible_hosts(
         &self,
         possible_hosts: &Vec<Address>,
@@ -291,15 +289,16 @@ impl Pod {
         self.send_files_when_stopping(&arbo, peers);
 
         let _ = self.fs_interface.disk.remove_file(ARBO_FILE_FNAME.into());
-        match self.fs_interface.disk.write_file(
-            ARBO_FILE_FNAME.into(),
-            &bincode::serialize(&*arbo).expect("can't serialize arbo to bincode"),
-            0,
-        ) {
-            Ok(_) => Ok(()),
-            Err(e) => Err(PodStopError::ArboSavingFailed {
+        self.fs_interface
+            .disk
+            .write_file(
+                ARBO_FILE_FNAME.into(),
+                &bincode::serialize(&*arbo).expect("can't serialize arbo to bincode"),
+                0,
+            )
+            .map(|_| ())
+            .map_err(|e| PodStopError::ArboSavingFailed {
                 error_source: e.to_string(),
-            }),
-        }
+            })
     }
 }
