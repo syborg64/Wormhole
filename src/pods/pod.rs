@@ -251,7 +251,6 @@ impl Pod {
                 return Ok(());
             }
         }
-        log::warn!("Pod::stop no hosts can receive this file before stop: {path}");
         Err(PodStopError::FileNotSent { file: path })
     }
 
@@ -267,7 +266,9 @@ impl Pod {
                 ))
             })
             .for_each(|(id, path)| {
-                self.send_file_to_possible_hosts(&peers, id, path.clone());
+                if let Err(e) = self.send_file_to_possible_hosts(&peers, id, path) {
+                    log::warn!("{e}");
+                }
             });
     }
 
