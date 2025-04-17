@@ -288,6 +288,13 @@ impl Pod {
 
         self.send_files_when_stopping(&arbo, peers);
 
+        self.network_interface
+            .to_network_message_tx
+            .send(ToNetworkMessage::BroadcastMessage(
+                MessageContent::Disconnect(self.network_interface.self_addr.clone()),
+            ))
+            .expect("to_network_message_tx closed.");
+
         let _ = self.fs_interface.disk.remove_file(ARBO_FILE_FNAME.into());
         self.fs_interface
             .disk

@@ -29,6 +29,7 @@ pub enum MessageContent {
     RequestFs,
     RequestPull(InodeId),
     FsAnswer(FileSystemSerialized, Vec<Address>),
+    Disconnect(Address),
 }
 
 pub type MessageAndStatus = (MessageContent, Option<UnboundedSender<WhResult<()>>>);

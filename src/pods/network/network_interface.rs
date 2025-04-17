@@ -679,6 +679,16 @@ impl NetworkInterface {
         self.edit_peer_ip(socket, addr);
     }
 
+    pub fn disconnect_peer(&self, addr: Address) -> io::Result<()> {
+        self.peers.try_write_for(LOCK_TIMEOUT).ok_or(
+            std::io::Error::new(
+                std::io::ErrorKind::WouldBlock,
+                format!("disconnect_peer: can't write lock peers"),
+            )
+        )?.retain(|p| p.address != addr);
+        Ok(())
+    }
+
     pub async fn network_airport(
         mut network_reception: UnboundedReceiver<FromNetworkMessage>,
         fs_interface: Arc<FsInterface>,
@@ -730,7 +740,8 @@ impl NetworkInterface {
                 MessageContent::FsAnswer(_, _) => {
                     Err(io::Error::new(ErrorKind::InvalidInput,
                         "Late answer from first connection, loaded network interface shouldn't recieve FsAnswer"))
-                }
+                },
+                MessageContent::Disconnect(addr) => fs_interface.network_interface.disconnect_peer(addr)
             };
             if let Err(error) = action_result {
                 log::error!("Network airport couldn't operate this operation: {error}");
