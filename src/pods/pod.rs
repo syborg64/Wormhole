@@ -110,6 +110,8 @@ custom_error! {pub PodStopError
     WhError{source: WhError} = "{source}",
     ArboSavingFailed{error_source: String} = @{format!("PodStopError: could not write arbo to disk: {error_source}")},
     PodNotRunning = "No pod with this name was found running.",
+    FileNotReadable{file: WhPath, reason: String} = @{format!("PodStopError: could not read file from disk: {file} {reason}")},
+    FileNotSent{file: WhPath} = @{format!("PodStopError: no pod was able to receive this file before stopping: {file}")}
 }
 
 impl Pod {
@@ -211,36 +213,32 @@ impl Pod {
         possible_hosts: &Vec<Address>,
         ino: InodeId,
         path: WhPath,
-    ) {
-        let mut host_nb = 0;
+    ) -> Result<(), PodStopError> {
+        let file_content = self
+            .fs_interface
+            .disk
+            .read_file_to_end(path.clone())
+            .map_err(|e| PodStopError::FileNotReadable {
+                file: path.clone(),
+                reason: e.to_string(),
+            })?;
 
-        loop {
-            if possible_hosts.len() <= host_nb {
-                log::warn!("Pod::stop no hosts can receive this file: {path}");
-                return;
-                // TODO - while merge between pods is not implemented, the file is untracked
-                // (present on disk, but not tracked by wormhole, and not deleted either)
-            }
-            let file_content = self
-                .fs_interface
-                .disk
-                .read_file_to_end(path.clone())
-                .expect("Pod::stop: unable to read file from disk");
-
-            let (feedback_tx, mut feedback_rx) = tokio::sync::mpsc::unbounded_channel::<WhResult<()>>();
+        for host in possible_hosts {
+            let (status_tx, mut status_rx) = tokio::sync::mpsc::unbounded_channel::<WhResult<()>>();
 
             self.network_interface
                 .to_network_message_tx
                 .send(ToNetworkMessage::SpecificMessage(
                     (
-                        MessageContent::PullAnswer(ino, file_content),
-                        Some(feedback_tx.clone()),
+                        // NOTE - file_content clone is not efficient, but no way to avoid it for now
+                        MessageContent::PullAnswer(ino, file_content.clone()),
+                        Some(status_tx.clone()),
                     ),
-                    vec![possible_hosts[0].clone()],
+                    vec![host.clone()],
                 ))
                 .expect("to_network_message_tx closed.");
 
-            if let Ok(()) = feedback_rx.blocking_recv().unwrap() {
+            if let Ok(()) = status_rx.blocking_recv().unwrap() {
                 self.network_interface
                     .to_network_message_tx
                     .send(ToNetworkMessage::BroadcastMessage(
@@ -250,11 +248,11 @@ impl Pod {
                         ),
                     ))
                     .expect("to_network_message_tx closed.");
-                return;
-            } else {
-                host_nb += 1
+                return Ok(());
             }
         }
+        log::warn!("Pod::stop no hosts can receive this file before stop: {path}");
+        Err(PodStopError::FileNotSent { file: path })
     }
 
     /// Gets every file hosted by this pod only and sends them to other pods
