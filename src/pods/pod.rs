@@ -23,7 +23,7 @@ use winfsp::host::FileSystemHost;
 use crate::network::{message::Address, peer_ipc::PeerIPC, server::Server};
 
 use crate::pods::{
-    arbo::{index_folder, Arbo},
+    arbo::{generate_arbo, Arbo},
     disk_manager::DiskManager,
     filesystem::fs_interface::FsInterface,
     network::network_interface::NetworkInterface,
@@ -126,7 +126,7 @@ impl Pod {
 
         log::info!("mount point {}", mount_point);
         let (mut arbo, next_inode) =
-            index_folder(&mount_point, &server_address).expect("unable to index folder");
+            generate_arbo(&mount_point, &server_address).expect("unable to index folder");
         let (to_network_message_tx, to_network_message_rx) = mpsc::unbounded_channel();
         let (from_network_message_tx, mut from_network_message_rx) = mpsc::unbounded_channel();
 
