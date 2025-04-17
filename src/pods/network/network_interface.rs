@@ -439,13 +439,6 @@ impl NetworkInterface {
             ))
             .expect("revoke_remote_hosts: unable to update modification on the network thread");
         self.apply_redundancy(id)
-        /* REVIEW
-         * This system (and others broadcasts systems) should be reviewed as they don't check success.
-         * In this case, if another host misses this order, it will not update it's file.
-         * We could create a "broadcast" callback with the number of awaited confirmations and a timeout
-         * before resend or fail declaration.
-         * Or send a bunch of Specific messages
-         */
     }
 
     pub fn update_remote_hosts(&self, inode: &Inode) -> io::Result<()> {
@@ -461,49 +454,8 @@ impl NetworkInterface {
         }
     }
 
-    /// Add new hosts to the inode and propagate on the network.
-    ///
-    /// Will add the requested hosts to the inode, (ignoring hosts already owning this inode)
-    /// Will send AddHosts message to the network to propagate added hosts
-    ///
-    /// Preferred to update_remote_hosts as it suffers less from race conditions
-    ///
-    /// * `id` - InodeId
-    /// * `new_hosts` - Vec<Address> hosts to add
-    pub fn declare_new_host(&self, id: InodeId, new_hosts: Vec<Address>) -> io::Result<()> {
-        Arbo::write_lock(&self.arbo, "declare_new_host")?.add_inode_hosts(id, new_hosts.clone())?;
-
-        self.to_network_message_tx
-            .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::AddHosts(id, new_hosts),
-            ))
-            .expect("update_remote_hosts: unable to update modification on the network thread");
-        Ok(())
-    }
-
     pub fn aknowledge_new_hosts(&self, id: InodeId, new_hosts: Vec<Address>) -> io::Result<()> {
         Arbo::write_lock(&self.arbo, "aknowledge_new_hosts")?.add_inode_hosts(id, new_hosts)
-    }
-
-    /// Remove hosts from the inode and propagate on the network.
-    ///
-    /// Will remove the requested hosts from the inode, (ignoring hosts already not owning this inode)
-    /// Will send RemoveHosts message to the network to propagate added hosts
-    ///
-    /// Preferred to update_remote_hosts as it suffers less from race conditions
-    ///
-    /// * `id` - InodeId
-    /// * `remove_hosts` - Vec<Address> hosts to add
-    pub fn declare_host_removal(&self, id: InodeId, remove_hosts: Vec<Address>) -> io::Result<()> {
-        Arbo::write_lock(&self.arbo, "declare_host_removal")?
-            .remove_inode_hosts(id, remove_hosts.clone())?;
-
-        self.to_network_message_tx
-            .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::RemoveHosts(id, remove_hosts),
-            ))
-            .expect("update_remote_hosts: unable to update modification on the network thread");
-        Ok(())
     }
 
     pub fn aknowledge_hosts_removal(&self, id: InodeId, new_hosts: Vec<Address>) -> io::Result<()> {
