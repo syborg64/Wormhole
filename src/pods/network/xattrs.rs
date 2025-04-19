@@ -9,8 +9,11 @@ use crate::{
 
 impl NetworkInterface {
     pub fn set_inode_xattr(&self, ino: InodeId, key: String, data: Vec<u8>) -> WhResult<()> {
-        let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface::get_inode_xattr")?;
-        arbo.set_inode_xattr(ino, key.clone(), data.clone())?;
+        Arbo::n_write_lock(&self.arbo, "network_interface::get_inode_xattr")?.set_inode_xattr(
+            ino,
+            key.clone(),
+            data.clone(),
+        )?;
 
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
@@ -22,13 +25,16 @@ impl NetworkInterface {
     }
 
     pub fn recept_inode_xattr(&self, ino: InodeId, key: String, data: Vec<u8>) -> WhResult<()> {
-        let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface::get_inode_xattr")?;
-        arbo.set_inode_xattr(ino, key.clone(), data)
+        Arbo::n_write_lock(&self.arbo, "network_interface::get_inode_xattr")?.set_inode_xattr(
+            ino,
+            key.clone(),
+            data,
+        )
     }
 
     pub fn remove_inode_xattr(&self, ino: InodeId, key: String) -> WhResult<()> {
-        let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface::get_inode_xattr")?;
-        arbo.remove_inode_xattr(ino, key.clone())?;
+        Arbo::n_write_lock(&self.arbo, "network_interface::get_inode_xattr")?
+            .remove_inode_xattr(ino, key.clone())?;
 
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
@@ -40,7 +46,7 @@ impl NetworkInterface {
     }
 
     pub fn recept_remove_inode_xattr(&self, ino: InodeId, key: String) -> WhResult<()> {
-        let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface::get_inode_xattr")?;
-        arbo.remove_inode_xattr(ino, key.clone())
+        Arbo::n_write_lock(&self.arbo, "network_interface::get_inode_xattr")?
+            .remove_inode_xattr(ino, key.clone())
     }
 }
