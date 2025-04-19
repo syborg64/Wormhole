@@ -1,4 +1,4 @@
-use std::{fmt::Debug, sync::mpsc::SendError};
+use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -16,7 +16,7 @@ use crate::{
 pub enum MessageContent {
     Register(Address),
     Remove(InodeId),
-    Inode(Inode, InodeId),
+    Inode(Inode),
     RequestFile(InodeId, Address),
     PullAnswer(InodeId, Vec<u8>),
     Rename(InodeId, InodeId, String, String), //Parent, New Parent, Name, New Name
