@@ -66,7 +66,7 @@ async fn main() {
                 peers: vec![],
                 ignore_paths: vec![],
             },
-            redundancy: Some(RedundancyConfig { number: 3 }),
+            redundancy: RedundancyConfig { number: 2 },
         });
 
     for address in args_other_addresses {
@@ -108,9 +108,9 @@ async fn main() {
 
     pods.push(
         Pod::new(
+            global_config,
             WhPath::from(mount.as_path()),
             1,
-            global_config.general.peers,
             server.clone(),
             local_config.general.address,
         )
