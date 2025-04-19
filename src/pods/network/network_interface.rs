@@ -269,7 +269,7 @@ impl NetworkInterface {
 
     #[must_use]
     /// Remove [Inode] from the [Arbo] and inform the network of the removal
-    pub fn unregister_file(&self, id: InodeId) -> Result<(), RemoveInode> {
+    pub fn unregister_inode(&self, id: InodeId) -> Result<(), RemoveInode> {
         Arbo::n_write_lock(&self.arbo, "unregister_inode")?.n_remove_inode(id)?;
 
         if id != 3u64 {
@@ -283,8 +283,8 @@ impl NetworkInterface {
         Ok(())
     }
 
-    pub fn acknowledge_unregister_file(&self, id: InodeId) -> Result<Inode, RemoveInode> {
-        Arbo::n_write_lock(&self.arbo, "acknowledge_unregister_file")?.n_remove_inode(id)
+    pub fn acknowledge_unregister_inode(&self, id: InodeId) -> Result<Inode, RemoveInode> {
+        Arbo::n_write_lock(&self.arbo, "acknowledge_unregister_inode")?.n_remove_inode(id)
     }
 
     pub fn acknowledge_hosts_edition(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {

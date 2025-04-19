@@ -69,13 +69,13 @@ impl FsInterface {
 
     pub fn remove_inode(&self, id: InodeId) -> Result<(), RemoveFile> {
         self.remove_inode_locally(id)?;
-        self.network_interface.unregister_file(id)?;
+        self.network_interface.unregister_inode(id)?;
         Ok(())
     }
 
     pub fn recept_remove_inode(&self, id: InodeId) -> Result<(), RemoveFile> {
         self.remove_inode_locally(id)?;
-        self.network_interface.acknowledge_unregister_file(id)?;
+        self.network_interface.acknowledge_unregister_inode(id)?;
         Ok(())
     }
 }
