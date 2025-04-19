@@ -2,7 +2,7 @@ use custom_error::custom_error;
 
 use crate::{
     error::WhError,
-    pods::arbo::{Arbo, FsEntry, Inode, InodeId},
+    pods::arbo::{Arbo, FsEntry, InodeId},
 };
 
 use super::fs_interface::FsInterface;
@@ -51,10 +51,9 @@ impl FsInterface {
     pub fn remove_inode(&self, id: InodeId) -> Result<(), RemoveFile> {
         let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface::remove_inode")?;
         let to_remove_path = arbo.n_get_path_from_inode_id(id)?;
-        let entry = arbo.n_get_inode(id)?.entry.clone();
-        drop(arbo);
+        let entry = &arbo.n_get_inode(id)?.entry;
 
-        match entry {
+        match &entry {
             FsEntry::File(hosts) if hosts.contains(&self.network_interface.self_addr) => self
                 .disk
                 .remove_file(to_remove_path)
@@ -66,16 +65,29 @@ impl FsInterface {
                 .map_err(|io| RemoveFile::LocalDeletionFailed { io })?,
             FsEntry::Directory(_) => return Err(RemoveFile::NonEmpty),
         };
+        drop(arbo);
 
         self.network_interface.unregister_file(id)?;
         Ok(())
     }
 
-    pub fn recept_remove_inode(&self, id: InodeId) -> Result<(), RemoveInode> {
-        let to_remove_path =
-            Arbo::n_read_lock(&self.arbo, "cecept_remove_inode")?.n_get_path_from_inode_id(id)?;
+    pub fn recept_remove_inode(&self, id: InodeId) -> Result<(), RemoveFile> {
+        let arbo = Arbo::n_read_lock(&self.arbo, "recept_remove_inode")?;
+        let inode = arbo.n_get_inode(id)?;
+        let to_remove_path = arbo.n_get_path_from_inode_id(id)?;
 
-        let _ = self.disk.remove_file(to_remove_path);
+        match &inode.entry {
+            FsEntry::File(hosts) if hosts.contains(&self.network_interface.self_addr) => self
+                .disk
+                .remove_file(to_remove_path)
+                .map_err(|io| RemoveFile::LocalDeletionFailed { io })?,
+            FsEntry::File(_) => { /* Nothing to do */ }
+            FsEntry::Directory(children) if children.is_empty() => self
+                .disk
+                .remove_dir(to_remove_path)
+                .map_err(|io| RemoveFile::LocalDeletionFailed { io })?,
+            FsEntry::Directory(_) => return Err(RemoveFile::NonEmpty),
+        };
 
         self.network_interface.acknowledge_unregister_file(id)?;
         Ok(())
