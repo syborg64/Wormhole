@@ -245,14 +245,14 @@ impl FileSystemContext for FSPController {
             .id;
 
         drop(arbo);
-        let (id, inode) = self
+        let inode = self
             .fs_interface
             .make_inode(parent, name, file_type)
             .inspect_err(|e| log::error!("make_inode:{e}"))?;
         *file_info.as_mut() = (&inode.meta).into();
         file_info.set_normalized_name(file_name.as_slice(), None);
 
-        Ok(WormholeHandle(id))
+        Ok(WormholeHandle(inode.id))
     }
 
     fn cleanup(
