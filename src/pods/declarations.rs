@@ -1,3 +1,4 @@
+use std::fs;
 use std::ops::Deref;
 use std::{io, sync::Arc};
 
@@ -5,17 +6,19 @@ use std::{io, sync::Arc};
 use fuser;
 use log::info;
 use parking_lot::RwLock;
+use serde::Deserialize;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::task::JoinHandle;
 #[cfg(target_os = "windows")]
 use winfsp::host::FileSystemHost;
 
 use crate::config::types::Config;
+use crate::config::GlobalConfig;
 #[cfg(target_os = "linux")]
 use crate::fuse::fuse_impl::mount_fuse;
 use crate::network::message::{FileSystemSerialized, FromNetworkMessage, MessageContent};
 use crate::network::peer_ipc;
-use crate::pods::arbo::GLOBAL_CONFIG_INO;
+use crate::pods::arbo::{GLOBAL_CONFIG_FNAME, GLOBAL_CONFIG_INO};
 use crate::pods::filesystem::fs_interface;
 #[cfg(target_os = "windows")]
 use crate::winfsp::winfsp_impl::mount_fsp;
@@ -58,7 +61,7 @@ pub async fn initiate_connection(
     server_address: Address,
     tx: &UnboundedSender<FromNetworkMessage>,
     rx: &mut UnboundedReceiver<FromNetworkMessage>,
-) -> Option<(FileSystemSerialized, Vec<Address>, PeerIPC)> {
+) -> Option<(FileSystemSerialized, Vec<Address>, PeerIPC, Vec<u8>)> {
     if peers_addrs.len() >= 1 {
         info!("INITTIAL CONNECTION");
         for first_contact in peers_addrs {
@@ -77,13 +80,13 @@ pub async fn initiate_connection(
                     match rx.recv().await {
                         Some(FromNetworkMessage {
                             origin: _,
-                            content: MessageContent::FsAnswer(fs, mut peers_address),
+                            content: MessageContent::FsAnswer(fs, mut peers_address, global_config),
                         }) => {
                             // remove itself from peers and first_connect because the connection is already existing
                             peers_address.retain(|address| {
                                 *address != server_address && *address != first_contact
                             });
-                            return Some((fs, peers_address, ipc));
+                            return Some((fs, peers_address, ipc, global_config));
                         }
                         Some(_) => {
                             info!(
@@ -160,15 +163,15 @@ impl Pod {
     ) -> io::Result<Self> {
         log::info!("mount point {}", mount_point);
         let (mut arbo, next_inode) =
-        index_folder(&mount_point, &server_address).expect("unable to index folder");
+            index_folder(&mount_point, &server_address).expect("unable to index folder");
         let (to_network_message_tx, to_network_message_rx) = mpsc::unbounded_channel();
         let (from_network_message_tx, mut from_network_message_rx) = mpsc::unbounded_channel();
-        
+
         know_peers.retain(|x| *x != server_address);
 
         let mut peers = vec![];
 
-        if let Some((fs_serialized, peers_addrs, ipc)) = initiate_connection(
+        if let Some((fs_serialized, peers_addrs, ipc, global_config_bytes)) = initiate_connection(
             know_peers,
             server_address.clone(),
             &from_network_message_tx,
@@ -176,6 +179,12 @@ impl Pod {
         )
         .await
         {
+            fs::write(mount_point.join(GLOBAL_CONFIG_FNAME).to_string(), global_config_bytes).expect("can't write global_config file");
+            // let global_config: GlobalConfig = toml::from_str(&test).expect("toml: invalid global config");
+            // global_config.write(mount_point.join(GLOBAL_CONFIG_FNAME).to_string()).expect("can't write global_config");
+
+            // TODO use global_config ?
+
             peers = PeerIPC::peer_startup(peers_addrs, from_network_message_tx.clone()).await;
             peers.push(ipc);
             register_to_others(&peers, &server_address)?;
@@ -183,7 +192,7 @@ impl Pod {
         }
 
         let arbo: Arc<RwLock<Arbo>> = Arc::new(RwLock::new(arbo));
-        
+
         let network_interface = Arc::new(NetworkInterface::new(
             arbo.clone(),
             mount_point.clone(),
@@ -211,14 +220,14 @@ impl Pod {
             network_interface.peers.clone(),
             to_network_message_rx,
         )));
-        
-        info!("{:?}", network_interface.peers.clone());
-        pull_config(
-            network_interface.peers.clone(),
-            &network_interface.self_addr,
-            &from_network_message_tx,
-        )
-        .await;
+
+        // info!("{:?}", network_interface.peers.clone());
+        // pull_config(
+        //     network_interface.peers.clone(),
+        //     &network_interface.self_addr,
+        //     &from_network_message_tx,
+        // )
+        // .await;
 
         let new_peer_handle = Some(tokio::spawn(
             NetworkInterface::incoming_connections_watchdog(
