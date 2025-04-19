@@ -2,6 +2,7 @@ use crate::pods::arbo::{FsEntry, Inode, Metadata};
 use crate::pods::filesystem::fs_interface::{FsInterface, SimpleFileType};
 use crate::pods::filesystem::make_inode::MakeInode;
 use crate::pods::filesystem::remove_inode::RemoveFile;
+use crate::pods::filesystem::write::WriteError;
 use crate::pods::filesystem::xattrs::GetXAttrError;
 use crate::pods::whpath::WhPath;
 use fuser::{
@@ -521,9 +522,11 @@ impl Filesystem for FuseController {
                     .try_into()
                     .expect("fuser write: can't convert u64 to u32"),
             ),
-            Err(err) => {
-                log::error!("fuse_impl error: {:?}", err);
-                reply.error(err.raw_os_error().unwrap_or(EIO))
+            Err(WriteError::WhError { source }) => reply.error(source.to_libc()),
+            Err(WriteError::LocalWriteFailed { io }) => {
+                reply.error(io.raw_os_error().expect(
+                    "Local creation error should always be the underling libc::open os error",
+                ))
             }
         }
     }

@@ -585,6 +585,13 @@ impl Arbo {
         Ok(())
     }
 
+    pub fn n_set_inode_meta(&mut self, ino: InodeId, meta: Metadata) -> WhResult<()> {
+        let inode = self.n_get_inode_mut(ino)?;
+
+        inode.meta = meta;
+        Ok(())
+    }
+
     pub fn set_inode_xattr(&mut self, ino: InodeId, key: String, data: Vec<u8>) -> WhResult<()> {
         let inode = self.n_get_inode_mut(ino)?;
 

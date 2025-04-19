@@ -49,25 +49,6 @@ impl FsInterface {
     }
 
     // SECTION - local -> write
-    pub fn write(&self, id: InodeId, data: &[u8], offset: u64) -> io::Result<u64> {
-        let written = {
-            let arbo = Arbo::read_lock(&self.arbo, "fs_interface.write")?;
-            let path = arbo.get_path_from_inode_id(id)?;
-            let mut meta = arbo.get_inode(id)?.meta.clone();
-            drop(arbo);
-
-            let newsize = offset + data.len() as u64;
-            if newsize > meta.size {
-                meta.size = newsize;
-                self.network_interface.update_metadata(id, meta)?;
-            }
-            self.disk.write_file(path, data, offset)?
-        };
-
-        self.network_interface.revoke_remote_hosts(id)?;
-        Ok(written)
-    }
-
     pub fn set_inode_meta(&self, ino: InodeId, meta: Metadata) -> io::Result<()> {
         let path = Arbo::read_lock(&self.arbo, "fs_interface::set_inode_meta")?
             .get_path_from_inode_id(ino)?;

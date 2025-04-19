@@ -432,14 +432,13 @@ impl NetworkInterface {
         Ok(())
     }
 
-    pub fn revoke_remote_hosts(&self, id: InodeId) -> io::Result<()> {
+    pub fn revoke_remote_hosts(&self, id: InodeId) -> WhResult<()> {
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
                 MessageContent::EditHosts(id, vec![self.self_addr.clone()]),
             ))
             .expect("revoke_remote_hosts: unable to update modification on the network thread");
-        //self.apply_redundancy(id)
-        Ok(())
+        self.apply_redundancy(id)
     }
 
     pub fn update_remote_hosts(&self, inode: &Inode) -> io::Result<()> {
@@ -466,6 +465,25 @@ impl NetworkInterface {
     pub fn update_metadata(&self, id: InodeId, meta: Metadata) -> io::Result<()> {
         let mut arbo = Arbo::write_lock(&self.arbo, "network_interface::update_metadata")?;
         arbo.set_inode_meta(id, meta.clone())?;
+
+        self.to_network_message_tx
+            .send(ToNetworkMessage::BroadcastMessage(
+                MessageContent::EditMetadata(id, meta, self.self_addr.clone()),
+            ))
+            .expect("update_metadata: unable to update modification on the network thread");
+        Ok(())
+        /* REVIEW
+         * This system (and others broadcasts systems) should be reviewed as they don't check success.
+         * In this case, if another host misses this order, it will not update it's file.
+         * We could create a "broadcast" callback with the number of awaited confirmations and a timeout
+         * before resend or fail declaration.
+         * Or send a bunch of Specific messages
+         */
+    }
+
+    pub fn n_update_metadata(&self, id: InodeId, meta: Metadata) -> WhResult<()> {
+        let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface::update_metadata")?;
+        arbo.n_set_inode_meta(id, meta.clone())?;
 
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
@@ -534,11 +552,7 @@ impl NetworkInterface {
             if let FsEntry::File(current_hosts) = &arbo.n_get_inode(file_id)?.entry {
                 current_hosts.clone()
             } else {
-                todo!("can't apply redundancy to a folder");
-                // return Err(io::Error::new(
-                //     io::ErrorKind::Other,
-                //     "can't apply redundancy to a folder",
-                // ));
+                panic!("Can't apply redundancy to a folder");
             }
         };
 

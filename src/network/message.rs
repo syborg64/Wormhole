@@ -1,4 +1,4 @@
-use std::{fmt::Debug, sync::mpsc::SendError};
+use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
