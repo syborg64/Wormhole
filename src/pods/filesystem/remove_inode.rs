@@ -48,12 +48,11 @@ impl FsInterface {
         self.remove_inode(target)
     }
 
-    pub fn remove_inode(&self, id: InodeId) -> Result<(), RemoveFile> {
+    fn remove_inode_locally(&self, id: InodeId) -> Result<(), RemoveFile> {
         let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface::remove_inode")?;
         let to_remove_path = arbo.n_get_path_from_inode_id(id)?;
-        let entry = &arbo.n_get_inode(id)?.entry;
 
-        match &entry {
+        match &arbo.n_get_inode(id)?.entry {
             FsEntry::File(hosts) if hosts.contains(&self.network_interface.self_addr) => self
                 .disk
                 .remove_file(to_remove_path)
@@ -65,30 +64,17 @@ impl FsInterface {
                 .map_err(|io| RemoveFile::LocalDeletionFailed { io })?,
             FsEntry::Directory(_) => return Err(RemoveFile::NonEmpty),
         };
-        drop(arbo);
+        Ok(())
+    }
 
+    pub fn remove_inode(&self, id: InodeId) -> Result<(), RemoveFile> {
+        self.remove_inode_locally(id)?;
         self.network_interface.unregister_file(id)?;
         Ok(())
     }
 
     pub fn recept_remove_inode(&self, id: InodeId) -> Result<(), RemoveFile> {
-        let arbo = Arbo::n_read_lock(&self.arbo, "recept_remove_inode")?;
-        let inode = arbo.n_get_inode(id)?;
-        let to_remove_path = arbo.n_get_path_from_inode_id(id)?;
-
-        match &inode.entry {
-            FsEntry::File(hosts) if hosts.contains(&self.network_interface.self_addr) => self
-                .disk
-                .remove_file(to_remove_path)
-                .map_err(|io| RemoveFile::LocalDeletionFailed { io })?,
-            FsEntry::File(_) => { /* Nothing to do */ }
-            FsEntry::Directory(children) if children.is_empty() => self
-                .disk
-                .remove_dir(to_remove_path)
-                .map_err(|io| RemoveFile::LocalDeletionFailed { io })?,
-            FsEntry::Directory(_) => return Err(RemoveFile::NonEmpty),
-        };
-
+        self.remove_inode_locally(id)?;
         self.network_interface.acknowledge_unregister_file(id)?;
         Ok(())
     }

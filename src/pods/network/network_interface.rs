@@ -270,14 +270,14 @@ impl NetworkInterface {
     #[must_use]
     /// Remove [Inode] from the [Arbo] and inform the network of the removal
     pub fn unregister_file(&self, id: InodeId) -> Result<(), RemoveInode> {
-        Arbo::n_write_lock(&self.arbo, "unregister_new_inode")?.n_remove_inode(id)?;
+        Arbo::n_write_lock(&self.arbo, "unregister_inode")?.n_remove_inode(id)?;
 
         if id != 3u64 {
             self.to_network_message_tx
                 .send(ToNetworkMessage::BroadcastMessage(
                     message::MessageContent::Remove(id),
                 ))
-                .expect("mkfile: unable to update modification on the network thread");
+                .expect("unregister_inode: unable to update modification on the network thread");
         }
         // TODO - if unable to update for some reason, should be passed to the background worker
         Ok(())
