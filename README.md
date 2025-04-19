@@ -56,29 +56,19 @@ docker exec -it w1 ./wormhole-cli new test
 
 ---
 
-#### **4. Initialize w2 with a Template**
+#### **4. Inspect the w2 Container**
 ```bash
-docker exec -it w2 ./wormhole-cli template
+docker inspect w1
 ```
-- **Purpose**: Prepares `w2` to join an existing network.
-- **Verify**:
-  - The file `shared_mnt2/.global_config.toml` is generated.
-
----
-
-#### **5. Inspect the w2 Container**
-```bash
-docker inspect w2
-```
-- **Purpose**: Retrieve `w2`'s internal IP for inter-container communication.
+- **Purpose**: Retrieve `w1`'s internal IP for inter-container communication.
 - **Key Data**:
   ```json
-  "IPAddress": "172.19.0.3",
+  "GateWay": "172.19.0.3",
   ```
 
 ---
 
-#### **6. Connect w2 to w1's Network**
+#### **5. Connect w2 to w1's Network**
 ```bash
 docker exec -it w2 ./wormhole-cli new test 172.20.0.3:8081
 ```
@@ -98,10 +88,9 @@ docker-compose up
 
 # 2. Configure w1 as the primary node
 docker exec -it w1 ./wormhole-cli template
-docker exec -it w1 ./wormhole-cli new test
+docker exec -it w1 ./wormhole-cli new test1
 
 # 3. Configure w2 and connect it
-docker exec -it w2 ./wormhole-cli template
-docker inspect w2 # → Get w2’s IP (e.g., 172.20.0.3)
-docker exec -it w2 ./wormhole-cli new test 172.20.0.3:8081
+docker inspect w1 # → Get w1’s IP and port (e.g., GateWay:172.20.0.3)
+docker exec -it w2 ./wormhole-cli new test2 172.20.0.3:8081
 ```
