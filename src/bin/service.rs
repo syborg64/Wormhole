@@ -106,11 +106,11 @@ async fn main() {
         while let Some(command) = rx.recv().await {
             match command {
                 PodCommand::AddPod(pod) => {
-                    info!("Pod created: {:?}", pod);
+                    info!("Pod created");
                     pods.push(pod);
                 }
                 PodCommand::JoinPod(pod) => {
-                    info!("Pod created and joined a network: {:?}", pod);
+                    info!("Pod created or joined a network");
                     pods.push(pod);
                 }
                 PodCommand::StartPod(start_args) => {

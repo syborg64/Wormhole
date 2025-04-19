@@ -16,8 +16,6 @@ use crate::{
     pods::whpath::WhPath,
 };
 
-use super::init;
-
 fn check_config_file(
     path: &WhPath,
     files_name: Vec<&str>,
@@ -42,8 +40,11 @@ pub fn new(ip: &str, args: PodArgs) -> Result<(), Box<dyn std::error::Error>> {
         WhPath::from(args.path.unwrap())
     };
     fs::read_dir(&path.inner)?;
-    let files_name = vec![".local_config.toml", ".global_config.toml"];
-    check_config_file(&path, files_name)?;
+    if args.url == None {
+        println!("url: {:?}", args.url);
+        let files_name = vec![".local_config.toml", ".global_config.toml"];
+        check_config_file(&path, files_name)?;
+    }
     let rt = Runtime::new().unwrap();
     rt.block_on(cli_messager(
         ip,

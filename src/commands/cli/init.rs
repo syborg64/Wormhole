@@ -28,8 +28,8 @@ fn check_config_file(
 
 pub fn init(ip: &str, name: String, path: &WhPath) -> Result<(), Box<dyn std::error::Error>> {
     fs::read_dir(&path.inner)?;
-    let files_name = vec![".local_config.toml", ".global_config.toml"];
-    check_config_file(&path, files_name)?;
+    // let files_name = vec![".local_config.toml", ".global_config.toml"];
+    // check_config_file(&path, files_name)?;
     let rt = Runtime::new().unwrap();
     rt.block_on(cli_messager(
         ip,

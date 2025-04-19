@@ -27,7 +27,7 @@ pub enum Cli {
     /// remove a pod from its network
     Remove(RemoveArgs),
     /// reload a pod
-    Reload(PodArgs),
+    Reload(PodArgs),    
 }
 
 #[derive(Debug, clap::Args, Serialize, Deserialize)]

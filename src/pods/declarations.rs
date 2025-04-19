@@ -60,6 +60,7 @@ pub async fn initiate_connection(
     rx: &mut UnboundedReceiver<FromNetworkMessage>,
 ) -> Option<(FileSystemSerialized, Vec<Address>, PeerIPC)> {
     if peers_addrs.len() >= 1 {
+        info!("INITTIAL CONNECTION");
         for first_contact in peers_addrs {
             let first_ipc = PeerIPC::connect(first_contact.to_owned(), tx.clone()).await;
 
@@ -117,6 +118,7 @@ pub async fn pull_config(
         let first_ipc = PeerIPC::connect(peer_addr.clone(), tx.clone()).await;
 
         if let Some(ipc) = first_ipc {
+            info!("IPC Connexion test");
             if let Err(err) = ipc.sender.send(MessageContent::RequestFile(
                 GLOBAL_CONFIG_INO,
                 server_address.clone(),
@@ -158,10 +160,10 @@ impl Pod {
     ) -> io::Result<Self> {
         log::info!("mount point {}", mount_point);
         let (mut arbo, next_inode) =
-            index_folder(&mount_point, &server_address).expect("unable to index folder");
+        index_folder(&mount_point, &server_address).expect("unable to index folder");
         let (to_network_message_tx, to_network_message_rx) = mpsc::unbounded_channel();
         let (from_network_message_tx, mut from_network_message_rx) = mpsc::unbounded_channel();
-
+        
         know_peers.retain(|x| *x != server_address);
 
         let mut peers = vec![];
@@ -181,7 +183,7 @@ impl Pod {
         }
 
         let arbo: Arc<RwLock<Arbo>> = Arc::new(RwLock::new(arbo));
-
+        
         let network_interface = Arc::new(NetworkInterface::new(
             arbo.clone(),
             mount_point.clone(),
@@ -209,7 +211,8 @@ impl Pod {
             network_interface.peers.clone(),
             to_network_message_rx,
         )));
-
+        
+        info!("{:?}", network_interface.peers.clone());
         pull_config(
             network_interface.peers.clone(),
             &network_interface.self_addr,

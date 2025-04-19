@@ -1,6 +1,7 @@
 use std::sync::Arc;
+use std::{env, fs};
 
-use log::error;
+use log::{error, info};
 use predicates::name;
 use tokio::{runtime::Runtime, sync::mpsc};
 
@@ -16,33 +17,42 @@ use crate::{
 };
 
 pub async fn new(tx: mpsc::UnboundedSender<PodCommand>, args: PodArgs) -> CliResult {
-    let (global_config, local_config, server, mount_point) = pod_value(&args).await;
-    let new_pod = match Pod::new(
-        args.name.clone(),
-        mount_point,
-        1,
-        global_config.general.peers,
-        server.clone(),
-        local_config.general.address,
-    )
-    .await
-    {
-        Ok(pod) => pod,
-        Err(e) => return Err(CliError::PodCreationFailed { reason: e }),
-    };
-    match tx.send(PodCommand::JoinPod(new_pod)) {
-        Ok(_) => Ok(CliSuccess::PodCreated { pod_id: args.name }),
-        Err(e) => Err(CliError::SendCommandFailed {
-            reason: e.to_string(),
-        }),
+    match pod_value(&args).await {
+        Ok((global_config, local_config, server, mount_point)) => {
+            println!("local config: {:?}", local_config);
+            let new_pod = match Pod::new(
+                args.name.clone(),
+                mount_point,
+                1,
+                global_config.general.peers,
+                server.clone(),
+                local_config.general.address,
+            )
+            .await
+            {
+                Ok(pod) => pod,
+                Err(e) => return Err(CliError::PodCreationFailed { reason: e }),
+            };
+            match tx.send(PodCommand::JoinPod(new_pod)) {
+                Ok(_) => Ok(CliSuccess::PodCreated { pod_id: args.name }),
+                Err(e) => Err(CliError::SendCommandFailed {
+                    reason: e.to_string(),
+                }),
+            }
+        }
+        Err(e) => {
+            
+            Err(e)
+        }
     }
 }
 
-fn add_hosts(mut global_config: GlobalConfig, additional_hosts: Vec<String>) -> GlobalConfig {
-    if additional_hosts.is_empty() {
+fn add_hosts(mut global_config: GlobalConfig, url: String, mut additional_hosts: Vec<String>) -> GlobalConfig {
+    if url.is_empty() && additional_hosts.is_empty() {
         return global_config;
     }
 
+    additional_hosts.push(url);
     if global_config.general.peers.is_empty() {
         global_config.general.peers = additional_hosts;
     } else {
@@ -55,19 +65,32 @@ fn add_hosts(mut global_config: GlobalConfig, additional_hosts: Vec<String>) -> 
     global_config
 }
 
-async fn pod_value(args: &PodArgs) -> (GlobalConfig, LocalConfig, Arc<Server>, WhPath) {
-    let global_config: GlobalConfig =
-        GlobalConfig::read(".global_config.toml").unwrap_or(default_global_config());
-    let local_config: LocalConfig =
-        LocalConfig::read(".local_config.toml").unwrap_or(default_local_config(&args.name));
+async fn pod_value(args: &PodArgs) -> Result<(GlobalConfig, LocalConfig, Arc<Server>, WhPath), CliError> {
+    let path = if args.path == None {
+        let path = env::current_dir()?;
+        WhPath::from(&path.display().to_string())
+    } else {
+        WhPath::from(args.path.clone().unwrap())
+    };
+    
+    let local_path = path.clone().join(".local_config.toml").inner;
+    let local_config: LocalConfig = LocalConfig::read(&local_path).unwrap_or(default_local_config(&args.name));
+    if let Err(_) = local_config.write(&local_path) {
+        return Err(CliError::InvalidConfig { file: local_path });
+    }
     let server: Arc<Server> = Arc::new(Server::setup(&local_config.general.address).await);
-
+    
+    let global_path = path.clone().join(".global_config.toml").inner;
+    let global_config: GlobalConfig = GlobalConfig::read(global_path).unwrap_or(default_global_config());
     let global_config = add_hosts(
         global_config,
+        args.url.clone().unwrap_or("".to_string()),
         args.additional_hosts.clone().unwrap_or(vec![]),
     );
 
     let mount_point = args.path.clone().unwrap_or_else(|| ".".into());
-
-    (global_config, local_config, server, mount_point)
+    info!("POD VALUE");
+    info!("{:?}", global_config);
+    info!("{:?}", local_config);
+    Ok((global_config, local_config, server, mount_point))
 }
