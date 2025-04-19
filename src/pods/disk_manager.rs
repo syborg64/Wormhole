@@ -71,6 +71,14 @@ impl DiskManager {
         Ok(buf)
     }
 
+    // in case of merge, accept version from dev. Was remade here for debug
+    pub fn read_file_full(&self, path: WhPath) -> io::Result<Vec<u8>> {
+        let mut buf = Vec::<u8>::new();
+
+        self.handle.open_file(path)?.read_to_end(&mut buf)?;
+        Ok(buf)
+    }
+
     pub fn new_dir(&self, path: WhPath) -> io::Result<()> {
         self.handle.create_dir(path.set_relative(), 0o644) // TODO look more in c mode_t value
     }

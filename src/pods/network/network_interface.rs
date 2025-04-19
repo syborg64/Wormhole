@@ -433,7 +433,7 @@ impl NetworkInterface {
         }
     }
 
-    pub fn send_arbo(&self, to: Address) -> io::Result<()> {
+    pub fn send_arbo(&self, to: Address, global_config_bytes: Vec<u8>) -> io::Result<()> {
         let arbo = Arbo::read_lock(&self.arbo, "send_arbo")?;
         let mut entries = arbo.get_raw_entries();
 
@@ -456,6 +456,7 @@ impl NetworkInterface {
                             next_inode: self.get_next_inode()?,
                         },
                         peers_address_list,
+                        global_config_bytes,
                     ),
                     vec![to],
                 ))
@@ -520,7 +521,7 @@ impl NetworkInterface {
                     global_config.write(fs_interface.network_interface.mount_point.join(".global_config.toml").inner).
                         map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to modify global config: {}", e)))
                 },
-                MessageContent::FsAnswer(_, _) => {
+                MessageContent::FsAnswer(_, _, _) => {
                     Err(io::Error::new(ErrorKind::InvalidInput,
                         "Late answer from first connection, loaded network interface shouldn't recieve FsAnswer"))
                 }

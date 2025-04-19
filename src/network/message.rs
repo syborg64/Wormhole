@@ -22,7 +22,8 @@ pub enum MessageContent {
     SetXAttr(InodeId, String, Vec<u8>),
     RemoveXAttr(InodeId, String),
     RequestFs,
-    FsAnswer(FileSystemSerialized, Vec<Address>),
+    // Arbo, peers, .global_config
+    FsAnswer(FileSystemSerialized, Vec<Address>, Vec<u8>),
     RequestFileConfig,
     PullFileConfig(GlobalConfig),
 }
