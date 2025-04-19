@@ -1,7 +1,13 @@
+use std::fmt::Debug;
+
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+use tokio::sync::mpsc::UnboundedSender;
 
-use crate::pods::arbo::{ArboIndex, Inode, InodeId, Metadata};
+use crate::{
+    error::WhResult,
+    pods::arbo::{ArboIndex, Inode, InodeId, Metadata},
+};
 
 /// Message Content
 /// Represent the content of the intern message but is also the struct sent
@@ -10,17 +16,22 @@ use crate::pods::arbo::{ArboIndex, Inode, InodeId, Metadata};
 pub enum MessageContent {
     Register(Address),
     Remove(InodeId),
-    Inode(Inode, InodeId),
+    Inode(Inode),
     RequestFile(InodeId, Address),
     PullAnswer(InodeId, Vec<u8>),
     Rename(InodeId, InodeId, String, String), //Parent, New Parent, Name, New Name
     EditHosts(InodeId, Vec<Address>),
+    AddHosts(InodeId, Vec<Address>),
+    RemoveHosts(InodeId, Vec<Address>),
     EditMetadata(InodeId, Metadata, Address),
     SetXAttr(InodeId, String, Vec<u8>),
     RemoveXAttr(InodeId, String),
     RequestFs,
+    RequestPull(InodeId),
     FsAnswer(FileSystemSerialized, Vec<Address>),
 }
+
+pub type MessageAndStatus = (MessageContent, Option<UnboundedSender<WhResult<()>>>);
 
 pub type Address = String;
 
@@ -34,10 +45,10 @@ pub struct FromNetworkMessage {
 
 /// Message Going To Network
 /// Messages sent from fuser to process communicating to the peers
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Debug)]
 pub enum ToNetworkMessage {
     BroadcastMessage(MessageContent),
-    SpecificMessage(MessageContent, Vec<Address>),
+    SpecificMessage(MessageAndStatus, Vec<Address>),
 }
 
 #[serde_as]

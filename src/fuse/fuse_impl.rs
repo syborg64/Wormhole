@@ -1,6 +1,9 @@
 use crate::pods::arbo::{FsEntry, Inode, Metadata};
-use crate::pods::interface::fs_interface::{FsInterface, SimpleFileType};
-use crate::pods::interface::xattrs::GetXAttrError;
+use crate::pods::filesystem::fs_interface::{FsInterface, SimpleFileType};
+use crate::pods::filesystem::make_inode::MakeInode;
+use crate::pods::filesystem::remove_inode::RemoveFile;
+use crate::pods::filesystem::write::WriteError;
+use crate::pods::filesystem::xattrs::GetXAttrError;
 use crate::pods::whpath::WhPath;
 use fuser::{
     BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData,
@@ -269,7 +272,7 @@ impl Filesystem for FuseController {
             }
         }
 
-        //TODO: Implement After permission implementation
+        // TODO - Implement After permission implementation
         // let attr = self.fs_interface.get_inode_attributes(ino);
         // if attr.unwrap().perm == valid {
         //     reply.error(libc::EPERM);
@@ -404,11 +407,17 @@ impl Filesystem for FuseController {
             SimpleFileType::File,
         ) {
             Ok(node) => reply.entry(&TTL, &node.meta.into(), 0),
-            Err(err) => {
-                log::error!("fuse_impl error: {:?}", err);
-                reply.error(err.raw_os_error().unwrap_or(EIO))
+            Err(MakeInode::LocalCreationFailed { io }) => {
+                reply.error(io.raw_os_error().expect(
+                    "Local creation error should always be the underling libc::open os error",
+                ))
             }
+            Err(MakeInode::WhError { source }) => reply.error(source.to_libc()),
+            Err(MakeInode::AlreadyExist) => reply.error(libc::EEXIST),
+            Err(MakeInode::ParentNotFound) => reply.error(libc::ENOENT),
+            Err(MakeInode::ParentNotFolder) => reply.error(libc::ENOTDIR),
         }
+        //todo when persmissions are added reply.error(libc::EACCES)
     }
 
     fn mkdir(
@@ -425,32 +434,42 @@ impl Filesystem for FuseController {
             name.to_string_lossy().to_string(),
             SimpleFileType::Directory,
         ) {
-            Ok(inode) => reply.entry(&TTL, &inode.meta.into(), 0),
-            Err(err) => {
-                log::error!("fuse_impl error: {:?}", err);
-                reply.error(err.raw_os_error().unwrap_or(EIO))
+            Ok(node) => reply.entry(&TTL, &node.meta.into(), 0),
+            Err(MakeInode::LocalCreationFailed { io }) => {
+                reply.error(io.raw_os_error().expect(
+                    "Local creation error should always be the underling libc::open os error",
+                ))
             }
+            Err(MakeInode::WhError { source }) => reply.error(source.to_libc()),
+            Err(MakeInode::AlreadyExist) => reply.error(libc::EEXIST),
+            Err(MakeInode::ParentNotFound) => reply.error(libc::ENOENT),
+            Err(MakeInode::ParentNotFolder) => reply.error(libc::ENOTDIR),
         }
     }
 
     fn unlink(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: fuser::ReplyEmpty) {
         match self.fs_interface.fuse_remove_inode(parent, name) {
             Ok(()) => reply.ok(),
-            Err(err) => {
-                log::error!("fuse_impl error: {:?}", err);
-                reply.error(err.raw_os_error().unwrap_or(EIO))
+            Err(RemoveFile::WhError { source }) => reply.error(source.to_libc()),
+            Err(RemoveFile::LocalDeletionFailed { io }) => {
+                reply.error(io.raw_os_error().expect(
+                    "Local creation error should always be the underling libc::open os error",
+                ))
             }
+            Err(RemoveFile::NonEmpty) => reply.error(libc::ENOTEMPTY),
         }
     }
 
     fn rmdir(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: fuser::ReplyEmpty) {
-        // should be only called on empty dirs ?
         match self.fs_interface.fuse_remove_inode(parent, name) {
             Ok(()) => reply.ok(),
-            Err(err) => {
-                log::error!("fuse_impl error: {:?}", err);
-                reply.error(err.raw_os_error().unwrap_or(EIO))
+            Err(RemoveFile::WhError { source }) => reply.error(source.to_libc()),
+            Err(RemoveFile::LocalDeletionFailed { io }) => {
+                reply.error(io.raw_os_error().expect(
+                    "Local creation error should always be the underling libc::open os error",
+                ))
             }
+            Err(RemoveFile::NonEmpty) => reply.error(libc::ENOTEMPTY),
         }
     }
 
@@ -503,9 +522,11 @@ impl Filesystem for FuseController {
                     .try_into()
                     .expect("fuser write: can't convert u64 to u32"),
             ),
-            Err(err) => {
-                log::error!("fuse_impl error: {:?}", err);
-                reply.error(err.raw_os_error().unwrap_or(EIO))
+            Err(WriteError::WhError { source }) => reply.error(source.to_libc()),
+            Err(WriteError::LocalWriteFailed { io }) => {
+                reply.error(io.raw_os_error().expect(
+                    "Local creation error should always be the underling libc::open os error",
+                ))
             }
         }
     }
@@ -528,10 +549,15 @@ impl Filesystem for FuseController {
             SimpleFileType::File,
         ) {
             Ok(inode) => reply.created(&TTL, &inode.meta.into(), 0, inode.id, flags as u32),
-            Err(err) => {
-                log::error!("fuse_impl error: {:?}", err);
-                reply.error(err.raw_os_error().unwrap_or(EIO))
+            Err(MakeInode::LocalCreationFailed { io }) => {
+                reply.error(io.raw_os_error().expect(
+                    "Local creation error should always be the underling libc::open os error",
+                ))
             }
+            Err(MakeInode::WhError { source }) => reply.error(source.to_libc()),
+            Err(MakeInode::AlreadyExist) => reply.error(libc::EEXIST),
+            Err(MakeInode::ParentNotFound) => reply.error(libc::ENOENT),
+            Err(MakeInode::ParentNotFolder) => reply.error(libc::ENOTDIR),
         }
     }
 

@@ -21,20 +21,44 @@ pub struct DiskManager {
 /// always takes a WhPath and infers the real disk path
 impl DiskManager {
     pub fn new(mount_point: WhPath) -> io::Result<Self> {
+        // /!\
+        // /!\
+
+        unsafe { libc::umask(0o000) }; //TODO: Remove when handling permissions
+
+        // /!\
+        // /!\
+
         Ok(Self {
             handle: Dir::open(mount_point.clone())?,
             mount_point,
         })
     }
 
-    pub fn new_file(&self, path: WhPath) -> io::Result<File> {
-        self.handle.new_file(path.set_relative(), 0o644) // TODO look more in c mode_t value
+    // Very simple util to log the content of a folder locally
+    pub fn log_arbo(&self, path: String) -> io::Result<()> {
+        let dirs = self.handle.list_dir(path)?;
+        for dir in dirs {
+            match dir {
+                Ok(entry) => log::debug!("|{:?} => {:?}|", entry.file_name(), entry.simple_type()),
+                Err(err) => return Err(err),
+            }
+        }
+        Ok(())
     }
 
+    #[must_use]
+    pub fn new_file(&self, path: WhPath, permissions: u16) -> io::Result<File> {
+        self.handle
+            .new_file(path.set_relative(), permissions as libc::mode_t) // TODO look more in c mode_t value
+    }
+
+    #[must_use]
     pub fn remove_file(&self, path: WhPath) -> io::Result<()> {
         self.handle.remove_file(path.set_relative())
     }
 
+    #[must_use]
     pub fn remove_dir(&self, path: WhPath) -> io::Result<()> {
         self.handle.remove_dir(path.set_relative())
     }
@@ -70,7 +94,10 @@ impl DiskManager {
         Ok(buf)
     }
 
-    pub fn new_dir(&self, path: WhPath) -> io::Result<()> {
-        self.handle.create_dir(path.set_relative(), 0o644) // TODO look more in c mode_t value
+    #[must_use]
+    pub fn new_dir(&self, path: WhPath, permissions: u16) -> io::Result<()> {
+        self.handle
+            .create_dir(path.set_relative(), permissions as libc::mode_t)
+        // TODO look more in c mode_t value
     }
 }

@@ -9,6 +9,7 @@ use tokio::task::JoinHandle;
 #[cfg(target_os = "windows")]
 use winfsp::host::FileSystemHost;
 
+use crate::config::GlobalConfig;
 #[cfg(target_os = "linux")]
 use crate::fuse::fuse_impl::mount_fuse;
 use crate::network::message::{FileSystemSerialized, FromNetworkMessage, MessageContent};
@@ -20,8 +21,8 @@ use crate::network::{message::Address, peer_ipc::PeerIPC, server::Server};
 use crate::pods::{
     arbo::{index_folder, Arbo},
     disk_manager::DiskManager,
-    interface::fs_interface::FsInterface,
-    network_interface::NetworkInterface,
+    filesystem::fs_interface::FsInterface,
+    network::network_interface::NetworkInterface,
     whpath::WhPath,
 };
 
@@ -55,7 +56,7 @@ pub async fn initiate_connection(
             let first_ipc = PeerIPC::connect(first_contact.to_owned(), tx.clone()).await;
 
             if let Some(ipc) = first_ipc {
-                if let Err(err) = ipc.sender.send(MessageContent::RequestFs) {
+                if let Err(err) = ipc.sender.send((MessageContent::RequestFs, None)) {
                     info!(
                         "Connection with {first_contact} failed: {err}.\n
                         Trying with next know address"
@@ -95,7 +96,7 @@ pub async fn initiate_connection(
 fn register_to_others(peers: &Vec<PeerIPC>, self_address: &Address) -> std::io::Result<()> {
     for peer in peers {
         peer.sender
-            .send(MessageContent::Register(self_address.clone()))
+            .send((MessageContent::Register(self_address.clone()), None))
             .map_err(|err| std::io::Error::new(io::ErrorKind::NotConnected, err))?;
     }
     Ok(())
@@ -103,24 +104,26 @@ fn register_to_others(peers: &Vec<PeerIPC>, self_address: &Address) -> std::io::
 
 impl Pod {
     pub async fn new(
+        global_config: GlobalConfig,
         mount_point: WhPath,
         config: PodConfig,
-        mut know_peers: Vec<Address>,
         server: Arc<Server>,
         server_address: Address,
     ) -> io::Result<Self> {
+        let mut global_config = global_config;
+
         log::info!("mount point {}", mount_point);
-        let (mut arbo, next_inode) =
+        let (mut arbo, mut next_inode) =
             index_folder(&mount_point, &server_address).expect("unable to index folder");
         let (to_network_message_tx, to_network_message_rx) = mpsc::unbounded_channel();
         let (from_network_message_tx, mut from_network_message_rx) = mpsc::unbounded_channel();
 
-        know_peers.retain(|x| *x != server_address);
+        global_config.general.peers.retain(|x| *x != server_address);
 
         let mut peers = vec![];
 
         if let Some((fs_serialized, peers_addrs, ipc)) = initiate_connection(
-            know_peers,
+            global_config.general.peers,
             server_address.clone(),
             &from_network_message_tx,
             &mut from_network_message_rx,
@@ -131,6 +134,13 @@ impl Pod {
             peers.push(ipc);
             register_to_others(&peers, &server_address)?;
             arbo.overwrite_self(fs_serialized.fs_index);
+            for index in arbo.get_raw_entries().keys() {
+                // TEMP FIX FOR MERGE
+                if *index > next_inode {
+                    next_inode = *index;
+                }
+            }
+            next_inode += 1;
         }
 
         let arbo: Arc<RwLock<Arbo>> = Arc::new(RwLock::new(arbo));
@@ -142,6 +152,7 @@ impl Pod {
             next_inode,
             Arc::new(RwLock::new(peers)),
             server_address,
+            global_config.redundancy.number,
         ));
 
         let disk_manager = DiskManager::new(mount_point.clone())?;
