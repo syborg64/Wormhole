@@ -2,7 +2,7 @@ use custom_error::custom_error;
 
 use crate::{
     error::WhError,
-    pods::arbo::{Arbo, FsEntry, InodeId},
+    pods::arbo::{Arbo, FsEntry, Inode, InodeId},
 };
 
 use super::fs_interface::FsInterface;
@@ -68,6 +68,16 @@ impl FsInterface {
         };
 
         self.network_interface.unregister_file(id)?;
+        Ok(())
+    }
+
+    pub fn recept_remove_inode(&self, id: InodeId) -> Result<(), RemoveInode> {
+        let to_remove_path =
+            Arbo::n_read_lock(&self.arbo, "cecept_remove_inode")?.n_get_path_from_inode_id(id)?;
+
+        let _ = self.disk.remove_file(to_remove_path);
+
+        self.network_interface.acknowledge_unregister_file(id)?;
         Ok(())
     }
 }

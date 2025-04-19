@@ -283,19 +283,8 @@ impl NetworkInterface {
         Ok(())
     }
 
-    pub fn acknowledge_unregister_file(&self, id: InodeId) -> io::Result<Inode> {
-        let removed_inode: Inode;
-
-        if let Some(mut arbo) = self.arbo.try_write_for(LOCK_TIMEOUT) {
-            removed_inode = arbo.remove_inode(id)?;
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::Interrupted,
-                "mkfile: can't write-lock arbo's RwLock",
-            ));
-        };
-
-        Ok(removed_inode)
+    pub fn acknowledge_unregister_file(&self, id: InodeId) -> Result<Inode, RemoveInode> {
+        Arbo::n_write_lock(&self.arbo, "called_from")?.n_remove_inode(id)
     }
 
     pub fn acknowledge_hosts_edition(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
@@ -673,7 +662,12 @@ impl NetworkInterface {
                 MessageContent::EditMetadata(id, meta, host) => {
                     fs_interface.recept_edit_metadata(id, meta, host)
                 }
-                MessageContent::Remove(id) => fs_interface.recept_remove_inode(id),
+                MessageContent::Remove(id) => fs_interface.recept_remove_inode(id).or_else(|err| {
+                        Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            format!("WhError: {err}"),
+                        ))
+                    }),
                 MessageContent::RequestFile(inode, peer) => fs_interface.send_file(inode, peer),
                 MessageContent::RequestFs => fs_interface.send_filesystem(origin),
                 MessageContent::Register(addr) => Ok(fs_interface.register_new_node(origin, addr)),
