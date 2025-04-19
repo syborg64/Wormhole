@@ -267,7 +267,6 @@ impl NetworkInterface {
         arbo.n_add_inode(inode)
     }
 
-    #[must_use]
     /// Remove [Inode] from the [Arbo] and inform the network of the removal
     pub fn unregister_inode(&self, id: InodeId) -> Result<(), RemoveInode> {
         Arbo::n_write_lock(&self.arbo, "unregister_inode")?.n_remove_inode(id)?;
@@ -283,6 +282,7 @@ impl NetworkInterface {
         Ok(())
     }
 
+    /// Remove [Inode] from the [Arbo]
     pub fn acknowledge_unregister_inode(&self, id: InodeId) -> Result<Inode, RemoveInode> {
         Arbo::n_write_lock(&self.arbo, "acknowledge_unregister_inode")?.n_remove_inode(id)
     }
