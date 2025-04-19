@@ -214,18 +214,20 @@ impl NetworkInterface {
 
     #[must_use]
     /// Add the requested entry to the arbo and inform the network
-    pub fn register_new_file(&self, inode: Inode) -> Result<(), MakeInode> {
+    pub fn register_new_inode(&self, inode: Inode) -> Result<(), MakeInode> {
         let inode_id = inode.id.clone();
-        Arbo::n_write_lock(&self.arbo, "register_new_file")?.n_add_inode(inode.clone())?;
+        Arbo::n_write_lock(&self.arbo, "register_new_inode")?.n_add_inode(inode.clone())?;
 
         if inode_id != 3u64 {
+            if matches!(inode.entry, FsEntry::File(_)) {
+                self.apply_redundancy(inode_id)?;
+            }
+
             self.to_network_message_tx
                 .send(ToNetworkMessage::BroadcastMessage(
                     message::MessageContent::Inode(inode),
                 ))
-                .expect("mkfile: unable to update modification on the network thread");
-
-            self.apply_redundancy(inode_id)?;
+                .expect("register inode: unable to update modification on the network thread");
         }
         Ok(())
         // TODO - if unable to update for some reason, should be passed to the background worker
@@ -268,7 +270,7 @@ impl NetworkInterface {
     #[must_use]
     /// Remove [Inode] from the [Arbo] and inform the network of the removal
     pub fn unregister_file(&self, id: InodeId) -> Result<(), RemoveInode> {
-        Arbo::n_write_lock(&self.arbo, "unregister_new_file")?.n_remove_inode(id)?;
+        Arbo::n_write_lock(&self.arbo, "unregister_new_inode")?.n_remove_inode(id)?;
 
         if id != 3u64 {
             self.to_network_message_tx

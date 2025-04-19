@@ -66,7 +66,7 @@ impl FsInterface {
         }?;
 
         self.network_interface
-            .register_new_file(new_inode.clone())?;
+            .register_new_inode(new_inode.clone())?;
         Ok(new_inode)
     }
 }
