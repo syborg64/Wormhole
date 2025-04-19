@@ -284,7 +284,7 @@ impl NetworkInterface {
     }
 
     pub fn acknowledge_unregister_file(&self, id: InodeId) -> Result<Inode, RemoveInode> {
-        Arbo::n_write_lock(&self.arbo, "called_from")?.n_remove_inode(id)
+        Arbo::n_write_lock(&self.arbo, "acknowledge_unregister_file")?.n_remove_inode(id)
     }
 
     pub fn acknowledge_hosts_edition(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
