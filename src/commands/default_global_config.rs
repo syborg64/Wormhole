@@ -10,6 +10,6 @@ pub fn default_global_config() -> GlobalConfig {
             ignore_paths: Vec::new(),
             pods_names: Vec::new(),
         },
-        redundancy: Some(RedundancyConfig { number: 12 }),
+        redundancy: RedundancyConfig { number: 12 },
     };
 }

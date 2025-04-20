@@ -182,9 +182,84 @@ async fn main() {
     tokio::spawn(start_cli_listener(tx_clone, ip));
 
     let terminal_handle = tokio::spawn(terminal_watchdog());
+    
     log::info!("Started");
     terminal_handle.await.unwrap(); // keeps the main process alive until interruption from this watchdog;
     log::info!("Stopping");
+    
+    // env_logger::init();
+    // let mount: PathBuf = env::args()
+    //     .nth(1)
+    //     .unwrap_or("./virtual/".to_string())
+    //     .into();
+
+    // let mut global_config_path = mount.clone();
+    // global_config_path.push(".global_config.toml");
+
+    // #[cfg(target_os = "windows")]
+    // match winfsp_init() {
+    //     Ok(_token) => println!("got fsp token!"),
+    //     Err(err) => {
+    //         println!("fsp error: {:?}", err);
+    //         std::process::exit(84)
+    //     }
+    // }
+
+    // let mut local_config_path = mount.clone();
+    // local_config_path.push(".local_config.toml");
+
+    // let mut args_other_addresses: Vec<String> = env::args().collect();
+    // if args_other_addresses.len() >= 3 {
+    //     args_other_addresses.remove(0);
+    //     args_other_addresses.remove(0);
+    //     args_other_addresses.remove(0);
+    // };
+
+    // let mut global_config: GlobalConfig = config::parse_toml_file(global_config_path.as_str())
+    //     .unwrap_or(GlobalConfig {
+    //         general: GeneralGlobalConfig {
+    //             peers: vec![],
+    //             ignore_paths: vec![],
+    //         },
+    //         redundancy: RedundancyConfig { number: 2 },
+    //     });
+
+    // for address in args_other_addresses {
+    //     global_config.general.peers.push(address);
+    // }
+    // global_config.general.peers.sort();
+    // global_config.general.peers.dedup();
+
+    // global_config
+    //     .general
+    //     .ignore_paths
+    //     .push(".local_config.toml".to_string());
+
+    // let local_config: LocalConfig = match config::parse_toml_file(local_config_path.as_str()) {
+    //     Err(error) => {
+    //         log::warn!("Local Config Not Found: {error}");
+
+    //         let own_addr = match env::args().nth(2) {
+    //             Some(address) => address,
+    //             None => {
+    //                 log::error!("Local config missing and own Address missing from args");
+    //                 return;
+    
+    // let server = Arc::new(Server::setup(&local_config.general.address).await);
+
+    // pods.push(
+    //     Pod::new(
+    //         global_config,
+    //         WhPath::from(mount.as_path()),
+    //         1,
+    //         server.clone(),
+    //         local_config.general.address,
+    //     )
+    //     .await
+    //     .expect("failed to create the pod"),
+    // );
+
+    // let local_cli_handle = tokio::spawn(local_cli_watchdog());
 }
 
 // NOTE - old watchdog brought here for debug purposes

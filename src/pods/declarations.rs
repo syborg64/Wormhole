@@ -68,7 +68,7 @@ pub async fn initiate_connection(
             let first_ipc = PeerIPC::connect(first_contact.to_owned(), tx.clone()).await;
 
             if let Some(ipc) = first_ipc {
-                if let Err(err) = ipc.sender.send(MessageContent::RequestFs) {
+                if let Err(err) = ipc.sender.send((MessageContent::RequestFs, None)) {
                     info!(
                         "Connection with {first_contact} failed: {err}.\n
                         Trying with next know address"
@@ -105,41 +105,41 @@ pub async fn initiate_connection(
     None
 }
 
-pub async fn pull_config(
-    peers_list: Arc<RwLock<Vec<PeerIPC>>>,
-    server_address: &Address,
-    tx: &UnboundedSender<FromNetworkMessage>,
-) {
-    let peers_addr: Vec<String> = peers_list
-        .try_read_for(LOCK_TIMEOUT)
-        .unwrap() // TODO - handle timeout
-        .iter()
-        .map(|peer| (peer.address.clone()))
-        .collect();
+// pub async fn pull_config(
+//     peers_list: Arc<RwLock<Vec<PeerIPC>>>,
+//     server_address: &Address,
+//     tx: &UnboundedSender<FromNetworkMessage>,
+// ) {
+//     let peers_addr: Vec<String> = peers_list
+//         .try_read_for(LOCK_TIMEOUT)
+//         .unwrap() // TODO - handle timeout
+//         .iter()
+//         .map(|peer| (peer.address.clone()))
+//         .collect();
 
-    for peer_addr in peers_addr {
-        let first_ipc = PeerIPC::connect(peer_addr.clone(), tx.clone()).await;
+//     for peer_addr in peers_addr {
+//         let first_ipc = PeerIPC::connect(peer_addr.clone(), tx.clone()).await;
 
-        if let Some(ipc) = first_ipc {
-            info!("IPC Connexion test");
-            if let Err(err) = ipc.sender.send(MessageContent::RequestFile(
-                GLOBAL_CONFIG_INO,
-                server_address.clone(),
-            )) {
-                info!(
-                    "Connection with {0} failed on file config request: {err}.\n
-                    Trying with next know address",
-                    peer_addr
-                );
-            }
-        }
-    }
-}
+//         if let Some(ipc) = first_ipc {
+//             info!("IPC Connexion test");
+//             if let Err(err) = ipc.sender.send(MessageContent::RequestFile(
+//                 GLOBAL_CONFIG_INO,
+//                 server_address.clone(),
+//             )) {
+//                 info!(
+//                     "Connection with {0} failed on file config request: {err}.\n
+//                     Trying with next know address",
+//                     peer_addr
+//                 );
+//             }
+//         }
+//     }
+// }
 
 fn register_to_others(peers: &Vec<PeerIPC>, self_address: &Address) -> std::io::Result<()> {
     for peer in peers {
         peer.sender
-            .send(MessageContent::Register(self_address.clone()))
+            .send((MessageContent::Register(self_address.clone()), None))
             .map_err(|err| std::io::Error::new(io::ErrorKind::NotConnected, err))?;
     }
     Ok(())
@@ -155,24 +155,26 @@ fn register_to_others(peers: &Vec<PeerIPC>, self_address: &Address) -> std::io::
 impl Pod {
     pub async fn new(
         name: String,
+        global_config: GlobalConfig,
         mount_point: WhPath,
         config: PodConfig,
-        mut know_peers: Vec<Address>,
         server: Arc<Server>,
         server_address: Address,
     ) -> io::Result<Self> {
+        let mut global_config = global_config;
+
         log::info!("mount point {}", mount_point);
-        let (mut arbo, next_inode) =
+        let (mut arbo, mut next_inode) =
             index_folder(&mount_point, &server_address).expect("unable to index folder");
         let (to_network_message_tx, to_network_message_rx) = mpsc::unbounded_channel();
         let (from_network_message_tx, mut from_network_message_rx) = mpsc::unbounded_channel();
 
-        know_peers.retain(|x| *x != server_address);
+        global_config.general.peers.retain(|x| *x != server_address);
 
         let mut peers = vec![];
 
         if let Some((fs_serialized, peers_addrs, ipc, global_config_bytes)) = initiate_connection(
-            know_peers,
+            global_config.general.peers,
             server_address.clone(),
             &from_network_message_tx,
             &mut from_network_message_rx,
@@ -189,6 +191,13 @@ impl Pod {
             peers.push(ipc);
             register_to_others(&peers, &server_address)?;
             arbo.overwrite_self(fs_serialized.fs_index);
+            for index in arbo.get_raw_entries().keys() {
+                // TEMP FIX FOR MERGE
+                if *index > next_inode {
+                    next_inode = *index;
+                }
+            }
+            next_inode += 1;
         }
 
         let arbo: Arc<RwLock<Arbo>> = Arc::new(RwLock::new(arbo));
@@ -200,6 +209,7 @@ impl Pod {
             next_inode,
             Arc::new(RwLock::new(peers)),
             server_address,
+            global_config.redundancy.number,
         ));
 
         let disk_manager = DiskManager::new(mount_point.clone())?;

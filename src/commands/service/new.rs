@@ -22,9 +22,9 @@ pub async fn new(tx: mpsc::UnboundedSender<PodCommand>, args: PodArgs) -> CliRes
             println!("local config: {:?}", local_config);
             let new_pod = match Pod::new(
                 args.name.clone(),
+                global_config,
                 mount_point,
                 1,
-                global_config.general.peers,
                 server.clone(),
                 local_config.general.address,
             )
