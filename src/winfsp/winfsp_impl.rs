@@ -258,9 +258,15 @@ impl FileSystemContext for FSPController {
     fn cleanup(
         &self,
         context: &Self::FileContext,
-        file_name: Option<&winfsp::U16CStr>,
+        _file_name: Option<&winfsp::U16CStr>,
         flags: u32,
     ) {
+        if flags & FspCleanupDelete as u32 != 0 {
+            let _ = self.fs_interface.remove_inode(context.0);
+            // cannot bubble out errors here
+            // context.0 = 0;
+            // TODO: invalidate the handle ?
+        }
     }
 
     fn flush(
