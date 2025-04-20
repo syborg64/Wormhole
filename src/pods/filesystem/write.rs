@@ -14,20 +14,20 @@ custom_error! {
 }
 
 impl FsInterface {
-    pub fn write(&self, id: InodeId, data: &[u8], offset: u64) -> Result<u64, WriteError> {
+    pub fn write(&self, id: InodeId, data: &[u8], offset: usize) -> Result<usize, WriteError> {
         let written = {
             let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface.write")?;
             let path = arbo.n_get_path_from_inode_id(id)?;
             let mut meta = arbo.n_get_inode(id)?.meta.clone();
             drop(arbo);
 
-            let newsize = offset + data.len() as u64;
-            if newsize > meta.size {
-                meta.size = newsize;
+            let newsize = offset + data.len();
+            if newsize as u64 > meta.size {
+                meta.size = newsize as u64;
                 self.network_interface.n_update_metadata(id, meta)?;
             }
             self.disk
-                .write_file(path, data, offset)
+                .write_file(&path, data, offset)
                 .map_err(|io| WriteError::LocalWriteFailed { io })?
         };
 

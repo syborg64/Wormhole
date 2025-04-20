@@ -56,12 +56,12 @@ impl FsInterface {
         match kind {
             SimpleFileType::File => self
                 .disk
-                .new_file(new_path, new_inode.meta.perm)
+                .new_file(&new_path, new_inode.meta.perm)
                 .map(|_| ())
                 .map_err(|io| MakeInode::LocalCreationFailed { io }),
             SimpleFileType::Directory => self
                 .disk
-                .new_dir(new_path, new_inode.meta.perm)
+                .new_dir(&new_path, new_inode.meta.perm)
                 .map_err(|io| MakeInode::LocalCreationFailed { io }),
         }?;
 

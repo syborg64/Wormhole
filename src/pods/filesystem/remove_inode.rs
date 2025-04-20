@@ -57,12 +57,12 @@ impl FsInterface {
         match entry {
             FsEntry::File(hosts) if hosts.contains(&self.network_interface.self_addr) => self
                 .disk
-                .remove_file(to_remove_path)
+                .remove_file(&to_remove_path)
                 .map_err(|io| RemoveFile::LocalDeletionFailed { io })?,
             FsEntry::File(_) => { /* Nothing to do */ }
             FsEntry::Directory(children) if children.is_empty() => self
                 .disk
-                .remove_dir(to_remove_path)
+                .remove_dir(&to_remove_path)
                 .map_err(|io| RemoveFile::LocalDeletionFailed { io })?,
             FsEntry::Directory(_) => return Err(RemoveFile::NonEmpty),
         };
