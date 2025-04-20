@@ -12,20 +12,32 @@ use winapi::shared::{
     winerror::{ERROR_ALREADY_EXISTS, ERROR_GEN_FAILURE, ERROR_INVALID_NAME},
 };
 use windows::Win32::{
-    Foundation::{NTSTATUS, STATUS_CANCELLED, STATUS_DEVICE_NOT_READY, STATUS_NOT_A_DIRECTORY, STATUS_OBJECT_NAME_COLLISION, STATUS_OBJECT_NAME_NOT_FOUND, STATUS_PENDING, STATUS_POSSIBLE_DEADLOCK, WIN32_ERROR},
+    Foundation::{
+        NTSTATUS, STATUS_CANCELLED, STATUS_DEVICE_NOT_READY, STATUS_NOT_A_DIRECTORY,
+        STATUS_OBJECT_NAME_COLLISION, STATUS_OBJECT_NAME_NOT_FOUND, STATUS_PENDING,
+        STATUS_POSSIBLE_DEADLOCK, WIN32_ERROR,
+    },
     Storage::FileSystem::{FILE_ATTRIBUTE_ARCHIVE, FILE_ATTRIBUTE_DIRECTORY},
 };
 use winfsp::{
     filesystem::{DirInfo, FileInfo, FileSecurity, FileSystemContext, WideNameInfo},
-    host::{FileSystemHost, VolumeParams}, FspError,
+    host::{FileSystemHost, VolumeParams},
+    FspError,
 };
 use winfsp_sys::{FspCleanupDelete, FILE_ACCESS_RIGHTS};
 
-use crate::{error::WhError, pods::{
-    arbo::{Arbo, Metadata},
-    filesystem::{fs_interface::{FsInterface, SimpleFileType}, make_inode::MakeInode, write::WriteError},
-    whpath::WhPath,
-}};
+use crate::{
+    error::WhError,
+    pods::{
+        arbo::{Arbo, Metadata},
+        filesystem::{
+            fs_interface::{FsInterface, SimpleFileType},
+            make_inode::MakeInode,
+            write::WriteError,
+        },
+        whpath::WhPath,
+    },
+};
 
 impl TryInto<WhPath> for &winfsp::U16CStr {
     type Error = WIN32_ERROR;
@@ -79,7 +91,7 @@ impl Into<FspError> for &WhError {
             WhError::InodeNotFound => STATUS_OBJECT_NAME_NOT_FOUND.into(),
             WhError::InodeIsNotADirectory => STATUS_NOT_A_DIRECTORY.into(),
             WhError::DeadLock => STATUS_POSSIBLE_DEADLOCK.into(),
-            WhError::NetworkDied { called_from : _ } => STATUS_DEVICE_NOT_READY.into(),
+            WhError::NetworkDied { called_from: _ } => STATUS_DEVICE_NOT_READY.into(),
             WhError::WouldBlock { called_from: _ } => STATUS_PENDING.into(),
         }
     }
@@ -263,30 +275,21 @@ impl FileSystemContext for FSPController {
 
         drop(arbo);
         match self
-                    .fs_interface
-                    .make_inode(parent, name, file_type)
-                    .inspect_err(|e| log::error!("make_inode:{e}")) {
+            .fs_interface
+            .make_inode(parent, name, file_type)
+            .inspect_err(|e| log::error!("make_inode:{e}"))
+        {
             Ok(inode) => {
                 *file_info.as_mut() = (&inode.meta).into();
                 file_info.set_normalized_name(file_name.as_slice(), None);
 
                 Ok(WormholeHandle(inode.id))
-            },
-            Err(MakeInode::AlreadyExist) => {
-                Err(STATUS_OBJECT_NAME_COLLISION.into())
-            },
-            Err(MakeInode::LocalCreationFailed { io }) => {
-                Err(io.into())
-            },
-            Err(MakeInode::ParentNotFolder) => {
-                Err(STATUS_NOT_A_DIRECTORY.into())
-            },
-            Err(MakeInode::ParentNotFound) => {
-                Err(STATUS_OBJECT_NAME_NOT_FOUND.into())
-            },
-            Err(MakeInode::WhError { source: _ }) => {
-                Err(STATUS_OBJECT_NAME_NOT_FOUND.into())
-            },
+            }
+            Err(MakeInode::AlreadyExist) => Err(STATUS_OBJECT_NAME_COLLISION.into()),
+            Err(MakeInode::LocalCreationFailed { io }) => Err(io.into()),
+            Err(MakeInode::ParentNotFolder) => Err(STATUS_NOT_A_DIRECTORY.into()),
+            Err(MakeInode::ParentNotFound) => Err(STATUS_OBJECT_NAME_NOT_FOUND.into()),
+            Err(MakeInode::WhError { source: _ }) => Err(STATUS_OBJECT_NAME_NOT_FOUND.into()),
         }
     }
 
@@ -557,9 +560,9 @@ impl FileSystemContext for FSPController {
         };
         match self.fs_interface.write(context.0, buffer, offset) {
             Ok(size) => {
-                        self.get_file_info(context, file_info)?;
-                        Ok(size as u32)
-                    },
+                self.get_file_info(context, file_info)?;
+                Ok(size as u32)
+            }
             Err(WriteError::WhError { source }) => Err(source.into()),
             Err(WriteError::LocalWriteFailed { io }) => Err(io.into()),
         }
