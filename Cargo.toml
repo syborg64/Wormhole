@@ -18,7 +18,7 @@ path = "src/bin/service.rs"
 
 [target.'cfg(windows)'.dependencies.winfsp]
 default-features = false
-features = ["stable", "system", "windows-rs-error"]
+features = ["stable", "system", "windows-rs-error", "handle-util"]
 version = "0.11.3"
 
 [target.'cfg(windows)'.build-dependencies.winfsp]
@@ -36,7 +36,8 @@ winfsp-sys = "0.2.2"
 windows-permissions = "0.2.4"
 winapi = "0.3.9"
 ntapi = "0.4.1"
-windows = {version = "0.52.0", features = [ "Win32"]}
+nt-time = "0.10.6"
+windows = {version = "0.52.0", features = [ "Win32_Foundation", "Win32_System_IO", "Win32", "Wdk_Storage_FileSystem", "Wdk_System", "Wdk_System_SystemServices"]}
 
 [dependencies]
 clap = { version = "4.5.8", features = ["cargo", "derive"] }
