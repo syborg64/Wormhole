@@ -19,7 +19,7 @@ use winfsp::{
     filesystem::{DirInfo, FileInfo, FileSecurity, FileSystemContext, WideNameInfo},
     host::{FileSystemHost, VolumeParams}, FspError,
 };
-use winfsp_sys::FILE_ACCESS_RIGHTS;
+use winfsp_sys::{FspCleanupDelete, FILE_ACCESS_RIGHTS};
 
 use crate::{error::WhError, pods::{
     arbo::{Arbo, Metadata},
