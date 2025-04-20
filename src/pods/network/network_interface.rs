@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     io::{self, ErrorKind},
-    sync::Arc,
+    sync::Arc, time::UNIX_EPOCH,
 };
 
 use parking_lot::{Mutex, RwLock};
@@ -466,11 +466,33 @@ impl NetworkInterface {
 
     pub fn update_metadata(&self, id: InodeId, meta: Metadata) -> io::Result<()> {
         let mut arbo = Arbo::write_lock(&self.arbo, "network_interface::update_metadata")?;
-        arbo.set_inode_meta(id, meta.clone())?;
+        let mut fixed_meta = meta;
+        let ref_meta = arbo.get_inode(id)?.meta.clone();
+
+        // meta's SystemTime is fragile: it can be silently corrupted such that
+        // serialization leads to a failure we can't deal with
+        if fixed_meta.atime.duration_since(UNIX_EPOCH).is_err() {
+            fixed_meta.atime = ref_meta.atime;
+        }
+
+        if fixed_meta.ctime.duration_since(UNIX_EPOCH).is_err() {
+            fixed_meta.ctime = ref_meta.ctime;
+        }
+
+        if fixed_meta.crtime.duration_since(UNIX_EPOCH).is_err() {
+            fixed_meta.crtime = ref_meta.crtime;
+        }
+
+        if fixed_meta.mtime.duration_since(UNIX_EPOCH).is_err() {
+            fixed_meta.mtime = ref_meta.mtime;
+        }
+
+        arbo.set_inode_meta(id, fixed_meta.clone())?;
+        drop(arbo);
 
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::EditMetadata(id, meta, self.self_addr.clone()),
+                MessageContent::EditMetadata(id, fixed_meta, self.self_addr.clone()),
             ))
             .expect("update_metadata: unable to update modification on the network thread");
         Ok(())
@@ -485,11 +507,33 @@ impl NetworkInterface {
 
     pub fn n_update_metadata(&self, id: InodeId, meta: Metadata) -> WhResult<()> {
         let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface::update_metadata")?;
-        arbo.n_set_inode_meta(id, meta.clone())?;
+        let mut fixed_meta = meta;
+        let ref_meta = arbo.n_get_inode(id)?.meta.clone();
+
+        // meta's SystemTime is fragile: it can be silently corrupted such that
+        // serialization leads to a failure we can't deal with
+        if fixed_meta.atime.duration_since(UNIX_EPOCH).is_err() {
+            fixed_meta.atime = ref_meta.atime;
+        }
+
+        if fixed_meta.ctime.duration_since(UNIX_EPOCH).is_err() {
+            fixed_meta.ctime = ref_meta.ctime;
+        }
+
+        if fixed_meta.crtime.duration_since(UNIX_EPOCH).is_err() {
+            fixed_meta.crtime = ref_meta.crtime;
+        }
+
+        if fixed_meta.mtime.duration_since(UNIX_EPOCH).is_err() {
+            fixed_meta.mtime = ref_meta.mtime;
+        }
+
+        arbo.n_set_inode_meta(id, fixed_meta.clone())?;
+        drop(arbo);
 
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::EditMetadata(id, meta, self.self_addr.clone()),
+                MessageContent::EditMetadata(id, fixed_meta, self.self_addr.clone()),
             ))
             .expect("update_metadata: unable to update modification on the network thread");
         Ok(())
