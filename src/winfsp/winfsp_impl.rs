@@ -581,8 +581,9 @@ impl FileSystemContext for FSPController {
         out_volume_info: &mut winfsp::filesystem::VolumeInfo,
     ) -> winfsp::Result<()> {
         log::info!("winfsp::get_volume_info");
-        out_volume_info.free_size = self.fs_interface.disk.free_size()? as u64;
-        out_volume_info.total_size = self.fs_interface.disk.size()? as u64;
+        let info = self.fs_interface.disk.size_info()?;
+        out_volume_info.free_size = info.free_size as u64;
+        out_volume_info.total_size = info.total_size as u64;
         out_volume_info.set_volume_label(&*self.volume_label.read().expect("winfsp::volume_label"));
         Ok(())
     }
@@ -593,8 +594,9 @@ impl FileSystemContext for FSPController {
         volume_info: &mut winfsp::filesystem::VolumeInfo,
     ) -> winfsp::Result<()> {
         log::info!("winfsp::set_volume_info");
-        volume_info.free_size = self.fs_interface.disk.free_size()? as u64;
-        volume_info.total_size = self.fs_interface.disk.size()? as u64;
+        let info = self.fs_interface.disk.size_info()?;
+        volume_info.free_size = info.free_size as u64;
+        volume_info.total_size = info.total_size as u64;
         *self.volume_label.write().expect("winfsp::volume_label") = volume_label.to_string_lossy();
         volume_info.set_volume_label(&*self.volume_label.read().expect("winfsp::volume_label"));
         Ok(())
