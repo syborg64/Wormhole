@@ -13,7 +13,7 @@ use super::make_inode::MakeInode;
 
 pub struct FsInterface {
     pub network_interface: Arc<NetworkInterface>,
-    pub disk: DiskManager,
+    pub disk: Box<dyn DiskManager>,
     pub arbo: Arc<RwLock<Arbo>>, // here only to read, as most write are made by network_interface
                                  // REVIEW - check self.arbo usage to be only reading
 }
@@ -38,7 +38,7 @@ impl Into<SimpleFileType> for &FsEntry {
 impl FsInterface {
     pub fn new(
         network_interface: Arc<NetworkInterface>,
-        disk_manager: DiskManager,
+        disk_manager: Box<dyn DiskManager>,
         arbo: Arc<RwLock<Arbo>>,
     ) -> Self {
         Self {
@@ -53,7 +53,7 @@ impl FsInterface {
         let path = Arbo::read_lock(&self.arbo, "fs_interface::set_inode_meta")?
             .get_path_from_inode_id(ino)?;
 
-        self.disk.set_file_size(path, meta.size)?;
+        self.disk.set_file_size(&path, meta.size as usize)?;
         self.network_interface.update_metadata(ino, meta)
     }
 
@@ -74,9 +74,9 @@ impl FsInterface {
     ) -> io::Result<()> {
         let parent_path = self.construct_file_path(parent, name)?;
         let new_parent_path = self.construct_file_path(new_parent, new_name)?;
-        let err = self
+        let _ = self
             .disk
-            .mv_file(parent_path, new_parent_path)
+            .mv_file(&parent_path, &new_parent_path)
             .inspect_err(|err| log::error!("disk.mv_file fail: {err:?}"));
         self.network_interface
             .broadcast_rename_file(parent, new_parent, name, new_name)?;
@@ -94,8 +94,10 @@ impl FsInterface {
     ) -> io::Result<()> {
         let parent_path = self.construct_file_path(parent, name)?;
         let new_parent_path = self.construct_file_path(new_parent, new_name)?;
-        if std::path::Path::new(&parent_path.inner).exists() {
-            self.disk.mv_file(parent_path, new_parent_path)?;
+        match self.get_entry_from_name(parent, name.clone())?.entry {
+            FsEntry::File(items) if !items.contains(&self.network_interface.self_addr) => { /* not on disk */
+            }
+            _ => self.disk.mv_file(&parent_path, &new_parent_path)?,
         }
         self.network_interface
             .arbo_rename_file(parent, new_parent, name, new_name)?;
@@ -186,13 +188,13 @@ impl FsInterface {
         match inode.entry {
             FsEntry::File(hosts) if hosts.contains(&self.network_interface.self_addr) => self
                 .disk
-                .new_file(new_path, inode.meta.perm)
+                .new_file(&new_path, inode.meta.perm)
                 .map(|_| ())
                 .map_err(|io| MakeInode::LocalCreationFailed { io }),
             FsEntry::File(_) => Ok(()),
             FsEntry::Directory(_) => self
                 .disk
-                .new_dir(new_path, inode.meta.perm)
+                .new_dir(&new_path, inode.meta.perm)
                 .map(|_| ())
                 .map_err(|io| MakeInode::LocalCreationFailed { io }),
             // TODO - remove when merge is handled because new file should create folder
@@ -244,7 +246,7 @@ impl FsInterface {
             arbo.get_path_from_inode_id(id)?
         };
 
-        let _ = self.disk.remove_file(to_remove_path);
+        let _ = self.disk.remove_file(&to_remove_path);
 
         self.network_interface.acknowledge_unregister_file(id)?;
 
@@ -253,10 +255,10 @@ impl FsInterface {
 
     pub fn recept_edit_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
         if !hosts.contains(&self.network_interface.self_addr) {
-            if let Err(e) = self.disk.remove_file(
-                Arbo::read_lock(&self.arbo, "recept_edit_hosts")?.get_path_from_inode_id(id)?,
-            ) {
-                log::debug!("recept_edit_hosts: can't delete file. {}", e);
+            let path =
+                Arbo::read_lock(&self.arbo, "recept_edit_hosts")?.get_path_from_inode_id(id)?;
+            if let Err(e) = self.disk.remove_file(&path) {
+                log::error!("recept_edit_hosts: can't delete file. {}", e);
             }
         }
         self.network_interface.acknowledge_hosts_edition(id, hosts)
@@ -268,9 +270,9 @@ impl FsInterface {
 
     pub fn recept_remove_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
         if hosts.contains(&self.network_interface.self_addr) {
-            if let Err(e) = self.disk.remove_file(
-                Arbo::read_lock(&self.arbo, "recept_remove_hosts")?.get_path_from_inode_id(id)?,
-            ) {
+            let path =
+                Arbo::read_lock(&self.arbo, "recept_remove_hosts")?.get_path_from_inode_id(id)?;
+            if let Err(e) = self.disk.remove_file(&path) {
                 log::debug!("recept_remove_hosts: can't delete file. {}", e);
             }
         }
@@ -300,7 +302,11 @@ impl FsInterface {
     pub fn send_file(&self, inode: InodeId, to: Address) -> io::Result<()> {
         let arbo = Arbo::read_lock(&self.arbo, "send_arbo")?;
         let path = arbo.get_path_from_inode_id(inode)?;
-        let data = self.disk.read_file(path, 0, u64::max_value())?;
+        let mut size = arbo.get_inode(inode)?.meta.size as usize;
+        let mut data = Vec::new();
+        data.resize(size, 0);
+        size = self.disk.read_file(&path, 0, &mut data)?;
+        data.resize(size, 0);
         self.network_interface.send_file(inode, data, to)
     }
 }
