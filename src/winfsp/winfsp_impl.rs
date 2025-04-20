@@ -459,38 +459,38 @@ impl FileSystemContext for FSPController {
         file_info: &mut winfsp::filesystem::FileInfo,
     ) -> winfsp::Result<()> {
         log::info!("winfsp::set_basic_info({:?})", context);
-
-        let arbo = Arbo::read_lock(&self.fs_interface.arbo, "winfsp::get_file_info")?;
-
-        let mut meta = match arbo.get_inode(context.0) {
-            Ok(inode) => {
-                log::info!("got_inode:{:?}", inode.meta);
-                Ok(inode.meta.clone())
-            }
-            Err(err) => {
+        let mut meta = self
+            .fs_interface
+            .get_inode_attributes(context.0)
+            .map_err(|err| {
                 if err.kind() == ErrorKind::NotFound {
-                    Err(STATUS_OBJECT_NAME_NOT_FOUND.into())
+                    STATUS_OBJECT_NAME_NOT_FOUND
                 } else {
-                    Err(winfsp::FspError::WIN32(ERROR_GEN_FAILURE))
+                    STATUS_CANCELLED
                 }
-            }
-        }?;
-
-        drop(arbo);
+            })?;
         let now = SystemTime::now();
 
-        meta.atime = FileTime::new(last_access_time)
-            .try_into()
-            .unwrap_or_else(|_| now.clone());
-        meta.crtime = FileTime::new(creation_time)
-            .try_into()
-            .unwrap_or_else(|_| now.clone());
-        meta.mtime = FileTime::new(last_write_time)
-            .try_into()
-            .unwrap_or_else(|_| now.clone());
-        meta.ctime = FileTime::new(change_time)
-            .try_into()
-            .unwrap_or_else(|_| now.clone());
+        if last_access_time != 0 {
+            meta.atime = FileTime::new(last_access_time)
+                .try_into()
+                .unwrap_or_else(|_| now.clone());
+        }
+        if creation_time != 0 {
+            meta.crtime = FileTime::new(creation_time)
+                .try_into()
+                .unwrap_or_else(|_| now.clone());
+        }
+        if last_write_time != 0 {
+            meta.mtime = FileTime::new(last_write_time)
+                .try_into()
+                .unwrap_or_else(|_| now.clone());
+        }
+        if change_time != 0 {
+            meta.ctime = FileTime::new(change_time)
+                .try_into()
+                .unwrap_or_else(|_| now.clone());
+        }
 
         self.fs_interface.set_inode_meta(context.0, meta)?;
 
