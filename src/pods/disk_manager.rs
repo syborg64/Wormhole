@@ -1,103 +1,41 @@
-use std::{ffi::CString, fs::File, io::Read, os::unix::fs::FileExt};
-
-use openat::{AsPath, Dir};
-use tokio::io;
+use std::io;
 
 use super::whpath::WhPath;
 
-impl AsPath for WhPath {
-    type Buffer = CString;
+#[cfg(target_os = "linux")]
+#[path = "./disk_managers/unix_disk_manager.rs"]
+pub mod unix_disk_manager;
+#[cfg(target_os = "windows")]
+#[path = "./disk_managers/windows_disk_manager.rs"]
+pub mod windows_disk_manager;
+#[path = "./disk_managers/dummy_disk_manager.rs"]
+pub mod dummy_disk_manager;
 
-    fn to_path(self) -> Option<Self::Buffer> {
-        CString::new(self.inner).ok()
-    }
+pub struct DiskSizeInfo {
+    pub free_size: usize,
+    pub total_size: usize,
 }
 
-pub struct DiskManager {
-    handle: Dir,
-    mount_point: WhPath, // mountpoint on linux and mirror mountpoint on windows
-}
+pub trait DiskManager : Send + Sync {
+    fn log_arbo(&self, path: String) -> io::Result<()>;
 
-/// always takes a WhPath and infers the real disk path
-impl DiskManager {
-    pub fn new(mount_point: WhPath) -> io::Result<Self> {
-        // /!\
-        // /!\
+    fn new_file(&self, path: &WhPath, permissions: u16) -> io::Result<()>;
 
-        unsafe { libc::umask(0o000) }; //TODO: Remove when handling permissions
+    fn set_permisions(&self, path: &WhPath, permissions: u16) -> io::Result<()>;
 
-        // /!\
-        // /!\
+    fn remove_file(&self, path: &WhPath) -> io::Result<()>;
 
-        Ok(Self {
-            handle: Dir::open(mount_point.clone())?,
-            mount_point,
-        })
-    }
+    fn remove_dir(&self, path: &WhPath) -> io::Result<()>;
 
-    // Very simple util to log the content of a folder locally
-    pub fn log_arbo(&self, path: String) -> io::Result<()> {
-        let dirs = self.handle.list_dir(path)?;
-        for dir in dirs {
-            match dir {
-                Ok(entry) => log::debug!("|{:?} => {:?}|", entry.file_name(), entry.simple_type()),
-                Err(err) => return Err(err),
-            }
-        }
-        Ok(())
-    }
+    fn write_file(&self, path: &WhPath, binary: &[u8], offset: usize) -> io::Result<usize>;
 
-    #[must_use]
-    pub fn new_file(&self, path: WhPath, permissions: u16) -> io::Result<File> {
-        self.handle
-            .new_file(path.set_relative(), permissions as libc::mode_t) // TODO look more in c mode_t value
-    }
+    fn set_file_size(&self, path: &WhPath, size: usize) -> io::Result<()>;
 
-    #[must_use]
-    pub fn remove_file(&self, path: WhPath) -> io::Result<()> {
-        self.handle.remove_file(path.set_relative())
-    }
+    fn mv_file(&self, path: &WhPath, new_path: &WhPath) -> io::Result<()>;
 
-    #[must_use]
-    pub fn remove_dir(&self, path: WhPath) -> io::Result<()> {
-        self.handle.remove_dir(path.set_relative())
-    }
+    fn read_file(&self, path: &WhPath, offset: usize, buf: &mut [u8]) -> io::Result<usize>;
 
-    pub fn write_file(&self, path: WhPath, binary: &[u8], offset: u64) -> io::Result<u64> {
-        let file = self.handle.append_file(path.set_relative(), 0o600)?;
-        Ok(file.write_at(&binary, offset)? as u64) // NOTE - used "as" because into() is not supported
-    }
+    fn new_dir(&self, path: &WhPath, permissions: u16) -> io::Result<()>;
 
-    pub fn set_file_size(&self, path: WhPath, size: u64) -> io::Result<()> {
-        let file = self.handle.write_file(path.set_relative(), 0o600)?;
-        file.set_len(size)
-    }
-
-    pub fn mv_file(&self, path: WhPath, new_path: WhPath) -> io::Result<()> {
-        // let mut original_path = path.clone(); // NOTE - Would be better if rename was non mutable
-        // original_path.rename(new_name);
-        self.handle
-            .local_rename(path.set_relative(), new_path.set_relative())
-    }
-
-    pub fn read_file(&self, path: WhPath, offset: u64, len: u64) -> io::Result<Vec<u8>> {
-        let file = self.handle.open_file(path.set_relative())?;
-        let mut buf = Vec::<u8>::new();
-        buf.splice(
-            0..0,
-            file.bytes()
-                .skip(offset as usize)
-                .take(len as usize)
-                .map_while(|b| b.ok()),
-        );
-
-        Ok(buf)
-    }
-
-    #[must_use]
-    pub fn new_dir(&self, path: WhPath, permissions: u16) -> io::Result<()> {
-        self.handle
-            .create_dir(path.set_relative(), permissions as libc::mode_t)
-        // TODO look more in c mode_t value
-    }
+    fn size_info(&self) ->io::Result<DiskSizeInfo>;
 }
