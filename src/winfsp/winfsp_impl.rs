@@ -306,8 +306,8 @@ impl FileSystemContext for FSPController {
 
     fn flush(
         &self,
-        context: Option<&Self::FileContext>,
-        file_info: &mut winfsp::filesystem::FileInfo,
+        _context: Option<&Self::FileContext>,
+        _file_info: &mut winfsp::filesystem::FileInfo,
     ) -> winfsp::Result<()> {
         Ok(())
         //         Err(NTSTATUS(STATUS_INVALID_DEVICE_REQUEST).into())
@@ -500,13 +500,11 @@ impl FileSystemContext for FSPController {
     fn set_delete(
         &self,
         context: &Self::FileContext,
-        file_name: &winfsp::U16CStr,
-        delete_file: bool,
+        _file_name: &winfsp::U16CStr,
+        _delete_file: bool, // handled by winfsp
     ) -> winfsp::Result<()> {
         log::info!("winfsp::set_delete({:?})", context);
-
         Ok(())
-        // Err(NTSTATUS(STATUS_INVALID_DEVICE_REQUEST).into())
     }
 
     fn set_file_size(
@@ -670,10 +668,10 @@ impl FileSystemContext for FSPController {
 
     fn control(
         &self,
-        context: &Self::FileContext,
-        control_code: u32,
-        input: &[u8],
-        output: &mut [u8],
+        _context: &Self::FileContext,
+        _control_code: u32,
+        _input: &[u8],
+        _output: &mut [u8],
     ) -> winfsp::Result<u32> {
         Err(NTSTATUS(STATUS_INVALID_DEVICE_REQUEST).into())
     }
