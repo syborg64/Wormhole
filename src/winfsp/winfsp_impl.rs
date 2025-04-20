@@ -496,12 +496,10 @@ impl FileSystemContext for FSPController {
         offset: u64,
     ) -> winfsp::Result<u32> {
         log::info!("winfsp::read({:?})", context);
-        let data = self
-            .fs_interface
-            .read_file(context.0, offset as usize, buffer.len())?;
-        let len = min(data.len(), buffer.len());
-        buffer[0..len].copy_from_slice(&data[0..len]);
-        Ok(len as u32)
+        self.fs_interface
+            .read_file(context.0, offset as usize, buffer)
+            .map(|x| x as u32)
+            .map_err(|e| e.into())
     }
 
     fn write(
