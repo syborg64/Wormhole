@@ -56,15 +56,16 @@ impl Into<FileInfo> for &Metadata {
             SimpleFileType::File => FILE_ATTRIBUTE_ARCHIVE,
             SimpleFileType::Directory => FILE_ATTRIBUTE_DIRECTORY,
         };
+        let now = FileTime::now();
         FileInfo {
             file_attributes: attributes.0,
             reparse_tag: 0,
             allocation_size: self.size as u64,
             file_size: self.size as u64,
-            creation_time: FileTime::try_from(self.crtime).unwrap_or_default().to_raw(),
-            last_access_time: FileTime::try_from(self.atime).unwrap_or_default().to_raw(),
-            last_write_time: FileTime::try_from(self.mtime).unwrap_or_default().to_raw(),
-            change_time: FileTime::try_from(self.ctime).unwrap_or_default().to_raw(),
+            creation_time: FileTime::try_from(self.crtime).unwrap_or(now).to_raw(),
+            last_access_time: FileTime::try_from(self.atime).unwrap_or(now).to_raw(),
+            last_write_time: FileTime::try_from(self.mtime).unwrap_or(now).to_raw(),
+            change_time: FileTime::try_from(self.ctime).unwrap_or(now).to_raw(),
             index_number: self.ino,
             hard_links: 0,
             ea_size: 0,
