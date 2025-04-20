@@ -64,6 +64,8 @@ pub async fn initiate_connection(
 ) -> Option<(FileSystemSerialized, Vec<Address>, PeerIPC, Vec<u8>)> {
     if peers_addrs.len() >= 1 {
         info!("INITTIAL CONNECTION");
+        info!("PEERS ADDRS {:?}", peers_addrs);
+        info!("SERVER ADDRESS {:?}", server_address);
         for first_contact in peers_addrs {
             let first_ipc = PeerIPC::connect(first_contact.to_owned(), tx.clone()).await;
 
@@ -86,6 +88,7 @@ pub async fn initiate_connection(
                             peers_address.retain(|address| {
                                 *address != server_address && *address != first_contact
                             });
+                            info!("PEERS ADDRESS: {:?}", peers_address);
                             return Some((fs, peers_address, ipc, global_config));
                         }
                         Some(_) => {
@@ -137,6 +140,7 @@ pub async fn initiate_connection(
 // }
 
 fn register_to_others(peers: &Vec<PeerIPC>, self_address: &Address) -> std::io::Result<()> {
+    
     for peer in peers {
         peer.sender
             .send((MessageContent::Register(self_address.clone()), None))
@@ -188,8 +192,11 @@ impl Pod {
             // TODO use global_config ?
 
             peers = PeerIPC::peer_startup(peers_addrs, from_network_message_tx.clone()).await;
+            info!("0. PEERS: {:?}", peers);
             peers.push(ipc);
+            info!("0.5. PEERS: {:?}", peers);
             register_to_others(&peers, &server_address)?;
+            info!("0.75. PEERS: {:?}", peers);
             arbo.overwrite_self(fs_serialized.fs_index);
             for index in arbo.get_raw_entries().keys() {
                 // TEMP FIX FOR MERGE
@@ -202,6 +209,7 @@ impl Pod {
 
         let arbo: Arc<RwLock<Arbo>> = Arc::new(RwLock::new(arbo));
 
+        info!("1. PEERS {:?}", &peers);
         let network_interface = Arc::new(NetworkInterface::new(
             arbo.clone(),
             mount_point.clone(),
@@ -212,12 +220,28 @@ impl Pod {
             global_config.redundancy.number,
         ));
 
+        log::info!(
+            "2. PEERS {:#?}",
+            network_interface.peers.clone()
+                .read()
+                .iter()
+                .map(|peer| peer.address.clone())
+                .collect::<Vec<String>>()
+        );
         let disk_manager = DiskManager::new(mount_point.clone())?;
         let fs_interface = Arc::new(FsInterface::new(
             network_interface.clone(),
             disk_manager,
             arbo.clone(),
         ));
+        log::info!(
+            "3. PEERS {:#?}",
+            network_interface.peers.clone()
+                .read()
+                .iter()
+                .map(|peer| peer.address.clone())
+                .collect::<Vec<String>>()
+        );
 
         // Start ability to recieve messages
         let network_airport_handle = Some(tokio::spawn(NetworkInterface::network_airport(
@@ -230,8 +254,14 @@ impl Pod {
             network_interface.peers.clone(),
             to_network_message_rx,
         )));
-
-        // info!("{:?}", network_interface.peers.clone());
+        log::info!(
+            "4. PEERS {:#?}",
+            network_interface.peers.clone()
+                .read()
+                .iter()
+                .map(|peer| peer.address.clone())
+                .collect::<Vec<String>>()
+        );
         // pull_config(
         //     network_interface.peers.clone(),
         //     &network_interface.self_addr,

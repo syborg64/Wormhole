@@ -33,8 +33,6 @@ pub enum MessageContent {
     RequestPull(InodeId),
     // Arbo, peers, .global_config
     FsAnswer(FileSystemSerialized, Vec<Address>, Vec<u8>),
-    RequestFileConfig,
-    PullFileConfig(GlobalConfig),
 }
 
 pub type MessageAndStatus = (MessageContent, Option<UnboundedSender<WhResult<()>>>);

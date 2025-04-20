@@ -694,15 +694,10 @@ impl NetworkInterface {
                             format!("WhError: {err}"),
                         ))
                     }),
-                MessageContent::PullFileConfig(global_config) => {
-                    global_config.write(fs_interface.network_interface.mount_point.join(".global_config.toml").inner).
-                        map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to modify global config: {}", e)))
-                },
                 MessageContent::FsAnswer(_, _, _) => {
                     Err(io::Error::new(ErrorKind::InvalidInput,
                         "Late answer from first connection, loaded network interface shouldn't recieve FsAnswer"))
                 }
-                MessageContent::RequestFileConfig => { todo!() }
             };
             if let Err(error) = action_result {
                 log::error!(
@@ -716,6 +711,7 @@ impl NetworkInterface {
         peers_list: Arc<RwLock<Vec<PeerIPC>>>,
         mut rx: UnboundedReceiver<ToNetworkMessage>,
     ) {
+        log::info!("contact peers");
         while let Some(message) = rx.recv().await {
             // geeting all peers network senders
             let peers_tx: Vec<(UnboundedSender<MessageAndStatus>, String)> = peers_list
@@ -724,7 +720,7 @@ impl NetworkInterface {
                 .iter()
                 .map(|peer| (peer.sender.clone(), peer.address.clone()))
                 .collect();
-
+            log::info!("peers tx: {:?}", &peers_tx);
             println!("broadcasting message to peers:\n{:?}", message);
             log::info!(
                 "peers list {:#?}",
