@@ -74,10 +74,15 @@ async fn pod_value(args: &PodArgs) -> Result<(GlobalConfig, LocalConfig, Arc<Ser
     };
     
     let local_path = path.clone().join(".local_config.toml").inner;
-    let local_config: LocalConfig = LocalConfig::read(&local_path).unwrap_or(default_local_config(&args.name));
+    let mut local_config: LocalConfig = LocalConfig::read(&local_path).unwrap_or(default_local_config(&args.name));
+    if local_config.general.name != args.name {
+        //REVIEW - changer le nom sans prévenir l'utilisateur ou renvoyer une erreur ? Je pense qu'il serait mieux de renvoyer une erreur
+        local_config.general.name = args.name.clone();
+    }
     if let Err(_) = local_config.write(&local_path) {
         return Err(CliError::InvalidConfig { file: local_path });
     }
+    
     let server: Arc<Server> = Arc::new(Server::setup(&local_config.general.address).await);
     
     let global_path = path.clone().join(".global_config.toml").inner;
