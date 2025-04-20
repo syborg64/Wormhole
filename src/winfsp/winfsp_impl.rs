@@ -478,12 +478,15 @@ impl FileSystemContext for FSPController {
         &self,
         context: &Self::FileContext,
         new_size: u64,
-        set_allocation_size: bool,
+        _set_allocation_size: bool, // allocation is ignored;
         file_info: &mut winfsp::filesystem::FileInfo,
     ) -> winfsp::Result<()> {
         log::info!("winfsp::set_file_size({:?}, {new_size})", context);
+        let mut meta = self.fs_interface.get_inode_attributes(context.0)?;
+        meta.size = new_size;
+        *file_info = (&meta).into();
+        self.fs_interface.set_inode_meta(context.0, meta)?;
         Ok(())
-        // Err(NTSTATUS(STATUS_INVALID_DEVICE_REQUEST).into())
     }
 
     fn read(
