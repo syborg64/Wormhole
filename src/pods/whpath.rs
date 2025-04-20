@@ -1,4 +1,5 @@
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
+use std::str::FromStr;
 use std::{fmt, path::Path};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -80,6 +81,14 @@ where
         wh_path
     }
 }
+
+impl Into<OsString> for &WhPath {
+    fn into(self) -> OsString {
+        OsString::from_str(&self.inner).expect("infaillable")
+    }
+}
+
+
 
 impl WhPath {
     pub fn new() -> Self {
