@@ -9,11 +9,13 @@ use serde::{Deserialize, Serialize};
 use std::io;
 use std::sync::Arc;
 
+use super::file_handle::FileHandleManager;
 use super::make_inode::MakeInode;
 
 pub struct FsInterface {
     pub network_interface: Arc<NetworkInterface>,
     pub disk: DiskManager,
+    pub file_handles: Arc<RwLock<FileHandleManager>>,
     pub arbo: Arc<RwLock<Arbo>>, // here only to read, as most write are made by network_interface
                                  // REVIEW - check self.arbo usage to be only reading
 }
@@ -44,6 +46,7 @@ impl FsInterface {
         Self {
             network_interface,
             disk: disk_manager,
+            file_handles: Arc::new(RwLock::new(FileHandleManager::new())),
             arbo,
         }
     }

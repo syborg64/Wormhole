@@ -500,6 +500,13 @@ impl Filesystem for FuseController {
         }
     }
 
+    fn open(&mut self, _req: &Request<'_>, ino: u64, flags: i32, reply: fuser::ReplyOpen) {
+        match self.fs_interface.open(ino) {
+            Ok(()) => reply.opened(ino, flags as u32), // TODO - check flags ?,
+            Err(error) => reply.error(error.to_libc()),
+        };
+    }
+
     fn write(
         &mut self,
         _req: &Request<'_>,
@@ -559,10 +566,6 @@ impl Filesystem for FuseController {
             Err(MakeInode::ParentNotFound) => reply.error(libc::ENOENT),
             Err(MakeInode::ParentNotFolder) => reply.error(libc::ENOTDIR),
         }
-    }
-
-    fn open(&mut self, _req: &Request<'_>, ino: u64, flags: i32, reply: fuser::ReplyOpen) {
-        reply.opened(ino, flags as u32); // TODO - check flags ?
     }
 
     fn release(

@@ -592,6 +592,13 @@ impl Arbo {
         Ok(())
     }
 
+    // not public as the modifications are not automaticly propagated on other related inodes
+    #[must_use]
+    fn set_inode_size(&mut self, ino: InodeId, size: u64) -> WhResult<()> {
+        self.n_get_inode_mut(ino)?.meta.size = size;
+        Ok(())
+    }
+
     pub fn set_inode_xattr(&mut self, ino: InodeId, key: String, data: Vec<u8>) -> WhResult<()> {
         let inode = self.n_get_inode_mut(ino)?;
 

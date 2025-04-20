@@ -491,6 +491,23 @@ impl NetworkInterface {
          */
     }
 
+    pub fn update_file_size_locally(&self, id: InodeId, new_size: u64) -> WhResult<()> {
+        let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface::update_size")?;
+        // let inode = arbo.set_inode_size(id, new_size)?;
+
+        // if newsize > inode.meta.size {
+        //     inode.meta.size = newsize;
+        // }
+        Ok(())
+        /* REVIEW
+         * This system (and others broadcasts systems) should be reviewed as they don't check success.
+         * In this case, if another host misses this order, it will not update it's file.
+         * We could create a "broadcast" callback with the number of awaited confirmations and a timeout
+         * before resend or fail declaration.
+         * Or send a bunch of Specific messages
+         */
+    }
+
     // SECTION Redundancy related
 
     fn add_redundancy(&self, file_id: InodeId, current_hosts: Vec<Address>) -> WhResult<()> {
