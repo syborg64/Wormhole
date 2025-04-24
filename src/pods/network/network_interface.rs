@@ -133,7 +133,7 @@ pub struct NetworkInterface {
     pub arbo: Arc<RwLock<Arbo>>,
     pub mount_point: WhPath,
     pub to_network_message_tx: UnboundedSender<ToNetworkMessage>,
-    pub next_inode: Mutex<InodeId>, // TODO - replace with InodeIndex type
+    pub next_inode: Mutex<InodeId>,
     pub callbacks: Callbacks,
     pub peers: Arc<RwLock<Vec<PeerIPC>>>,
     pub self_addr: Address,
@@ -536,7 +536,8 @@ impl NetworkInterface {
             if let FsEntry::File(current_hosts) = &arbo.n_get_inode(file_id)?.entry {
                 current_hosts.clone()
             } else {
-                panic!("Can't apply redundancy to a folder");
+                log::warn!("Can't apply redundancy to a folder");
+                return Ok(());
             }
         };
 
