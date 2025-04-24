@@ -201,41 +201,24 @@ impl FsInterface {
     }
 
     pub fn recept_binary(&self, id: InodeId, binary: Vec<u8>) -> io::Result<()> {
-        let (path, inode) = {
-            let arbo = Arbo::read_lock(&self.arbo, "recept_binary")
-                .expect("recept_binary: can't read lock arbo");
-            (
-                match arbo.get_path_from_inode_id(id) {
-                    Ok(path) => path,
-                    Err(_) => {
-                        return self
-                            .network_interface
-                            .callbacks
-                            .resolve(Callback::Pull(id), false)
-                    }
-                },
-                arbo.get_inode(id)?.clone(),
-            )
-        };
+        let path = Arbo::read_lock(&self.arbo, "recept_binary")?
+            .get_path_from_inode_id(id)
+            .map_err(|e| {
+                log::warn!("recept_binary: can't get path from inode id: {e}");
+                let _ = self.network_interface
+                    .callbacks
+                    .resolve(Callback::Pull(id), false);
+                e
+            })?;
 
         self.disk.write_file(path, &binary, 0)?;
         let _ = self
             .network_interface
             .callbacks
             .resolve(Callback::Pull(id), true);
-        let mut hosts;
-        if let FsEntry::File(hosts_source) = &inode.entry {
-            hosts = hosts_source.clone();
-            let self_addr = self.network_interface.self_addr.clone();
-            let idx = hosts.partition_point(|x| x <= &self_addr);
-            hosts.insert(idx, self_addr);
-        } else {
-            return Err(io::ErrorKind::InvalidInput.into());
-        }
-        Arbo::write_lock(&self.arbo, "recept_binary")
-            .expect("recept_binary: can't write lock arbo")
-            .set_inode_hosts(id, hosts)?;
-        self.network_interface.update_remote_hosts(&inode)
+
+        self.network_interface
+            .add_inode_hosts(id, vec![self.network_interface.self_addr.clone()])
     }
 
     pub fn recept_edit_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
