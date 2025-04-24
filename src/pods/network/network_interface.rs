@@ -432,19 +432,6 @@ impl NetworkInterface {
         self.apply_redundancy(id)
     }
 
-    pub fn update_remote_hosts(&self, inode: &Inode) -> io::Result<()> {
-        if let FsEntry::File(hosts) = &inode.entry {
-            self.to_network_message_tx
-                .send(ToNetworkMessage::BroadcastMessage(
-                    MessageContent::EditHosts(inode.id, hosts.clone()),
-                ))
-                .expect("update_remote_hosts: unable to update modification on the network thread");
-            Ok(())
-        } else {
-            Err(io::ErrorKind::InvalidInput.into())
-        }
-    }
-
     pub fn add_inode_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
         Arbo::write_lock(&self.arbo, "network_interface::add_inode_hosts")?
             .add_inode_hosts(id, hosts.clone())?;
