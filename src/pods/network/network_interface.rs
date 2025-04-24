@@ -219,10 +219,6 @@ impl NetworkInterface {
         Arbo::n_write_lock(&self.arbo, "register_new_inode")?.n_add_inode(inode.clone())?;
 
         if inode_id != 3u64 {
-            if matches!(inode.entry, FsEntry::File(_)) {
-                self.apply_redundancy(inode_id)?;
-            }
-
             self.to_network_message_tx
                 .send(ToNetworkMessage::BroadcastMessage(
                     message::MessageContent::Inode(inode),
