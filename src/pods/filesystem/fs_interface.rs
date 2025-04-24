@@ -221,15 +221,15 @@ impl FsInterface {
             .add_inode_hosts(id, vec![self.network_interface.self_addr.clone()])
     }
 
-    pub fn recept_edit_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
+    pub fn recept_reset_hosts(&self, id: InodeId, hosts: Address) -> io::Result<()> {
         if !hosts.contains(&self.network_interface.self_addr) {
             if let Err(e) = self.disk.remove_file(
-                Arbo::read_lock(&self.arbo, "recept_edit_hosts")?.get_path_from_inode_id(id)?,
+                Arbo::read_lock(&self.arbo, "recept_reset_hosts")?.get_path_from_inode_id(id)?,
             ) {
-                log::debug!("recept_edit_hosts: can't delete file. {}", e);
+                log::debug!("recept_reset_hosts: can't delete file. {}", e);
             }
         }
-        self.network_interface.acknowledge_hosts_edition(id, hosts)
+        self.network_interface.acknowledge_hosts_reset(id, hosts)
     }
 
     pub fn recept_add_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {

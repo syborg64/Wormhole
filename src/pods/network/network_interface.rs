@@ -287,10 +287,9 @@ impl NetworkInterface {
         Arbo::n_write_lock(&self.arbo, "acknowledge_unregister_inode")?.n_remove_inode(id)
     }
 
-    pub fn acknowledge_hosts_edition(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
-        let mut arbo = Arbo::write_lock(&self.arbo, "acknowledge_hosts_edition")?;
-
-        arbo.set_inode_hosts(id, hosts) // TODO - if unable to update for some reason, should be passed to the background worker
+    pub fn acknowledge_hosts_reset(&self, id: InodeId, host: Address) -> io::Result<()> {
+        Arbo::write_lock(&self.arbo, "acknowledge_hosts_reset")?.set_inode_hosts(id, vec![host])
+        // TODO - if unable to update for some reason, should be passed to the background worker
     }
 
     pub fn acknowledge_metadata(
@@ -426,7 +425,7 @@ impl NetworkInterface {
     pub fn revoke_remote_hosts(&self, id: InodeId) -> WhResult<()> {
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::EditHosts(id, vec![self.self_addr.clone()]),
+                MessageContent::ResetHosts(id, self.self_addr.clone()),
             ))
             .expect("revoke_remote_hosts: unable to update modification on the network thread");
         self.apply_redundancy(id)
@@ -652,7 +651,7 @@ impl NetworkInterface {
                             format!("WhError: {err}"),
                         ))
                     }),
-                MessageContent::EditHosts(id, hosts) => fs_interface.recept_edit_hosts(id, hosts),
+                MessageContent::ResetHosts(id, hosts) => fs_interface.recept_reset_hosts(id, hosts),
                 MessageContent::AddHosts(id, hosts) => fs_interface.recept_add_hosts(id, hosts),
                 MessageContent::RemoveHosts(id, hosts) => {
                     fs_interface.recept_remove_hosts(id, hosts)

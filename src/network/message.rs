@@ -20,7 +20,7 @@ pub enum MessageContent {
     RequestFile(InodeId, Address),
     PullAnswer(InodeId, Vec<u8>),
     Rename(InodeId, InodeId, String, String), //Parent, New Parent, Name, New Name
-    EditHosts(InodeId, Vec<Address>),
+    ResetHosts(InodeId, Address),
     AddHosts(InodeId, Vec<Address>),
     RemoveHosts(InodeId, Vec<Address>),
     EditMetadata(InodeId, Metadata, Address),
