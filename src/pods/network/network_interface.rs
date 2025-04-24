@@ -445,6 +445,17 @@ impl NetworkInterface {
         }
     }
 
+    pub fn add_inode_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
+        Arbo::write_lock(&self.arbo, "network_interface::add_inode_hosts")?
+            .add_inode_hosts(id, hosts.clone())?;
+        self.to_network_message_tx
+            .send(ToNetworkMessage::BroadcastMessage(
+                MessageContent::AddHosts(id, hosts),
+            ))
+            .expect("add_inode_hosts: unable to update modification on the network thread");
+        Ok(())
+    }
+
     pub fn aknowledge_new_hosts(&self, id: InodeId, new_hosts: Vec<Address>) -> io::Result<()> {
         Arbo::write_lock(&self.arbo, "aknowledge_new_hosts")?.add_inode_hosts(id, new_hosts)
     }
