@@ -113,12 +113,17 @@ async fn main_cli_airport(
                 todo!("Check if pod existe and start it based one his name or path")
             }
             PodCommand::StopPod(StatusPodArgs { name, path: _ }, responder) => {
-                let _ = responder.send(
-                    name.and_then(|name| pods.get(&name))
-                        .ok_or(PodStopError::PodNotRunning)
-                        .and_then(|pod| pod.stop())
-                        .map(|()| "Pod was stopped.".to_string()),
-                );
+                let status = if let Some(pod) = name.and_then(|name| pods.remove(&name)) {
+                    tokio::task::spawn_blocking(move || pod.stop())
+                        .await
+                        .expect("pod stop: can't spawn blocking task")
+                        .map(|()| "Pod was stopped.".to_string())
+                } else {
+                    // TODO - allow deletion by path
+                    log::warn!("(TODO) Stopping a pod by path is not yet implemented");
+                    Err(PodStopError::PodNotRunning)
+                };
+                let _ = responder.send(status);
             }
             PodCommand::RemovePod(args) => {
                 info!("Pod removed: {:?}", args);
@@ -131,7 +136,7 @@ async fn main_cli_airport(
                     log::error!("No pod name nor path were provided by RemovePod command");
                     None
                 };
-                
+
                 if pod.is_none() {
                     info!("Pod not found");
                 } else {
