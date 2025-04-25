@@ -63,8 +63,10 @@ pub struct PodArgs {
 #[command(version, about, long_about = None)]
 pub struct StatusPodArgs {
     /// Name of the pod for updating status pod. If the name equal 'None' the name will be read from the current directory
+    #[arg(long, short)]
     pub name: Option<String>,
     /// Path is used uniquely if the pod name is 'None'
+    #[arg(long, short)]
     pub path: Option<WhPath>,
 }
 
