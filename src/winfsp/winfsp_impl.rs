@@ -216,9 +216,7 @@ impl FileSystemContext for FSPController {
             log::error!("{:?}", e);
             e
         })?;
-        return match Arbo::read_lock(&self.fs_interface.arbo, "winfsp::open")?
-            .get_inode_from_path(&path)
-        {
+        match Arbo::read_lock(&self.fs_interface.arbo, "winfsp::open")?.get_inode_from_path(&path) {
             Ok(inode) => {
                 *file_info.as_mut() = (&inode.meta).into();
                 file_info.set_normalized_name(file_name.as_slice(), None);
@@ -233,7 +231,8 @@ impl FileSystemContext for FSPController {
                     Err(winfsp::FspError::WIN32(ERROR_GEN_FAILURE))
                 }
             }
-        };
+        }
+        .inspect_err(|e| log::error!("open::{e}"))
     }
 
     fn close(&self, context: Self::FileContext) {
@@ -291,6 +290,7 @@ impl FileSystemContext for FSPController {
             Err(MakeInode::ParentNotFound) => Err(STATUS_OBJECT_NAME_NOT_FOUND.into()),
             Err(MakeInode::WhError { source: _ }) => Err(STATUS_OBJECT_NAME_NOT_FOUND.into()),
         }
+        .inspect_err(|e| log::error!("create::{e}"))
     }
 
     fn cleanup(
@@ -325,7 +325,7 @@ impl FileSystemContext for FSPController {
 
         let arbo = Arbo::read_lock(&self.fs_interface.arbo, "winfsp::get_file_info")?;
 
-        return match arbo.get_inode(context.0) {
+        match arbo.get_inode(context.0) {
             Ok(inode) => {
                 *file_info = (&inode.meta).into();
                 log::info!("ok:{:?}", file_info);
@@ -338,7 +338,8 @@ impl FileSystemContext for FSPController {
                     Err(winfsp::FspError::WIN32(ERROR_GEN_FAILURE))
                 }
             }
-        };
+        }
+        .inspect_err(|e| log::error!("get_file_info::{e}"))
     }
 
     fn get_security(
