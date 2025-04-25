@@ -27,13 +27,16 @@ pub enum Cli {
     Remove(RemoveArgs),
     /// reload a pod
     Reload(PodArgs),
+    /// Restore many or a specifique file configuration  
     Restore(RestoreConf),
 }
 
 
 #[derive(Debug, clap::Args, Serialize, Deserialize)]
+#[command(version, about, long_about = None)]
 pub struct RestoreConf {
-    pub names: Option<Vec<String>>,
+    #[arg(long, short, default_value = "")]
+    pub names: Vec<String>,
 }
 
 #[derive(Debug, clap::Args, Serialize, Deserialize)]
@@ -42,13 +45,13 @@ pub struct PodArgs {
     /// Name of the pod
     pub name: String,
     /// Change to DIRECTORY before doing anything
-    #[arg(long, short = 'C')]
-    pub path: Option<WhPath>,
+    #[arg(long, short = 'C', default_value = ".")]
+    pub path: WhPath,
     /// network url as <address of node to join from> + ':' + <network name>'
-    #[arg()]
+    #[arg(long, short)]
     pub url: Option<String>,
     /// additional hosts to try to join from as a backup
-    #[arg()]
+    #[arg(long, short)]
     pub additional_hosts: Option<Vec<String>>,
 }
 
@@ -65,11 +68,11 @@ pub struct StatusPodArgs {
 #[command(version, about, long_about = None)]
 pub struct TemplateArg {
     /// name of the network to create
-    #[arg()]
-    pub name: Option<String>,
+    #[arg(long, short, default_value = "default")]
+    pub name: String,
     /// Change to DIRECTORY before doing anything
-    #[arg(long, short = 'C')]
-    pub path: Option<WhPath>,
+    #[arg(long, short = 'C', default_value = ".")]
+    pub path: WhPath,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ValueEnum)]
@@ -93,9 +96,10 @@ pub enum Mode {
 #[command(version, about, long_about = None)]
 pub struct RemoveArgs {
     /// Name of the deleted pod
+    #[arg(long, short, required_unless_present = "path", conflicts_with = "path")]
     pub name: Option<String>,
     /// Change to DIRECTORY before doing anything
-    #[arg(long, short = 'C')]
+    #[arg(long, short = 'C', required_unless_present = "name", conflicts_with = "name")]
     pub path: Option<WhPath>,
     /// Mode for pod removal
     #[arg(long, default_value = "simple")]

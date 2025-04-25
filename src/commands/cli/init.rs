@@ -35,7 +35,7 @@ pub fn init(ip: &str, name: String, path: &WhPath) -> Result<(), Box<dyn std::er
         ip,
         Cli::New(PodArgs {
             name: name,
-            path: Some(path.clone()),
+            path: path.clone(),
             url: None,
             additional_hosts: None,
         }),

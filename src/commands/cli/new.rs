@@ -31,11 +31,11 @@ fn check_config_file(
 }
 
 pub fn new(ip: &str, args: PodArgs) -> Result<(), Box<dyn std::error::Error>> {
-    let path = if args.path == None {
+    let path = if args.path == ".".into() {
         let path = env::current_dir()?;
         WhPath::from(&path.display().to_string())
     } else {
-        WhPath::from(args.path.unwrap())
+        WhPath::from(args.path)
     };
     fs::read_dir(&path.inner)?;
     if args.url == None {
@@ -48,7 +48,7 @@ pub fn new(ip: &str, args: PodArgs) -> Result<(), Box<dyn std::error::Error>> {
         ip,
         Cli::New(PodArgs {
             name: args.name,
-            path: Some(path.clone()),
+            path: path.clone(),
             url: args.url,
             additional_hosts: args.additional_hosts,
         }),

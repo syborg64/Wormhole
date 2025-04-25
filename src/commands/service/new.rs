@@ -65,11 +65,11 @@ fn add_hosts(mut global_config: GlobalConfig, url: String, mut additional_hosts:
 }
 
 async fn pod_value(args: &PodArgs) -> Result<(GlobalConfig, LocalConfig, Arc<Server>, WhPath), CliError> {
-    let path = if args.path == None {
+    let path = if args.path == ".".into() {
         let path = env::current_dir()?;
         WhPath::from(&path.display().to_string())
     } else {
-        WhPath::from(args.path.clone().unwrap())
+        WhPath::from(args.path.clone())
     };
     
     let local_path = path.clone().join(".local_config.toml").inner;
@@ -92,9 +92,8 @@ async fn pod_value(args: &PodArgs) -> Result<(GlobalConfig, LocalConfig, Arc<Ser
         args.additional_hosts.clone().unwrap_or(vec![]),
     );
 
-    let mount_point = args.path.clone().unwrap_or_else(|| ".".into());
     info!("POD VALUE");
     info!("{:?}", global_config);
     info!("{:?}", local_config);
-    Ok((global_config, local_config, server, mount_point))
+    Ok((global_config, local_config, server, args.path.clone()))
 }
