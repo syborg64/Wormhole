@@ -26,7 +26,14 @@ pub enum Cli {
     /// remove a pod from its network
     Remove(RemoveArgs),
     /// reload a pod
-    Reload(PodArgs),    
+    Reload(PodArgs),
+    Restore(RestoreConf),
+}
+
+
+#[derive(Debug, clap::Args, Serialize, Deserialize)]
+pub struct RestoreConf {
+    pub names: Option<Vec<String>>,
 }
 
 #[derive(Debug, clap::Args, Serialize, Deserialize)]
