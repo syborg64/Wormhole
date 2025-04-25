@@ -3,25 +3,51 @@
 // AgarthaSoftware - 2024
 
 use clap::Parser;
-use std::{env, path::PathBuf, sync::Arc};
-use wormhole::{
-    commands::{
+use std::env;
+use wormhole::commands::{
         self,
-        cli_commands::{self, Cli},
-    },
-    pods::whpath::WhPath,
-};
+        cli_commands::Cli,
+    };
+
+fn get_args(args: Vec<String>) -> (String, Vec<String>) {
+    // Déterminer l'adresse IP et les arguments pour Cli
+    let ip: String;
+    let cli_args: Vec<String>;
+
+    if let Some(first_arg) = args.get(1) {
+        // Vérifier si le premier argument ressemble à une adresse IP (contient ':')
+        if first_arg.contains(':') {
+            // C'est probablement une IP, la consommer
+            ip = first_arg.clone();
+            // Les arguments pour Cli commencent après l'IP
+            cli_args = args.into_iter().skip(1).collect();
+        } else {
+            // Pas une IP, utiliser la valeur par défaut
+            ip = "127.0.0.1:8081".to_string();
+            // Les arguments pour Cli commencent dès le premier argument
+            cli_args = args;
+        }
+    } else {
+        // Aucun argument fourni, utiliser l'IP par défaut et cli_args vide
+        ip = "127.0.0.1:8081".to_string();
+        cli_args = vec![];
+    }
+    return (ip, cli_args);
+}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
-    let ip: String = env::args()
-        .nth(2)
-        .unwrap_or("127.0.0.1:8081".to_string())
-        .into();
+
+    // Récupérer tous les arguments
+    let args: Vec<String> = env::args().collect();
+    let (ip, cli_args) = get_args(args);
+    let ip = ip.as_str();
     println!("Starting cli on {}", ip);
-    match Cli::parse() {
-        Cli::Start(args) => commands::cli::start(ip.as_str(), args)?,
-        Cli::Stop(args) => commands::cli::stop(ip.as_str(), args)?,
+    println!("cli args: {:?}", cli_args);
+
+    match Cli::parse_from(cli_args) {
+        Cli::Start(args) => commands::cli::start(ip, args)?,
+        Cli::Stop(args) => commands::cli::stop(ip, args)?,
         Cli::Template(args) => {
             println!(
                 "creating network {:?}",
@@ -32,35 +58,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 &args.name.unwrap_or("default".into()),
             )?;
         }
-        Cli::Init(args) => {
-            println!("init service");
-            commands::cli::init(
-                ip.as_str(),
-                args.name,
-                &WhPath::from(args.path.unwrap_or(".".into())),
-            )?;
-        }
-        Cli::Join(args) => {
-            println!("joining {}", args.url);
-            println!("(additional hosts: {:?})", args.additional_hosts);
-            commands::cli::join(
-                ip.as_str(),
-                args.name,
-                &args.path.unwrap_or(".".into()),
-                args.url,
-                args.additional_hosts.unwrap_or(vec![]),
-            )?;
+        Cli::New(args) => {
+            println!("creating pod");
+            commands::cli::new(ip, args)?;
         }
         Cli::Remove(args) => {
             println!("removing pod");
-            let mode = match (args.clone, args.delete, args.take) {
-                (true, false, false) => commands::cli::Mode::Clone,
-                (false, true, false) => commands::cli::Mode::Clean,
-                (false, false, true) => commands::cli::Mode::Take,
-                (false, false, false) => commands::cli::Mode::Simple,
-                _ => unreachable!("multiple exclusive options"),
-            };
-            commands::cli::remove(&WhPath::from(args.path.unwrap_or(".".into())), mode)?;
+            commands::cli::remove(ip, args)?;
         }
         Cli::Inspect => {
             println!("inspecting pod");

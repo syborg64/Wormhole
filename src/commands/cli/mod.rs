@@ -1,6 +1,6 @@
 mod init;
-mod join;
 mod message;
+mod new;
 mod register;
 mod reload;
 mod remove;
@@ -10,12 +10,11 @@ mod templates;
 mod unregister;
 
 pub use init::init;
-pub use join::join;
 pub use message::cli_messager;
+pub use new::new;
 pub use register::register;
 pub use reload::reload;
 pub use remove::remove;
-pub use remove::Mode;
 pub use start::start;
 pub use stop::stop;
 pub use templates::templates;

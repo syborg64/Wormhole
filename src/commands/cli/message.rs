@@ -1,17 +1,8 @@
-use clap::Parser;
 use futures_util::sink::SinkExt;
 use futures_util::TryStreamExt;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::commands::cli_commands::Cli;
-
-// #[derive(Parser)]
-// #[command(name = "wormhole-cli")]
-// #[command(about = "CLI pour contrôler le service Wormhole", long_about = None)]
-// pub struct CliMessage {
-//     /// La commande à envoyer au service (ex. "join <network>", "status")
-//     pub command: String,
-// }
 
 pub async fn cli_messager(ip: &str, cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     // Se connecter au service sur le port dédié pour la CLI (par exemple, 8081)

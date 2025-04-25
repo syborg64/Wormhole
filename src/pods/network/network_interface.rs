@@ -4,29 +4,24 @@ use std::{
     sync::Arc,
 };
 
+use crate::error::{WhError, WhResult};
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::{
     broadcast,
     mpsc::{UnboundedReceiver, UnboundedSender},
 };
 
-use crate::{
-    error::WhResult,
-    network::{
-        message::{
-            self, Address, FileSystemSerialized, FromNetworkMessage, MessageContent,
-            ToNetworkMessage,
-        },
-        peer_ipc::PeerIPC,
-        server::Server,
+use crate::network::{
+    message::{
+        self, Address, FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
     },
+    peer_ipc::PeerIPC,
+    server::Server,
 };
-use crate::{
-    network::message::MessageAndStatus,
-    pods::{
-        arbo::{FsEntry, Metadata},
-        whpath::WhPath,
-    },
+use crate::pods::{
+    arbo::{FsEntry, Metadata},
+    filesystem::{make_inode::MakeInode, remove_inode::RemoveInode},
+    whpath::WhPath,
 };
 
 use crate::pods::{
@@ -181,33 +176,57 @@ impl NetworkInterface {
         Ok(available_inode)
     }
 
+    /** TODO: Doc when reviews are finished */
+    pub fn n_get_next_inode(&self) -> WhResult<u64> {
+        let mut next_inode =
+            self.next_inode
+                .try_lock_for(LOCK_TIMEOUT)
+                .ok_or(WhError::WouldBlock {
+                    called_from: "get_next_inode".to_string(),
+                })?;
+
+        let available_inode = *next_inode;
+        *next_inode += 1;
+
+        Ok(available_inode)
+    }
+
     #[must_use]
-    /// add the requested entry to the arbo and inform the network
-    pub fn register_new_file(&self, inode: Inode) -> io::Result<u64> {
-        let new_inode_id = inode.id;
+    pub fn promote_next_inode(&self, new: u64) -> WhResult<()> {
+        let mut next_inode =
+            self.next_inode
+                .try_lock_for(LOCK_TIMEOUT)
+                .ok_or(WhError::WouldBlock {
+                    called_from: "promote_next_inode".to_string(),
+                })?;
 
-        if let Some(mut arbo) = self.arbo.try_write_for(LOCK_TIMEOUT) {
-            arbo.add_inode(inode.clone())?;
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::Interrupted,
-                "mkfile: can't write-lock arbo's RwLock",
-            ));
+        // REVIEW: next_inode being behind a mutex is weird and
+        // the function not taking a mutable ref feels weird, is next_inode behind a mutex just to allow a simple &self?
+        if *next_inode < new {
+            *next_inode = new;
         };
+        Ok(())
+    }
 
-        // TODO - add myself to hosts
+    #[must_use]
+    /// Add the requested entry to the arbo and inform the network
+    pub fn register_new_inode(&self, inode: Inode) -> Result<(), MakeInode> {
+        let inode_id = inode.id.clone();
+        Arbo::n_write_lock(&self.arbo, "register_new_inode")?.n_add_inode(inode.clone())?;
 
-        if new_inode_id != 3u64 {
+        if inode_id != 3u64 {
+            if matches!(inode.entry, FsEntry::File(_)) {
+                self.apply_redundancy(inode_id)?;
+            }
+
             self.to_network_message_tx
                 .send(ToNetworkMessage::BroadcastMessage(
-                    message::MessageContent::Inode(inode, new_inode_id),
+                    message::MessageContent::Inode(inode),
                 ))
-                .expect("mkfile: unable to update modification on the network thread");
+                .expect("register inode: unable to update modification on the network thread");
         }
+        Ok(())
         // TODO - if unable to update for some reason, should be passed to the background worker
-
-        self.apply_redundancy(new_inode_id)?;
-        Ok(new_inode_id)
     }
 
     pub fn broadcast_rename_file(
@@ -239,61 +258,29 @@ impl NetworkInterface {
 
     #[must_use]
     /// Get a new inode, add the requested entry to the arbo and inform the network
-    pub fn acknowledge_new_file(&self, inode: Inode, _id: InodeId) -> io::Result<()> {
-        if let Some(mut arbo) = self.arbo.try_write_for(LOCK_TIMEOUT) {
-            match arbo.add_inode(inode) {
-                Ok(()) => (),
-                Err(_) => todo!("acknowledge_new_file: file already existing: conflict"), // TODO
-            };
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::Interrupted,
-                "mkfile: can't write-lock arbo's RwLock",
-            ));
-        };
-
-        Ok(())
+    pub fn acknowledge_new_file(&self, inode: Inode, _id: InodeId) -> Result<(), MakeInode> {
+        let mut arbo = Arbo::n_write_lock(&self.arbo, "acknowledge_new_file")?;
+        arbo.n_add_inode(inode)
     }
 
-    /// remove the requested entry to the arbo and inform the network
-    pub fn unregister_file(&self, id: InodeId) -> io::Result<Inode> {
-        let removed_inode: Inode;
-
-        if let Some(mut arbo) = self.arbo.try_write_for(LOCK_TIMEOUT) {
-            removed_inode = arbo.remove_inode(id)?;
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::Interrupted,
-                "mkfile: can't write-lock arbo's RwLock",
-            ));
-        };
+    /// Remove [Inode] from the [Arbo] and inform the network of the removal
+    pub fn unregister_inode(&self, id: InodeId) -> Result<(), RemoveInode> {
+        Arbo::n_write_lock(&self.arbo, "unregister_inode")?.n_remove_inode(id)?;
 
         if id != 3u64 {
             self.to_network_message_tx
                 .send(ToNetworkMessage::BroadcastMessage(
                     message::MessageContent::Remove(id),
                 ))
-                .expect("mkfile: unable to update modification on the network thread");
+                .expect("unregister_inode: unable to update modification on the network thread");
         }
-
         // TODO - if unable to update for some reason, should be passed to the background worker
-
-        Ok(removed_inode)
+        Ok(())
     }
 
-    pub fn acknowledge_unregister_file(&self, id: InodeId) -> io::Result<Inode> {
-        let removed_inode: Inode;
-
-        if let Some(mut arbo) = self.arbo.try_write_for(LOCK_TIMEOUT) {
-            removed_inode = arbo.remove_inode(id)?;
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::Interrupted,
-                "mkfile: can't write-lock arbo's RwLock",
-            ));
-        };
-
-        Ok(removed_inode)
+    /// Remove [Inode] from the [Arbo]
+    pub fn acknowledge_unregister_inode(&self, id: InodeId) -> Result<Inode, RemoveInode> {
+        Arbo::n_write_lock(&self.arbo, "acknowledge_unregister_inode")?.n_remove_inode(id)
     }
 
     pub fn acknowledge_hosts_edition(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
@@ -432,7 +419,7 @@ impl NetworkInterface {
         Ok(())
     }
 
-    pub fn revoke_remote_hosts(&self, id: InodeId) -> io::Result<()> {
+    pub fn revoke_remote_hosts(&self, id: InodeId) -> WhResult<()> {
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
                 MessageContent::EditHosts(id, vec![self.self_addr.clone()]),
@@ -481,16 +468,34 @@ impl NetworkInterface {
          */
     }
 
+    pub fn n_update_metadata(&self, id: InodeId, meta: Metadata) -> WhResult<()> {
+        let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface::update_metadata")?;
+        arbo.n_set_inode_meta(id, meta.clone())?;
+
+        self.to_network_message_tx
+            .send(ToNetworkMessage::BroadcastMessage(
+                MessageContent::EditMetadata(id, meta, self.self_addr.clone()),
+            ))
+            .expect("update_metadata: unable to update modification on the network thread");
+        Ok(())
+        /* REVIEW
+         * This system (and others broadcasts systems) should be reviewed as they don't check success.
+         * In this case, if another host misses this order, it will not update it's file.
+         * We could create a "broadcast" callback with the number of awaited confirmations and a timeout
+         * before resend or fail declaration.
+         * Or send a bunch of Specific messages
+         */
+    }
+
     // SECTION Redundancy related
 
-    fn add_redundancy(&self, file_id: InodeId, current_hosts: Vec<Address>) -> io::Result<()> {
+    fn add_redundancy(&self, file_id: InodeId, current_hosts: Vec<Address>) -> WhResult<()> {
         let possible_hosts: Vec<Address> = self
             .peers
             .try_read_for(LOCK_TIMEOUT)
-            .ok_or(io::Error::new(
-                io::ErrorKind::Other,
-                "apply_redundancy: can't lock peers mutex",
-            ))?
+            .ok_or(WhError::WouldBlock {
+                called_from: "apply_redundancy: can't lock peers mutex".to_string(),
+            })?
             .iter()
             .map(|peer| peer.address.clone())
             .filter(|addr| !current_hosts.contains(addr))
@@ -511,7 +516,7 @@ impl NetworkInterface {
         Ok(())
     }
 
-    fn remove_redundancy(&self, file_id: InodeId, current_hosts: Vec<Address>) -> io::Result<()> {
+    fn remove_redundancy(&self, file_id: InodeId, current_hosts: Vec<Address>) {
         let hosts_nb = current_hosts.len();
         let discard_hosts: Vec<String> = current_hosts
             .into_iter()
@@ -525,30 +530,25 @@ impl NetworkInterface {
                 MessageContent::RemoveHosts(file_id, discard_hosts),
             ))
             .expect("apply_redundancy: unable to send discard redundancy on the network thread");
-        Ok(())
     }
 
-    pub fn apply_redundancy(&self, file_id: InodeId) -> io::Result<()> {
+    pub fn apply_redundancy(&self, file_id: InodeId) -> WhResult<()> {
         let current_hosts: Vec<String> = {
-            let arbo = Arbo::read_lock(&self.arbo, "apply_redundancy")?;
+            let arbo = Arbo::n_read_lock(&self.arbo, "apply_redundancy")?;
 
-            if let FsEntry::File(current_hosts) = &arbo.get_inode(file_id)?.entry {
+            if let FsEntry::File(current_hosts) = &arbo.n_get_inode(file_id)?.entry {
                 current_hosts.clone()
             } else {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    "can't apply redundancy to a folder",
-                ));
+                panic!("Can't apply redundancy to a folder");
             }
         };
 
         if current_hosts.len() < self.redundancy as usize {
-            self.add_redundancy(file_id, current_hosts)
+            self.add_redundancy(file_id, current_hosts)?
         } else if current_hosts.len() > self.redundancy as usize {
             self.remove_redundancy(file_id, current_hosts)
-        } else {
-            Ok(())
         }
+        Ok(())
     }
 
     // !SECTION ^ Redundancy related
@@ -588,7 +588,7 @@ impl NetworkInterface {
         }
     }
 
-    pub fn send_arbo(&self, to: Address) -> io::Result<()> {
+    pub fn send_arbo(&self, to: Address, global_config_bytes: Vec<u8>) -> io::Result<()> {
         let arbo = Arbo::read_lock(&self.arbo, "send_arbo")?;
         let mut entries = arbo.get_raw_entries();
 
@@ -612,6 +612,7 @@ impl NetworkInterface {
                                 next_inode: self.get_next_inode()?,
                             },
                             peers_address_list,
+                            global_config_bytes,
                         ),
                         None,
                     ),
@@ -632,12 +633,13 @@ impl NetworkInterface {
     }
 
     pub fn disconnect_peer(&self, addr: Address) -> io::Result<()> {
-        self.peers.try_write_for(LOCK_TIMEOUT).ok_or(
-            std::io::Error::new(
+        self.peers
+            .try_write_for(LOCK_TIMEOUT)
+            .ok_or(std::io::Error::new(
                 std::io::ErrorKind::WouldBlock,
                 format!("disconnect_peer: can't write lock peers"),
-            )
-        )?.retain(|p| p.address != addr);
+            ))?
+            .retain(|p| p.address != addr);
         Ok(())
     }
 
@@ -652,9 +654,14 @@ impl NetworkInterface {
             };
             log::debug!("message from {} : {:?}", origin, content);
 
-            let action_result = match content {
+            let action_result = match content.clone() { // remove scary clone
                 MessageContent::PullAnswer(id, binary) => fs_interface.recept_binary(id, binary),
-                MessageContent::Inode(inode, id) => fs_interface.recept_inode(inode, id),
+                MessageContent::Inode(inode) => fs_interface.recept_inode(inode).or_else(|err| {
+                        Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            format!("WhError: {err}"),
+                        ))
+                    }),
                 MessageContent::EditHosts(id, hosts) => fs_interface.recept_edit_hosts(id, hosts),
                 MessageContent::AddHosts(id, hosts) => fs_interface.recept_add_hosts(id, hosts),
                 MessageContent::RemoveHosts(id, hosts) => {
@@ -663,7 +670,12 @@ impl NetworkInterface {
                 MessageContent::EditMetadata(id, meta, host) => {
                     fs_interface.recept_edit_metadata(id, meta, host)
                 }
-                MessageContent::Remove(id) => fs_interface.recept_remove_inode(id),
+                MessageContent::Remove(id) => fs_interface.recept_remove_inode(id).or_else(|err| {
+                        Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            format!("WhError: {err}"),
+                        ))
+                    }),
                 MessageContent::RequestFile(inode, peer) => fs_interface.send_file(inode, peer),
                 MessageContent::RequestFs => fs_interface.send_filesystem(origin),
                 MessageContent::Register(addr) => Ok(fs_interface.register_new_node(origin, addr)),
@@ -689,14 +701,16 @@ impl NetworkInterface {
                             format!("WhError: {err}"),
                         ))
                     }),
-                MessageContent::FsAnswer(_, _) => {
+                MessageContent::FsAnswer(_, _, _) => {
                     Err(io::Error::new(ErrorKind::InvalidInput,
                         "Late answer from first connection, loaded network interface shouldn't recieve FsAnswer"))
                 },
                 MessageContent::Disconnect(addr) => fs_interface.network_interface.disconnect_peer(addr)
             };
             if let Err(error) = action_result {
-                log::error!("Network airport couldn't operate this operation: {error}");
+                log::error!(
+                    "Network airport couldn't operate operation {content:?}, error found: {error}"
+                );
             }
         }
     }
@@ -705,6 +719,7 @@ impl NetworkInterface {
         peers_list: Arc<RwLock<Vec<PeerIPC>>>,
         mut rx: UnboundedReceiver<ToNetworkMessage>,
     ) {
+        log::info!("contact peers");
         while let Some(message) = rx.recv().await {
             // geeting all peers network senders
             let peers_tx: Vec<(UnboundedSender<MessageAndStatus>, String)> = peers_list
@@ -713,7 +728,7 @@ impl NetworkInterface {
                 .iter()
                 .map(|peer| (peer.sender.clone(), peer.address.clone()))
                 .collect();
-
+            log::info!("peers tx: {:?}", &peers_tx);
             println!("broadcasting message to peers:\n{:?}", message);
             log::info!(
                 "peers list {:#?}",

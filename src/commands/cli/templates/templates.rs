@@ -4,13 +4,12 @@
 
 use std::fs;
 
-use super::{default_global_config, default_local_config};
+use crate::commands::{default_global_config, default_local_config};
 use crate::config::types::Config;
 use crate::pods::whpath::WhPath;
 
 #[must_use]
 pub fn templates(path: &WhPath, name: &str) -> Result<(), Box<dyn std::error::Error>> {
-    //REVIEW - Mettre les template en dehors de la fonction pour plus de lisibilité ? dans un autre fichier ?
     let global_config = default_global_config();
     let local_config = default_local_config(name);
     path.clone().set_absolute();

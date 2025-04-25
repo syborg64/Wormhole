@@ -1,4 +1,4 @@
-use std::{fmt::Debug, sync::mpsc::SendError};
+use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -16,7 +16,7 @@ use crate::{
 pub enum MessageContent {
     Register(Address),
     Remove(InodeId),
-    Inode(Inode, InodeId),
+    Inode(Inode),
     RequestFile(InodeId, Address),
     PullAnswer(InodeId, Vec<u8>),
     Rename(InodeId, InodeId, String, String), //Parent, New Parent, Name, New Name
@@ -28,8 +28,9 @@ pub enum MessageContent {
     RemoveXAttr(InodeId, String),
     RequestFs,
     RequestPull(InodeId),
-    FsAnswer(FileSystemSerialized, Vec<Address>),
     Disconnect(Address),
+    // Arbo, peers, .global_config
+    FsAnswer(FileSystemSerialized, Vec<Address>, Vec<u8>),
 }
 
 pub type MessageAndStatus = (MessageContent, Option<UnboundedSender<WhResult<()>>>);

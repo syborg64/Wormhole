@@ -1,64 +1,51 @@
 services:
   wormhole-base:
     &base-service
+    user: "root:root"
     build: .
     privileged: true
     cap_add:
       - SYS_ADMIN
+      - DAC_OVERRIDE
+      - SYS_PTRACE
     devices:
       - '/dev/fuse'
     volumes:
-      - ./shared_mnt:/usr/src/wormhole/virtual:rwx
+      - ./shared_mnt:/usr/src/wormhole/virtual:rwx,Z
     stdin_open: true
     tty: true
     networks:
       - wormhole-net
+    environment:
+      - VIRTUAL_FS_ROOT=/usr/src/wormhole/virtual
+      - RUST_BACKTRACE=1
+      - FUSE_GROUP_ID=root
+      - RUST_LOG=debug
+
   wormhole1:
     <<: *base-service
     container_name: w1
     networks:
       - wormhole-net
-    command: "./wormhole-service 0.0.0.0:8082 wormhole2:8082 wormhole3:8082 /usr/src/wormhole/virtual >> /var/log/wormhole.log 2>&1"
+    command: "./wormhole-service"
     volumes:
-      - ./shared_mnt1:/usr/src/wormhole/virtual:rwx
-    deploy:
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-        window: 120s
+      - ./shared_mnt1:/usr/src/wormhole/virtual:rwx,Z
+    ports:
+      - "8081:8081"
+
   wormhole2:
     <<: *base-service
     container_name: w2
     networks:
       - wormhole-net
-    command: "./wormhole-service 0.0.0.0:8082 wormhole1:8082 wormhole3:8082 /usr/src/wormhole/virtual >> /var/log/wormhole.log 2>&1"
+    command: "./wormhole-service"
     volumes:
-      - ./shared_mnt2:/usr/src/wormhole/virtual:rwx
+      - ./shared_mnt2:/usr/src/wormhole/virtual:rwx,Z
+    ports:
+      - "8082:8081"
     depends_on:
       - wormhole1
-    deploy:
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-        window: 120s
-  wormhole3:
-    <<: *base-service
-    container_name: w3
-    networks:
-      - wormhole-net
-    command: "./wormhole-service 0.0.0.0:8082 wormhole1:8082 wormhole2:8082 /usr/src/wormhole/virtual >> /var/log/wormhole.log 2>&1"
-    volumes:
-      - ./shared_mnt3:/usr/src/wormhole/virtual:rwx
-    depends_on:
-      - wormhole2
-    deploy:
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-        window: 120s
+
 networks:
   wormhole-net:
     driver: bridge

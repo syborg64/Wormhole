@@ -1,4 +1,8 @@
-use std::fs;
+// In rust we code
+// In code we trust
+// AgarthaSoftware - 2024
+
+use std::{env, fs};
 
 use tokio::runtime::Runtime;
 
@@ -26,17 +30,27 @@ fn check_config_file(
     Ok(())
 }
 
-pub fn init(ip: &str, name: String, path: &WhPath) -> Result<(), Box<dyn std::error::Error>> {
+pub fn new(ip: &str, args: PodArgs) -> Result<(), Box<dyn std::error::Error>> {
+    let path = if args.path == None {
+        let path = env::current_dir()?;
+        WhPath::from(&path.display().to_string())
+    } else {
+        WhPath::from(args.path.unwrap())
+    };
     fs::read_dir(&path.inner)?;
-    let files_name = vec![".local_config.toml", ".global_config.toml"];
-    check_config_file(&path, files_name)?;
+    if args.url == None {
+        println!("url: {:?}", args.url);
+        let files_name = vec![".local_config.toml", ".global_config.toml"];
+        check_config_file(&path, files_name)?;
+    }
     let rt = Runtime::new().unwrap();
     rt.block_on(cli_messager(
         ip,
-        Cli::Init(PodArgs {
-            name: name,
+        Cli::New(PodArgs {
+            name: args.name,
             path: Some(path.clone()),
+            url: args.url,
+            additional_hosts: args.additional_hosts,
         }),
-    ))?;
-    Ok(())
+    ))
 }

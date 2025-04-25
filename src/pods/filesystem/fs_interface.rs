@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 use std::io;
 use std::sync::Arc;
 
+use super::make_inode::MakeInode;
+
 #[derive(Debug)]
 pub struct FsInterface {
     pub network_interface: Arc<NetworkInterface>,
@@ -48,96 +50,6 @@ impl FsInterface {
     }
 
     // SECTION - local -> write
-
-    pub fn make_inode(
-        &self,
-        parent_ino: u64,
-        name: String,
-        kind: SimpleFileType,
-    ) -> io::Result<Inode> {
-        let new_entry = match kind {
-            SimpleFileType::File => FsEntry::File(vec![self.network_interface.self_addr.clone()]),
-            SimpleFileType::Directory => FsEntry::Directory(Vec::new()),
-        };
-
-        let new_inode_id = match (name.as_str(), parent_ino) {
-            (GLOBAL_CONFIG_FNAME, 1) => GLOBAL_CONFIG_INO,
-            (LOCAL_CONFIG_FNAME, 1) => LOCAL_CONFIG_INO,
-            (ARBO_FILE_FNAME, 1) => ARBO_FILE_INO,
-            _ => self.network_interface.get_next_inode()?,
-        };
-
-        let new_inode: Inode = Inode::new(name, parent_ino, new_inode_id, new_entry);
-        self.network_interface
-            .register_new_file(new_inode.clone())?;
-
-        let new_path: WhPath = if let Some(arbo) = self.arbo.try_read_for(LOCK_TIMEOUT) {
-            arbo.get_path_from_inode_id(new_inode_id)?
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::Interrupted,
-                "mkfile: can't read lock arbo's RwLock",
-            ));
-        };
-
-        match kind {
-            SimpleFileType::File => {
-                self.disk.new_file(new_path)?;
-                ()
-            }
-            SimpleFileType::Directory => self.disk.new_dir(new_path)?,
-        };
-
-        Ok(new_inode)
-    }
-
-    pub fn remove_inode(&self, id: InodeId) -> io::Result<()> {
-        let (to_remove_path, entry) = {
-            let arbo = Arbo::read_lock(&self.arbo, "fs_interface::remove_inode")?;
-            (
-                arbo.get_path_from_inode_id(id)?,
-                arbo.get_inode(id)?.entry.clone(),
-            )
-        };
-
-        let _ = match entry {
-            FsEntry::File(_) => self.disk.remove_file(to_remove_path),
-            FsEntry::Directory(children) => {
-                if children.is_empty() {
-                    self.disk.remove_dir(to_remove_path)
-                } else {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        "remove_inode: can't remove non-empty dir",
-                    ));
-                }
-            }
-        };
-
-        self.network_interface.unregister_file(id)?;
-
-        Ok(())
-    }
-
-    pub fn write(&self, id: InodeId, data: &[u8], offset: u64) -> io::Result<u64> {
-        let written = {
-            let arbo = Arbo::read_lock(&self.arbo, "fs_interface.write")?;
-            let path = arbo.get_path_from_inode_id(id)?;
-            let mut meta = arbo.get_inode(id)?.meta.clone();
-            drop(arbo);
-
-            let newsize = offset + data.len() as u64;
-            if newsize > meta.size {
-                meta.size = newsize;
-                self.network_interface.update_metadata(id, meta)?;
-            }
-            self.disk.write_file(path, data, offset)?
-        };
-
-        self.network_interface.revoke_remote_hosts(id)?;
-        Ok(written)
-    }
-
     pub fn set_inode_meta(&self, ino: InodeId, meta: Metadata) -> io::Result<()> {
         let path = Arbo::read_lock(&self.arbo, "fs_interface::set_inode_meta")?
             .get_path_from_inode_id(ino)?;
@@ -244,6 +156,7 @@ impl FsInterface {
     pub fn read_dir(&self, ino: InodeId) -> io::Result<Vec<Inode>> {
         let arbo = Arbo::read_lock(&self.arbo, "fs_interface.read_dir")?;
         let dir = arbo.get_inode(ino)?;
+        //log::debug!("dir: {dir}?");
         let mut entries: Vec<Inode> = Vec::new();
 
         if let FsEntry::Directory(children) = &dir.entry {
@@ -261,23 +174,31 @@ impl FsInterface {
     // !SECTION
 
     // SECTION - remote -> write
-
-    pub fn recept_inode(&self, inode: Inode, id: InodeId) -> io::Result<()> {
-        self.network_interface.acknowledge_new_file(inode, id)?;
+    pub fn recept_inode(&self, inode: Inode) -> Result<(), MakeInode> {
+        self.network_interface
+            .acknowledge_new_file(inode.clone(), inode.id)?;
+        self.network_interface.promote_next_inode(inode.id + 1)?;
 
         let new_path = {
-            let arbo = Arbo::read_lock(&self.arbo, "fs_interface.write")?;
-            arbo.get_path_from_inode_id(id)?
+            let arbo = Arbo::n_read_lock(&self.arbo, "recept_inode")?;
+            arbo.n_get_path_from_inode_id(inode.id)?
         };
 
-        match self.disk.new_file(new_path) {
-            Ok(_) => (),
-            Err(e) => {
-                return Err(e);
-            }
-        };
-
-        Ok(())
+        match inode.entry {
+            FsEntry::File(hosts) if hosts.contains(&self.network_interface.self_addr) => self
+                .disk
+                .new_file(new_path, inode.meta.perm)
+                .map(|_| ())
+                .map_err(|io| MakeInode::LocalCreationFailed { io }),
+            FsEntry::File(_) => Ok(()),
+            FsEntry::Directory(_) => self
+                .disk
+                .new_dir(new_path, inode.meta.perm)
+                .map(|_| ())
+                .map_err(|io| MakeInode::LocalCreationFailed { io }),
+            // TODO - remove when merge is handled because new file should create folder
+            // FsEntry::Directory(_) => {}
+        }
     }
 
     pub fn recept_binary(&self, id: InodeId, binary: Vec<u8>) -> io::Result<()> {
@@ -316,19 +237,6 @@ impl FsInterface {
             .expect("recept_binary: can't write lock arbo")
             .set_inode_hosts(id, hosts)?;
         self.network_interface.update_remote_hosts(&inode)
-    }
-
-    pub fn recept_remove_inode(&self, id: InodeId) -> io::Result<()> {
-        let to_remove_path = {
-            let arbo = Arbo::read_lock(&self.arbo, "cecept_remove_inode")?;
-            arbo.get_path_from_inode_id(id)?
-        };
-
-        let _ = self.disk.remove_file(to_remove_path);
-
-        self.network_interface.acknowledge_unregister_file(id)?;
-
-        Ok(())
     }
 
     pub fn recept_edit_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
@@ -370,7 +278,12 @@ impl FsInterface {
 
     // SECTION remote -> read
     pub fn send_filesystem(&self, to: Address) -> io::Result<()> {
-        self.network_interface.send_arbo(to)
+        let global_config_path = Arbo::read_lock(&self.arbo, "fs_interface::send_filesystem")?
+            .get_path_from_inode_id(GLOBAL_CONFIG_INO)?.set_relative();
+        log::info!("reading global config at {global_config_path}");
+        let global_config_bytes = self.disk.read_file_to_end(global_config_path).expect("lmao l'incompétence");
+
+        self.network_interface.send_arbo(to, global_config_bytes)
     }
 
     pub fn register_new_node(&self, socket: Address, addr: Address) {
@@ -383,21 +296,4 @@ impl FsInterface {
         let data = self.disk.read_file(path, 0, u64::max_value())?;
         self.network_interface.send_file(inode, data, to)
     }
-    // !SECTION
-
-    // SECTION - Adapters
-    // NOTE - system specific (fuse/winfsp) code that need access to arbo or other classes
-
-    pub fn fuse_remove_inode(&self, parent: InodeId, name: &std::ffi::OsStr) -> io::Result<()> {
-        let target = {
-            let arbo = Arbo::read_lock(&self.arbo, "fs_interface::fuse_remove_inode")?;
-            let parent = arbo.get_inode(parent)?;
-            arbo.get_inode_child_by_name(parent, &name.to_string_lossy().to_string())?
-                .id
-        };
-
-        self.remove_inode(target)
-    }
-
-    // !SECTION
 }

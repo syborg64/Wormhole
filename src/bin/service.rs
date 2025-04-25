@@ -51,15 +51,20 @@ async fn handle_cli_command(
             .map_err(|e| format!("Deserialization error: {}", e))?;
 
         let response_text = match cli_command {
-            Cli::Init(pod_args) => commands::service::init(tx.clone(), pod_args).await,
-            Cli::Join(join_args) => commands::service::join(tx.clone(), join_args).await,
+            Cli::New(pod_args) => commands::service::new(tx.clone(), pod_args).await,
             Cli::Start(pod_args) => commands::service::start(tx.clone(), pod_args).await,
             Cli::Stop(pod_args) => commands::service::stop(tx.clone(), pod_args).await,
-            _ => Err("Unrecognized command".to_string()),
+            Cli::Remove(remove_arg) => commands::service::remove(tx, remove_arg).await,
+            _ => Err(CliError::InvalidCommand),
+        };
+
+        let message = match response_text {
+            Ok(success) => success.to_string(),
+            Err(error) => error.to_string(),
         };
 
         writer
-            .send(Message::Text(response_text.unwrap_or_else(|e| e)))
+            .send(Message::Text(message))
             .await
             .map_err(|e| format!("Response send error: {}", e))?;
     }
@@ -101,13 +106,9 @@ async fn main_cli_airport(
 ) -> HashMap<String, Pod> {
     while let Some(command) = rx.recv().await {
         match command {
-            PodCommand::AddPod(name, pod) => {
-                info!("Pod created: {:?}", pod);
-                pods.insert(name, pod);
-            }
-            PodCommand::JoinPod(name, pod) => {
-                info!("Pod created and joined a network: {:?}", pod);
-                pods.insert(name, pod);
+            PodCommand::NewPod(pod) => {
+                info!("Pod created or joined a network");
+                pods.push(pod);
             }
             PodCommand::StartPod(start_args) => {
                 info!("Starting pod: {:?}", start_args);
@@ -120,6 +121,53 @@ async fn main_cli_airport(
                         .and_then(|pod| pod.stop())
                         .map(|()| "Pod was stopped.".to_string()),
                 );
+            }
+            PodCommand::RemovePod(args) => {
+                info!("Pod removed: {:?}", args);
+
+                let pod = pods.iter().find(|pod| {
+                    // Vérifie si le nom correspond (si présent dans args)
+                    let name_matches = args
+                        .name
+                        .as_ref()
+                        .map_or(false, |arg_name| arg_name == pod.get_name());
+                    // Vérifie si le chemin correspond (si présent dans args)
+                    let path_matches = args
+                        .path
+                        .as_ref()
+                        .map_or(false, |arg_path| arg_path == pod.get_mount_point());
+                    // Retourne vrai si au moins une condition est remplie
+                    name_matches || path_matches
+                });
+                if pod.is_none() {
+                    info!("Pod not found");
+                } else {
+                    match args.mode {
+                        Mode::Simple => {
+                            //TODO - stop the pod
+                            //TODO - delete the pod
+                            todo!()
+                        }
+                        Mode::Clone => {
+                            //TODO - clone all data into a folder
+                            //TODO - stop the pod
+                            //TODO - delete the pod
+                            todo!()
+                        }
+                        Mode::Clean => {
+                            //TODO - stop the pod
+                            //TODO - delete all data
+                            //TODO - delete the pod
+                            todo!()
+                        }
+                        Mode::Take => {
+                            //TODO - stop the pod without distributing its data
+                            //TODO - delete the pod
+                            todo!()
+                        }
+                    }
+                }
+                todo!("Check if pod existe and remove it based one his name or path")
             }
             PodCommand::Interrupt => break,
         }

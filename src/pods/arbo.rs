@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     fs, io,
+    os::unix::fs::{MetadataExt, PermissionsExt},
     sync::Arc,
     time::{Duration, SystemTime},
 };
@@ -11,6 +12,8 @@ use std::{
 use crate::error::WhError;
 use crate::pods::filesystem::fs_interface::SimpleFileType;
 use crate::pods::whpath::WhPath;
+
+use super::filesystem::{make_inode::MakeInode, remove_inode::RemoveInode};
 
 // SECTION consts
 
@@ -288,6 +291,45 @@ impl Arbo {
     }
 
     #[must_use]
+    /// Insert a given [Inode] inside the local arbo
+    pub fn n_add_inode(&mut self, inode: Inode) -> Result<(), MakeInode> {
+        if self.entries.contains_key(&inode.id) {
+            return Err(MakeInode::AlreadyExist);
+        }
+
+        match self.entries.get_mut(&inode.parent) {
+            None => Err(MakeInode::ParentNotFound),
+            Some(Inode {
+                parent: _,
+                id: _,
+                name: _,
+                entry: FsEntry::Directory(parent_children),
+                meta: _,
+                xattrs: _,
+            }) => {
+                parent_children.push(inode.id);
+                self.entries.insert(inode.id, inode);
+                Ok(())
+            }
+            Some(_) => Err(MakeInode::ParentNotFolder),
+        }
+    }
+
+    #[must_use]
+    /// Create a new [Inode] from the given parameters and insert it inside the local arbo
+    pub fn n_add_inode_from_parameters(
+        &mut self,
+        name: String,
+        id: InodeId, //REVIEW: Renamed id to be more coherent with the Inode struct
+        parent_ino: InodeId,
+        entry: FsEntry,
+    ) -> Result<(), MakeInode> {
+        let inode = Inode::new(name, parent_ino, id, entry);
+
+        self.n_add_inode(inode)
+    }
+
+    #[must_use]
     pub fn remove_children(&mut self, parent: InodeId, child: InodeId) -> io::Result<()> {
         let parent = self.get_inode_mut(parent)?;
 
@@ -300,6 +342,20 @@ impl Arbo {
         }?;
 
         children.retain(|v| *v != child);
+        Ok(())
+    }
+
+    #[must_use]
+    pub fn n_remove_child(&mut self, parent: InodeId, child: InodeId) -> WhResult<()> {
+        let parent = self.n_get_inode_mut(parent)?;
+
+        let children = match &mut parent.entry {
+            // REVIEW: Can we expect parent to always be a file to not flood wherror with errors that will never happen
+            FsEntry::File(_) => panic!("Parent is a file"),
+            FsEntry::Directory(children) => Ok(children),
+        }?;
+
+        children.retain(|parent_child| *parent_child != child);
         Ok(())
     }
 
@@ -332,6 +388,23 @@ impl Arbo {
         self.remove_children(removed.parent, id)?;
 
         Ok(removed)
+    }
+
+    #[must_use]
+    /// Remove inode from the [Arbo]
+    pub fn n_remove_inode(&mut self, id: InodeId) -> Result<Inode, RemoveInode> {
+        let inode = self.n_get_inode(id)?;
+        match &inode.entry {
+            FsEntry::File(_) => {}
+            FsEntry::Directory(children) if children.len() == 0 => {}
+            FsEntry::Directory(_) => return Err(RemoveInode::NonEmpty),
+        }
+
+        self.n_remove_child(inode.parent, inode.id)?;
+
+        self.entries.remove(&id).ok_or(RemoveInode::WhError {
+            source: WhError::InodeNotFound,
+        })
     }
 
     #[must_use]
@@ -420,6 +493,25 @@ impl Arbo {
     }
 
     #[must_use]
+    /// Recursively traverse the [Arbo] tree from the [Inode] to form a path
+    ///
+    /// Possible Errors:
+    ///   InodeNotFound: if the inode isn't inside the tree
+    pub fn n_get_path_from_inode_id(&self, inode_index: InodeId) -> WhResult<WhPath> {
+        if inode_index == ROOT {
+            return Ok(WhPath::from("/"));
+        }
+        let inode = self
+            .entries
+            .get(&inode_index)
+            .ok_or(WhError::InodeNotFound)?;
+
+        let mut parent_path = self.n_get_path_from_inode_id(inode.parent)?;
+        parent_path.push(&inode.name.clone());
+        Ok(parent_path)
+    }
+
+    #[must_use]
     pub fn get_inode_child_by_name(&self, parent: &Inode, name: &String) -> io::Result<&Inode> {
         if let Ok(children) = parent.entry.get_children() {
             for child in children.iter() {
@@ -435,6 +527,22 @@ impl Arbo {
                 io::ErrorKind::Other,
                 "entry is not a directory",
             ))
+        }
+    }
+
+    #[must_use]
+    pub fn n_get_inode_child_by_name(&self, parent: &Inode, name: &String) -> WhResult<&Inode> {
+        if let Ok(children) = parent.entry.get_children() {
+            for child in children.iter() {
+                if let Some(child) = self.entries.get(child) {
+                    if child.name == *name {
+                        return Ok(child);
+                    }
+                }
+            }
+            Err(WhError::InodeNotFound)
+        } else {
+            Err(WhError::InodeIsNotADirectory)
         }
     }
 
@@ -508,6 +616,13 @@ impl Arbo {
 
     pub fn set_inode_meta(&mut self, ino: InodeId, meta: Metadata) -> io::Result<()> {
         let inode = self.get_inode_mut(ino)?;
+
+        inode.meta = meta;
+        Ok(())
+    }
+
+    pub fn n_set_inode_meta(&mut self, ino: InodeId, meta: Metadata) -> WhResult<()> {
+        let inode = self.n_get_inode_mut(ino)?;
 
         inode.meta = meta;
         Ok(())
@@ -662,12 +777,12 @@ impl TryInto<Metadata> for fs::Metadata {
             } else {
                 SimpleFileType::Directory
             },
-            perm: 0o666 as u16,
-            nlink: 0,
-            uid: 0,
-            gid: 0,
-            rdev: 0,
-            blksize: 1,
+            perm: self.permissions().mode() as u16,
+            nlink: self.nlink() as u32,
+            uid: self.uid(),
+            gid: self.gid(),
+            rdev: self.rdev() as u32,
+            blksize: self.blksize() as u32,
             flags: 0,
         })
     }

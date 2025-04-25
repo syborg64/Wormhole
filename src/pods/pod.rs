@@ -1,3 +1,4 @@
+use std::fs;
 use std::{io, sync::Arc};
 
 use crate::config::GlobalConfig;
@@ -14,11 +15,15 @@ use custom_error::custom_error;
 use fuser;
 use log::info;
 use parking_lot::RwLock;
-use serde::Serialize;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::task::JoinHandle;
 #[cfg(target_os = "windows")]
 use winfsp::host::FileSystemHost;
+
+#[cfg(target_os = "linux")]
+use crate::pods::arbo::GLOBAL_CONFIG_FNAME;
+#[cfg(target_os = "windows")]
+use crate::winfsp::winfsp_impl::mount_fsp;
 
 use crate::network::{message::Address, peer_ipc::PeerIPC, server::Server};
 
@@ -54,7 +59,7 @@ pub async fn initiate_connection(
     server_address: Address,
     tx: &UnboundedSender<FromNetworkMessage>,
     rx: &mut UnboundedReceiver<FromNetworkMessage>,
-) -> Option<(FileSystemSerialized, Vec<Address>, PeerIPC)> {
+) -> Option<(FileSystemSerialized, Vec<Address>, PeerIPC, Vec<u8>)> {
     if peers_addrs.len() >= 1 {
         for first_contact in peers_addrs {
             let first_ipc = PeerIPC::connect(first_contact.to_owned(), tx.clone()).await;
@@ -72,13 +77,13 @@ pub async fn initiate_connection(
                     match rx.recv().await {
                         Some(FromNetworkMessage {
                             origin: _,
-                            content: MessageContent::FsAnswer(fs, mut peers_address),
+                            content: MessageContent::FsAnswer(fs, mut peers_address, global_config),
                         }) => {
                             // remove itself from peers and first_connect because the connection is already existing
                             peers_address.retain(|address| {
                                 *address != server_address && *address != first_contact
                             });
-                            return Some((fs, peers_address, ipc));
+                            return Some((fs, peers_address, ipc, global_config));
                         }
                         Some(_) => {
                             info!(
@@ -134,7 +139,7 @@ impl Pod {
 
         let mut peers = vec![];
 
-        if let Some((fs_serialized, peers_addrs, ipc)) = initiate_connection(
+        if let Some((fs_serialized, peers_addrs, ipc, global_config_bytes)) = initiate_connection(
             global_config.general.peers,
             server_address.clone(),
             &from_network_message_tx,
@@ -142,10 +147,24 @@ impl Pod {
         )
         .await
         {
+            fs::write(
+                mount_point.join(GLOBAL_CONFIG_FNAME).to_string(),
+                global_config_bytes,
+            )
+            .expect("can't write global_config file");
+            // TODO use global_config ?
+
             peers = PeerIPC::peer_startup(peers_addrs, from_network_message_tx.clone()).await;
             peers.push(ipc);
             register_to_others(&peers, &server_address)?;
             arbo.overwrite_self(fs_serialized.fs_index);
+            for index in arbo.get_raw_entries().keys() {
+                // TEMP FIX FOR MERGE
+                if *index > next_inode {
+                    next_inode = *index;
+                }
+            }
+            next_inode += 1;
         }
 
         let arbo: Arc<RwLock<Arbo>> = Arc::new(RwLock::new(arbo));
@@ -182,7 +201,7 @@ impl Pod {
         let new_peer_handle = Some(tokio::spawn(
             NetworkInterface::incoming_connections_watchdog(
                 server,
-                from_network_message_tx,
+                from_network_message_tx.clone(),
                 network_interface.peers.clone(),
             ),
         ));
@@ -307,5 +326,13 @@ impl Pod {
             .map_err(|e| PodStopError::ArboSavingFailed {
                 error_source: e.to_string(),
             })
+    }
+
+    pub fn get_name(&self) -> &str {
+        return &self.name;
+    }
+
+    pub fn get_mount_point(&self) -> &WhPath {
+        return &self.mount_point;
     }
 }

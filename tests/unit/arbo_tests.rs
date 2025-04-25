@@ -44,13 +44,18 @@ fn test_inserting_and_retreiving_files() {
     let mut arbo = Arbo::new();
 
     assert!(
-        arbo.add_inode_from_parameters("file1".to_owned(), 10, ROOT, FsEntry::File(Vec::new()),)
+        arbo.add_inode_from_parameters("file1".to_owned(), 10, ROOT, FsEntry::File(Vec::new()))
             .is_ok(),
         "can't add file1 in / folder"
     );
     assert!(
-        arbo.add_inode_from_parameters("file2".to_owned(), 11, ROOT, FsEntry::File(Vec::new()),)
-            .is_ok(),
+        arbo.add_inode_from_parameters(
+            "file2".to_owned(),
+            11,
+            ROOT,
+            FsEntry::Directory(Vec::new())
+        )
+        .is_ok(),
         "can't add file2 in / folder"
     );
 
@@ -62,12 +67,12 @@ fn test_inserting_and_retreiving_files() {
         meta: Metadata {
             ino: 10,
             size: 0,
-            blocks: 1,
+            blocks: 0,
             atime: SystemTime::now(),
             mtime: SystemTime::now(),
             ctime: SystemTime::now(),
             crtime: SystemTime::now(),
-            kind: SimpleFileType::Directory,
+            kind: SimpleFileType::File,
             perm: 0o777,
             nlink: 0,
             uid: 0,
@@ -83,11 +88,11 @@ fn test_inserting_and_retreiving_files() {
         id: 11,
         parent: 1,
         name: "file2".to_owned(),
-        entry: FsEntry::File(Vec::new()),
+        entry: FsEntry::Directory(Vec::new()),
         meta: Metadata {
             ino: 11,
             size: 0,
-            blocks: 1,
+            blocks: 0,
             atime: SystemTime::now(),
             mtime: SystemTime::now(),
             ctime: SystemTime::now(),
