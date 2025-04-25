@@ -44,6 +44,8 @@ fn is_new_wh_file_config(
     Ok(())
 }
 
+
+//FIXME - Error id name of the pod not check (can be already exist)
 pub fn new(ip: &str, args: PodArgs) -> Result<(), Box<dyn std::error::Error>> {
     let path = if args.path == ".".into() {
         let path = env::current_dir()?;
