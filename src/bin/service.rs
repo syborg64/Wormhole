@@ -34,7 +34,7 @@ use winfsp::winfsp_init;
 use wormhole::commands::cli_commands::StatusPodArgs;
 use wormhole::commands::PodCommand;
 use wormhole::commands::{self, cli_commands::Cli};
-use wormhole::error::WhResult;
+use wormhole::error::CliError;
 use wormhole::pods::pod::Pod;
 use wormhole::pods::pod::PodStopError;
 

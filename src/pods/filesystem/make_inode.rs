@@ -2,7 +2,7 @@ use custom_error::custom_error;
 
 use crate::{
     error::WhError,
-    pods::arbo::{Arbo, FsEntry, Inode, ARBO_FILE_FNAME, GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME},
+    pods::arbo::{Arbo, FsEntry, Inode, ARBO_FILE_FNAME, ARBO_FILE_INO, GLOBAL_CONFIG_FNAME, GLOBAL_CONFIG_INO, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO},
 };
 
 use super::fs_interface::{FsInterface, SimpleFileType};
@@ -34,7 +34,7 @@ impl FsInterface {
             (GLOBAL_CONFIG_FNAME, 1) => GLOBAL_CONFIG_INO,
             (LOCAL_CONFIG_FNAME, 1) => LOCAL_CONFIG_INO,
             (ARBO_FILE_FNAME, 1) => ARBO_FILE_INO,
-            _ => self.network_interface.get_next_inode()?,
+            _ => self.network_interface.n_get_next_inode()?,
         };
 
         let new_inode = Inode::new(name.clone(), parent_ino, new_inode_id, new_entry);

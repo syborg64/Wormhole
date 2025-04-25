@@ -130,7 +130,7 @@ impl Pod {
         let mut global_config = global_config;
 
         log::info!("mount point {}", mount_point);
-        let (mut arbo, next_inode) =
+        let (mut arbo, mut next_inode) =
             generate_arbo(&mount_point, &server_address).expect("unable to index folder");
         let (to_network_message_tx, to_network_message_rx) = mpsc::unbounded_channel();
         let (from_network_message_tx, mut from_network_message_rx) = mpsc::unbounded_channel();
@@ -160,6 +160,7 @@ impl Pod {
             arbo.overwrite_self(fs_serialized.fs_index);
             for index in arbo.get_raw_entries().keys() {
                 // TEMP FIX FOR MERGE
+                // FIXME is it resolved @iddeko ?
                 if *index > next_inode {
                     next_inode = *index;
                 }

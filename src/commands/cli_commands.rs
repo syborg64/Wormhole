@@ -1,4 +1,4 @@
-use crate::pods::{declarations::Pod, whpath::WhPath};
+use crate::pods::{pod::Pod, whpath::WhPath};
 use clap::{Args, Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
 pub enum PodCommand {
@@ -11,7 +11,6 @@ pub enum PodCommand {
     RemovePod(RemoveArgs),
     Interrupt,
 }
-
 
 #[derive(Debug, Parser, Serialize, Deserialize)] // requires `derive` feature
 #[command(name = "wormhole")]
@@ -30,7 +29,7 @@ pub enum Cli {
     /// remove a pod from its network
     Remove(RemoveArgs),
     /// reload a pod
-    Reload(PodArgs),    
+    Reload(PodArgs),
 }
 
 #[derive(Debug, clap::Args, Serialize, Deserialize)]
@@ -98,4 +97,3 @@ pub struct RemoveArgs {
     #[arg(long, default_value = "simple")]
     pub mode: Mode,
 }
-
