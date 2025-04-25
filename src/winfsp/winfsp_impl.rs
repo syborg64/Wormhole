@@ -119,24 +119,26 @@ pub fn mount_fsp(
 ) -> Result<FileSystemHost<'static>, std::io::Error> {
     let volume_params = VolumeParams::default();
 
-    println!("created volume params...");
+    log::debug!("created volume params...");
     let wormhole_context = FSPController {
         volume_label: Arc::new(RwLock::new("wormhole_fs".into())),
         fs_interface,
         dummy_file: "dummy".into(), // dummy_file: (&path.clone().rename(&("dummy_file").to_string()).inner).into(),
     };
-    println!("creating host...");
+    log::debug!("creating host...");
     let mut host = FileSystemHost::new::<FSPController>(volume_params, wormhole_context)
         .map_err(|_| std::io::Error::new(ErrorKind::Other, "oh no!"))?;
     // .expect("FSHost::new");
-    println!("created host...");
+    log::debug!("created host...");
 
-    println!("mounting host...");
-    let _ = host.mount(&path.inner)?; //expect("winfsp: host.mount");
-                                      // let result = host.mount("./winfsp_mount")?;
-    println!("mounted host...");
+    log::debug!("mounting host @ {} ...", &path.inner);
+    let _ = host
+        .mount(&path.inner)
+        .ok()
+        .ok_or(Error::other("WinFSP::mount")); // mount function throws the wrong error anyway so no point in inspecting it
+    log::debug!("mounted host...");
     host.start_with_threads(1)?;
-    println!("started host...");
+    log::debug!("started host...");
     Ok(host)
 }
 
