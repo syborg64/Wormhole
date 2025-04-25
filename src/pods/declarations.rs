@@ -1,25 +1,20 @@
 use std::fs;
-use std::ops::Deref;
 use std::{io, sync::Arc};
 
 #[cfg(target_os = "linux")]
 use fuser;
 use log::info;
 use parking_lot::RwLock;
-use serde::Deserialize;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::task::JoinHandle;
 #[cfg(target_os = "windows")]
 use winfsp::host::FileSystemHost;
 
-use crate::config::types::Config;
 use crate::config::GlobalConfig;
 #[cfg(target_os = "linux")]
 use crate::fuse::fuse_impl::mount_fuse;
 use crate::network::message::{FileSystemSerialized, FromNetworkMessage, MessageContent};
-use crate::network::peer_ipc;
-use crate::pods::arbo::{GLOBAL_CONFIG_FNAME, GLOBAL_CONFIG_INO};
-use crate::pods::filesystem::fs_interface;
+use crate::pods::arbo::GLOBAL_CONFIG_FNAME;
 #[cfg(target_os = "windows")]
 use crate::winfsp::winfsp_impl::mount_fsp;
 
@@ -32,8 +27,6 @@ use crate::pods::{
     network::network_interface::NetworkInterface,
     whpath::WhPath,
 };
-
-use super::arbo::LOCK_TIMEOUT;
 
 // TODO
 pub type PodConfig = u64;
@@ -63,9 +56,6 @@ pub async fn initiate_connection(
     rx: &mut UnboundedReceiver<FromNetworkMessage>,
 ) -> Option<(FileSystemSerialized, Vec<Address>, PeerIPC, Vec<u8>)> {
     if peers_addrs.len() >= 1 {
-        info!("INITTIAL CONNECTION");
-        info!("PEERS ADDRS {:?}", peers_addrs);
-        info!("SERVER ADDRESS {:?}", server_address);
         for first_contact in peers_addrs {
             let first_ipc = PeerIPC::connect(first_contact.to_owned(), tx.clone()).await;
 
@@ -88,7 +78,6 @@ pub async fn initiate_connection(
                             peers_address.retain(|address| {
                                 *address != server_address && *address != first_contact
                             });
-                            info!("PEERS ADDRESS: {:?}", peers_address);
                             return Some((fs, peers_address, ipc, global_config));
                         }
                         Some(_) => {
@@ -107,37 +96,6 @@ pub async fn initiate_connection(
     }
     None
 }
-
-// pub async fn pull_config(
-//     peers_list: Arc<RwLock<Vec<PeerIPC>>>,
-//     server_address: &Address,
-//     tx: &UnboundedSender<FromNetworkMessage>,
-// ) {
-//     let peers_addr: Vec<String> = peers_list
-//         .try_read_for(LOCK_TIMEOUT)
-//         .unwrap() // TODO - handle timeout
-//         .iter()
-//         .map(|peer| (peer.address.clone()))
-//         .collect();
-
-//     for peer_addr in peers_addr {
-//         let first_ipc = PeerIPC::connect(peer_addr.clone(), tx.clone()).await;
-
-//         if let Some(ipc) = first_ipc {
-//             info!("IPC Connexion test");
-//             if let Err(err) = ipc.sender.send(MessageContent::RequestFile(
-//                 GLOBAL_CONFIG_INO,
-//                 server_address.clone(),
-//             )) {
-//                 info!(
-//                     "Connection with {0} failed on file config request: {err}.\n
-//                     Trying with next know address",
-//                     peer_addr
-//                 );
-//             }
-//         }
-//     }
-// }
 
 fn register_to_others(peers: &Vec<PeerIPC>, self_address: &Address) -> std::io::Result<()> {
     
@@ -186,17 +144,11 @@ impl Pod {
         .await
         {
             fs::write(mount_point.join(GLOBAL_CONFIG_FNAME).to_string(), global_config_bytes).expect("can't write global_config file");
-            // let global_config: GlobalConfig = toml::from_str(&test).expect("toml: invalid global config");
-            // global_config.write(mount_point.join(GLOBAL_CONFIG_FNAME).to_string()).expect("can't write global_config");
-
             // TODO use global_config ?
 
             peers = PeerIPC::peer_startup(peers_addrs, from_network_message_tx.clone()).await;
-            info!("0. PEERS: {:?}", peers);
             peers.push(ipc);
-            info!("0.5. PEERS: {:?}", peers);
             register_to_others(&peers, &server_address)?;
-            info!("0.75. PEERS: {:?}", peers);
             arbo.overwrite_self(fs_serialized.fs_index);
             for index in arbo.get_raw_entries().keys() {
                 // TEMP FIX FOR MERGE
@@ -209,7 +161,6 @@ impl Pod {
 
         let arbo: Arc<RwLock<Arbo>> = Arc::new(RwLock::new(arbo));
 
-        info!("1. PEERS {:?}", &peers);
         let network_interface = Arc::new(NetworkInterface::new(
             arbo.clone(),
             mount_point.clone(),
@@ -220,28 +171,12 @@ impl Pod {
             global_config.redundancy.number,
         ));
 
-        log::info!(
-            "2. PEERS {:#?}",
-            network_interface.peers.clone()
-                .read()
-                .iter()
-                .map(|peer| peer.address.clone())
-                .collect::<Vec<String>>()
-        );
         let disk_manager = DiskManager::new(mount_point.clone())?;
         let fs_interface = Arc::new(FsInterface::new(
             network_interface.clone(),
             disk_manager,
             arbo.clone(),
         ));
-        log::info!(
-            "3. PEERS {:#?}",
-            network_interface.peers.clone()
-                .read()
-                .iter()
-                .map(|peer| peer.address.clone())
-                .collect::<Vec<String>>()
-        );
 
         // Start ability to recieve messages
         let network_airport_handle = Some(tokio::spawn(NetworkInterface::network_airport(
@@ -254,20 +189,6 @@ impl Pod {
             network_interface.peers.clone(),
             to_network_message_rx,
         )));
-        log::info!(
-            "4. PEERS {:#?}",
-            network_interface.peers.clone()
-                .read()
-                .iter()
-                .map(|peer| peer.address.clone())
-                .collect::<Vec<String>>()
-        );
-        // pull_config(
-        //     network_interface.peers.clone(),
-        //     &network_interface.self_addr,
-        //     &from_network_message_tx,
-        // )
-        // .await;
 
         let new_peer_handle = Some(tokio::spawn(
             NetworkInterface::incoming_connections_watchdog(

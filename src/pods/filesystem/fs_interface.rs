@@ -1,13 +1,9 @@
 use crate::network::message::Address;
-use crate::pods::arbo::{
-    Arbo, FsEntry, Inode, InodeId, Metadata, ARBO_FILE_FNAME, ARBO_FILE_INO, GLOBAL_CONFIG_FNAME,
-    GLOBAL_CONFIG_INO, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO, LOCK_TIMEOUT,
-};
+use crate::pods::arbo::{Arbo, FsEntry, Inode, InodeId, Metadata, GLOBAL_CONFIG_INO};
 use crate::pods::disk_manager::DiskManager;
 use crate::pods::network::network_interface::{Callback, NetworkInterface};
 use crate::pods::whpath::WhPath;
 
-use log::debug;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::io;
@@ -197,7 +193,7 @@ impl FsInterface {
             FsEntry::File(_) => Ok(()),
             FsEntry::Directory(_) => self
                 .disk
-                .new_dir(new_path)
+                .new_dir(new_path, inode.meta.perm)
                 .map(|_| ())
                 .map_err(|io| MakeInode::LocalCreationFailed { io }),
             // TODO - remove when merge is handled because new file should create folder

@@ -4,10 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::{
-    config::types::Config,
-    error::{WhError, WhResult},
-};
+use crate::error::{WhError, WhResult};
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::{
     broadcast,

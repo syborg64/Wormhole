@@ -103,7 +103,7 @@ impl DiskManager {
         Ok(buf)
     }
 
-    pub fn new_dir(&self, path: WhPath) -> io::Result<()> {
-        self.handle.create_dir(path.set_relative(), 0o644) // TODO look more in c mode_t value
+    pub fn new_dir(&self, path: WhPath, permissions: u16) -> io::Result<()> {
+        self.handle.create_dir(path.set_relative(), permissions as libc::mode_t) // TODO look more in c mode_t value
     }
 }

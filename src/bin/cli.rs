@@ -3,14 +3,11 @@
 // AgarthaSoftware - 2024
 
 use clap::Parser;
-use std::{env, path::PathBuf, sync::Arc};
-use wormhole::{
-    commands::{
+use std::env;
+use wormhole::commands::{
         self,
-        cli_commands::{self, Cli},
-    },
-    pods::whpath::WhPath,
-};
+        cli_commands::Cli,
+    };
 
 fn get_args(args: Vec<String>) -> (String, Vec<String>) {
     // Déterminer l'adresse IP et les arguments pour Cli

@@ -105,11 +105,7 @@ async fn main() {
     tokio::spawn(async move {
         while let Some(command) = rx.recv().await {
             match command {
-                PodCommand::AddPod(pod) => {
-                    info!("Pod created");
-                    pods.push(pod);
-                }
-                PodCommand::JoinPod(pod) => {
+                PodCommand::NewPod(pod) => {
                     info!("Pod created or joined a network");
                     pods.push(pod);
                 }

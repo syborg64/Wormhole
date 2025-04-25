@@ -8,11 +8,9 @@ use tokio::runtime::Runtime;
 
 use crate::{
     commands::{
-        self,
         cli::message::cli_messager,
         cli_commands::{Cli, PodArgs},
     },
-    config::{self, types::Config},
     pods::whpath::WhPath,
 };
 

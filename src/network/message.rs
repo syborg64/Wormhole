@@ -6,10 +6,7 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     error::WhResult,
-    {
-    config::GlobalConfig,
     pods::arbo::{ArboIndex, Inode, InodeId, Metadata},
-},
 };
 
 /// Message Content

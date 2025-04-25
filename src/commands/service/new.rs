@@ -1,13 +1,12 @@
 use std::sync::Arc;
-use std::{env, fs};
+use std::env;
 
-use log::{error, info};
-use predicates::name;
-use tokio::{runtime::Runtime, sync::mpsc};
+use log::info;
+use tokio::sync::mpsc;
 
 use crate::{
     commands::{
-        cli::cli_messager, cli_commands::PodArgs, default_global_config, default_local_config,
+        cli_commands::PodArgs, default_global_config, default_local_config,
         PodCommand,
     },
     config::{types::Config, GlobalConfig, LocalConfig},
@@ -33,7 +32,7 @@ pub async fn new(tx: mpsc::UnboundedSender<PodCommand>, args: PodArgs) -> CliRes
                 Ok(pod) => pod,
                 Err(e) => return Err(CliError::PodCreationFailed { reason: e }),
             };
-            match tx.send(PodCommand::JoinPod(new_pod)) {
+            match tx.send(PodCommand::NewPod(new_pod)) {
                 Ok(_) => Ok(CliSuccess::PodCreated { pod_id: args.name }),
                 Err(e) => Err(CliError::SendCommandFailed {
                     reason: e.to_string(),

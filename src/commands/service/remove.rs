@@ -1,9 +1,8 @@
-use tokio::{runtime::Runtime, sync::mpsc};
+use tokio::sync::mpsc;
 
 use crate::{
     commands::{
-        cli::cli_messager,
-        cli_commands::{Mode, RemoveArgs},
+        cli_commands::RemoveArgs,
         PodCommand,
     },
     error::{CliError, CliResult, CliSuccess},

@@ -1,8 +1,6 @@
 use custom_error::custom_error;
 use std::{fmt, io};
 
-use crate::commands::cli_commands::Cli;
-
 custom_error! {pub WhError
     InodeNotFound = "Entry not found",
     InodeIsNotADirectory = "Entry is not a directory",
@@ -33,6 +31,7 @@ custom_error! {pub CliError
     InvalidCommand = "Unrecognized command",
     SystemError{source: WhError} = "System error: {source}", // Intégrer WhError
     IoError{source: io::Error} = "I/O error: {source}" // Pour les erreurs fs::remove_dir_all, etc.
+    
 }
 
 #[derive(Debug, Clone)]

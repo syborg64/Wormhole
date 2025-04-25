@@ -3,8 +3,7 @@ use clap::{Args, Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
 
 pub enum PodCommand {
-    AddPod(Pod),
-    JoinPod(Pod),
+    NewPod(Pod),
     StartPod(StatusPodArgs),
     StopPod(StatusPodArgs),
     RemovePod(RemoveArgs),
