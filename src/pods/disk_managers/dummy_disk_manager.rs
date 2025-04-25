@@ -116,8 +116,13 @@ impl DiskManager for DummyDiskManager {
             .expect("VirtDisk::write_file rwLock")
             .get_mut(&path.clone().set_relative())
         {
-            let grow = size - file.len();
-            *self.size.write().expect("VirtDisk::write_file rwLock") += grow;
+            let grow = (size > file.len()).then(||size - file.len()).unwrap_or(0);
+            let shrink = (file.len() > size).then(||file.len() - size).unwrap_or(0);
+            {
+                let mut total_size = self.size.write().expect("VirtDisk::write_file rwLock");
+                *total_size += grow;
+                *total_size -= shrink; // TODO: this can panic and poison on underflow from desynced size
+            }
 
             file.resize(size, 0);
             Ok(())
