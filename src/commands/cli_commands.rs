@@ -2,7 +2,7 @@ use crate::pods::{pod::Pod, whpath::WhPath};
 use clap::{Args, Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
 pub enum PodCommand {
-    NewPod(Pod),
+    NewPod(String, Pod),
     StartPod(StatusPodArgs),
     StopPod(
         StatusPodArgs,

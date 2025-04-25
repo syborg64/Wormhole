@@ -25,13 +25,11 @@ use futures_util::StreamExt;
 use log::{error, info};
 use tokio::net::TcpListener;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
-use tokio::sync::oneshot::Sender;
-use tokio::task::JoinError;
 use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::Message;
 #[cfg(target_os = "windows")]
 use winfsp::winfsp_init;
-use wormhole::commands::cli_commands::StatusPodArgs;
+use wormhole::commands::cli_commands::{Mode, StatusPodArgs};
 use wormhole::commands::PodCommand;
 use wormhole::commands::{self, cli_commands::Cli};
 use wormhole::error::CliError;
@@ -106,9 +104,9 @@ async fn main_cli_airport(
 ) -> HashMap<String, Pod> {
     while let Some(command) = rx.recv().await {
         match command {
-            PodCommand::NewPod(pod) => {
+            PodCommand::NewPod(name, pod) => {
                 info!("Pod created or joined a network");
-                pods.push(pod);
+                pods.insert(name, pod);
             }
             PodCommand::StartPod(start_args) => {
                 info!("Starting pod: {:?}", start_args);
@@ -125,20 +123,15 @@ async fn main_cli_airport(
             PodCommand::RemovePod(args) => {
                 info!("Pod removed: {:?}", args);
 
-                let pod = pods.iter().find(|pod| {
-                    // Vérifie si le nom correspond (si présent dans args)
-                    let name_matches = args
-                        .name
-                        .as_ref()
-                        .map_or(false, |arg_name| arg_name == pod.get_name());
-                    // Vérifie si le chemin correspond (si présent dans args)
-                    let path_matches = args
-                        .path
-                        .as_ref()
-                        .map_or(false, |arg_path| arg_path == pod.get_mount_point());
-                    // Retourne vrai si au moins une condition est remplie
-                    name_matches || path_matches
-                });
+                let pod = if let Some(name) = args.name {
+                    pods.get(&name)
+                } else if let Some(path) = args.path {
+                    pods.values().find(|pod| *pod.get_mount_point() == path)
+                } else {
+                    log::error!("No pod name nor path were provided by RemovePod command");
+                    None
+                };
+                
                 if pod.is_none() {
                     info!("Pod not found");
                 } else {

@@ -30,7 +30,7 @@ pub async fn new(tx: mpsc::UnboundedSender<PodCommand>, args: PodArgs) -> CliRes
                 Ok(pod) => pod,
                 Err(e) => return Err(CliError::PodCreationFailed { reason: e }),
             };
-            tx.send(PodCommand::NewPod(new_pod)).expect("Cli feedback channel is closed");
+            tx.send(PodCommand::NewPod(args.name.clone(), new_pod)).expect("Cli feedback channel is closed");
             Ok(CliSuccess::PodCreated { pod_id: args.name })
         }
         Err(e) => {
