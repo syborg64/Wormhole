@@ -11,7 +11,7 @@ mod unregister;
 mod restore;
 
 pub use restore::restore;
-pub use init::init;
+// pub use init::init;
 pub use message::cli_messager;
 pub use new::new;
 pub use register::register;

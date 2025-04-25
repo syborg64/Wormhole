@@ -13,19 +13,19 @@ pub enum PodCommand {
 #[command(name = "wormhole")]
 #[command(bin_name = "wormhole")]
 pub enum Cli {
-    /// start the service
+    /// Start the service
     Start(StatusPodArgs),
-    /// stop the service
+    /// Stop the service
     Stop(StatusPodArgs),
-    /// create a new network (template)
+    /// Create a new network (template)
     Template(TemplateArg),
-    /// create a new pod and join a network if he have peers in arguments or create a new network
+    /// Create a new pod and join a network if he have peers in arguments or create a new network
     New(PodArgs),
-    /// inspect a pod with its configuration, connections, etc
+    /// Inspect a pod with its configuration, connections, etc
     Inspect,
-    /// remove a pod from its network
+    /// Remove a pod from its network
     Remove(RemoveArgs),
-    /// reload a pod
+    /// Reload a pod
     Reload(PodArgs),
     /// Restore many or a specifique file configuration  
     Restore(RestoreConf),
@@ -35,6 +35,7 @@ pub enum Cli {
 #[derive(Debug, clap::Args, Serialize, Deserialize)]
 #[command(version, about, long_about = None)]
 pub struct RestoreConf {
+    /// Names of all files that you want to restore
     #[arg(long, short, default_value = "")]
     pub names: Vec<String>,
 }
@@ -47,10 +48,13 @@ pub struct PodArgs {
     /// Change to DIRECTORY before doing anything
     #[arg(long, short = 'C', default_value = ".")]
     pub path: WhPath,
-    /// network url as <address of node to join from> + ':' + <network name>'
+    /// Modify the default ip address of the Pod
+    #[arg(long, short, default_value = "127.0.0.1:8080")]
+    pub ip: String,
+    /// Network url as <address of node to join from> + ':' + <network name>'
     #[arg(long, short)]
     pub url: Option<String>,
-    /// additional hosts to try to join from as a backup
+    /// Additional hosts to try to join from as a backup
     #[arg(long, short)]
     pub additional_hosts: Option<Vec<String>>,
 }
@@ -67,7 +71,7 @@ pub struct StatusPodArgs {
 #[derive(Debug, clap::Args, Serialize, Deserialize)]
 #[command(version, about, long_about = None)]
 pub struct TemplateArg {
-    /// name of the network to create
+    /// Name of the network to create
     #[arg(long, short, default_value = "default")]
     pub name: String,
     /// Change to DIRECTORY before doing anything
