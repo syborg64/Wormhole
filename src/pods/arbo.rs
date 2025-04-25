@@ -4,10 +4,12 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     fs, io,
-    os::unix::fs::{MetadataExt, PermissionsExt},
     sync::Arc,
     time::{Duration, SystemTime},
 };
+
+#[cfg(target_os = "linux")]
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
 
 use crate::error::WhError;
 use crate::pods::filesystem::fs_interface::SimpleFileType;
@@ -669,6 +671,8 @@ pub fn index_folder(path: &WhPath, host: &String) -> io::Result<(Arbo, InodeId)>
 
 /* NOTE
  * is currently made with fuse in sight. Will probably need to be edited to be windows compatible
+ * todo: remove fields that aren't used in wormhole itself:
+ *   blocks, nlink, user, group, dev, blksize, flags
  */
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Metadata {
@@ -704,6 +708,7 @@ pub struct Metadata {
     pub flags: u32,
 }
 
+#[cfg(target_os = "linux")]
 impl TryInto<Metadata> for fs::Metadata {
     type Error = std::io::Error;
     fn try_into(self) -> Result<Metadata, std::io::Error> {
@@ -726,6 +731,34 @@ impl TryInto<Metadata> for fs::Metadata {
             gid: self.gid(),
             rdev: self.rdev() as u32,
             blksize: self.blksize() as u32,
+            flags: 0,
+        })
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+impl TryInto<Metadata> for fs::Metadata {
+    type Error = std::io::Error;
+    fn try_into(self) -> Result<Metadata, std::io::Error> {
+        Ok(Metadata {
+            ino: 0,
+            size: self.len(),
+            blocks: 1,
+            atime: self.accessed()?,
+            mtime: self.modified()?,
+            ctime: self.modified()?,
+            crtime: self.created()?,
+            kind: if self.is_file() {
+                SimpleFileType::File
+            } else {
+                SimpleFileType::Directory
+            },
+            perm: 0, // TODO!
+            nlink: 0,
+            uid: 0,
+            gid: 0,
+            rdev: 0,
+            blksize: 0,
             flags: 0,
         })
     }
