@@ -24,14 +24,12 @@ impl WhError {
 pub type WhResult<T> = Result<T, WhError>;
 
 custom_error! {pub CliError
-    SendCommandFailed{reason: String} = "Failed to send command: {reason}",
+    WhError{source: WhError} = "{source}",
     PodCreationFailed{reason: io::Error} = "Pod creation failed: {reason}",
     PodRemovalFailed{reason: String} = "Pod removal failed: {reason}",
     InvalidConfig{file: String} = "Configuration file {file} is missing or invalid",
     InvalidCommand = "Unrecognized command",
-    SystemError{source: WhError} = "System error: {source}", // Intégrer WhError
     IoError{source: io::Error} = "I/O error: {source}" // Pour les erreurs fs::remove_dir_all, etc.
-    
 }
 
 #[derive(Debug, Clone)]
