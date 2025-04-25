@@ -220,11 +220,16 @@ impl FsInterface {
             )
         };
 
-        self.disk.write_file(path, &binary, 0)?;
+        let _created = self.disk.new_file(&path, inode.meta.perm);
+        let status = self
+            .disk
+            .write_file(&path, &binary, 0)
+            .inspect_err(|e| log::error!("writing pulled file: {e}"));
         let _ = self
             .network_interface
             .callbacks
-            .resolve(Callback::Pull(id), true);
+            .resolve(Callback::Pull(id), status.is_ok());
+        status?;
         let mut hosts;
         if let FsEntry::File(hosts_source) = &inode.entry {
             hosts = hosts_source.clone();
