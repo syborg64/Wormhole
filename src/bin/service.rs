@@ -50,6 +50,7 @@ async fn handle_cli_command(
             Cli::Start(pod_args) => commands::service::start(tx.clone(), pod_args).await,
             Cli::Stop(pod_args) => commands::service::stop(tx.clone(), pod_args).await,
             Cli::Remove(remove_arg) => commands::service::remove(tx, remove_arg).await,
+            Cli::Restore(resotre_args) => commands::service::restore(tx, resotre_args).await,
             _ => Err(CliError::InvalidCommand),
         };
 

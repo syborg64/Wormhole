@@ -74,9 +74,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("reloading pod");
             todo!("reload");
         }
-        Cli::Restore(_arg) => {
+        Cli::Restore(args) => {
             println!("retore a specifique file config");
-            todo!("restore");
+            commands::cli::restore(ip, args)?;
         }
     }
     Ok(())

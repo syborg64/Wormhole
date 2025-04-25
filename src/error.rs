@@ -29,6 +29,7 @@ custom_error! {pub CliError
     PodRemovalFailed{reason: String} = "Pod removal failed: {reason}",
     InvalidConfig{file: String} = "Configuration file {file} is missing or invalid",
     InvalidCommand = "Unrecognized command",
+    InvalidArgument{arg: String} = "Invalid Argument: {arg} is not recognized",
     SystemError{source: WhError} = "System error: {source}", // Intégrer WhError
     IoError{source: io::Error} = "I/O error: {source}" // Pour les erreurs fs::remove_dir_all, etc.
     
