@@ -341,14 +341,19 @@ impl Filesystem for FuseController {
         _lock: Option<u64>,
         reply: ReplyData,
     ) {
-        let content = self.fs_interface.read_file(
+        let mut buf = vec![];
+        buf.resize(size as usize, 0);
+        let result = self.fs_interface.read_file(
             ino,
             offset.try_into().expect("fuse_impl::read offset negative"),
-            size.try_into().expect("fuse_impl::read size too large"),
+            &mut buf,
         );
 
-        match content {
-            Ok(content) => reply.data(&content),
+        match result {
+            Ok(size) => {
+                buf.resize(size, 0);
+                reply.data(&buf)
+            }
             Err(err) => {
                 log::error!("fuse_impl error: {:?}", err);
                 reply.error(err.raw_os_error().unwrap_or(EIO))

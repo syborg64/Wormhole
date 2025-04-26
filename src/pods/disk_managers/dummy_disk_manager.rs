@@ -248,8 +248,8 @@ impl DiskManager for DummyDiskManager {
         })
     }
 
-    fn log_arbo(&self, path: String) -> io::Result<()> {
-        let path: WhPath = (&path).into();
+    fn log_arbo(&self, path: &WhPath) -> io::Result<()> {
+        let path: WhPath = path.clone().set_relative();
 
         let lock = self.files.read().expect("VirtDisk::log_arbo rwLock");
 

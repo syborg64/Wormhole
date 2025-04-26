@@ -15,8 +15,7 @@ use crate::fuse::fuse_impl::mount_fuse;
 use crate::network::message::{FileSystemSerialized, FromNetworkMessage, MessageContent};
 #[cfg(target_os = "linux")]
 use crate::pods::disk_manager::unix_disk_manager::UnixDiskManager;
-// #[cfg(target_os = "windows")]
-// use crate::pods::disk_manager::windows_disk_manager::WindowsDiskManager;
+#[cfg(target_os = "windows")]
 use crate::pods::disk_manager::dummy_disk_manager::DummyDiskManager;
 #[cfg(target_os = "windows")]
 use crate::winfsp::winfsp_impl::mount_fsp;

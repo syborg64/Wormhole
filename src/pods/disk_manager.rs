@@ -17,7 +17,7 @@ pub struct DiskSizeInfo {
 }
 
 pub trait DiskManager : Send + Sync {
-    fn log_arbo(&self, path: String) -> io::Result<()>;
+    fn log_arbo(&self, path: &WhPath) -> io::Result<()>;
 
     fn new_file(&self, path: &WhPath, permissions: u16) -> io::Result<()>;
 
