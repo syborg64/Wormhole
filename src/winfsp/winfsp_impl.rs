@@ -1,6 +1,6 @@
 use std::{
     ffi::OsString,
-    io::ErrorKind,
+    io::{Error, ErrorKind},
     sync::{Arc, RwLock},
     time::SystemTime,
 };
