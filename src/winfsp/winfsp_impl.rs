@@ -113,6 +113,31 @@ pub struct FSPController {
     // pub provider: Arc<RwLock<Provider<WindowsFolderHandle>>>,
 }
 
+impl FSPController {
+    fn get_file_info_internal(
+        &self,
+        context: &WormholeHandle,
+        file_info: &mut winfsp::filesystem::FileInfo,
+    ) -> winfsp::Result<()> {
+        let arbo = Arbo::read_lock(&self.fs_interface.arbo, "winfsp::get_file_info")?;
+
+        match arbo.get_inode(context.0) {
+            Ok(inode) => {
+                *file_info = (&inode.meta).into();
+                log::info!("ok:{:?}", file_info);
+                Ok(())
+            }
+            Err(err) => {
+                if err.kind() == ErrorKind::NotFound {
+                    Err(STATUS_OBJECT_NAME_NOT_FOUND.into())
+                } else {
+                    Err(winfsp::FspError::WIN32(ERROR_GEN_FAILURE))
+                }
+            }
+        }
+    }
+}
+
 pub fn mount_fsp(
     path: &WhPath,
     fs_interface: Arc<FsInterface>,
@@ -135,7 +160,8 @@ pub fn mount_fsp(
     let _ = host
         .mount(&path.inner)
         .ok()
-        .ok_or(Error::other("WinFSP::mount")); // mount function throws the wrong error anyway so no point in inspecting it
+        .ok_or(Error::other("WinFSP::mount"));
+    // mount function throws the wrong error anyway so no point in inspecting it
     log::debug!("mounted host...");
     host.start_with_threads(1)?;
     log::debug!("started host...");
@@ -301,8 +327,17 @@ impl FileSystemContext for FSPController {
         _file_name: Option<&winfsp::U16CStr>,
         flags: u32,
     ) {
+        log::info!(
+            "winfsp::cleanup({:?}, {})",
+            context,
+            flags & FspCleanupDelete as u32 != 0
+        );
+
         if flags & FspCleanupDelete as u32 != 0 {
-            let _ = self.fs_interface.remove_inode(context.0);
+            let _ = self
+                .fs_interface
+                .remove_inode(context.0)
+                .inspect_err(|e| log::error!("cleanup::{e}"));
             // cannot bubble out errors here
             // context.0 = 0;
             // TODO: invalidate the handle ?
@@ -325,23 +360,8 @@ impl FileSystemContext for FSPController {
     ) -> winfsp::Result<()> {
         log::info!("winfsp::get_file_info({:?})", context);
 
-        let arbo = Arbo::read_lock(&self.fs_interface.arbo, "winfsp::get_file_info")?;
-
-        match arbo.get_inode(context.0) {
-            Ok(inode) => {
-                *file_info = (&inode.meta).into();
-                log::info!("ok:{:?}", file_info);
-                Ok(())
-            }
-            Err(err) => {
-                if err.kind() == ErrorKind::NotFound {
-                    Err(STATUS_OBJECT_NAME_NOT_FOUND.into())
-                } else {
-                    Err(winfsp::FspError::WIN32(ERROR_GEN_FAILURE))
-                }
-            }
-        }
-        .inspect_err(|e| log::error!("get_file_info::{e}"))
+        self.get_file_info_internal(context, file_info)
+            .inspect_err(|e| log::error!("get_file_info::{e}"))
     }
 
     fn get_security(
@@ -500,7 +520,8 @@ impl FileSystemContext for FSPController {
 
         self.fs_interface.set_inode_meta(context.0, meta)?;
 
-        self.get_file_info(context, file_info)
+        self.get_file_info_internal(context, file_info)
+            .inspect_err(|e| log::error!("set_file_info::{e}"))
     }
 
     fn set_delete(
@@ -538,6 +559,7 @@ impl FileSystemContext for FSPController {
         self.fs_interface
             .read_file(context.0, offset as usize, buffer)
             .map(|x| x as u32)
+            .inspect_err(|e| log::error!("read::{e}"))
             .map_err(|e| e.into())
     }
 
@@ -563,12 +585,13 @@ impl FileSystemContext for FSPController {
         };
         match self.fs_interface.write(context.0, buffer, offset) {
             Ok(size) => {
-                self.get_file_info(context, file_info)?;
+                self.get_file_info_internal(context, file_info)?;
                 Ok(size as u32)
             }
             Err(WriteError::WhError { source }) => Err(source.into()),
             Err(WriteError::LocalWriteFailed { io }) => Err(io.into()),
         }
+        .inspect_err(|e| log::error!("write::{e}"))
     }
 
     // fn get_dir_info_by_name(
