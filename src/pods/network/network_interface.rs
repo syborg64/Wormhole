@@ -4,26 +4,25 @@ use std::{
     sync::Arc,
 };
 
-use crate::error::{WhError, WhResult};
+use crate::{error::{WhError, WhResult}, network::message::MessageAndStatus};
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::{
     broadcast,
     mpsc::{UnboundedReceiver, UnboundedSender},
 };
 
-use crate::pods::{
-        arbo::{FsEntry, Metadata},
-        filesystem::{make_inode::MakeInode, remove_inode::RemoveInode},
-        whpath::WhPath,
-    };
 use crate::network::{
-        message::{
-            self, Address, FileSystemSerialized, FromNetworkMessage, MessageAndStatus,
-            MessageContent, ToNetworkMessage,
-        },
-        peer_ipc::PeerIPC,
-        server::Server,
-    };
+    message::{
+        self, Address, FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
+    },
+    peer_ipc::PeerIPC,
+    server::Server,
+};
+use crate::pods::{
+    arbo::{FsEntry, Metadata},
+    filesystem::{make_inode::MakeInode, remove_inode::RemoveInode},
+    whpath::WhPath,
+};
 
 use crate::pods::{
     arbo::{Arbo, Inode, InodeId, LOCK_TIMEOUT},
@@ -613,7 +612,7 @@ impl NetworkInterface {
                                 next_inode: self.get_next_inode()?,
                             },
                             peers_address_list,
-                        global_config_bytes,
+                            global_config_bytes,
                         ),
                         None,
                     ),
@@ -631,6 +630,17 @@ impl NetworkInterface {
 
     pub fn register_new_node(&self, socket: Address, addr: Address) {
         self.edit_peer_ip(socket, addr);
+    }
+
+    pub fn disconnect_peer(&self, addr: Address) -> io::Result<()> {
+        self.peers
+            .try_write_for(LOCK_TIMEOUT)
+            .ok_or(std::io::Error::new(
+                std::io::ErrorKind::WouldBlock,
+                format!("disconnect_peer: can't write lock peers"),
+            ))?
+            .retain(|p| p.address != addr);
+        Ok(())
     }
 
     pub async fn network_airport(
@@ -694,7 +704,8 @@ impl NetworkInterface {
                 MessageContent::FsAnswer(_, _, _) => {
                     Err(io::Error::new(ErrorKind::InvalidInput,
                         "Late answer from first connection, loaded network interface shouldn't recieve FsAnswer"))
-                }
+                },
+                MessageContent::Disconnect(addr) => fs_interface.network_interface.disconnect_peer(addr)
             };
             if let Err(error) = action_result {
                 log::error!(

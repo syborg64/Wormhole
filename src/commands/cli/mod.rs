@@ -1,4 +1,3 @@
-mod init;
 mod message;
 mod new;
 mod register;
@@ -7,11 +6,9 @@ mod remove;
 mod start;
 mod stop;
 mod templates;
-mod unregister;
 mod restore;
 
 pub use restore::restore;
-// pub use init::init;
 pub use message::cli_messager;
 pub use new::new;
 pub use register::register;
@@ -20,4 +17,3 @@ pub use remove::remove;
 pub use start::start;
 pub use stop::stop;
 pub use templates::templates;
-pub use unregister::unregister;

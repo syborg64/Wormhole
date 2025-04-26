@@ -1,7 +1,6 @@
 // In rust we code
 // In code we trust
 // AgarthaSoftware - 2024
-
 use std::fs;
 
 use crate::commands::{default_global_config, default_local_config};

@@ -6,13 +6,12 @@ use tokio::sync::mpsc;
 
 use crate::{
     commands::{
-        cli_commands::PodArgs, default_global_config, default_local_config,
-        PodCommand,
+        cli_commands::PodArgs, default_global_config, default_local_config, PodCommand
     },
     config::{types::Config, GlobalConfig, LocalConfig},
     error::{CliError, CliResult, CliSuccess},
     network::server::Server,
-    pods::{declarations::Pod, whpath::WhPath},
+    pods::{pod::Pod, whpath::WhPath},
 };
 
 pub async fn new(tx: mpsc::UnboundedSender<PodCommand>, args: PodArgs) -> CliResult {
@@ -23,7 +22,6 @@ pub async fn new(tx: mpsc::UnboundedSender<PodCommand>, args: PodArgs) -> CliRes
                 args.name.clone(),
                 global_config,
                 mount_point,
-                1,
                 server.clone(),
                 local_config.general.address,
             )
@@ -32,12 +30,8 @@ pub async fn new(tx: mpsc::UnboundedSender<PodCommand>, args: PodArgs) -> CliRes
                 Ok(pod) => pod,
                 Err(e) => return Err(CliError::PodCreationFailed { reason: e }),
             };
-            match tx.send(PodCommand::NewPod(new_pod)) {
-                Ok(_) => Ok(CliSuccess::PodCreated { pod_id: args.name }),
-                Err(e) => Err(CliError::SendCommandFailed {
-                    reason: e.to_string(),
-                }),
-            }
+            tx.send(PodCommand::NewPod(args.name.clone(), new_pod)).expect("Cli feedback channel is closed");
+            Ok(CliSuccess::PodCreated { pod_id: args.name })
         }
         Err(e) => {
             

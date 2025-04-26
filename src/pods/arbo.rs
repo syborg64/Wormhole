@@ -174,6 +174,10 @@ impl Arbo {
         self.entries.clone()
     }
 
+    pub fn iter(&self) -> std::collections::hash_map::Iter<'_, InodeId, Inode> {
+        self.entries.iter()
+    }
+
     #[must_use]
     pub fn read_lock<'a>(
         arbo: &'a Arc<RwLock<Arbo>>,
@@ -222,6 +226,23 @@ impl Arbo {
         arbo.try_write_for(LOCK_TIMEOUT).ok_or(WhError::WouldBlock {
             called_from: called_from.to_owned(),
         })
+    }
+
+    pub fn files_hosted_only_by<'a>(
+        &'a self,
+        host: &'a Address,
+    ) -> impl Iterator<Item = Inode> + use<'a> {
+        self.iter()
+            .filter_map(move |(_, inode)| match &inode.entry {
+                FsEntry::Directory(_) => None,
+                FsEntry::File(hosts) => {
+                    if hosts.len() == 1 && hosts.contains(&host) {
+                        Some(inode.clone())
+                    } else {
+                        None
+                    }
+                }
+            })
     }
 
     #[must_use]
@@ -617,6 +638,14 @@ pub const LOCAL_CONFIG_FNAME: &str = ".local_config.toml";
 pub const ARBO_FILE_INO: u64 = 4;
 pub const ARBO_FILE_FNAME: &str = ".arbo";
 
+/// If arbo can be read and deserialized from parent_folder/[ARBO_FILE_NAME] returns Some(Arbo)
+fn recover_serialized_arbo(parent_folder: &WhPath) -> Option<Arbo> {
+    // error handling is silent on purpose as it will be recoded with the new error system
+    // If an error happens, will just proceed like the arbo was not on disk
+    // In the future, we should maybe warn and keep a copy, avoiding the user from losing data
+    bincode::deserialize(&fs::read(parent_folder.join(ARBO_FILE_FNAME).to_string()).ok()?).ok()
+}
+
 fn index_folder_recursive(
     arbo: &mut Arbo,
     parent: InodeId,
@@ -662,13 +691,22 @@ fn index_folder_recursive(
     Ok(())
 }
 
-pub fn index_folder(path: &WhPath, host: &String) -> io::Result<(Arbo, InodeId)> {
-    let mut arbo = Arbo::new();
-    let mut ino: u64 = 11; // NOTE - will be the first registered inode after root
+pub fn generate_arbo(path: &WhPath, host: &String) -> io::Result<(Arbo, InodeId)> {
+    if let Some(arbo) = recover_serialized_arbo(path) {
+        let ino: u64 = *arbo
+            .entries
+            .keys()
+            .reduce(|acc, i| std::cmp::max(acc, i))
+            .unwrap_or(&11);
+        Ok((arbo, ino))
+    } else {
+        let mut arbo = Arbo::new();
+        let mut ino: u64 = 11; // NOTE - will be the first registered inode after root
 
-    #[cfg(target_os = "linux")]
-    index_folder_recursive(&mut arbo, ROOT, &mut ino, path, host)?;
-    Ok((arbo, ino))
+        #[cfg(target_os = "linux")]
+        index_folder_recursive(&mut arbo, ROOT, &mut ino, path, host)?;
+        Ok((arbo, ino))
+    }
 }
 
 /* NOTE

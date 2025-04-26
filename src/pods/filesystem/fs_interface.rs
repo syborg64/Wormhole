@@ -1,5 +1,5 @@
 use crate::network::message::Address;
-use crate::pods::arbo::{Arbo, FsEntry, Inode, InodeId, Metadata, GLOBAL_CONFIG_INO};
+use crate::pods::arbo::{Arbo, FsEntry, Inode, InodeId, Metadata, ARBO_FILE_FNAME, ARBO_FILE_INO, GLOBAL_CONFIG_FNAME, GLOBAL_CONFIG_INO, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO, LOCK_TIMEOUT};
 use crate::pods::disk_manager::DiskManager;
 use crate::pods::network::network_interface::{Callback, NetworkInterface};
 use crate::pods::whpath::WhPath;
@@ -281,7 +281,7 @@ impl FsInterface {
         let global_config_path = Arbo::read_lock(&self.arbo, "fs_interface::send_filesystem")?
             .get_path_from_inode_id(GLOBAL_CONFIG_INO)?.set_relative();
         log::info!("reading global config at {global_config_path}");
-        let global_config_bytes = self.disk.read_file_full(global_config_path).expect("lmao l'incompétence");
+        let global_config_bytes = self.disk.read_file_to_end(global_config_path).expect("lmao l'incompétence");
 
         self.network_interface.send_arbo(to, global_config_bytes)
     }

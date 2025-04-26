@@ -82,7 +82,7 @@ impl DiskManager {
     }
 
     pub fn read_file(&self, path: WhPath, offset: u64, len: u64) -> io::Result<Vec<u8>> {
-        let file = self.handle.open_file(path.set_relative())?;
+        let file = std::io::BufReader::new(self.handle.open_file(path.set_relative())?);
         let mut buf = Vec::<u8>::new();
         buf.splice(
             0..0,
@@ -95,15 +95,16 @@ impl DiskManager {
         Ok(buf)
     }
 
-    // in case of merge, accept version from dev. Was remade here for debug
-    pub fn read_file_full(&self, path: WhPath) -> io::Result<Vec<u8>> {
+    pub fn read_file_to_end(&self, path: WhPath) -> io::Result<Vec<u8>> {
         let mut buf = Vec::<u8>::new();
-
-        self.handle.open_file(path)?.read_to_end(&mut buf)?;
+        self.handle
+            .open_file(path.set_relative())?
+            .read_to_end(&mut buf);
         Ok(buf)
     }
 
     pub fn new_dir(&self, path: WhPath, permissions: u16) -> io::Result<()> {
-        self.handle.create_dir(path.set_relative(), permissions as libc::mode_t) // TODO look more in c mode_t value
+        self.handle
+            .create_dir(path.set_relative(), permissions as libc::mode_t)
     }
 }

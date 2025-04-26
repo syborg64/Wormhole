@@ -1,12 +1,15 @@
-use crate::pods::{declarations::Pod, whpath::WhPath};
+use crate::pods::{pod::Pod, whpath::WhPath};
 use clap::{Args, Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
-
 pub enum PodCommand {
-    NewPod(Pod),
+    NewPod(String, Pod),
     StartPod(StatusPodArgs),
-    StopPod(StatusPodArgs),
+    StopPod(
+        StatusPodArgs,
+        tokio::sync::oneshot::Sender<Result<String, crate::pods::pod::PodStopError>>,
+    ),
     RemovePod(RemoveArgs),
+    Interrupt,
 }
 
 #[derive(Debug, Parser, Serialize, Deserialize)] // requires `derive` feature
@@ -111,4 +114,3 @@ pub struct RemoveArgs {
     #[arg(long, default_value = "simple")]
     pub mode: Mode,
 }
-

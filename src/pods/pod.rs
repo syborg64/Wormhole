@@ -1,6 +1,16 @@
 use std::fs;
 use std::{io, sync::Arc};
 
+use crate::config::GlobalConfig;
+use crate::error::{WhError, WhResult};
+#[cfg(target_os = "linux")]
+use crate::fuse::fuse_impl::mount_fuse;
+use crate::network::message::{
+    FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
+};
+#[cfg(target_os = "windows")]
+use crate::winfsp::winfsp_impl::mount_fsp;
+use custom_error::custom_error;
 #[cfg(target_os = "linux")]
 use fuser;
 use log::info;
@@ -10,10 +20,7 @@ use tokio::task::JoinHandle;
 #[cfg(target_os = "windows")]
 use winfsp::host::FileSystemHost;
 
-use crate::config::GlobalConfig;
 #[cfg(target_os = "linux")]
-use crate::fuse::fuse_impl::mount_fuse;
-use crate::network::message::{FileSystemSerialized, FromNetworkMessage, MessageContent};
 use crate::pods::arbo::GLOBAL_CONFIG_FNAME;
 #[cfg(target_os = "windows")]
 use crate::winfsp::winfsp_impl::mount_fsp;
@@ -21,15 +28,14 @@ use crate::winfsp::winfsp_impl::mount_fsp;
 use crate::network::{message::Address, peer_ipc::PeerIPC, server::Server};
 
 use crate::pods::{
-    arbo::{index_folder, Arbo},
+    arbo::{generate_arbo, Arbo},
     disk_manager::DiskManager,
     filesystem::fs_interface::FsInterface,
     network::network_interface::NetworkInterface,
     whpath::WhPath,
 };
 
-// TODO
-pub type PodConfig = u64;
+use super::arbo::{InodeId, ARBO_FILE_FNAME};
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -39,7 +45,6 @@ pub struct Pod {
     fs_interface: Arc<FsInterface>,
     mount_point: WhPath,
     peers: Arc<RwLock<Vec<PeerIPC>>>,
-    pod_conf: PodConfig,
     #[cfg(target_os = "linux")]
     fuse_handle: fuser::BackgroundSession,
     #[cfg(target_os = "windows")]
@@ -98,7 +103,6 @@ pub async fn initiate_connection(
 }
 
 fn register_to_others(peers: &Vec<PeerIPC>, self_address: &Address) -> std::io::Result<()> {
-    
     for peer in peers {
         peer.sender
             .send((MessageContent::Register(self_address.clone()), None))
@@ -107,19 +111,19 @@ fn register_to_others(peers: &Vec<PeerIPC>, self_address: &Address) -> std::io::
     Ok(())
 }
 
-/**TODO - dedans ou après initate_connection pull la config global depuis l'un des peers_addrs.
- * Quel commande message doit être utilisé?
- * RequestFile pour la demande et pullAnswer pour la réponse ?
- * Ou je modifie juste fsAnswer ?
- * Ou créer un nouveau type de message ? RequestFileConfig, PullFileConfig(Vec<u8>)
- **/
+custom_error! {pub PodStopError
+    WhError{source: WhError} = "{source}",
+    ArboSavingFailed{error_source: String} = @{format!("PodStopError: could not write arbo to disk: {error_source}")},
+    PodNotRunning = "No pod with this name was found running.",
+    FileNotReadable{file: WhPath, reason: String} = @{format!("PodStopError: could not read file from disk: {file} {reason}")},
+    FileNotSent{file: WhPath} = @{format!("PodStopError: no pod was able to receive this file before stopping: {file}")}
+}
 
 impl Pod {
     pub async fn new(
         name: String,
         global_config: GlobalConfig,
         mount_point: WhPath,
-        config: PodConfig,
         server: Arc<Server>,
         server_address: Address,
     ) -> io::Result<Self> {
@@ -127,7 +131,7 @@ impl Pod {
 
         log::info!("mount point {}", mount_point);
         let (mut arbo, mut next_inode) =
-            index_folder(&mount_point, &server_address).expect("unable to index folder");
+            generate_arbo(&mount_point, &server_address).expect("unable to index folder");
         let (to_network_message_tx, to_network_message_rx) = mpsc::unbounded_channel();
         let (from_network_message_tx, mut from_network_message_rx) = mpsc::unbounded_channel();
 
@@ -143,7 +147,11 @@ impl Pod {
         )
         .await
         {
-            fs::write(mount_point.join(GLOBAL_CONFIG_FNAME).to_string(), global_config_bytes).expect("can't write global_config file");
+            fs::write(
+                mount_point.join(GLOBAL_CONFIG_FNAME).to_string(),
+                global_config_bytes,
+            )
+            .expect("can't write global_config file");
             // TODO use global_config ?
 
             peers = PeerIPC::peer_startup(peers_addrs, from_network_message_tx.clone()).await;
@@ -152,6 +160,7 @@ impl Pod {
             arbo.overwrite_self(fs_serialized.fs_index);
             for index in arbo.get_raw_entries().keys() {
                 // TEMP FIX FOR MERGE
+                // FIXME is it resolved @iddeko ?
                 if *index > next_inode {
                     next_inode = *index;
                 }
@@ -206,7 +215,6 @@ impl Pod {
             fs_interface: fs_interface.clone(),
             mount_point: mount_point.clone(),
             peers,
-            pod_conf: config,
             #[cfg(target_os = "linux")]
             fuse_handle: mount_fuse(&mount_point, fs_interface.clone())?,
             #[cfg(target_os = "windows")]
@@ -215,6 +223,110 @@ impl Pod {
             peer_broadcast_handle,
             new_peer_handle,
         })
+    }
+
+    /// for a given file, will try to send it to one host, trying each until succes
+    fn send_file_to_possible_hosts(
+        &self,
+        possible_hosts: &Vec<Address>,
+        ino: InodeId,
+        path: WhPath,
+    ) -> Result<(), PodStopError> {
+        let file_content = self
+            .fs_interface
+            .disk
+            .read_file_to_end(path.clone())
+            .map_err(|e| PodStopError::FileNotReadable {
+                file: path.clone(),
+                reason: e.to_string(),
+            })?;
+
+        for host in possible_hosts {
+            let (status_tx, mut status_rx) = tokio::sync::mpsc::unbounded_channel::<WhResult<()>>();
+
+            self.network_interface
+                .to_network_message_tx
+                .send(ToNetworkMessage::SpecificMessage(
+                    (
+                        // NOTE - file_content clone is not efficient, but no way to avoid it for now
+                        MessageContent::PullAnswer(ino, file_content.clone()),
+                        Some(status_tx.clone()),
+                    ),
+                    vec![host.clone()],
+                ))
+                .expect("to_network_message_tx closed.");
+
+            if let Ok(()) = status_rx.blocking_recv().unwrap() {
+                self.network_interface
+                    .to_network_message_tx
+                    .send(ToNetworkMessage::BroadcastMessage(
+                        MessageContent::RemoveHosts(
+                            ino,
+                            vec![self.network_interface.self_addr.clone()],
+                        ),
+                    ))
+                    .expect("to_network_message_tx closed.");
+                return Ok(());
+            }
+        }
+        Err(PodStopError::FileNotSent { file: path })
+    }
+
+    /// Gets every file hosted by this pod only and sends them to other pods
+    fn send_files_when_stopping(&self, arbo: &Arbo, peers: Vec<Address>) {
+        arbo.files_hosted_only_by(&self.network_interface.self_addr)
+            .filter_map(|inode| {
+                Some((
+                    inode.id,
+                    arbo.n_get_path_from_inode_id(inode.id)
+                        .map_err(|e| log::error!("Pod::files_to_send_when_stopping(2): {e}"))
+                        .ok()?,
+                ))
+            })
+            .for_each(|(id, path)| {
+                if let Err(e) = self.send_file_to_possible_hosts(&peers, id, path) {
+                    log::warn!("{e}");
+                }
+            });
+    }
+
+    pub fn stop(&self) -> Result<(), PodStopError> {
+        // TODO
+        // in actual state, all operations (request from network other than just pulling the asked files)
+        // made after calling this function but before dropping the pod are undefined behavior.
+
+        // drop(self.fuse_handle); // FIXME - do something like block the filesystem
+
+        let arbo = Arbo::n_read_lock(&self.network_interface.arbo, "Pod::Pod::stop(1)")?;
+
+        let peers: Vec<Address> = self
+            .peers
+            .read()
+            .iter()
+            .map(|peer| peer.address.clone())
+            .collect();
+
+        self.send_files_when_stopping(&arbo, peers);
+
+        self.network_interface
+            .to_network_message_tx
+            .send(ToNetworkMessage::BroadcastMessage(
+                MessageContent::Disconnect(self.network_interface.self_addr.clone()),
+            ))
+            .expect("to_network_message_tx closed.");
+
+        let _ = self.fs_interface.disk.remove_file(ARBO_FILE_FNAME.into());
+        self.fs_interface
+            .disk
+            .write_file(
+                ARBO_FILE_FNAME.into(),
+                &bincode::serialize(&*arbo).expect("can't serialize arbo to bincode"),
+                0,
+            )
+            .map(|_| ())
+            .map_err(|e| PodStopError::ArboSavingFailed {
+                error_source: e.to_string(),
+            })
     }
 
     pub fn get_name(&self) -> &str {

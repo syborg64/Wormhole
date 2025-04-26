@@ -28,6 +28,7 @@ pub enum MessageContent {
     RemoveXAttr(InodeId, String),
     RequestFs,
     RequestPull(InodeId),
+    Disconnect(Address),
     // Arbo, peers, .global_config
     FsAnswer(FileSystemSerialized, Vec<Address>, Vec<u8>),
 }
