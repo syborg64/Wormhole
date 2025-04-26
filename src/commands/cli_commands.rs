@@ -101,7 +101,7 @@ pub enum Mode {
 }
 
 // Structure RemoveArgs modifiée
-#[derive(Debug, Args, Serialize, Deserialize)]
+#[derive(Debug, Args, Serialize, Deserialize, Clone)]
 #[command(version, about, long_about = None)]
 pub struct RemoveArgs {
     /// Name of the deleted pod

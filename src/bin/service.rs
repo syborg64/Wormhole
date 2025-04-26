@@ -32,59 +32,113 @@ use winfsp::winfsp_init;
 use wormhole::commands::cli_commands::{Mode, StatusPodArgs};
 use wormhole::commands::PodCommand;
 use wormhole::commands::{self, cli_commands::Cli};
-use wormhole::error::CliError;
-use wormhole::pods::pod::Pod;
-use wormhole::pods::pod::PodStopError;
+use wormhole::error::{CliError, CliSuccess};
+use wormhole::pods::pod::{Pod, PodStopError};
 
 async fn handle_cli_command(
-    tx: mpsc::UnboundedSender<PodCommand>,
     ws_stream: tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>,
-) -> Result<(), String> {
+    mut pods: HashMap<String, Pod>,
+) -> HashMap<String, Pod> {
     let (mut writer, mut reader) = ws_stream.split();
 
     if let Some(Ok(message)) = reader.next().await {
         let message_bytes = message.into_data();
 
-        let cli_command: Cli = bincode::deserialize(&message_bytes)
-            .map_err(|e| format!("Deserialization error: {}", e))?;
+        
+        let cli_command: Cli = match bincode::deserialize(&message_bytes) {
+            Ok(cli) => cli,
+            Err(e) => {
+                error!("Deserialization error: {}", e);
+                return pods;
+            },   
+        };
 
-        let response_text = match cli_command {
-            Cli::New(pod_args) => commands::service::new(tx.clone(), pod_args).await,
-            Cli::Start(pod_args) => commands::service::start(tx.clone(), pod_args).await,
-            Cli::Stop(pod_args) => commands::service::stop(tx.clone(), pod_args).await,
-            Cli::Remove(remove_arg) => commands::service::remove(tx, remove_arg).await,
-            Cli::Restore(resotre_args) => commands::service::restore(tx, resotre_args).await,
+        let response_command = match cli_command {
+            Cli::New(pod_args) => commands::service::new(pod_args).await,
+            Cli::Start(pod_args) => commands::service::start(pod_args).await,
+            Cli::Stop(pod_args) => {
+                if let Some(pod) = pod_args.name.and_then(|name| pods.remove(&name)) {
+                    commands::service::stop(pod).await
+                } else {
+                    log::warn!("(TODO) Stopping a pod by path is not yet implemented");
+                    Err(CliError::InvalidCommand)
+                }
+            },
+            Cli::Remove(remove_arg) => {
+                let opt = if let Some(name) = remove_arg.clone().name {
+                    // pods.get(&name)
+                    pods.remove(&name)
+                } else if let Some(path) = remove_arg.clone().path {
+                    let key_to_remove = pods
+                        .iter()
+                        .find(|(_, pod)| pod.get_mount_point() == &path)
+                        .map(|(key, _)| key.clone());
+
+                    key_to_remove.and_then(|key| pods.remove(&key))
+                } else {
+                    log::error!("No pod name nor path were provided by RemovePod command");
+                    None
+                };
+                if let Some(pod) = opt {
+                    commands::service::remove(remove_arg, pod).await
+                } else {
+                    log::info!("Pod not found");
+                    Err(CliError::PodRemovalFailed { reason: String::from("Pod not found") })
+                }
+            },
+            Cli::Restore(resotre_args) => commands::service::restore(resotre_args).await,
             _ => Err(CliError::InvalidCommand),
         };
 
-        let message = match response_text {
-            Ok(success) => success.to_string(),
-            Err(error) => error.to_string(),
+        pods = match response_command {
+            Ok(CliSuccess::PodCreated(pod)) => {
+                info!("Pod created or joined a network");
+                let name = pod.get_name().to_string();
+                pods.insert(name.clone(), pod);
+                let _ = writer
+                            .send(Message::Text(CliSuccess::WithData { message: String::from("Pod created with success: "), data: name }.to_string()))
+                            .await
+                            .map_err(|e| format!("Response send error: {}", e));
+                pods
+            },
+            Ok(CliSuccess::Message(msg)) => {
+                let _ = writer
+                            .send(Message::Text(CliSuccess::Message(msg).to_string()))
+                            .await
+                            .map_err(|e| format!("Response send error: {}", e));
+                pods
+            },
+            Ok(CliSuccess::WithData { message, data }) => {
+                let _ = writer
+                            .send(Message::Text(CliSuccess::WithData { message, data }.to_string()))
+                            .await
+                            .map_err(|e| format!("Response send error: {}", e));
+                pods
+            },
+            Err(err) => {
+                let _ = writer
+                            .send(Message::Text(err.to_string()))
+                            .await
+                            .map_err(|e| format!("Response send error: {}", e));
+            pods
+        },
         };
-
-        writer
-            .send(Message::Text(message))
-            .await
-            .map_err(|e| format!("Response send error: {}", e))?;
     }
-
-    Ok(())
+    pods
 }
 
-async fn handle_cli(stream: tokio::net::TcpStream, tx: mpsc::UnboundedSender<PodCommand>) {
+async fn handle_cli(stream: tokio::net::TcpStream, mut pods: HashMap<String, Pod>) -> HashMap<String, Pod> {
     match accept_async(stream).await {
-        Ok(ws_stream) => {
-            // Gérer la commande et logger les erreurs si elles surviennent
-            if let Err(e) = handle_cli_command(tx, ws_stream).await {
-                error!("Erreur dans handle_cli_command : {}", e);
-            }
-        }
+        Ok(ws_stream) => pods = handle_cli_command(ws_stream, pods).await,
         Err(e) => error!("Erreur lors de la négociation WebSocket : {}", e),
     }
+    pods
 }
 
 // Gestion de l'écoute des connexions CLI
-async fn start_cli_listener(tx: mpsc::UnboundedSender<PodCommand>, ip: String) {
+async fn start_cli_listener(
+    pods: HashMap<String, Pod>,
+    ip: String) -> HashMap<String, Pod> {
     println!("Écoute des commandes CLI sur {}", ip);
     let listener = TcpListener::bind(&ip)
         .await
@@ -92,11 +146,14 @@ async fn start_cli_listener(tx: mpsc::UnboundedSender<PodCommand>, ip: String) {
     info!("Écoute des commandes CLI sur {}", ip);
 
     while let Ok((stream, _)) = listener.accept().await {
-        let tx_clone = tx.clone();
-        tokio::spawn(async move {
-            handle_cli(stream, tx_clone).await;
-        });
-    }
+        let cli_airport = tokio::spawn(handle_cli(stream, pods));
+        let pods = tokio::select! {
+            p = cli_airport => p.expect("start_cli_listener: handle_cli didn't join properly"), 
+            
+        };
+        return pods;
+    };
+    pods
 }
 
 async fn main_cli_airport(
@@ -190,14 +247,14 @@ async fn main() {
     println!("Starting service on {}", ip);
 
     let terminal_handle = tokio::spawn(terminal_watchdog(tx.clone()));
-    let cli_listener = tokio::spawn(start_cli_listener(tx, ip));
-    let cli_airport = tokio::spawn(main_cli_airport(rx, pods));
+    let cli_airport = tokio::spawn(start_cli_listener(pods, ip));
+    // let cli_airport = tokio::spawn(main_cli_airport(rx, pods));
     log::info!("Started");
 
     let pods = tokio::select! {
+        // pods = cli_airport => Some(pods.expect("main: cli_airport didn't join properly")),
         pods = cli_airport => Some(pods.expect("main: cli_airport didn't join properly")),
         _ = terminal_handle => None,
-        _ = cli_listener => None,
     }
     .expect("runtime returned unexpectedly");
 

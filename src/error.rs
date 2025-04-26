@@ -1,5 +1,7 @@
 use custom_error::custom_error;
-use std::{fmt, io};
+use std::{collections::HashMap, fmt, io};
+
+use crate::pods::pod::{Pod, PodStopError};
 
 custom_error! {pub WhError
     InodeNotFound = "Entry not found",
@@ -24,6 +26,7 @@ impl WhError {
 pub type WhResult<T> = Result<T, WhError>;
 
 custom_error! {pub CliError
+    PodStopError{source: PodStopError} = "{source}",
     WhError{source: WhError} = "{source}",
     PodCreationFailed{reason: io::Error} = "Pod creation failed: {reason}",
     PodRemovalFailed{reason: String} = "Pod removal failed: {reason}",
@@ -33,14 +36,14 @@ custom_error! {pub CliError
     IoError{source: io::Error} = "I/O error: {source}" // Pour les erreurs fs::remove_dir_all, etc.
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum CliSuccess {
     /// Succès avec un simple message
     Message(String),
     /// Succès avec un message et des données supplémentaires
     WithData { message: String, data: String },
-    /// Succès spécifique, comme la création d’un objet
-    PodCreated { pod_id: String },
+    /// Succès specifique, comme la création d’un objet
+    PodCreated(Pod),
 }
 
 impl fmt::Display for CliSuccess {
@@ -48,7 +51,7 @@ impl fmt::Display for CliSuccess {
         match self {
             CliSuccess::Message(msg) => write!(f, "{}", msg),
             CliSuccess::WithData { message, data } => write!(f, "{} - Données: {}", message, data),
-            CliSuccess::PodCreated { pod_id } => write!(f, "Pod créé avec succès (ID: {})", pod_id),
+            CliSuccess::PodCreated(pod) => write!(f, "Pod créé avec succès (ID: {})", pod.get_name()),
         }
     }
 }
