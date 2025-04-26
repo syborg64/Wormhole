@@ -1,7 +1,6 @@
 use std::sync::Arc;
 use std::env;
 
-use log::info;
 use tokio::sync::mpsc;
 
 use crate::{
@@ -11,7 +10,7 @@ use crate::{
     config::{types::Config, GlobalConfig, LocalConfig},
     error::{CliError, CliResult, CliSuccess},
     network::server::Server,
-    pods::{pod::Pod, whpath::WhPath},
+    pods::{arbo::{GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME}, pod::Pod, whpath::WhPath},
 };
 
 pub async fn new(tx: mpsc::UnboundedSender<PodCommand>, args: PodArgs) -> CliResult {
@@ -23,7 +22,7 @@ pub async fn new(tx: mpsc::UnboundedSender<PodCommand>, args: PodArgs) -> CliRes
                 global_config,
                 mount_point,
                 server.clone(),
-                local_config.general.address,
+                local_config.clone().general.address,
             )
             .await
             {
@@ -66,7 +65,7 @@ async fn pod_value(args: &PodArgs) -> Result<(GlobalConfig, LocalConfig, Arc<Ser
         WhPath::from(args.path.clone())
     };
     
-    let local_path = path.clone().join(".local_config.toml").inner;
+    let local_path = path.clone().join(LOCAL_CONFIG_FNAME).inner;
     let mut local_config: LocalConfig = LocalConfig::read(&local_path).unwrap_or(default_local_config(&args.name));
     if local_config.general.name != args.name {
         //REVIEW - changer le nom sans prévenir l'utilisateur ou renvoyer une erreur ? Je pense qu'il serait mieux de renvoyer une erreur
@@ -75,10 +74,9 @@ async fn pod_value(args: &PodArgs) -> Result<(GlobalConfig, LocalConfig, Arc<Ser
     if let Err(_) = local_config.write(&local_path) {
         return Err(CliError::InvalidConfig { file: local_path });
     }
-    
     let server: Arc<Server> = Arc::new(Server::setup(&local_config.general.address).await);
     
-    let global_path = path.clone().join(".global_config.toml").inner;
+    let global_path = path.clone().join(GLOBAL_CONFIG_FNAME).inner;
     let global_config: GlobalConfig = GlobalConfig::read(global_path).unwrap_or(default_global_config());
     let global_config = add_hosts(
         global_config,
@@ -86,8 +84,8 @@ async fn pod_value(args: &PodArgs) -> Result<(GlobalConfig, LocalConfig, Arc<Ser
         args.additional_hosts.clone().unwrap_or(vec![]),
     );
 
-    info!("POD VALUE");
-    info!("{:?}", global_config);
-    info!("{:?}", local_config);
+    log::info!("POD VALUE");
+    log::info!("{:?}", global_config);
+    log::info!("{:?}", local_config);
     Ok((global_config, local_config, server, args.path.clone()))
 }

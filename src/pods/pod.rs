@@ -1,13 +1,15 @@
 use std::fs;
 use std::{io, sync::Arc};
 
-use crate::config::GlobalConfig;
+use crate::config::types::Config as _;
+use crate::config::{GlobalConfig, LocalConfig};
 use crate::error::{WhError, WhResult};
 #[cfg(target_os = "linux")]
 use crate::fuse::fuse_impl::mount_fuse;
 use crate::network::message::{
     FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
 };
+use crate::pods::arbo::{FsEntry, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO, ROOT};
 #[cfg(target_os = "windows")]
 use crate::winfsp::winfsp_impl::mount_fsp;
 use custom_error::custom_error;
@@ -123,6 +125,7 @@ impl Pod {
     pub async fn new(
         name: String,
         global_config: GlobalConfig,
+        // local_config: LocalConfig,
         mount_point: WhPath,
         server: Arc<Server>,
         server_address: Address,
@@ -166,6 +169,10 @@ impl Pod {
                 }
             }
             next_inode += 1;
+            
+            if let Err(_) = arbo.get_inode(LOCAL_CONFIG_INO) {
+                let _ = arbo.add_inode_from_parameters(LOCAL_CONFIG_FNAME.to_string(), LOCAL_CONFIG_INO, ROOT, FsEntry::File(vec![server_address.clone()]));
+            }
         }
 
         let arbo: Arc<RwLock<Arbo>> = Arc::new(RwLock::new(arbo));
