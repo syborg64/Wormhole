@@ -245,19 +245,6 @@ impl FsInterface {
         self.network_interface.update_remote_hosts(&inode)
     }
 
-    pub fn recept_remove_inode(&self, id: InodeId) -> io::Result<()> {
-        let to_remove_path = {
-            let arbo = Arbo::read_lock(&self.arbo, "cecept_remove_inode")?;
-            arbo.get_path_from_inode_id(id)?
-        };
-
-        let _ = self.disk.remove_file(&to_remove_path);
-
-        self.network_interface.acknowledge_unregister_file(id)?;
-
-        Ok(())
-    }
-
     pub fn recept_edit_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
         if !hosts.contains(&self.network_interface.self_addr) {
             let path =

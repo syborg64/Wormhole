@@ -267,35 +267,24 @@ impl NetworkInterface {
         arbo.n_add_inode(inode)
     }
 
-    #[must_use]
     /// Remove [Inode] from the [Arbo] and inform the network of the removal
-    pub fn unregister_file(&self, id: InodeId) -> Result<(), RemoveInode> {
-        Arbo::n_write_lock(&self.arbo, "unregister_new_inode")?.n_remove_inode(id)?;
+    pub fn unregister_inode(&self, id: InodeId) -> Result<(), RemoveInode> {
+        Arbo::n_write_lock(&self.arbo, "unregister_inode")?.n_remove_inode(id)?;
 
         if id != 3u64 {
             self.to_network_message_tx
                 .send(ToNetworkMessage::BroadcastMessage(
                     message::MessageContent::Remove(id),
                 ))
-                .expect("mkfile: unable to update modification on the network thread");
+                .expect("unregister_inode: unable to update modification on the network thread");
         }
         // TODO - if unable to update for some reason, should be passed to the background worker
         Ok(())
     }
 
-    pub fn acknowledge_unregister_file(&self, id: InodeId) -> io::Result<Inode> {
-        let removed_inode: Inode;
-
-        if let Some(mut arbo) = self.arbo.try_write_for(LOCK_TIMEOUT) {
-            removed_inode = arbo.remove_inode(id)?;
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::Interrupted,
-                "mkfile: can't write-lock arbo's RwLock",
-            ));
-        };
-
-        Ok(removed_inode)
+    /// Remove [Inode] from the [Arbo]
+    pub fn acknowledge_unregister_inode(&self, id: InodeId) -> Result<Inode, RemoveInode> {
+        Arbo::n_write_lock(&self.arbo, "acknowledge_unregister_inode")?.n_remove_inode(id)
     }
 
     pub fn acknowledge_hosts_edition(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
@@ -717,7 +706,12 @@ impl NetworkInterface {
                 MessageContent::EditMetadata(id, meta, host) => {
                     fs_interface.recept_edit_metadata(id, meta, host)
                 }
-                MessageContent::Remove(id) => fs_interface.recept_remove_inode(id),
+                MessageContent::Remove(id) => fs_interface.recept_remove_inode(id).or_else(|err| {
+                        Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            format!("WhError: {err}"),
+                        ))
+                    }),
                 MessageContent::RequestFile(inode, peer) => fs_interface.send_file(inode, peer),
                 MessageContent::RequestFs => fs_interface.send_filesystem(origin),
                 MessageContent::Register(addr) => Ok(fs_interface.register_new_node(origin, addr)),
