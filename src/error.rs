@@ -1,7 +1,7 @@
 use custom_error::custom_error;
-use std::{collections::HashMap, fmt, io};
+use std::{fmt, io};
 
-use crate::pods::pod::{Pod, PodStopError};
+use crate::pods::pod::PodStopError;
 
 custom_error! {pub WhError
     InodeNotFound = "Entry not found",

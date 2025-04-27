@@ -1,7 +1,5 @@
-use tokio::sync::mpsc;
-
 use crate::{
-    commands::{cli_commands::StatusPodArgs, PodCommand},
+    commands::cli_commands::StatusPodArgs,
     error::{CliResult, CliSuccess},
 };
 

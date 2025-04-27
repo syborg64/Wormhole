@@ -1,12 +1,10 @@
 use std::env;
 use std::sync::Arc;
 
-use tokio::sync::mpsc;
-
 use crate::{
-    commands::{cli_commands::PodArgs, default_global_config, default_local_config, PodCommand},
+    commands::{cli_commands::PodArgs, default_global_config, default_local_config},
     config::{types::Config, GlobalConfig, LocalConfig},
-    error::{CliError, CliResult, CliSuccess},
+    error::CliError,
     network::server::Server,
     pods::{
         arbo::{GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME},

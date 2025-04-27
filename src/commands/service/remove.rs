@@ -1,10 +1,6 @@
-use std::collections::HashMap;
-
-use tokio::sync::mpsc;
-
 use crate::{
-    commands::{cli_commands::{Mode, RemoveArgs}, PodCommand},
-    error::{CliError, CliResult, CliSuccess}, pods::pod::Pod,
+    commands::cli_commands::{Mode, RemoveArgs},
+    error::{CliResult, CliSuccess}, pods::pod::Pod,
 };
 
 pub async fn remove(args: RemoveArgs, mut pod: Pod) -> CliResult {

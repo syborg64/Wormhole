@@ -1,8 +1,7 @@
 use std::fs;
 use std::{io, sync::Arc};
 
-use crate::config::types::Config as _;
-use crate::config::{GlobalConfig, LocalConfig};
+use crate::config::GlobalConfig;
 use crate::error::{WhError, WhResult};
 #[cfg(target_os = "linux")]
 use crate::fuse::fuse_impl::mount_fuse;
