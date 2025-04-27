@@ -19,7 +19,7 @@ pub enum MessageContent {
     Inode(Inode),
     RequestFile(InodeId, Address),
     PullAnswer(InodeId, Vec<u8>),
-    Rename(InodeId, InodeId, String, String), //Parent, New Parent, Name, New Name
+    Rename(InodeId, InodeId, String, String, bool), /// Parent, New Parent, Name, New Name, overwrite
     EditHosts(InodeId, Vec<Address>),
     AddHosts(InodeId, Vec<Address>),
     RemoveHosts(InodeId, Vec<Address>),

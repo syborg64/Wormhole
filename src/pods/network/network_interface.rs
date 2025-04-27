@@ -242,7 +242,7 @@ impl NetworkInterface {
     ) -> io::Result<()> {
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                message::MessageContent::Rename(parent, new_parent, name.clone(), new_name.clone()),
+                message::MessageContent::Rename(parent, new_parent, name.clone(), new_name.clone(), overwrite),
             ))
             .expect("broadcast_rename_file: unable to update modification on the network thread");
         Ok(())
@@ -715,7 +715,7 @@ impl NetworkInterface {
                 MessageContent::RequestFile(inode, peer) => fs_interface.send_file(inode, peer),
                 MessageContent::RequestFs => fs_interface.send_filesystem(origin),
                 MessageContent::Register(addr) => Ok(fs_interface.register_new_node(origin, addr)),
-                MessageContent::Rename(parent, new_parent, name, new_name) => {
+                MessageContent::Rename(parent, new_parent, name, new_name, overwrite) => {
                     fs_interface.accept_rename(parent, new_parent, &name, &new_name)
                 }
                 MessageContent::RequestPull(id) => fs_interface.pull_file_async(id).await,
