@@ -1,44 +1,39 @@
-use std::sync::Arc;
 use std::env;
+use std::sync::Arc;
 
 use tokio::sync::mpsc;
 
 use crate::{
-    commands::{
-        cli_commands::PodArgs, default_global_config, default_local_config, PodCommand
-    },
+    commands::{cli_commands::PodArgs, default_global_config, default_local_config, PodCommand},
     config::{types::Config, GlobalConfig, LocalConfig},
     error::{CliError, CliResult, CliSuccess},
     network::server::Server,
-    pods::{arbo::{GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME}, pod::Pod, whpath::WhPath},
+    pods::{
+        arbo::{GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME},
+        pod::Pod,
+        whpath::WhPath,
+    },
 };
 
-pub async fn new(args: PodArgs) -> CliResult {
-    match pod_value(&args).await {
-        Ok((global_config, local_config, server, mount_point)) => {
-            println!("local config: {:?}", local_config);
-            let new_pod = match Pod::new(
-                args.name.clone(),
-                global_config,
-                mount_point,
-                server.clone(),
-                local_config.clone().general.address,
-            )
-            .await
-            {
-                Ok(pod) => pod,
-                Err(e) => return Err(CliError::PodCreationFailed { reason: e }),
-            };
-            Ok(CliSuccess::PodCreated(new_pod))
-        }
-        Err(e) => {
-            
-            Err(e)
-        }
-    }
+pub async fn new(args: PodArgs) -> Result<Pod, CliError> {
+    let (global_config, local_config, server, mount_point) = pod_value(&args).await?;
+    println!("local config: {:?}", local_config);
+    Pod::new(
+        args.name.clone(),
+        global_config,
+        mount_point,
+        server.clone(),
+        local_config.clone().general.address,
+    )
+    .await
+    .map_err(|e| CliError::PodCreationFailed { reason: e })
 }
 
-fn add_hosts(mut global_config: GlobalConfig, url: String, mut additional_hosts: Vec<String>) -> GlobalConfig {
+fn add_hosts(
+    mut global_config: GlobalConfig,
+    url: String,
+    mut additional_hosts: Vec<String>,
+) -> GlobalConfig {
     if url.is_empty() && additional_hosts.is_empty() {
         return global_config;
     }
@@ -56,16 +51,19 @@ fn add_hosts(mut global_config: GlobalConfig, url: String, mut additional_hosts:
     global_config
 }
 
-async fn pod_value(args: &PodArgs) -> Result<(GlobalConfig, LocalConfig, Arc<Server>, WhPath), CliError> {
+async fn pod_value(
+    args: &PodArgs,
+) -> Result<(GlobalConfig, LocalConfig, Arc<Server>, WhPath), CliError> {
     let path = if args.path == ".".into() {
         let path = env::current_dir()?;
         WhPath::from(&path.display().to_string())
     } else {
         WhPath::from(args.path.clone())
     };
-    
+
     let local_path = path.clone().join(LOCAL_CONFIG_FNAME).inner;
-    let mut local_config: LocalConfig = LocalConfig::read(&local_path).unwrap_or(default_local_config(&args.name));
+    let mut local_config: LocalConfig =
+        LocalConfig::read(&local_path).unwrap_or(default_local_config(&args.name));
     if local_config.general.name != args.name {
         //REVIEW - changer le nom sans prévenir l'utilisateur ou renvoyer une erreur ? Je pense qu'il serait mieux de renvoyer une erreur
         local_config.general.name = args.name.clone();
@@ -74,9 +72,10 @@ async fn pod_value(args: &PodArgs) -> Result<(GlobalConfig, LocalConfig, Arc<Ser
         return Err(CliError::InvalidConfig { file: local_path });
     }
     let server: Arc<Server> = Arc::new(Server::setup(&local_config.general.address).await);
-    
+
     let global_path = path.clone().join(GLOBAL_CONFIG_FNAME).inner;
-    let global_config: GlobalConfig = GlobalConfig::read(global_path).unwrap_or(default_global_config());
+    let global_config: GlobalConfig =
+        GlobalConfig::read(global_path).unwrap_or(default_global_config());
     let global_config = add_hosts(
         global_config,
         args.url.clone().unwrap_or("".to_string()),

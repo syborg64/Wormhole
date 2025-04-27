@@ -1,6 +1,8 @@
 use crate::pods::{pod::Pod, whpath::WhPath};
 use clap::{Args, Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
+
+// FIXME deprecated
 pub enum PodCommand {
     NewPod(String, Pod),
     StartPod(StatusPodArgs),
@@ -32,6 +34,8 @@ pub enum Cli {
     Reload(PodArgs),
     /// Restore many or a specifique file configuration  
     Restore(RestoreConf),
+    /// Stops the service
+    Interrupt,
 }
 
 

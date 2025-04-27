@@ -42,8 +42,6 @@ pub enum CliSuccess {
     Message(String),
     /// Succès avec un message et des données supplémentaires
     WithData { message: String, data: String },
-    /// Succès specifique, comme la création d’un objet
-    PodCreated(Pod),
 }
 
 impl fmt::Display for CliSuccess {
@@ -51,7 +49,6 @@ impl fmt::Display for CliSuccess {
         match self {
             CliSuccess::Message(msg) => write!(f, "{}", msg),
             CliSuccess::WithData { message, data } => write!(f, "{} - Données: {}", message, data),
-            CliSuccess::PodCreated(pod) => write!(f, "Pod créé avec succès (ID: {})", pod.get_name()),
         }
     }
 }

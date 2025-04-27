@@ -3,6 +3,7 @@
 // AgarthaSoftware - 2024
 
 use clap::Parser;
+use log::warn;
 use std::env;
 use wormhole::commands::{
         self,
@@ -67,16 +68,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             commands::cli::remove(ip, args)?;
         }
         Cli::Inspect => {
-            println!("inspecting pod");
+            log::warn!("inspecting pod");
             todo!("inspect");
         }
         Cli::Reload(_args) => {
-            println!("reloading pod");
+            log::warn!("reloading pod");
             todo!("reload");
         }
         Cli::Restore(args) => {
             println!("retore a specifique file config");
             commands::cli::restore(ip, args)?;
+        }
+        Cli::Interrupt => {
+            log::warn!("do interrupt command");
+            todo!("interrupt");
         }
     }
     Ok(())
