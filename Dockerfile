@@ -13,15 +13,11 @@ COPY . .
 RUN cargo build --bin wormhole-service && \
     cargo build --bin wormhole-cli
 
-# Créer le répertoire utilisé par l'app (avec les bons droits)
-RUN mkdir -p /usr/src/wormhole/virtual && \
-    chmod -R 775 /usr/src/wormhole/virtual
-
 FROM debian:bullseye-slim
 
 # Dépendances minimales
 RUN apt-get update --no-install-recommends && \
-    apt-get install -y --no-install-suggests fuse3 netcat-openbsd && \
+    apt-get install -y --no-install-suggests fuse3 netcat-openbsd systemd && \
     rm -rf /var/lib/apt/lists/*
 
 # Configuration FUSE
@@ -37,4 +33,8 @@ RUN mkdir -p /usr/src/wormhole/virtual && \
 COPY --from=builder /usr/src/wormhole/target/debug/wormhole-service .
 COPY --from=builder /usr/src/wormhole/target/debug/wormhole-cli .
 
-# Lancer avec root (pas besoin de USER)
+COPY wormhole-service.service /etc/systemd/system/wormhole-service.service
+
+RUN systemctl enable wormhole-service.service
+
+CMD ["/bin/systemd"]

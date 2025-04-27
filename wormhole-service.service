@@ -1,0 +1,10 @@
+[Unit]
+Description=Wormhole Service
+After=network.target
+
+[Service]
+ExecStart=/usr/src/wormhole/wormhole-service
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

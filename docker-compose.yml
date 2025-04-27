@@ -12,6 +12,7 @@ services:
       - '/dev/fuse'
     volumes:
       - ./shared_mnt:/usr/src/wormhole/virtual:rwx,Z
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
     stdin_open: true
     tty: true
     networks:
@@ -21,28 +22,23 @@ services:
       - RUST_BACKTRACE=1
       - FUSE_GROUP_ID=root
       - RUST_LOG=debug
+      - SERVICE_ADDRESS=0.0.0.0:8081
 
   wormhole1:
     <<: *base-service
     container_name: w1
-    networks:
-      - wormhole-net
-    command: "./wormhole-service"
-    volumes:
-      - ./shared_mnt1:/usr/src/wormhole/virtual:rwx,Z
     ports:
       - "8081:8081"
+    networks:
+      - wormhole-net
 
   wormhole2:
     <<: *base-service
     container_name: w2
-    networks:
-      - wormhole-net
-    command: "./wormhole-service"
-    volumes:
-      - ./shared_mnt2:/usr/src/wormhole/virtual:rwx,Z
     ports:
       - "8082:8081"
+    networks:
+      - wormhole-net
     depends_on:
       - wormhole1
 
