@@ -340,7 +340,7 @@ impl Arbo {
         Ok(())
     }
 
-    #[must_use]
+    #[deprecated]
     pub fn add_children(&mut self, parent: InodeId, child: InodeId) -> io::Result<()> {
         let parent = self.get_inode_mut(parent)?;
 
@@ -349,6 +349,18 @@ impl Arbo {
                 io::ErrorKind::InvalidInput,
                 "add_children: specified parent is not a folder",
             )),
+            FsEntry::Directory(children) => Ok(children),
+        }?;
+
+        children.push(child);
+        Ok(())
+    }
+
+    pub fn n_add_child(&mut self, parent: InodeId, child: InodeId) -> WhResult<()> {
+        let parent = self.n_get_inode_mut(parent)?;
+
+        let children = match &mut parent.entry {
+            FsEntry::File(_) => Err(WhError::InodeIsNotADirectory),
             FsEntry::Directory(children) => Ok(children),
         }?;
 
@@ -401,7 +413,7 @@ impl Arbo {
         self.entries.get(&ino).ok_or(WhError::InodeNotFound)
     }
 
-    #[must_use]
+    #[deprecated]
     pub fn mv_inode(
         &mut self,
         parent: InodeId,
@@ -425,6 +437,25 @@ impl Arbo {
         item.parent = new_parent;
 
         self.add_children(new_parent, item_id)
+    }
+
+    pub fn n_mv_inode(
+        &mut self,
+        parent: InodeId,
+        new_parent: InodeId,
+        name: &String,
+        new_name: &String,
+    ) -> WhResult<()> {
+        let parent_inode = self.entries.get(&parent).ok_or(WhError::InodeNotFound)?;
+        let item_id = self.n_get_inode_child_by_name(parent_inode, name)?.id;
+
+        self.n_remove_child(parent, item_id)?;
+
+        let item = self.n_get_inode_mut(item_id)?;
+        item.name = new_name.clone();
+        item.parent = new_parent;
+
+        self.n_add_child(new_parent, item_id)
     }
 
     // not public as the modifications are not automaticly propagated on other related inodes
