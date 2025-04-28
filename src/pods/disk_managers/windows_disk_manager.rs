@@ -118,7 +118,7 @@ impl DiskManager for WindowsDiskManager {
         self.get_volume_info_inner()
     }
 
-    fn log_arbo(&self, path: String) -> std::io::Result<()> {
+    fn log_arbo(&self, path: &WhPath) -> std::io::Result<()> {
         todo!()
     }
 
