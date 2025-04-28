@@ -12,13 +12,27 @@ use crate::{
     pods::arbo::{InodeId, LOCK_TIMEOUT},
 };
 
-pub type FileHandle = u64;
+pub enum AccessMode {
+    Read,
+    Write,
+    ReadWrite,
+    Execute,
+}
+
+pub type UUID = u64;
+
+pub struct FileHandle {
+    pub uuid: u64,
+    pub perm: AccessMode,
+    pub no_atime: bool,
+    pub direct: bool,
+}
 
 pub struct FileHandleManager {
     pub handles: HashMap<InodeId, FileHandle>,
 }
 
-pub fn new_unique_handle() -> FileHandle {
+pub fn new_uuid() -> UUID {
     let mut hasher = DefaultHasher::new();
     let start = SystemTime::now();
     let since_the_epoch = start

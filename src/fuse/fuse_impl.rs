@@ -1,6 +1,7 @@
 use crate::pods::arbo::{FsEntry, Inode, Metadata};
 use crate::pods::filesystem::fs_interface::{FsInterface, SimpleFileType};
 use crate::pods::filesystem::make_inode::MakeInode;
+use crate::pods::filesystem::open::OpenError;
 use crate::pods::filesystem::remove_inode::RemoveFile;
 use crate::pods::filesystem::write::WriteError;
 use crate::pods::filesystem::xattrs::GetXAttrError;
@@ -501,9 +502,11 @@ impl Filesystem for FuseController {
     }
 
     fn open(&mut self, _req: &Request<'_>, ino: u64, flags: i32, reply: fuser::ReplyOpen) {
-        match self.fs_interface.open(ino) {
+        match self.fs_interface.open(ino, flags) {
             Ok(()) => reply.opened(ino, flags as u32), // TODO - check flags ?,
-            Err(error) => reply.error(error.to_libc()),
+            Err(OpenError::WhError { source }) => reply.error(source.to_libc()),
+            Err(OpenError::MultipleAccessFlags) => reply.error(libc::EINVAL),
+            Err(OpenError::TruncReadOnly) => reply.error(libc::EACCES),
         };
     }
 
