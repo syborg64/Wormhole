@@ -26,6 +26,7 @@ impl WhError {
 pub type WhResult<T> = Result<T, WhError>;
 
 custom_error! {pub CliError
+    Unimplemented{arg: String} = "{arg} not implemented", 
     PodStopError{source: PodStopError} = "{source}",
     WhError{source: WhError} = "{source}",
     PodCreationFailed{reason: io::Error} = "Pod creation failed: {reason}",
