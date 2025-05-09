@@ -3,11 +3,14 @@
 // AgarthaSoftware - 2024
 
 use clap::Parser;
-use std::env;
-use wormhole::commands::{
-        self,
-        cli_commands::Cli,
-    };
+use std::{env, path::PathBuf};
+use wormhole::commands::{self, cli_commands::Cli};
+
+fn get_config_path() -> PathBuf {
+    let config_dir =
+        env::var("WORMHOLE_CONFIG_DIR").unwrap_or_else(|_| ".config/wormhole".to_string());
+    PathBuf::from(config_dir).join("config.toml")
+}
 
 /// Parse argument and recover the ip connection to the service or use 127.0.0.1:8081
 fn get_args(args: Vec<String>) -> (String, Vec<String>) {
@@ -19,11 +22,11 @@ fn get_args(args: Vec<String>) -> (String, Vec<String>) {
             ip = first_arg.clone();
             cli_args = args.into_iter().skip(1).collect();
         } else {
-            ip = "127.0.0.1:8081".to_string();
+            ip = env::var("WORMHOLE_SERVICE_IP").unwrap_or("127.0.0.1:8081".to_string());
             cli_args = args;
         }
     } else {
-        ip = "127.0.0.1:8081".to_string();
+        ip = env::var("WORMHOLE_SERVICE_IP").unwrap_or("127.0.0.1:8081".to_string());
         cli_args = vec![];
     }
     return (ip, cli_args);
@@ -43,14 +46,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Cli::Start(args) => commands::cli::start(ip, args)?,
         Cli::Stop(args) => commands::cli::stop(ip, args)?,
         Cli::Template(args) => {
-            println!(
-                "creating network {:?}",
-                args.name.clone()
-            );
-            commands::cli::templates(
-                &args.path,
-                &args.name,
-            )?;
+            println!("creating network {:?}", args.name.clone());
+            commands::cli::templates(&args.path, &args.name)?;
         }
         Cli::New(args) => {
             println!("creating pod");
