@@ -22,11 +22,11 @@ fn get_args(args: Vec<String>) -> (String, Vec<String>) {
             ip = first_arg.clone();
             cli_args = args.into_iter().skip(1).collect();
         } else {
-            ip = env::var("WORMHOLE_SERVICE_IP").unwrap_or("127.0.0.1:8081".to_string());
+            ip = "127.0.0.1:8081".to_string();
             cli_args = args;
         }
     } else {
-        ip = env::var("WORMHOLE_SERVICE_IP").unwrap_or("127.0.0.1:8081".to_string());
+        ip = "127.0.0.1:8081".to_string();
         cli_args = vec![];
     }
     return (ip, cli_args);
