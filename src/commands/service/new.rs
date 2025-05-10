@@ -1,6 +1,8 @@
 use std::env;
 use std::sync::Arc;
 
+use log::info;
+
 use crate::{
     commands::{cli_commands::PodArgs, default_global_config, default_local_config},
     config::{types::Config, GlobalConfig, LocalConfig},
@@ -58,7 +60,7 @@ async fn pod_value(
     } else {
         WhPath::from(args.path.clone())
     };
-
+    info!("PATH: {}", path);
     let local_path = path.clone().join(LOCAL_CONFIG_FNAME).inner;
     let mut local_config: LocalConfig =
         LocalConfig::read(&local_path).unwrap_or(default_local_config(&args.name));
@@ -66,9 +68,12 @@ async fn pod_value(
         //REVIEW - changer le nom sans prévenir l'utilisateur ou renvoyer une erreur ? Je pense qu'il serait mieux de renvoyer une erreur
         local_config.general.name = args.name.clone();
     }
+    if local_config.general.address != args.ip {
+        local_config.general.address = args.ip.clone();
+    }
     if let Err(_) = local_config.write(&local_path) {
         return Err(CliError::InvalidConfig { file: local_path });
-    }
+    } 
     let server: Arc<Server> = Arc::new(Server::setup(&local_config.general.address).await);
 
     let global_path = path.clone().join(GLOBAL_CONFIG_FNAME).inner;

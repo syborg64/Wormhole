@@ -53,6 +53,7 @@ pub fn new(ip: &str, args: PodArgs) -> Result<(), Box<dyn std::error::Error>> {
     } else {
         WhPath::from(args.path)
     };
+    log::info!("PATH: {}", path);
     fs::read_dir(&path.inner)?;
     if args.url == None {
         println!("url: {:?}", args.url);

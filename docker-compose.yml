@@ -31,19 +31,22 @@ services:
     container_name: w1
     volumes:
       - ./shared_mnt1:/usr/src/wormhole/virtual:rwx,Z
+    expose:
+      - "8081"  # Accessible par les autres conteneurs via le réseau Docker
     ports:
-      - "8081:8081"
-    command:
-      - "./wormhole-cli template -C virtual/"
-      - "./wormhole-cli new test -C virtual/"
+      - "192.168.1.100:8081:8081"  # Exemple : écoute sur l'IP 192.168.1.100 de l'hôte
+    command: "./wormhole-service 0.0.0.0:8081"
 
   wormhole2:
     <<: *base-service
     container_name: w2
     volumes:
       - ./shared_mnt2:/usr/src/wormhole/virtual:rwx,Z
+    expose:
+      - "8081"  # Accessible par les autres conteneurs via le réseau Docker
     ports:
-      - "8082:8081"
+      - "192.168.1.100:8082:8081"  # Exemple : écoute sur l'IP 192.168.1.100 de l'hôte
+    command: "./wormhole-service 0.0.0.0:8082"
 
 networks:
   wormhole-net:

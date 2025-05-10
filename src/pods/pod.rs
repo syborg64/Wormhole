@@ -149,11 +149,14 @@ impl Pod {
         )
         .await
         {
-            fs::write(
-                mount_point.join(GLOBAL_CONFIG_FNAME).to_string(),
-                global_config_bytes,
-            )
-            .expect("can't write global_config file");
+            if !global_config_bytes.is_empty() {
+                info!("mount point service: {}", mount_point.join(GLOBAL_CONFIG_FNAME).to_string());
+                fs::write(
+                    mount_point.join(GLOBAL_CONFIG_FNAME).to_string(),
+                    global_config_bytes,
+                )
+                .expect("can't write global_config file");
+            }
             // TODO use global_config ?
 
             peers = PeerIPC::peer_startup(peers_addrs, from_network_message_tx.clone()).await;
