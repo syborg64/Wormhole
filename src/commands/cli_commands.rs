@@ -44,7 +44,7 @@ pub struct PodArgs {
     #[arg(long, short = 'C', default_value = ".")]
     pub path: WhPath,
     /// Modify the default ip address of the Pod
-    #[arg(long, short, default_value = "0.0.0.0:8082")]
+    #[arg(long, short, default_value = "127.17.0.1:8081")]
     pub ip: String,
     /// Network url as <address of node to join from> + ':' + <network name>'
     #[arg(long, short)]

@@ -31,23 +31,29 @@ services:
     container_name: w1
     volumes:
       - ./shared_mnt1:/usr/src/wormhole/virtual:rwx,Z
-    expose:
-      - "8081"  # Accessible par les autres conteneurs via le réseau Docker
     ports:
-      - "192.168.1.100:8081:8081"  # Exemple : écoute sur l'IP 192.168.1.100 de l'hôte
-    command: "./wormhole-service 0.0.0.0:8081"
+      - "8081:8081"
+    networks:
+      wormhole-net:
+        ipv4_address: 172.20.0.2
+    command: "./wormhole-service"
 
   wormhole2:
     <<: *base-service
     container_name: w2
     volumes:
       - ./shared_mnt2:/usr/src/wormhole/virtual:rwx,Z
-    expose:
-      - "8081"  # Accessible par les autres conteneurs via le réseau Docker
     ports:
-      - "192.168.1.100:8082:8081"  # Exemple : écoute sur l'IP 192.168.1.100 de l'hôte
-    command: "./wormhole-service 0.0.0.0:8082"
+      - "8082:8081"
+    networks:
+      wormhole-net:
+        ipv4_address: 172.20.0.3
+    command: "./wormhole-service"
 
 networks:
   wormhole-net:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
