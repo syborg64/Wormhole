@@ -5,7 +5,7 @@ use crate::{
 use custom_error::custom_error;
 
 use super::{
-    file_handle::{self, AccessMode, FileHandle, FileHandleManager},
+    file_handle::{AccessMode, FileHandle, FileHandleManager},
     fs_interface::FsInterface,
 };
 
