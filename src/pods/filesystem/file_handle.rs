@@ -12,6 +12,7 @@ use crate::{
     pods::arbo::{InodeId, LOCK_TIMEOUT},
 };
 
+#[derive(Debug)]
 pub enum AccessMode {
     Read,
     Write,
@@ -21,6 +22,7 @@ pub enum AccessMode {
 
 pub type UUID = u64;
 
+#[derive(Debug)]
 pub struct FileHandle {
     pub uuid: u64,
     pub perm: AccessMode,
@@ -28,6 +30,7 @@ pub struct FileHandle {
     pub direct: bool,
 }
 
+#[derive(Debug)]
 pub struct FileHandleManager {
     pub handles: HashMap<InodeId, FileHandle>,
 }

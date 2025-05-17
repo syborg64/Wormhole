@@ -514,7 +514,7 @@ impl Filesystem for FuseController {
         &mut self,
         _req: &Request<'_>,
         ino: u64,
-        _fh: u64,
+        file_handle: u64,
         offset: i64,
         data: &[u8],
         _write_flags: u32,
@@ -526,7 +526,7 @@ impl Filesystem for FuseController {
             .try_into()
             .expect("fuser write: can't convert i64 to u64");
 
-        match self.fs_interface.write(ino, data, offset) {
+        match self.fs_interface.write(ino, data, offset, file_handle) {
             Ok(written) => reply.written(
                 written
                     .try_into()
@@ -538,6 +538,9 @@ impl Filesystem for FuseController {
                     "Local creation error should always be the underling libc::open os error",
                 ))
             }
+            Err(WriteError::BadFd) => reply.error(libc::EBADFD),
+            Err(WriteError::NoFileHandle) => reply.error(libc::EBADFD), // Shouldn't happend
+            Err(WriteError::NoWritePermission) => reply.error(libc::EPERM), // Shouldn't happend, write not call with wrong perms, already stopped
         }
     }
 

@@ -43,9 +43,8 @@ impl FsInterface {
             //TODO: Trunc over the network
         }
 
-        if flags & libc::O_CREAT != 0 {
-            //TODO: Creat
-        }
+        // Nothing to do, the kernel already call make_inode
+        //if flags & libc::O_CREAT != 0 { }
 
         let direct = flags & libc::O_DIRECT != 0;
         let no_atime = flags & libc::O_NOATIME != 0;
