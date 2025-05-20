@@ -18,7 +18,7 @@ custom_error! {pub OpenError
 const FMODE_EXEC: i32 = 0x20;
 
 impl FsInterface {
-    pub fn open(&self, id: InodeId, flags: i32) -> Result<(), OpenError> {
+    pub fn open(&self, id: InodeId, flags: i32) -> Result<u64, OpenError> {
         let perm = match flags & libc::O_ACCMODE {
             libc::O_RDONLY => {
                 //Behavior is undefined, but most filesystems return EACCES
@@ -53,7 +53,7 @@ impl FsInterface {
 
         let mut file_handles = FileHandleManager::write_lock(&self.file_handles, "open")?;
         file_handles.handles.insert(
-            id,
+            uuid,
             FileHandle {
                 uuid,
                 perm,
@@ -61,6 +61,6 @@ impl FsInterface {
                 no_atime,
             },
         );
-        Ok(())
+        Ok(uuid)
     }
 }

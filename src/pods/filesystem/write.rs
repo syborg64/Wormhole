@@ -3,6 +3,7 @@ use crate::{
     pods::arbo::{Arbo, InodeId},
 };
 use custom_error::custom_error;
+use parking_lot::RwLockReadGuard;
 
 use super::{
     file_handle::{AccessMode, FileHandle, FileHandleManager},
@@ -19,11 +20,11 @@ custom_error! {
     BadFd = "The file handle and the inode id doesn't match",
 }
 
-fn check_file_handle(
-    file_handle: Option<&FileHandle>,
+fn check_file_handle<'a>(
+    file_handles: &'a RwLockReadGuard<FileHandleManager>,
     file_handle_id: u64,
-) -> Result<&FileHandle, WriteError> {
-    match file_handle {
+) -> Result<&'a FileHandle, WriteError> {
+    match file_handles.handles.get(&file_handle_id) {
         Some(&FileHandle {
             perm: AccessMode::Read,
             direct: _,
@@ -56,10 +57,16 @@ impl FsInterface {
         file_handle: u64,
     ) -> Result<u64, WriteError> {
         let file_handles = FileHandleManager::read_lock(&self.file_handles, "write")?;
-        let file_handle = check_file_handle(file_handles.handles.get(&id), file_handle);
-        log::error!("=> {:?}, {:?}", file_handles, file_handle);
-        if file_handle.is_err() {
-            return Err(file_handle.err().unwrap());
+        let file_handle_res = check_file_handle(&file_handles, file_handle);
+        log::error!(
+            "=> {:?}, {:?}, {:?}, {:?}",
+            file_handles,
+            file_handle_res,
+            id,
+            file_handle
+        );
+        if file_handle_res.is_err() {
+            return Err(file_handle_res.err().unwrap());
         }
 
         let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface.write")?;

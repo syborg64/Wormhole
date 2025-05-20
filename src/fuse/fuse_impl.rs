@@ -503,7 +503,7 @@ impl Filesystem for FuseController {
 
     fn open(&mut self, _req: &Request<'_>, ino: u64, flags: i32, reply: fuser::ReplyOpen) {
         match self.fs_interface.open(ino, flags) {
-            Ok(()) => reply.opened(ino, flags as u32), // TODO - check flags ?,
+            Ok(file_handle) => reply.opened(file_handle, flags as u32), // TODO - check flags ?,
             Err(OpenError::WhError { source }) => reply.error(source.to_libc()),
             Err(OpenError::MultipleAccessFlags) => reply.error(libc::EINVAL),
             Err(OpenError::TruncReadOnly) => reply.error(libc::EACCES),
