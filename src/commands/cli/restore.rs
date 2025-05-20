@@ -2,12 +2,12 @@ use std::env;
 
 use tokio::runtime::Runtime;
 
-use crate::{commands::cli_commands::{Cli, RestoreConf}, error::CliError, pods::whpath::WhPath};
+use crate::{commands::cli_commands::{Cli, RestoreConf}, error::CliError, pods::{arbo::{GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME}, whpath::WhPath}};
 
 use super::cli_messager;
 
 pub fn restore(ip: &str, mut args: RestoreConf) -> Result<(), Box<dyn std::error::Error>> {
-  let files_name = vec![".local_config.toml", ".global_config.toml"];
+  let files_name = vec![LOCAL_CONFIG_FNAME, GLOBAL_CONFIG_FNAME];
     
     for file in args.files.clone() {
       if !files_name.contains(&file.as_str()) {

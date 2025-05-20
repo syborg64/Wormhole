@@ -1,4 +1,4 @@
-use crate::pods::whpath::WhPath;
+use crate::pods::{arbo::{GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME}, whpath::WhPath};
 use clap::{Args, Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
 
@@ -37,7 +37,7 @@ pub struct RestoreConf {
     #[arg(long, short, default_value = ".")]
     pub path: WhPath,
     /// Names of all configuration files that you want to restore
-    #[arg(long, short, default_values_t = [".local_config.toml".to_string(), ".global_config.toml".to_string()])]
+    #[arg(long, short, default_values_t = [String::from(LOCAL_CONFIG_FNAME), String::from(GLOBAL_CONFIG_FNAME)])]
     pub files: Vec<String>,
 }
 

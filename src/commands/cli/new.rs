@@ -10,11 +10,11 @@ use crate::{
     commands::{
         cli::message::cli_messager,
         cli_commands::{Cli, PodArgs}, default_local_config,
-    }, config::{types::Config, LocalConfig}, error::CliError, pods::whpath::WhPath
+    }, config::{types::Config, LocalConfig}, error::CliError, pods::{arbo::{GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME}, whpath::WhPath}
 };
 
 fn mod_file_conf_content(path: WhPath, name: String, ip: &str) -> Result<(), CliError> {
-    let local_path = path.clone().join(".local_config.toml").inner;
+    let local_path = path.clone().join(LOCAL_CONFIG_FNAME).inner;
     let mut local_config: LocalConfig = LocalConfig::read(&local_path).unwrap_or(default_local_config(&name));
     if local_config.general.name != name {
         //REVIEW - changer le nom sans prévenir l'utilisateur ou renvoyer une erreur ? Je pense qu'il serait mieux de renvoyer une erreur
@@ -58,7 +58,7 @@ pub fn new(ip: &str, mut args: PodArgs) -> Result<(), Box<dyn std::error::Error>
     fs::read_dir(&args.path.inner)?;
     if args.url == None {
         println!("url: {:?}", args.url);
-        let files_name = vec![".local_config.toml", ".global_config.toml"];
+        let files_name = vec![LOCAL_CONFIG_FNAME, GLOBAL_CONFIG_FNAME];
         is_new_wh_file_config(&args.path, files_name)?;
     }
     mod_file_conf_content(args.path.clone(), args.name.clone(), &args.ip)?;
