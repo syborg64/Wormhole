@@ -1,20 +1,26 @@
-use std::fs;
+use std::sync::Arc;
 
-use crate::{commands::cli_commands::RestoreConf, config::{types::Config, LocalConfig}, error::{CliResult, CliSuccess}, pods::{arbo::{Arbo, GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO}, pod::Pod}};
+use crate::{commands::cli_commands::RestoreConf,
+    config::{types::Config, GlobalConfig, LocalConfig},
+    error::{CliError, CliResult, CliSuccess},
+    pods::arbo::{GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME}
+};
 
-pub async fn restore(pod: &Pod, args: RestoreConf) -> CliResult {
-    // for file in args.files.clone() {
-    //     match file.as_str() {
-    //         LOCAL_CONFIG_FNAME => {
-    //             let global_config_path = Arbo::read_lock(&pod.fs_interface, "fs_interface::send_filesystem")?
-    //                                         .get_path_from_inode_id(LOCAL_CONFIG_INO)?.set_relative();
-    //             log::info!("reading Local config at {global_config_path}");
-    //             let global_config_bytes = &pod.disk.read_file_to_end(global_config_path).expect("lmao l'incompétence");
-    //             fs::write(pod.get_mount_point().inner, pod.)
-    //         },
-    //         GLOBAL_CONFIG_FNAME => {},
-    //         _ => Err(ErrorCli()),
-    //     }
-    // }
+pub async fn restore(local_config: Arc<LocalConfig>, global_config: Arc<GlobalConfig>, args: RestoreConf) -> CliResult {
+    for file in args.files.clone() {
+        match file.as_str() {
+            LOCAL_CONFIG_FNAME => {
+                if let Err(e) = local_config.write(args.path.join(LOCAL_CONFIG_FNAME).inner) {
+                    return Err(CliError::BoxError { arg: e });
+                }
+            },
+            GLOBAL_CONFIG_FNAME => {
+                if let Err(e) = global_config.write(args.path.join(GLOBAL_CONFIG_FNAME).inner) {
+                    return Err(CliError::BoxError { arg: e });
+                }
+            },
+            _ => {return Err(CliError::InvalidArgument { arg: file });}
+        }
+    }
     Ok(CliSuccess::Message("bread".to_owned()))
 }

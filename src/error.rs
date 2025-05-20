@@ -34,7 +34,8 @@ custom_error! {pub CliError
     InvalidConfig{file: String} = "Configuration file {file} is missing or invalid",
     InvalidCommand = "Unrecognized command",
     InvalidArgument{arg: String} = "Invalid Argument: {arg} is not recognized",
-    IoError{source: io::Error} = "I/O error: {source}" // Pour les erreurs fs::remove_dir_all, etc.
+    BoxError{arg: Box<dyn std::error::Error>} = "{arg}",
+    IoError{source: io::Error} = "I/O error: {source}", // Pour les erreurs fs::remove_dir_all, etc.
 }
 
 #[derive(Debug)]

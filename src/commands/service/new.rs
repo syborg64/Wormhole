@@ -55,13 +55,12 @@ fn add_hosts(
 async fn pod_value(
     args: &PodArgs,
 ) -> Result<(GlobalConfig, LocalConfig, Arc<Server>, WhPath), CliError> {
-    let path = if args.path == ".".into() {
-        let path = env::current_dir()?;
-        WhPath::from(&path.display().to_string())
-    } else {
-        WhPath::from(args.path.clone())
+    let p = env::current_dir()?;    //FIXME - devrai être dans la cli et pas dans le service
+    let mut path = WhPath::from(&p.display().to_string());
+    if args.path.inner != "." {
+        path = path.join(&args.path.clone());
     };
-    info!("PATH: {}", path);
+    info!("PATH: {}", path.inner);
     let local_path = path.clone().join(LOCAL_CONFIG_FNAME).inner;
     let mut local_config: LocalConfig =
         LocalConfig::read(&local_path).unwrap_or(default_local_config(&args.name));

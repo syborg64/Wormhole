@@ -53,8 +53,8 @@ pub struct Pod {
     network_airport_handle: Option<JoinHandle<()>>,
     peer_broadcast_handle: Option<JoinHandle<()>>,
     new_peer_handle: Option<JoinHandle<()>>,
-    local_config: Arc<LocalConfig>,
-    global_config: Arc<GlobalConfig>,
+    pub local_config: Arc<LocalConfig>,
+    pub global_config: Arc<GlobalConfig>,
 }
 
 pub async fn initiate_connection(
@@ -221,7 +221,6 @@ impl Pod {
         ));
 
         let peers = network_interface.peers.clone();
-    
         Ok(Self {
             name: name.clone(),
             network_interface,

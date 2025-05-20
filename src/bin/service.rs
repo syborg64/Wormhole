@@ -31,6 +31,7 @@ use tokio_tungstenite::{accept_async, WebSocketStream};
 use winfsp::winfsp_init;
 use wormhole::commands::{self, cli_commands::Cli};
 use wormhole::error::{CliError, CliSuccess, WhError, WhResult};
+use wormhole::pods::arbo::{GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME};
 use wormhole::pods::pod::Pod;
 
 type CliTcpWriter =
@@ -86,21 +87,22 @@ async fn handle_cli_command(
                 })
             }
         }
-        Cli::Restore(resotre_args) => {
-            todo!()
-            // let opt_pod = if resotre_args.name == "." {
-            //     pods
-            //         .iter()
-            //         .find(|(_, pod)| pod.get_mount_point() == &resotre_args.path)
-            // } else {
-            //     pods.iter().find(|(n, _)| n == &&resotre_args.name)
-            // };
-            // if let Some((_, pod)) = opt_pod {
-            //     commands::service::restore(pod, resotre_args).await
-            // } else {
-            //     log::error!("Pod at this path doesn't existe");
-            //     Err(CliError::InvalidArgument { arg: resotre_args.path.to_string() })
-            // }
+        Cli::Restore(mut resotre_args) => {
+            let opt_pod = if resotre_args.name == "." {
+                pods
+                    .iter()
+                    .find(|(_, pod)| pod.get_mount_point() == &resotre_args.path)
+                    
+            } else {
+                pods.iter().find(|(n, _)| n == &&resotre_args.name)
+            };
+            if let Some((_, pod)) = opt_pod {
+                resotre_args.path = pod.get_mount_point().clone();
+                commands::service::restore(pod.local_config.clone(), pod.global_config.clone(), resotre_args).await
+            } else {
+                log::error!("Pod at this path doesn't existe {:?}, {:?}", resotre_args.name, resotre_args.path);
+                Err(CliError::InvalidArgument { arg: resotre_args.path.to_string() })
+            }
         },
         _ => Err(CliError::InvalidCommand),
     };
