@@ -9,6 +9,12 @@ use crate::{
     pods::arbo::{ArboIndex, Inode, InodeId, Metadata},
 };
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub enum ServiceMessage {
+    Register(Address),
+    ToPod(String, MessageContent)
+}
+
 /// Message Content
 /// Represent the content of the intern message but is also the struct sent
 /// through the network

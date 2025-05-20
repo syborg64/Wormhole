@@ -11,7 +11,7 @@ use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
 use crate::network::forward::{forward_read_to_sender, forward_receiver_to_write};
 
-use super::message::{Address, FromNetworkMessage, MessageAndStatus};
+use super::message::{Address, MessageAndStatus, ServiceMessage};
 
 #[derive(Debug)]
 pub struct PeerIPC {
@@ -24,7 +24,7 @@ pub struct PeerIPC {
 impl PeerIPC {
     async fn work(
         stream: WebSocketStream<MaybeTlsStream<TcpStream>>,
-        sender: mpsc::UnboundedSender<FromNetworkMessage>,
+        sender: mpsc::UnboundedSender<ServiceMessage>,
         mut receiver: mpsc::UnboundedReceiver<MessageAndStatus>,
         address: Address,
     ) {
@@ -38,7 +38,7 @@ impl PeerIPC {
     async fn work_from_incomming(
         write: SplitSink<WebSocketStream<TcpStream>, Message>,
         read: SplitStream<WebSocketStream<TcpStream>>,
-        sender: mpsc::UnboundedSender<FromNetworkMessage>,
+        sender: mpsc::UnboundedSender<ServiceMessage>,
         mut receiver: mpsc::UnboundedReceiver<MessageAndStatus>,
         address: Address,
     ) {
@@ -49,8 +49,7 @@ impl PeerIPC {
     }
 
     pub fn connect_from_incomming(
-        address: Address,
-        on_recept: UnboundedSender<FromNetworkMessage>,
+        on_recept: UnboundedSender<ServiceMessage>,
         write: SplitSink<WebSocketStream<TcpStream>, Message>,
         read: SplitStream<WebSocketStream<TcpStream>>,
     ) -> Self {
@@ -70,7 +69,7 @@ impl PeerIPC {
 
     pub async fn connect(
         address: Address,
-        nfa_tx: UnboundedSender<FromNetworkMessage>,
+        nfa_tx: UnboundedSender<ServiceMessage>,
     ) -> Option<Self> {
         let (peer_send, peer_recv) = mpsc::unbounded_channel();
 
@@ -92,7 +91,7 @@ impl PeerIPC {
     // start connexions to peers
     pub async fn peer_startup(
         peers_ip_list: Vec<Address>,
-        from_network_message_tx: UnboundedSender<FromNetworkMessage>,
+        from_network_message_tx: UnboundedSender<ServiceMessage>,
     ) -> Vec<PeerIPC> {
         futures_util::future::join_all(
             peers_ip_list
