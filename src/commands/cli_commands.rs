@@ -30,9 +30,15 @@ pub enum Cli {
 #[derive(Debug, clap::Args, Serialize, Deserialize)]
 #[command(version, about, long_about = None)]
 pub struct RestoreConf {
-    /// Names of all files that you want to restore
-    #[arg(long, short, default_value = "")]
-    pub names: Vec<String>,
+    /// Pod name
+    #[arg(long, short, default_value = ".")]
+    pub name: String,
+    /// Path of the pod
+    #[arg(long, short, default_value = ".")]
+    pub path: WhPath,
+    /// Names of all configuration files that you want to restore
+    #[arg(long, short, default_values_t = [".local_config.toml".to_string(), ".global_config.toml".to_string()])]
+    pub files: Vec<String>,
 }
 
 #[derive(Debug, clap::Args, Serialize, Deserialize)]
