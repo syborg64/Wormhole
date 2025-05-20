@@ -2,7 +2,7 @@ use std::env;
 
 use tokio::runtime::Runtime;
 
-use crate::{commands::cli_commands::{Cli, RestoreConf}, error::CliError};
+use crate::{commands::cli_commands::{Cli, RestoreConf}, error::CliError, pods::whpath::WhPath};
 
 use super::cli_messager;
 
@@ -15,9 +15,13 @@ pub fn restore(ip: &str, mut args: RestoreConf) -> Result<(), Box<dyn std::error
       }
     }
     if args.name == "." {
-      let path = env::current_dir()?;
-      args.path.inner = path.display().to_string();
-      args.path.clone().set_absolute();
+      let p = env::current_dir()?;
+      let path = WhPath::from(&p.display().to_string());
+      args.path = if args.path.inner != "." {
+        path.join(&args.path)
+      } else {
+        path
+      }
     }
     let rt = Runtime::new().unwrap();
     rt.block_on(cli_messager(

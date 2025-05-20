@@ -46,27 +46,28 @@ fn is_new_wh_file_config(
 
 
 //FIXME - Error id name of the pod not check (can be already exist)
-pub fn new(ip: &str, args: PodArgs) -> Result<(), Box<dyn std::error::Error>> {
-    let path = if args.path == ".".into() {
-        let path = env::current_dir()?;
-        WhPath::from(&path.display().to_string())
+pub fn new(ip: &str, mut args: PodArgs) -> Result<(), Box<dyn std::error::Error>> {
+    let p = env::current_dir()?;
+    let path = WhPath::from(&p.display().to_string());
+    args.path = if args.path.inner != "." {
+        path.join(&args.path)
     } else {
-        WhPath::from(args.path)
+        path
     };
-    log::info!("PATH: {}", path);
-    fs::read_dir(&path.inner)?;
+    log::info!("PATH: {}", args.path);
+    fs::read_dir(&args.path.inner)?;
     if args.url == None {
         println!("url: {:?}", args.url);
         let files_name = vec![".local_config.toml", ".global_config.toml"];
-        is_new_wh_file_config(&path, files_name)?;
+        is_new_wh_file_config(&args.path, files_name)?;
     }
-    mod_file_conf_content(path.clone(), args.name.clone(), &args.ip)?;
+    mod_file_conf_content(args.path.clone(), args.name.clone(), &args.ip)?;
     let rt = Runtime::new().unwrap();
     rt.block_on(cli_messager(
         ip,
         Cli::New(PodArgs {
             name: args.name,
-            path: path.clone(),
+            path: args.path.clone(),
             url: args.url,
             ip: args.ip,
             additional_hosts: args.additional_hosts,

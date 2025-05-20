@@ -17,7 +17,7 @@ use crate::{
 
 pub async fn new(args: PodArgs) -> Result<Pod, CliError> {
     let (global_config, local_config, server, mount_point) = pod_value(&args).await?;
-    println!("local config: {:?}", local_config);
+    println!("mount_point: {:?}", mount_point);
     Pod::new(
         args.name.clone(),
         global_config,
@@ -55,13 +55,7 @@ fn add_hosts(
 async fn pod_value(
     args: &PodArgs,
 ) -> Result<(GlobalConfig, LocalConfig, Arc<Server>, WhPath), CliError> {
-    let p = env::current_dir()?;    //FIXME - devrai être dans la cli et pas dans le service
-    let mut path = WhPath::from(&p.display().to_string());
-    if args.path.inner != "." {
-        path = path.join(&args.path.clone());
-    };
-    info!("PATH: {}", path.inner);
-    let local_path = path.clone().join(LOCAL_CONFIG_FNAME).inner;
+    let local_path = args.path.clone().join(LOCAL_CONFIG_FNAME).inner;
     let mut local_config: LocalConfig =
         LocalConfig::read(&local_path).unwrap_or(default_local_config(&args.name));
     if local_config.general.name != args.name {
@@ -76,7 +70,7 @@ async fn pod_value(
     } 
     let server: Arc<Server> = Arc::new(Server::setup(&local_config.general.address).await);
 
-    let global_path = path.clone().join(GLOBAL_CONFIG_FNAME).inner;
+    let global_path = args.path.clone().join(GLOBAL_CONFIG_FNAME).inner;
     let global_config: GlobalConfig =
         GlobalConfig::read(global_path).unwrap_or(default_global_config());
     let global_config = add_hosts(
@@ -85,8 +79,5 @@ async fn pod_value(
         args.additional_hosts.clone().unwrap_or(vec![]),
     );
 
-    log::info!("POD VALUE");
-    log::info!("{:?}", global_config);
-    log::info!("{:?}", local_config);
     Ok((global_config, local_config, server, args.path.clone()))
 }
