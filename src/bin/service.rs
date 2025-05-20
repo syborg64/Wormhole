@@ -31,7 +31,6 @@ use tokio_tungstenite::{accept_async, WebSocketStream};
 use winfsp::winfsp_init;
 use wormhole::commands::{self, cli_commands::Cli};
 use wormhole::error::{CliError, CliSuccess, WhError, WhResult};
-use wormhole::pods::arbo::{GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME};
 use wormhole::pods::pod::Pod;
 
 type CliTcpWriter =
@@ -56,7 +55,7 @@ async fn handle_cli_command(
         },
         Cli::Start(pod_args) => commands::service::start(pod_args).await,
         Cli::Stop(pod_args) => {
-            if let Some(pod) = pod_args.name.and_then(|name| pods.remove(&name)) {
+            if let Some(pod) = pods.remove(&pod_args.name) {
                 commands::service::stop(pod).await
             } else {
                 log::warn!("(TODO) Stopping a pod by path is not yet implemented");

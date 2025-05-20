@@ -34,7 +34,7 @@ pub struct RestoreConf {
     #[arg(long, short, default_value = ".")]
     pub name: String,
     /// Path of the pod
-    #[arg(long, short, default_value = ".")]
+    #[arg(long, short = 'C', default_value = ".")]
     pub path: WhPath,
     /// Names of all configuration files that you want to restore
     #[arg(long, short, default_values_t = [String::from(LOCAL_CONFIG_FNAME), String::from(GLOBAL_CONFIG_FNAME)])]
@@ -64,11 +64,11 @@ pub struct PodArgs {
 #[command(version, about, long_about = None)]
 pub struct StatusPodArgs {
     /// Name of the pod for updating status pod. If the name equal 'None' the name will be read from the current directory
-    #[arg(long, short)]
-    pub name: Option<String>,
+    #[arg(long, short, default_value = ".")]
+    pub name: String,
     /// Path is used uniquely if the pod name is 'None'
-    #[arg(long, short)]
-    pub path: Option<WhPath>,
+    #[arg(long, short = 'C', default_value = ".")]
+    pub path: WhPath,
 }
 
 #[derive(Debug, clap::Args, Serialize, Deserialize)]

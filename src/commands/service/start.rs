@@ -4,6 +4,6 @@ use crate::{
 };
 
 pub async fn start(start_args: StatusPodArgs) -> CliResult {
-    let name = start_args.name.clone().unwrap_or("default".to_string());
+    let name = start_args.name.clone();
     Ok(CliSuccess::WithData { message: String::from("Pod start: "), data: name })
 }

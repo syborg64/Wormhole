@@ -13,9 +13,14 @@ use crate::{
 use super::cli_messager;
 
 pub fn start(ip: &str, mut start_args: StatusPodArgs) -> Result<(), Box<dyn std::error::Error>> {
-    if start_args.name == None && start_args.path == None {
-        let path = env::current_dir()?;
-        start_args.path = Some(WhPath::from(&path.display().to_string()));
+    if start_args.name == "." {
+        let p = env::current_dir()?;
+        let path = WhPath::from(&p.display().to_string());
+        start_args.path = if start_args.path.inner != "." {
+            path.join(&start_args.path)
+        } else {
+            path
+        }
     }
 
     let rt = Runtime::new().unwrap();
