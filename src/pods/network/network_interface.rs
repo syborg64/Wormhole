@@ -604,7 +604,16 @@ impl NetworkInterface {
         });
 
         if let Some(peers) = self.peers.try_read_for(LOCK_TIMEOUT) {
-            let peers_address_list = peers.iter().map(|peer| peer.address.clone()).collect();
+            let peers_address_list = peers
+                .iter()
+                .filter_map(|peer| {
+                    if peer.address != to {
+                        Some(peer.address.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
 
             self.to_network_message_tx
                 .send(ToNetworkMessage::SpecificMessage(
@@ -770,6 +779,7 @@ impl NetworkInterface {
         existing_peers: Arc<RwLock<Vec<PeerIPC>>>,
     ) {
         while let Ok((stream, addr)) = server.listener.accept().await {
+            log::debug!("GOT ADDRESS {addr}");
             let ws_stream = tokio_tungstenite::accept_async(stream)
                 .await
                 .expect("Error during the websocket handshake occurred");
