@@ -26,7 +26,7 @@ impl FsInterface {
         kind: SimpleFileType,
     ) -> Result<Inode, MakeInode> {
         let new_entry = match kind {
-            SimpleFileType::File => FsEntry::File(vec![self.network_interface.self_addr.clone()]),
+            SimpleFileType::File => FsEntry::File(vec![self.network_interface.local_config.general.address.clone()]),
             SimpleFileType::Directory => FsEntry::Directory(Vec::new()),
         };
 

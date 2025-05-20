@@ -4,7 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::{error::{WhError, WhResult}, network::message::MessageAndStatus};
+use crate::{config::{GlobalConfig, LocalConfig}, error::{WhError, WhResult}, network::message::MessageAndStatus};
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::{
     broadcast,
@@ -132,8 +132,8 @@ pub struct NetworkInterface {
     pub next_inode: Mutex<InodeId>, // TODO - replace with InodeIndex type
     pub callbacks: Callbacks,
     pub peers: Arc<RwLock<Vec<PeerIPC>>>,
-    pub self_addr: Address,
-    pub redundancy: u64,
+    pub local_config: Arc<LocalConfig>,
+    pub global_config: Arc<GlobalConfig>,
 }
 
 impl NetworkInterface {
@@ -143,8 +143,8 @@ impl NetworkInterface {
         to_network_message_tx: UnboundedSender<ToNetworkMessage>,
         next_inode: InodeId,
         peers: Arc<RwLock<Vec<PeerIPC>>>,
-        self_addr: Address,
-        redundancy: u64,
+        local_config: Arc<LocalConfig>,
+        global_config: Arc<GlobalConfig>,
     ) -> Self {
         let next_inode = Mutex::new(next_inode);
 
@@ -157,8 +157,8 @@ impl NetworkInterface {
                 callbacks: HashMap::new().into(),
             },
             peers,
-            self_addr,
-            redundancy,
+            local_config,
+            global_config,
         }
     }
 
@@ -319,7 +319,7 @@ impl NetworkInterface {
             return Err(io::ErrorKind::InvalidData.into());
         }
 
-        if hosts.contains(&self.self_addr) {
+        if hosts.contains(&self.local_config.general.address) {
             // if the asked file is already on disk
             Ok(None)
         } else {
@@ -332,7 +332,7 @@ impl NetworkInterface {
                 self.to_network_message_tx
                     .send(ToNetworkMessage::SpecificMessage(
                         (
-                            MessageContent::RequestFile(file, self.self_addr.clone()),
+                            MessageContent::RequestFile(file, self.local_config.general.address.clone()),
                             Some(status_tx.clone()),
                         ),
                         vec![host.clone()], // NOTE - naive choice for now
@@ -374,7 +374,7 @@ impl NetworkInterface {
             return Err(io::ErrorKind::InvalidData.into());
         }
 
-        if hosts.contains(&self.self_addr) {
+        if hosts.contains(&self.local_config.general.address) {
             // if the asked file is already on disk
             Ok(None)
         } else {
@@ -387,7 +387,7 @@ impl NetworkInterface {
                 self.to_network_message_tx
                     .send(ToNetworkMessage::SpecificMessage(
                         (
-                            MessageContent::RequestFile(file, self.self_addr.clone()),
+                            MessageContent::RequestFile(file, self.local_config.general.address.clone()),
                             Some(status_tx.clone()),
                         ),
                         vec![host.clone()], // NOTE - naive choice for now
@@ -422,7 +422,7 @@ impl NetworkInterface {
     pub fn revoke_remote_hosts(&self, id: InodeId) -> WhResult<()> {
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::EditHosts(id, vec![self.self_addr.clone()]),
+                MessageContent::EditHosts(id, vec![self.local_config.general.address.clone()]),
             ))
             .expect("revoke_remote_hosts: unable to update modification on the network thread");
         self.apply_redundancy(id)
@@ -455,7 +455,7 @@ impl NetworkInterface {
 
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::EditMetadata(id, meta, self.self_addr.clone()),
+                MessageContent::EditMetadata(id, meta, self.local_config.general.address.clone()),
             ))
             .expect("update_metadata: unable to update modification on the network thread");
         Ok(())
@@ -474,7 +474,7 @@ impl NetworkInterface {
 
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::EditMetadata(id, meta, self.self_addr.clone()),
+                MessageContent::EditMetadata(id, meta, self.local_config.general.address.clone()),
             ))
             .expect("update_metadata: unable to update modification on the network thread");
         Ok(())
@@ -499,10 +499,10 @@ impl NetworkInterface {
             .iter()
             .map(|peer| peer.address.clone())
             .filter(|addr| !current_hosts.contains(addr))
-            .take(self.redundancy as usize - current_hosts.len())
+            .take(self.global_config.redundancy.number as usize - current_hosts.len())
             .collect::<Vec<Address>>();
 
-        if (current_hosts.len() + possible_hosts.len()) < self.redundancy as usize {
+        if (current_hosts.len() + possible_hosts.len()) < self.global_config.redundancy.number as usize {
             log::warn!("redundancy needs enough hosts");
             return Ok(()); // TODO - should be handled (is not ok)
         }
@@ -520,8 +520,8 @@ impl NetworkInterface {
         let hosts_nb = current_hosts.len();
         let discard_hosts: Vec<String> = current_hosts
             .into_iter()
-            .filter(|addr| *addr != self.self_addr)
-            .take(hosts_nb - self.redundancy as usize)
+            .filter(|addr| *addr != self.local_config.general.address)
+            .take(hosts_nb - self.global_config.redundancy.number as usize)
             .collect();
 
         // NOTE - removing hosts also remove their file on disk upon reception
@@ -543,9 +543,9 @@ impl NetworkInterface {
             }
         };
 
-        if current_hosts.len() < self.redundancy as usize {
+        if current_hosts.len() < self.global_config.redundancy.number as usize {
             self.add_redundancy(file_id, current_hosts)?
-        } else if current_hosts.len() > self.redundancy as usize {
+        } else if current_hosts.len() > self.global_config.redundancy.number as usize {
             self.remove_redundancy(file_id, current_hosts)
         }
         Ok(())
@@ -558,7 +558,7 @@ impl NetworkInterface {
     pub fn register_to_others(&self) {
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::Register(self.self_addr.clone()),
+                MessageContent::Register(self.local_config.general.address.clone()),
             ))
             .expect("register_to_others: unable to update modification on the network thread");
     }

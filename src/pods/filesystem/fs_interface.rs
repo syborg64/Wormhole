@@ -185,7 +185,7 @@ impl FsInterface {
         };
 
         match inode.entry {
-            FsEntry::File(hosts) if hosts.contains(&self.network_interface.self_addr) => self
+            FsEntry::File(hosts) if hosts.contains(&self.network_interface.local_config.general.address) => self
                 .disk
                 .new_file(new_path, inode.meta.perm)
                 .map(|_| ())
@@ -227,7 +227,7 @@ impl FsInterface {
         let mut hosts;
         if let FsEntry::File(hosts_source) = &inode.entry {
             hosts = hosts_source.clone();
-            let self_addr = self.network_interface.self_addr.clone();
+            let self_addr = self.network_interface.local_config.general.address.clone();
             let idx = hosts.partition_point(|x| x <= &self_addr);
             hosts.insert(idx, self_addr);
         } else {
@@ -240,7 +240,7 @@ impl FsInterface {
     }
 
     pub fn recept_edit_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
-        if !hosts.contains(&self.network_interface.self_addr) {
+        if !hosts.contains(&self.network_interface.local_config.general.address) {
             if let Err(e) = self.disk.remove_file(
                 Arbo::read_lock(&self.arbo, "recept_edit_hosts")?.get_path_from_inode_id(id)?,
             ) {
@@ -255,7 +255,7 @@ impl FsInterface {
     }
 
     pub fn recept_remove_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
-        if hosts.contains(&self.network_interface.self_addr) {
+        if hosts.contains(&self.network_interface.local_config.general.address) {
             if let Err(e) = self.disk.remove_file(
                 Arbo::read_lock(&self.arbo, "recept_remove_hosts")?.get_path_from_inode_id(id)?,
             ) {

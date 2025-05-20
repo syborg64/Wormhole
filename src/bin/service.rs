@@ -87,20 +87,20 @@ async fn handle_cli_command(
             }
         }
         Cli::Restore(resotre_args) => {
-            
-            let opt_pod = if resotre_args.name == "." {
-                pods
-                    .iter()
-                    .find(|(_, pod)| pod.get_mount_point() == &resotre_args.path)
-            } else {
-                pods.iter().find(|(n, _)| n == &&resotre_args.name)
-            };
-            if let Some((_, pod)) = opt_pod {
-                commands::service::restore(pod, resotre_args).await
-            } else {
-                log::error!("Pod at this path doesn't existe");
-                Err(CliError::InvalidArgument { arg: resotre_args.path.to_string() })
-            }
+            todo!()
+            // let opt_pod = if resotre_args.name == "." {
+            //     pods
+            //         .iter()
+            //         .find(|(_, pod)| pod.get_mount_point() == &resotre_args.path)
+            // } else {
+            //     pods.iter().find(|(n, _)| n == &&resotre_args.name)
+            // };
+            // if let Some((_, pod)) = opt_pod {
+            //     commands::service::restore(pod, resotre_args).await
+            // } else {
+            //     log::error!("Pod at this path doesn't existe");
+            //     Err(CliError::InvalidArgument { arg: resotre_args.path.to_string() })
+            // }
         },
         _ => Err(CliError::InvalidCommand),
     };

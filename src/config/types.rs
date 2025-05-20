@@ -47,7 +47,7 @@ pub struct GlobalConfig {
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct GeneralGlobalConfig {
     pub peers: Vec<String>,
-    pub ignore_paths: Vec<String>,
+    pub ignore_paths: Vec<String>,  //FIXME - What is this ???
     pub pods_names: Vec<String>,
 }
 

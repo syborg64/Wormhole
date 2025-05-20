@@ -21,6 +21,7 @@ pub async fn new(args: PodArgs) -> Result<Pod, CliError> {
     Pod::new(
         args.name.clone(),
         global_config,
+        local_config.clone(),
         mount_point,
         server.clone(),
         local_config.clone().general.address,

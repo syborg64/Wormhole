@@ -53,7 +53,7 @@ impl FsInterface {
         let to_remove_path = arbo.n_get_path_from_inode_id(id)?;
 
         match &arbo.n_get_inode(id)?.entry {
-            FsEntry::File(hosts) if hosts.contains(&self.network_interface.self_addr) => self
+            FsEntry::File(hosts) if hosts.contains(&self.network_interface.local_config.general.address) => self
                 .disk
                 .remove_file(to_remove_path)
                 .map_err(|io| RemoveFile::LocalDeletionFailed { io })?,
