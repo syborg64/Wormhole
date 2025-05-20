@@ -29,10 +29,8 @@ fn mod_file_conf_content(path: WhPath, name: String, ip: &str) -> Result<(), Cli
     Ok(())
 }
 
-fn is_new_wh_file_config(
-    path: &WhPath,
-    files_name: Vec<&str>,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn is_new_wh_file_config(path: &WhPath) -> Result<(), Box<dyn std::error::Error>> {
+    let files_name = vec![LOCAL_CONFIG_FNAME, GLOBAL_CONFIG_FNAME];
     for file_name in files_name {
         if fs::metadata(path.clone().push(file_name).inner.clone()).is_err() {
             return Err(Box::new(std::io::Error::new(
@@ -54,12 +52,9 @@ pub fn new(ip: &str, mut args: PodArgs) -> Result<(), Box<dyn std::error::Error>
     } else {
         path
     };
-    log::info!("PATH: {}", args.path);
     fs::read_dir(&args.path.inner)?;
     if args.url == None {
-        println!("url: {:?}", args.url);
-        let files_name = vec![LOCAL_CONFIG_FNAME, GLOBAL_CONFIG_FNAME];
-        is_new_wh_file_config(&args.path, files_name)?;
+        is_new_wh_file_config(&args.path)?;
     }
     mod_file_conf_content(args.path.clone(), args.name.clone(), &args.ip)?;
     let rt = Runtime::new().unwrap();

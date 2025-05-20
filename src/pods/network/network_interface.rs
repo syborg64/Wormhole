@@ -4,7 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::{config::{GlobalConfig, LocalConfig}, error::{WhError, WhResult}, network::message::MessageAndStatus};
+use crate::{config::{GlobalConfig, LocalConfig}, error::{WhError, WhResult}, network::message::MessageAndStatus, pods::arbo::LOCAL_CONFIG_INO};
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::{
     broadcast,
@@ -410,6 +410,10 @@ impl NetworkInterface {
     }
 
     pub fn send_file(&self, inode: InodeId, data: Vec<u8>, to: Address) -> io::Result<()> {
+        if inode == LOCAL_CONFIG_INO {
+            log::info!("SEND: We don't have redundancy for the local configuration");
+            return Ok(());
+        }
         self.to_network_message_tx
             .send(ToNetworkMessage::SpecificMessage(
                 (MessageContent::PullAnswer(inode, data), None),
@@ -420,6 +424,10 @@ impl NetworkInterface {
     }
 
     pub fn revoke_remote_hosts(&self, id: InodeId) -> WhResult<()> {
+        if id == LOCAL_CONFIG_INO {
+            log::info!("REVOKE: We don't have redundancy for the local configuration");
+            return Ok(());
+        }
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
                 MessageContent::EditHosts(id, vec![self.local_config.general.address.clone()]),
@@ -429,6 +437,10 @@ impl NetworkInterface {
     }
 
     pub fn update_remote_hosts(&self, inode: &Inode) -> io::Result<()> {
+        if inode.id == LOCAL_CONFIG_INO {
+            log::info!("UPDATE: We don't have redundancy for the local configuration");
+            return Ok(());
+        }
         if let FsEntry::File(hosts) = &inode.entry {
             self.to_network_message_tx
                 .send(ToNetworkMessage::BroadcastMessage(
@@ -490,6 +502,10 @@ impl NetworkInterface {
     // SECTION Redundancy related
 
     fn add_redundancy(&self, file_id: InodeId, current_hosts: Vec<Address>) -> WhResult<()> {
+        if file_id == LOCAL_CONFIG_INO {
+            log::info!("ADD: We don't have redundancy for the local configuration");
+            return Ok(());
+        }
         let possible_hosts: Vec<Address> = self
             .peers
             .try_read_for(LOCK_TIMEOUT)
@@ -517,6 +533,10 @@ impl NetworkInterface {
     }
 
     fn remove_redundancy(&self, file_id: InodeId, current_hosts: Vec<Address>) {
+        if file_id == LOCAL_CONFIG_INO {
+            log::info!("REMOVE: We don't have redundancy for the local configuration");
+            return;
+        }
         let hosts_nb = current_hosts.len();
         let discard_hosts: Vec<String> = current_hosts
             .into_iter()
@@ -533,6 +553,10 @@ impl NetworkInterface {
     }
 
     pub fn apply_redundancy(&self, file_id: InodeId) -> WhResult<()> {
+        if file_id == LOCAL_CONFIG_INO {
+            log::info!("APPLY: We don't have redundancy for the local configuration");
+            return Ok(());
+        }
         let current_hosts: Vec<String> = {
             let arbo = Arbo::n_read_lock(&self.arbo, "apply_redundancy")?;
 
