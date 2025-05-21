@@ -35,7 +35,7 @@ impl Into<SimpleFileType> for &FsEntry {
 }
 
 /// Provides functions to allow primitive handlers like Fuse & WinFSP to
-/// interract with wormhole.
+/// interract with wormhole
 impl FsInterface {
     pub fn new(
         network_interface: Arc<NetworkInterface>,
