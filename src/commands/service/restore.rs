@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{fs::File, path::Path, sync::Arc};
 
 use crate::{commands::cli_commands::RestoreConf,
     config::{types::Config, GlobalConfig, LocalConfig},
@@ -10,12 +10,20 @@ pub async fn restore(local_config: Arc<LocalConfig>, global_config: Arc<GlobalCo
     for file in args.files.clone() {
         match file.as_str() {
             LOCAL_CONFIG_FNAME => {
-                if let Err(e) = local_config.write(args.path.join(LOCAL_CONFIG_FNAME).inner) {
+                let path = args.path.join(LOCAL_CONFIG_FNAME).inner;
+                if !Path::new(&path).exists() {
+                    File::create(path.clone())?;
+                }
+                if let Err(e) = local_config.write(path) {
                     return Err(CliError::BoxError { arg: e });
                 }
             },
             GLOBAL_CONFIG_FNAME => {
-                if let Err(e) = global_config.write(args.path.join(GLOBAL_CONFIG_FNAME).inner) {
+                let path = args.path.join(GLOBAL_CONFIG_FNAME).inner;
+                if !Path::new(&path).exists() {
+                    File::create(path.clone())?;
+                }
+                if let Err(e) = global_config.write(path) {
                     return Err(CliError::BoxError { arg: e });
                 }
             },
