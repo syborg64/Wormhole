@@ -536,6 +536,16 @@ impl Arbo {
         Ok(())
     }
 
+    pub fn n_set_inode_hosts(&mut self, ino: InodeId, hosts: Vec<Address>) -> WhResult<()> {
+        let inode = self.n_get_inode_mut(ino)?;
+
+        inode.entry = match &inode.entry {
+            FsEntry::File(_) => FsEntry::File(hosts),
+            _ => panic!("Can't edit hosts on folder"),
+        };
+        Ok(())
+    }
+
     /// Add hosts to an inode
     ///
     /// Only works on inodes pointing files (no folders)

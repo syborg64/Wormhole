@@ -304,6 +304,17 @@ impl NetworkInterface {
         arbo.set_inode_meta(id, meta) // TODO - if unable to update for some reason, should be passed to the background worker
     }
 
+    pub fn n_acknowledge_metadata(
+        &self,
+        id: InodeId,
+        meta: Metadata,
+        host: Address,
+    ) -> WhResult<()> {
+        let mut arbo = Arbo::n_write_lock(&self.arbo, "acknowledge_metadata")?;
+        arbo.n_set_inode_hosts(id, vec![host])?;
+        arbo.n_set_inode_meta(id, meta) // TODO - if unable to update for some reason, should be passed to the background worker
+    }
+
     // REVIEW - recheck and simplify this if possible
     pub async fn pull_file_async(&self, file: InodeId) -> io::Result<Option<Callback>> {
         let hosts = {
@@ -423,10 +434,10 @@ impl NetworkInterface {
         Ok(())
     }
 
-    pub fn revoke_remote_hosts(&self, id: InodeId) -> WhResult<()> {
+    pub fn revoke_remote_hosts(&self, id: InodeId, meta: Metadata) -> WhResult<()> {
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::EditHosts(id, vec![self.self_addr.clone()]),
+                MessageContent::RevokeFile(id, self.self_addr.clone(), meta),
             ))
             .expect("revoke_remote_hosts: unable to update modification on the network thread");
         self.apply_redundancy(id)
@@ -481,23 +492,6 @@ impl NetworkInterface {
                 MessageContent::EditMetadata(id, meta, self.self_addr.clone()),
             ))
             .expect("update_metadata: unable to update modification on the network thread");
-        Ok(())
-        /* REVIEW
-         * This system (and others broadcasts systems) should be reviewed as they don't check success.
-         * In this case, if another host misses this order, it will not update it's file.
-         * We could create a "broadcast" callback with the number of awaited confirmations and a timeout
-         * before resend or fail declaration.
-         * Or send a bunch of Specific messages
-         */
-    }
-
-    pub fn update_file_size_locally(&self, id: InodeId, new_size: u64) -> WhResult<()> {
-        let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface::update_size")?;
-        // let inode = arbo.set_inode_size(id, new_size)?;
-
-        // if newsize > inode.meta.size {
-        //     inode.meta.size = newsize;
-        // }
         Ok(())
         /* REVIEW
          * This system (and others broadcasts systems) should be reviewed as they don't check success.
@@ -672,6 +666,12 @@ impl NetworkInterface {
                         ))
                     }),
                 MessageContent::EditHosts(id, hosts) => fs_interface.recept_edit_hosts(id, hosts),
+                MessageContent::RevokeFile(id, host, meta) => fs_interface.recept_revoke_hosts(id, host, meta).or_else(|err| {
+                        Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            format!("WhError: {err}"),
+                        ))
+                    }),
                 MessageContent::AddHosts(id, hosts) => fs_interface.recept_add_hosts(id, hosts),
                 MessageContent::RemoveHosts(id, hosts) => {
                     fs_interface.recept_remove_hosts(id, hosts)

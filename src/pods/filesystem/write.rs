@@ -68,27 +68,34 @@ impl FsInterface {
         if file_handle_res.is_err() {
             return Err(file_handle_res.err().unwrap());
         }
+        log::debug!("1");
 
         let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface.write")?;
+        log::debug!("2");
         let path = arbo.n_get_path_from_inode_id(id)?;
-        self.network_interface
-            .update_file_size_locally(id, offset + data.len() as u64)?;
+        log::debug!("4");
 
         let mut meta = arbo.n_get_inode(id)?.meta.clone();
+        log::debug!("5");
         drop(arbo);
 
+        log::debug!("6");
         let newsize = offset + data.len() as u64;
+        log::debug!("7");
         if newsize > meta.size {
+            log::debug!("7.5");
             meta.size = newsize;
-            self.network_interface.n_update_metadata(id, meta)?;
         }
+        log::debug!("8");
 
         let written = self
             .disk
             .write_file(path, data, offset)
             .map_err(|io| WriteError::LocalWriteFailed { io })?;
+        log::debug!("9");
 
-        self.network_interface.revoke_remote_hosts(id)?;
+        self.network_interface.revoke_remote_hosts(id, meta)?;
+        log::debug!("10");
         Ok(written)
     }
 }

@@ -1,3 +1,4 @@
+use crate::error::WhResult;
 use crate::network::message::Address;
 use crate::pods::arbo::{Arbo, FsEntry, Inode, InodeId, Metadata};
 use crate::pods::disk_manager::DiskManager;
@@ -250,6 +251,18 @@ impl FsInterface {
             }
         }
         self.network_interface.acknowledge_hosts_edition(id, hosts)
+    }
+
+    pub fn recept_revoke_hosts(&self, id: InodeId, host: Address, meta: Metadata) -> WhResult<()> {
+        if host != self.network_interface.self_addr {
+            if let Err(e) = self.disk.remove_file(
+                Arbo::n_read_lock(&self.arbo, "recept_edit_hosts")?.n_get_path_from_inode_id(id)?,
+            ) {
+                log::debug!("recept_edit_hosts: can't delete file. {}", e);
+            }
+        }
+        self.network_interface
+            .n_acknowledge_metadata(id, meta, host)
     }
 
     pub fn recept_add_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
