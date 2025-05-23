@@ -219,7 +219,6 @@ impl Pod {
         // Start ability to recieve messages
         let network_airport_handle = tokio::spawn(NetworkInterface::network_airport(
             from_network_message_rx,
-            to_redundancy_tx,
             fs_interface.clone(),
         ));
 

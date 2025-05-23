@@ -304,21 +304,19 @@ impl FsInterface {
         self.network_interface.send_file(inode, data, to)
     }
 
-    pub async fn send_file_redundancy(
+    pub fn read_local_file(
         &self,
         inode: InodeId,
-        to: Address,
-        job_id: u64,
-    ) -> WhResult<()> {
+    ) -> WhResult<Vec<u8>> {
         let path = Arbo::n_read_lock(&self.arbo, "send_arbo")?
             .get_path_from_inode_id(inode)
             .map_err(|_| crate::error::WhError::InodeNotFound)?;
-        let data = self
+        self
             .disk
             .read_file(path, 0, u64::max_value())
-            .map_err(|_| crate::error::WhError::InodeNotFound)?;
-        self.network_interface
-            .send_file_redundancy(inode, data, to, job_id)
-            .await
+            .map_err(|_| crate::error::WhError::InodeNotFound)
+        // self.network_interface
+        //     .send_file_redundancy(inode, data, to)
+        //     .await
     }
 }

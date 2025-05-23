@@ -436,13 +436,12 @@ impl NetworkInterface {
         inode: InodeId,
         data: Vec<u8>,
         to: Address,
-        job_id: u64,
     ) -> WhResult<()> {
         let (status_tx, mut status_rx) = unbounded_channel();
         self.to_network_message_tx
             .send(ToNetworkMessage::SpecificMessage(
                 (
-                    MessageContent::RedundancyFile(inode, job_id, data),
+                    MessageContent::RedundancyFile(inode, data),
                     Some(status_tx),
                 ),
                 vec![to],
@@ -688,7 +687,6 @@ impl NetworkInterface {
 
     pub async fn network_airport(
         mut network_reception: UnboundedReceiver<FromNetworkMessage>,
-        to_redundancy_tx: UnboundedSender<RedundancyMessage>,
         fs_interface: Arc<FsInterface>,
     ) {
         loop {
@@ -700,7 +698,7 @@ impl NetworkInterface {
 
             let action_result = match content.clone() { // remove scary clone
                 MessageContent::PullAnswer(id, binary) => fs_interface.recept_binary(id, binary),
-                MessageContent::RedundancyFile(id, job_id, binary) => fs_interface.recept_binary(id, binary),
+                MessageContent::RedundancyFile(id, binary) => fs_interface.recept_binary(id, binary),
                 MessageContent::Inode(inode) => fs_interface.recept_inode(inode).or_else(|err| {
                         Err(std::io::Error::new(
                             std::io::ErrorKind::Other,
