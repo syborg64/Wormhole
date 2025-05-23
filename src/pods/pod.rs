@@ -56,6 +56,19 @@ pub struct Pod {
     new_peer_handle: Option<JoinHandle<()>>,
 }
 
+custom_error! {pub PodInfoError
+    WhError{source: WhError} = "{source}",
+    WrongFileType{detail: String} = @{format!("PodInfoError: wrong file type: {detail}")},
+    FileNotFound = @{format!("PodInfoError: file not found")},
+}
+
+pub enum PodInfoRequest {
+    FileHosts(WhPath),
+}
+pub enum PodInfoAnswer {
+    FileHosts(Vec<Address>),
+}
+
 pub async fn initiate_connection(
     peers_addrs: Vec<Address>,
     server_address: Address,
@@ -169,9 +182,14 @@ impl Pod {
                 }
             }
             next_inode += 1;
-            
+
             if let Err(_) = arbo.get_inode(LOCAL_CONFIG_INO) {
-                let _ = arbo.add_inode_from_parameters(LOCAL_CONFIG_FNAME.to_string(), LOCAL_CONFIG_INO, ROOT, FsEntry::File(vec![server_address.clone()]));
+                let _ = arbo.add_inode_from_parameters(
+                    LOCAL_CONFIG_FNAME.to_string(),
+                    LOCAL_CONFIG_INO,
+                    ROOT,
+                    FsEntry::File(vec![server_address.clone()]),
+                );
             }
         }
 
@@ -230,6 +248,26 @@ impl Pod {
             peer_broadcast_handle,
             new_peer_handle,
         })
+    }
+
+    /// Get info from the pod (intended for the cli)
+    pub fn get_info(&self, request: PodInfoRequest) -> Result<PodInfoAnswer, PodInfoError> {
+        match request {
+            PodInfoRequest::FileHosts(path) => {
+                let entry = Arbo::n_read_lock(&self.network_interface.arbo, "Pod::get_info")?
+                    .get_inode_from_path(&path)
+                    .map_err(|_| PodInfoError::FileNotFound)?
+                    .entry
+                    .clone();
+
+                match entry {
+                    FsEntry::File(hosts) => Ok(PodInfoAnswer::FileHosts(hosts)),
+                    FsEntry::Directory(_) => Err(PodInfoError::WrongFileType {
+                        detail: "Asked path is a directory (directories have no hosts)".to_owned(),
+                    }),
+                }
+            }
+        }
     }
 
     /// for a given file, will try to send it to one host, trying each until succes

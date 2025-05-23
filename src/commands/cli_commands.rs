@@ -28,6 +28,8 @@ pub enum Cli {
     New(PodArgs),
     /// Inspect a pod with its configuration, connections, etc
     Inspect,
+    /// Get hosts for a specific file
+    GetHosts(GetHostsArgs),
     /// Remove a pod from its network
     Remove(RemoveArgs),
     /// Reload a pod
@@ -45,6 +47,15 @@ pub struct RestoreConf {
     /// Names of all files that you want to restore
     #[arg(long, short, default_value = "")]
     pub names: Vec<String>,
+}
+
+#[derive(Debug, clap::Args, Serialize, Deserialize)]
+#[command(version, about, long_about = None)]
+pub struct GetHostsArgs {
+    /// Name of the pod
+    pub name: String,
+    /// File path from the root of the wh folder
+    pub path: WhPath,
 }
 
 #[derive(Debug, clap::Args, Serialize, Deserialize)]

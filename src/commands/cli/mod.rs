@@ -7,6 +7,7 @@ mod start;
 mod stop;
 mod templates;
 mod restore;
+mod get_hosts;
 
 pub use restore::restore;
 pub use message::cli_messager;
@@ -17,3 +18,4 @@ pub use remove::remove;
 pub use start::start;
 pub use stop::stop;
 pub use templates::templates;
+pub use get_hosts::get_hosts;

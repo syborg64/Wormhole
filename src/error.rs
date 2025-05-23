@@ -1,7 +1,7 @@
 use custom_error::custom_error;
 use std::{collections::HashMap, fmt, io};
 
-use crate::pods::pod::{Pod, PodStopError};
+use crate::pods::pod::{Pod, PodInfoError, PodStopError};
 
 custom_error! {pub WhError
     InodeNotFound = "Entry not found",
@@ -26,6 +26,8 @@ impl WhError {
 pub type WhResult<T> = Result<T, WhError>;
 
 custom_error! {pub CliError
+    PodNotFound = "Pod not found",
+    PodInfoError{source: PodInfoError} = "{source}",
     PodStopError{source: PodStopError} = "{source}",
     WhError{source: WhError} = "{source}",
     PodCreationFailed{reason: io::Error} = "Pod creation failed: {reason}",

@@ -35,7 +35,7 @@ use wormhole::commands::PodCommand;
 use wormhole::commands::{self, cli_commands::Cli};
 use wormhole::error::{CliError, CliResult, CliSuccess, WhError, WhResult};
 use wormhole::network::ip::IpP;
-use wormhole::pods::pod::{Pod, PodStopError};
+use wormhole::pods::pod::{Pod, PodInfoAnswer, PodInfoError, PodInfoRequest, PodStopError};
 
 /*
 async fn response_to_cli(wrtier: SplitSink<WebSocketStream<TcpStream>, Message>,response_cmd: CliResult) {
@@ -135,6 +135,23 @@ async fn handle_cli_command(
                 })
             }
         }
+        Cli::GetHosts(args) => {
+            if let Some(pod) = pods.get(&args.name) {
+                match pod.get_info(PodInfoRequest::FileHosts(args.path)) {
+                    Ok(PodInfoAnswer::FileHosts(hosts)) => Ok(CliSuccess::WithData {
+                        message: "Hosts:".to_owned(),
+                        data: format!("{:?}", hosts),
+                    }),
+                    Err(error) => Err(CliError::PodInfoError { source: error }),
+                    _ => Ok(CliSuccess::Message(
+                        "ERROR: GetHosts -> wrong answer type received.".to_owned(),
+                    )),
+                }
+            } else {
+                Err(CliError::PodNotFound)
+            }
+        }
+
         Cli::Restore(resotre_args) => commands::service::restore(resotre_args).await,
         _ => Err(CliError::InvalidCommand),
     };
