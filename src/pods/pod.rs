@@ -10,6 +10,7 @@ use crate::network::message::{
     FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
 };
 use crate::pods::arbo::{FsEntry, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO, ROOT};
+use crate::pods::network::redundancy::redundancy_worker;
 #[cfg(target_os = "windows")]
 use crate::winfsp::winfsp_impl::mount_fsp;
 use custom_error::custom_error;
@@ -54,6 +55,7 @@ pub struct Pod {
     network_airport_handle: JoinHandle<()>,
     peer_broadcast_handle: JoinHandle<()>,
     new_peer_handle: JoinHandle<()>,
+    redundancy_worker_handle: JoinHandle<()>,
 }
 
 custom_error! {pub PodInfoError
@@ -150,6 +152,7 @@ impl Pod {
             generate_arbo(&mount_point, &server_address).expect("unable to index folder");
         let (to_network_message_tx, to_network_message_rx) = mpsc::unbounded_channel();
         let (from_network_message_tx, mut from_network_message_rx) = mpsc::unbounded_channel();
+        let (to_redundancy_tx, mut to_redundancy_rx) = mpsc::unbounded_channel();
 
         global_config.general.peers.retain(|x| *x != server_address);
 
@@ -198,7 +201,7 @@ impl Pod {
         let network_interface = Arc::new(NetworkInterface::new(
             arbo.clone(),
             mount_point.clone(),
-            to_network_message_tx,
+            to_network_message_tx.clone(),
             next_inode,
             Arc::new(RwLock::new(peers)),
             server_address,
@@ -232,6 +235,12 @@ impl Pod {
 
         let peers = network_interface.peers.clone();
 
+        let redundancy_worker_handle = tokio::spawn(redundancy_worker(
+            to_redundancy_rx,
+            to_network_message_tx,
+            network_interface.clone(),
+        ));
+
         Ok(Self {
             name: name.clone(),
             network_interface,
@@ -245,6 +254,7 @@ impl Pod {
             network_airport_handle,
             peer_broadcast_handle,
             new_peer_handle,
+            redundancy_worker_handle,
         })
     }
 
