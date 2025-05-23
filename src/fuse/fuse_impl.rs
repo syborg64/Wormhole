@@ -507,6 +507,7 @@ impl Filesystem for FuseController {
             Err(OpenError::WhError { source }) => reply.error(source.to_libc()),
             Err(OpenError::MultipleAccessFlags) => reply.error(libc::EINVAL),
             Err(OpenError::TruncReadOnly) => reply.error(libc::EACCES),
+            Err(OpenError::WrongPermissions) => reply.error(libc::EPERM),
         };
     }
 

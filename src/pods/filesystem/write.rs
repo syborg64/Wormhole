@@ -11,7 +11,7 @@ use super::{
 };
 
 custom_error! {
-    /// Error describing the removal of a [Inode] from the [Arbo]
+    /// Error describing the write syscall
     pub WriteError
     WhError{source: WhError} = "{source}",
     LocalWriteFailed{io: std::io::Error} = "Local write failed: {io}",
