@@ -1,5 +1,9 @@
+use crate::error::WhResult;
 use crate::network::message::Address;
-use crate::pods::arbo::{Arbo, FsEntry, Inode, InodeId, Metadata, ARBO_FILE_FNAME, ARBO_FILE_INO, GLOBAL_CONFIG_FNAME, GLOBAL_CONFIG_INO, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO, LOCK_TIMEOUT};
+use crate::pods::arbo::{
+    Arbo, FsEntry, Inode, InodeId, Metadata, ARBO_FILE_FNAME, ARBO_FILE_INO, GLOBAL_CONFIG_FNAME,
+    GLOBAL_CONFIG_INO, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO, LOCK_TIMEOUT,
+};
 use crate::pods::disk_manager::DiskManager;
 use crate::pods::network::network_interface::{Callback, NetworkInterface};
 use crate::pods::whpath::WhPath;
@@ -279,9 +283,13 @@ impl FsInterface {
     // SECTION remote -> read
     pub fn send_filesystem(&self, to: Address) -> io::Result<()> {
         let global_config_path = Arbo::read_lock(&self.arbo, "fs_interface::send_filesystem")?
-            .get_path_from_inode_id(GLOBAL_CONFIG_INO)?.set_relative();
+            .get_path_from_inode_id(GLOBAL_CONFIG_INO)?
+            .set_relative();
         log::info!("reading global config at {global_config_path}");
-        let global_config_bytes = self.disk.read_file_to_end(global_config_path).expect("lmao l'incompétence");
+        let global_config_bytes = self
+            .disk
+            .read_file_to_end(global_config_path)
+            .expect("lmao l'incompétence");
 
         self.network_interface.send_arbo(to, global_config_bytes)
     }
@@ -291,9 +299,26 @@ impl FsInterface {
     }
 
     pub fn send_file(&self, inode: InodeId, to: Address) -> io::Result<()> {
-        let arbo = Arbo::read_lock(&self.arbo, "send_arbo")?;
-        let path = arbo.get_path_from_inode_id(inode)?;
+        let path = Arbo::read_lock(&self.arbo, "send_arbo")?.get_path_from_inode_id(inode)?;
         let data = self.disk.read_file(path, 0, u64::max_value())?;
         self.network_interface.send_file(inode, data, to)
+    }
+
+    pub async fn send_file_redundancy(
+        &self,
+        inode: InodeId,
+        to: Address,
+        job_id: u64,
+    ) -> WhResult<()> {
+        let path = Arbo::n_read_lock(&self.arbo, "send_arbo")?
+            .get_path_from_inode_id(inode)
+            .map_err(|_| crate::error::WhError::InodeNotFound)?;
+        let data = self
+            .disk
+            .read_file(path, 0, u64::max_value())
+            .map_err(|_| crate::error::WhError::InodeNotFound)?;
+        self.network_interface
+            .send_file_redundancy(inode, data, to, job_id)
+            .await
     }
 }

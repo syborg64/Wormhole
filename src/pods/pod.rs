@@ -241,6 +241,7 @@ impl Pod {
             to_redundancy_rx,
             to_network_message_tx,
             network_interface.clone(),
+            fs_interface.clone(),
         ));
 
         Ok(Self {

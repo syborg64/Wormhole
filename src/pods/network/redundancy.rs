@@ -1,10 +1,15 @@
 use super::network_interface::{get_all_peers_address, NetworkInterface};
 use crate::{
+    error::WhResult,
     network::message::{Address, RedundancyMessage, ToNetworkMessage},
-    pods::arbo::InodeId,
+    pods::{arbo::InodeId, filesystem::fs_interface::FsInterface},
 };
+use futures_util::task;
 use std::{collections::HashMap, sync::Arc};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::{
+    sync::mpsc::{UnboundedReceiver, UnboundedSender},
+    task::JoinSet,
+};
 
 type JobTargets = HashMap<Address, bool>;
 type JobStack = HashMap<InodeId, (u64, JobTargets)>;
@@ -63,6 +68,7 @@ pub async fn redundancy_worker(
     mut reception: UnboundedReceiver<RedundancyMessage>,
     sender: UnboundedSender<ToNetworkMessage>,
     nw_interface: Arc<NetworkInterface>,
+    fs_interface: Arc<FsInterface>,
 ) {
     let mut stack_job_id: u64 = 0;
     let mut stack: JobStack = HashMap::new();
@@ -75,19 +81,65 @@ pub async fn redundancy_worker(
 
         match message {
             RedundancyMessage::ApplyTo(ino) => match get_all_peers_address(&nw_interface.peers) {
+                // TODO read the file only once (and not once per host)
                 Ok(all_peers) => {
-                    let chosen_hosts = choose_hosts(nw_interface.redundancy, all_peers);
+                    // let chosen_hosts = choose_hosts(nw_interface.redundancy, all_peers);
+                    let mut success = 0;
 
-                    sender
-                    .send(ToNetworkMessage::SpecificMessage(
-                        (crate::network::message::MessageContent::EditHosts(
-                            ino,
-                            chosen_hosts.clone(),
-                        ), None),
-                    chosen_hosts.clone()))
-                    .expect("redundancy_worker: unable to update modification on the network thread");
+                    let target_redundancy = if nw_interface.redundancy as usize > all_peers.len() {
+                        log::warn!("Redundancy: Not enough nodes to satisfies the target redundancies number.");
+                        all_peers.len()
+                    } else {
+                        nw_interface.redundancy as usize
+                    };
 
-                    stack.insert(ino, (stack_job_id, create_job_targets(chosen_hosts)));
+                    // start download to others concurrently
+                    let mut set: JoinSet<WhResult<()>> = JoinSet::new();
+                    for i in 0..target_redundancy {
+                        let fs_clone = Arc::clone(&fs_interface);
+                        let addr = all_peers[i].clone();
+
+                        set.spawn(async move {
+                            fs_clone.send_file_redundancy(ino, addr, stack_job_id).await
+                        });
+                    }
+
+                    // check for success and try next hosts if failure
+                    let mut current_try = target_redundancy;
+                    while success < target_redundancy {
+                        match set.join_next().await {
+                            None => break,
+                            Some(Err(e)) => {
+                                log::error!("redundancy_worker: error in thread pool: {e}");
+                                break;
+                            }
+                            Some(Ok(Ok(()))) => success += 1,
+                            Some(Ok(Err(crate::error::WhError::NetworkDied {
+                                called_from: _,
+                            }))) => {
+                                log::warn!("Redundancy: NetworkDied on some host. Trying next...");
+                                if current_try >= all_peers.len() {
+                                    log::error!("Redundancy: Not enough answering hosts to apply redundancy.");
+                                    break;
+                                }
+                                let fs_clone = Arc::clone(&fs_interface);
+                                let addr = all_peers[current_try].clone();
+
+                                set.spawn(async move {
+                                    fs_clone.send_file_redundancy(ino, addr, stack_job_id).await
+                                });
+                                current_try += 1;
+                            }
+                            Some(Ok(Err(e))) => {
+                                log::error!(
+                                    "Redundancy: unknown error when applying redundancy: {e}"
+                                );
+                                break;
+                            }
+                        }
+                    }
+                    set.join_all().await;
+
                     stack_job_id += 1;
                 }
                 Err(e) => {

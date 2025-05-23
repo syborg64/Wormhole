@@ -11,7 +11,7 @@ use crate::{
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::{
     broadcast,
-    mpsc::{UnboundedReceiver, UnboundedSender},
+    mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
 };
 
 use crate::network::{
@@ -431,6 +431,28 @@ impl NetworkInterface {
         Ok(())
     }
 
+    pub async fn send_file_redundancy(
+        &self,
+        inode: InodeId,
+        data: Vec<u8>,
+        to: Address,
+        job_id: u64,
+    ) -> WhResult<()> {
+        let (status_tx, mut status_rx) = unbounded_channel();
+        self.to_network_message_tx
+            .send(ToNetworkMessage::SpecificMessage(
+                (
+                    MessageContent::RedundancyFile(inode, job_id, data),
+                    Some(status_tx),
+                ),
+                vec![to],
+            ))
+            .expect("send_file: unable to update modification on the network thread");
+        status_rx.recv().await.unwrap_or(Err(WhError::NetworkDied {
+            called_from: "network_interface::send_file_redundancy".to_owned(),
+        }))
+    }
+
     pub fn revoke_remote_hosts(&self, id: InodeId) -> WhResult<()> {
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
@@ -678,6 +700,7 @@ impl NetworkInterface {
 
             let action_result = match content.clone() { // remove scary clone
                 MessageContent::PullAnswer(id, binary) => fs_interface.recept_binary(id, binary),
+                MessageContent::RedundancyFile(id, job_id, binary) => fs_interface.recept_binary(id, binary),
                 MessageContent::Inode(inode) => fs_interface.recept_inode(inode).or_else(|err| {
                         Err(std::io::Error::new(
                             std::io::ErrorKind::Other,

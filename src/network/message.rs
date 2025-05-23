@@ -19,6 +19,7 @@ pub enum MessageContent {
     Inode(Inode),
     RequestFile(InodeId, Address),
     PullAnswer(InodeId, Vec<u8>),
+    RedundancyFile(InodeId, u64, Vec<u8>),
     Rename(InodeId, InodeId, String, String), //Parent, New Parent, Name, New Name
     EditHosts(InodeId, Vec<Address>),
     AddHosts(InodeId, Vec<Address>),
