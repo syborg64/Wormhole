@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     error::{WhError, WhResult},
-    network::message::MessageAndStatus,
+    network::message::{MessageAndStatus, RedundancyMessage},
 };
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::{
@@ -127,6 +127,16 @@ impl Callbacks {
     }
 }
 
+pub fn get_all_peers_address(peers: &Arc<RwLock<Vec<PeerIPC>>>) -> WhResult<Vec<Address>> {
+    Ok(peers
+        .try_read_for(LOCK_TIMEOUT)
+        .ok_or(WhError::WouldBlock {
+            called_from: "apply_redundancy: can't lock peers mutex".to_string(),
+        })?
+        .iter()
+        .map(|peer| peer.address.clone())
+        .collect::<Vec<Address>>())
+}
 #[derive(Debug)]
 pub struct NetworkInterface {
     pub arbo: Arc<RwLock<Arbo>>,
@@ -738,14 +748,14 @@ impl NetworkInterface {
                 .collect();
             log::info!("peers tx: {:?}", &peers_tx);
             println!("broadcasting message to peers:\n{:?}", message);
-            log::info!(
-                "peers list {:#?}",
-                peers_list
-                    .read()
-                    .iter()
-                    .map(|peer| peer.address.clone())
-                    .collect::<Vec<String>>()
-            );
+            // log::info!(
+            //     "peers list {:#?}",
+            //     peers_list
+            //         .read()
+            //         .iter()
+            //         .map(|peer| peer.address.clone())
+            //         .collect::<Vec<String>>()
+            // );
             match message {
                 ToNetworkMessage::BroadcastMessage(message_content) => {
                     peers_tx.iter().for_each(|(channel, address)| {

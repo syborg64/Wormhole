@@ -45,6 +45,13 @@ pub struct FromNetworkMessage {
     pub content: MessageContent,
 }
 
+/// Message going to the redundancy worker
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub enum RedundancyMessage {
+    ApplyTo(InodeId),
+    ReceivedBy(InodeId, Address, u64),
+}
+
 /// Message Going To Network
 /// Messages sent from fuser to process communicating to the peers
 #[derive(Debug)]
