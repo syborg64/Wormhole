@@ -76,13 +76,18 @@ pub async fn redundancy_worker(
         match message {
             RedundancyMessage::ApplyTo(ino) => match get_all_peers_address(&nw_interface.peers) {
                 Ok(all_peers) => {
-                    stack.insert(
-                        ino,
-                        (
-                            stack_job_id,
-                            create_job_targets(choose_hosts(nw_interface.redundancy, all_peers)),
-                        ),
-                    );
+                    let chosen_hosts = choose_hosts(nw_interface.redundancy, all_peers);
+
+                    sender
+                    .send(ToNetworkMessage::SpecificMessage(
+                        (crate::network::message::MessageContent::EditHosts(
+                            ino,
+                            chosen_hosts.clone(),
+                        ), None),
+                    chosen_hosts.clone()))
+                    .expect("redundancy_worker: unable to update modification on the network thread");
+
+                    stack.insert(ino, (stack_job_id, create_job_targets(chosen_hosts)));
                     stack_job_id += 1;
                 }
                 Err(e) => {

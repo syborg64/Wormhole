@@ -202,6 +202,7 @@ impl Pod {
             arbo.clone(),
             mount_point.clone(),
             to_network_message_tx.clone(),
+            to_redundancy_tx.clone(),
             next_inode,
             Arc::new(RwLock::new(peers)),
             server_address,
@@ -218,6 +219,7 @@ impl Pod {
         // Start ability to recieve messages
         let network_airport_handle = tokio::spawn(NetworkInterface::network_airport(
             from_network_message_rx,
+            to_redundancy_tx,
             fs_interface.clone(),
         ));
 

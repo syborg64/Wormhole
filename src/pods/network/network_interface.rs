@@ -142,6 +142,7 @@ pub struct NetworkInterface {
     pub arbo: Arc<RwLock<Arbo>>,
     pub mount_point: WhPath,
     pub to_network_message_tx: UnboundedSender<ToNetworkMessage>,
+    pub to_redundancy_tx: UnboundedSender<RedundancyMessage>,
     pub next_inode: Mutex<InodeId>, // TODO - replace with InodeIndex type
     pub callbacks: Callbacks,
     pub peers: Arc<RwLock<Vec<PeerIPC>>>,
@@ -154,6 +155,7 @@ impl NetworkInterface {
         arbo: Arc<RwLock<Arbo>>,
         mount_point: WhPath,
         to_network_message_tx: UnboundedSender<ToNetworkMessage>,
+        to_redundancy_tx: UnboundedSender<RedundancyMessage>,
         next_inode: InodeId,
         peers: Arc<RwLock<Vec<PeerIPC>>>,
         self_addr: Address,
@@ -165,6 +167,7 @@ impl NetworkInterface {
             arbo,
             mount_point,
             to_network_message_tx,
+            to_redundancy_tx,
             next_inode,
             callbacks: Callbacks {
                 callbacks: HashMap::new().into(),
@@ -663,6 +666,7 @@ impl NetworkInterface {
 
     pub async fn network_airport(
         mut network_reception: UnboundedReceiver<FromNetworkMessage>,
+        to_redundancy_tx: UnboundedSender<RedundancyMessage>,
         fs_interface: Arc<FsInterface>,
     ) {
         loop {
@@ -746,16 +750,7 @@ impl NetworkInterface {
                 .iter()
                 .map(|peer| (peer.sender.clone(), peer.address.clone()))
                 .collect();
-            log::info!("peers tx: {:?}", &peers_tx);
-            println!("broadcasting message to peers:\n{:?}", message);
-            // log::info!(
-            //     "peers list {:#?}",
-            //     peers_list
-            //         .read()
-            //         .iter()
-            //         .map(|peer| peer.address.clone())
-            //         .collect::<Vec<String>>()
-            // );
+
             match message {
                 ToNetworkMessage::BroadcastMessage(message_content) => {
                     peers_tx.iter().for_each(|(channel, address)| {
