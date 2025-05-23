@@ -51,9 +51,9 @@ pub struct Pod {
     fuse_handle: fuser::BackgroundSession,
     #[cfg(target_os = "windows")]
     fsp_host: FileSystemHost<'static>,
-    network_airport_handle: Option<JoinHandle<()>>,
-    peer_broadcast_handle: Option<JoinHandle<()>>,
-    new_peer_handle: Option<JoinHandle<()>>,
+    network_airport_handle: JoinHandle<()>,
+    peer_broadcast_handle: JoinHandle<()>,
+    new_peer_handle: JoinHandle<()>,
 }
 
 custom_error! {pub PodInfoError
@@ -213,23 +213,21 @@ impl Pod {
         ));
 
         // Start ability to recieve messages
-        let network_airport_handle = Some(tokio::spawn(NetworkInterface::network_airport(
+        let network_airport_handle = tokio::spawn(NetworkInterface::network_airport(
             from_network_message_rx,
             fs_interface.clone(),
-        )));
+        ));
 
         // Start ability to send messages
-        let peer_broadcast_handle = Some(tokio::spawn(NetworkInterface::contact_peers(
+        let peer_broadcast_handle = tokio::spawn(NetworkInterface::contact_peers(
             network_interface.peers.clone(),
             to_network_message_rx,
-        )));
+        ));
 
-        let new_peer_handle = Some(tokio::spawn(
-            NetworkInterface::incoming_connections_watchdog(
-                server,
-                from_network_message_tx.clone(),
-                network_interface.peers.clone(),
-            ),
+        let new_peer_handle = tokio::spawn(NetworkInterface::incoming_connections_watchdog(
+            server,
+            from_network_message_tx.clone(),
+            network_interface.peers.clone(),
         ));
 
         let peers = network_interface.peers.clone();
@@ -371,7 +369,12 @@ impl Pod {
             .map(|_| ())
             .map_err(|e| PodStopError::ArboSavingFailed {
                 error_source: e.to_string(),
-            })
+            })?;
+
+        self.network_airport_handle.abort();
+        self.peer_broadcast_handle.abort();
+        self.new_peer_handle.abort();
+        Ok(())
     }
 
     pub fn get_name(&self) -> &str {
