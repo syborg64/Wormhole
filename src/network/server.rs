@@ -6,6 +6,8 @@ use std::{
 
 use tokio::{net::TcpListener, sync::mpsc::UnboundedReceiver};
 
+use crate::error::{CliError, WhError, WhResult};
+
 use super::message::ToNetworkMessage;
 
 pub type Tx = UnboundedReceiver<ToNetworkMessage>;
@@ -18,10 +20,10 @@ pub struct Server {
 
 //TODO - ne pas panic mais renvoyer une erreur
 impl Server {
-    pub async fn setup(addr: &str) -> Server {
-        Server {
-            listener: TcpListener::bind(addr).await.expect("Failed to bind"),
+    pub async fn setup(addr: &str) -> Result<Server, CliError> {
+        Ok(Server {
+            listener: TcpListener::bind(addr).await.map_err(|_| CliError::Server { addr: addr.to_owned() })?,
             state: PeerMap::new(Mutex::new(HashMap::new())),
-        }
+        })
     }
 }
