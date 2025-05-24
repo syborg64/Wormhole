@@ -1,4 +1,6 @@
-### **BETA TEST PLAN – Wormhole**
+### **BETA TEST PLAN - Wormhole**
+
+Written by Axel Denis, Julian Scott, Ludovic de Chavagnac and Arthur Aillet
 
 ## **1. Core Functionalities for Beta Version**
 
