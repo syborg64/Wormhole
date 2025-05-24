@@ -1,261 +1,130 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/pods/declarations.rs`."><title>declarations.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-46132b98.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="wormhole" data-themes="" data-resource-suffix="" data-rustdoc-version="1.85.0 (4d91de4e4 2025-02-17)" data-channel="1.85.0" data-search-js="search-75f5ac3e.js" data-settings-js="settings-0f613d39.js" ><script src="../../../static.files/storage-59e33391.js"></script><script defer src="../../../static.files/src-script-56102188.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">wormhole/pods/</div>declarations.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
-<a href="#1" id="1">1</a>
-<a href="#2" id="2">2</a>
-<a href="#3" id="3">3</a>
-<a href="#4" id="4">4</a>
-<a href="#5" id="5">5</a>
-<a href="#6" id="6">6</a>
-<a href="#7" id="7">7</a>
-<a href="#8" id="8">8</a>
-<a href="#9" id="9">9</a>
-<a href="#10" id="10">10</a>
-<a href="#11" id="11">11</a>
-<a href="#12" id="12">12</a>
-<a href="#13" id="13">13</a>
-<a href="#14" id="14">14</a>
-<a href="#15" id="15">15</a>
-<a href="#16" id="16">16</a>
-<a href="#17" id="17">17</a>
-<a href="#18" id="18">18</a>
-<a href="#19" id="19">19</a>
-<a href="#20" id="20">20</a>
-<a href="#21" id="21">21</a>
-<a href="#22" id="22">22</a>
-<a href="#23" id="23">23</a>
-<a href="#24" id="24">24</a>
-<a href="#25" id="25">25</a>
-<a href="#26" id="26">26</a>
-<a href="#27" id="27">27</a>
-<a href="#28" id="28">28</a>
-<a href="#29" id="29">29</a>
-<a href="#30" id="30">30</a>
-<a href="#31" id="31">31</a>
-<a href="#32" id="32">32</a>
-<a href="#33" id="33">33</a>
-<a href="#34" id="34">34</a>
-<a href="#35" id="35">35</a>
-<a href="#36" id="36">36</a>
-<a href="#37" id="37">37</a>
-<a href="#38" id="38">38</a>
-<a href="#39" id="39">39</a>
-<a href="#40" id="40">40</a>
-<a href="#41" id="41">41</a>
-<a href="#42" id="42">42</a>
-<a href="#43" id="43">43</a>
-<a href="#44" id="44">44</a>
-<a href="#45" id="45">45</a>
-<a href="#46" id="46">46</a>
-<a href="#47" id="47">47</a>
-<a href="#48" id="48">48</a>
-<a href="#49" id="49">49</a>
-<a href="#50" id="50">50</a>
-<a href="#51" id="51">51</a>
-<a href="#52" id="52">52</a>
-<a href="#53" id="53">53</a>
-<a href="#54" id="54">54</a>
-<a href="#55" id="55">55</a>
-<a href="#56" id="56">56</a>
-<a href="#57" id="57">57</a>
-<a href="#58" id="58">58</a>
-<a href="#59" id="59">59</a>
-<a href="#60" id="60">60</a>
-<a href="#61" id="61">61</a>
-<a href="#62" id="62">62</a>
-<a href="#63" id="63">63</a>
-<a href="#64" id="64">64</a>
-<a href="#65" id="65">65</a>
-<a href="#66" id="66">66</a>
-<a href="#67" id="67">67</a>
-<a href="#68" id="68">68</a>
-<a href="#69" id="69">69</a>
-<a href="#70" id="70">70</a>
-<a href="#71" id="71">71</a>
-<a href="#72" id="72">72</a>
-<a href="#73" id="73">73</a>
-<a href="#74" id="74">74</a>
-<a href="#75" id="75">75</a>
-<a href="#76" id="76">76</a>
-<a href="#77" id="77">77</a>
-<a href="#78" id="78">78</a>
-<a href="#79" id="79">79</a>
-<a href="#80" id="80">80</a>
-<a href="#81" id="81">81</a>
-<a href="#82" id="82">82</a>
-<a href="#83" id="83">83</a>
-<a href="#84" id="84">84</a>
-<a href="#85" id="85">85</a>
-<a href="#86" id="86">86</a>
-<a href="#87" id="87">87</a>
-<a href="#88" id="88">88</a>
-<a href="#89" id="89">89</a>
-<a href="#90" id="90">90</a>
-<a href="#91" id="91">91</a>
-<a href="#92" id="92">92</a>
-<a href="#93" id="93">93</a>
-<a href="#94" id="94">94</a>
-<a href="#95" id="95">95</a>
-<a href="#96" id="96">96</a>
-<a href="#97" id="97">97</a>
-<a href="#98" id="98">98</a>
-<a href="#99" id="99">99</a>
-<a href="#100" id="100">100</a>
-<a href="#101" id="101">101</a>
-<a href="#102" id="102">102</a>
-<a href="#103" id="103">103</a>
-<a href="#104" id="104">104</a>
-<a href="#105" id="105">105</a>
-<a href="#106" id="106">106</a>
-<a href="#107" id="107">107</a>
-<a href="#108" id="108">108</a>
-<a href="#109" id="109">109</a>
-<a href="#110" id="110">110</a>
-<a href="#111" id="111">111</a>
-<a href="#112" id="112">112</a>
-<a href="#113" id="113">113</a>
-<a href="#114" id="114">114</a>
-<a href="#115" id="115">115</a>
-<a href="#116" id="116">116</a>
-<a href="#117" id="117">117</a>
-<a href="#118" id="118">118</a>
-<a href="#119" id="119">119</a>
-<a href="#120" id="120">120</a>
-<a href="#121" id="121">121</a>
-<a href="#122" id="122">122</a>
-<a href="#123" id="123">123</a>
-<a href="#124" id="124">124</a>
-<a href="#125" id="125">125</a>
-<a href="#126" id="126">126</a>
-<a href="#127" id="127">127</a>
-<a href="#128" id="128">128</a>
-<a href="#129" id="129">129</a>
-<a href="#130" id="130">130</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{io, sync::Arc};
-
-<span class="attr">#[cfg(target_os = <span class="string">"linux"</span>)]
-</span><span class="kw">use </span>fuser;
-<span class="kw">use </span>log::{debug, info};
-<span class="kw">use </span>parking_lot::RwLock;
-<span class="kw">use </span>tokio::sync::mpsc;
-<span class="kw">use </span>tokio::task::JoinHandle;
-<span class="attr">#[cfg(target_os = <span class="string">"windows"</span>)]
-</span><span class="kw">use </span>winfsp::host::FileSystemHost;
-
-<span class="attr">#[cfg(target_os = <span class="string">"linux"</span>)]
-</span><span class="kw">use </span><span class="kw">crate</span>::fuse::fuse_impl::mount_fuse;
-<span class="attr">#[cfg(target_os = <span class="string">"windows"</span>)]
-</span><span class="kw">use </span><span class="kw">crate</span>::winfsp::winfsp_impl::mount_fsp;
-
-<span class="kw">use </span><span class="kw">crate</span>::network::{message::Address, peer_ipc::PeerIPC, server::Server};
-
-<span class="kw">use super</span>::{
-    arbo::{index_folder, Arbo},
-    disk_manager::DiskManager,
-    fs_interface::FsInterface,
-    network_interface::NetworkInterface,
-    whpath::WhPath,
-};
-
-<span class="comment">// TODO
-</span><span class="kw">pub type </span>PodConfig = u64;
-
-<span class="attr">#[allow(dead_code)]
-</span><span class="kw">pub struct </span>Pod {
-    network_interface: Arc&lt;NetworkInterface&gt;,
-    fs_interface: Arc&lt;FsInterface&gt;,
-    mount_point: WhPath,
-    peers: Arc&lt;RwLock&lt;Vec&lt;PeerIPC&gt;&gt;&gt;,
-    pod_conf: PodConfig,
-    <span class="attr">#[cfg(target_os = <span class="string">"linux"</span>)]
-    </span>fuse_handle: fuser::BackgroundSession,
-    <span class="attr">#[cfg(target_os = <span class="string">"windows"</span>)]
-    </span>fsp_host: FileSystemHost&lt;<span class="lifetime">'static</span>&gt;,
-    network_airport_handle: <span class="prelude-ty">Option</span>&lt;JoinHandle&lt;()&gt;&gt;,
-    peer_broadcast_handle: <span class="prelude-ty">Option</span>&lt;JoinHandle&lt;()&gt;&gt;,
-    new_peer_handle: <span class="prelude-ty">Option</span>&lt;JoinHandle&lt;()&gt;&gt;,
-}
-
-<span class="kw">impl </span>Pod {
-    <span class="kw">pub async fn </span>new(
-        mount_point: WhPath,
-        config: PodConfig,
-        <span class="kw-2">mut </span>peers: Vec&lt;Address&gt;,
-        server: Arc&lt;Server&gt;,
-        server_address: Address,
-    ) -&gt; io::Result&lt;<span class="self">Self</span>&gt; {
-        <span class="macro">log::info!</span>(<span class="string">"mount point {}"</span>, mount_point);
-        <span class="kw">let </span>(arbo, next_inode) =
-            index_folder(<span class="kw-2">&amp;</span>mount_point, <span class="kw-2">&amp;</span>server_address).expect(<span class="string">"unable to index folder"</span>);
-        <span class="kw">let </span>arbo: Arc&lt;RwLock&lt;Arbo&gt;&gt; = Arc::new(RwLock::new(arbo));
-        <span class="kw">let </span>(to_network_message_tx, to_network_message_rx) = mpsc::unbounded_channel();
-        <span class="kw">let </span>(from_network_message_tx, from_network_message_rx) = mpsc::unbounded_channel();
-
-        peers.retain(|x| <span class="kw-2">*</span>x != server_address);
-        <span class="kw">let </span>peers = PeerIPC::peer_startup(peers, from_network_message_tx.clone()).<span class="kw">await</span>;
-        <span class="kw">let </span>peers_addrs: Vec&lt;Address&gt; = peers.iter().map(|peer| peer.address.clone()).collect();
-        <span class="kw">let </span>network_interface = Arc::new(NetworkInterface::new(
-            arbo.clone(),
-            mount_point.clone(),
-            to_network_message_tx,
-            next_inode,
-            Arc::new(RwLock::new(peers)),
-            server_address,
-        ));
-
-        <span class="kw">let </span>peer_broadcast_handle = <span class="prelude-val">Some</span>(tokio::spawn(NetworkInterface::contact_peers(
-            network_interface.peers.clone(),
-            to_network_message_rx,
-        )));
-
-        <span class="kw">let </span>disk_manager = DiskManager::new(mount_point.clone())<span class="question-mark">?</span>;
-
-        <span class="comment">// TODO - maybe not mount fuse until remote arbo is pulled
-        </span><span class="kw">let </span>fs_interface = Arc::new(FsInterface::new(
-            network_interface.clone(),
-            disk_manager,
-            arbo.clone(),
-        ));
-
-        <span class="kw">let </span>network_airport_handle = <span class="prelude-val">Some</span>(tokio::spawn(NetworkInterface::network_airport(
-            from_network_message_rx,
-            fs_interface.clone(),
-        )));
-
-        <span class="kw">if </span>peers_addrs.len() &gt;= <span class="number">1 </span>{
-            network_interface.register_to_others();
-            <span class="macro">info!</span>(<span class="string">"Will pull filesystem from remote... {:?}"</span>, peers_addrs);
-            network_interface
-                .request_arbo(peers_addrs[<span class="number">0</span>].clone())
-                .<span class="kw">await</span><span class="question-mark">?</span>;
-
-            <span class="macro">info!</span>(<span class="string">"Pull completed"</span>);
-            <span class="comment">// debug!("arbo: {:#?}", network_interface.arbo);
-        </span>} <span class="kw">else </span>{
-            <span class="macro">info!</span>(<span class="string">"Created fresh new filesystem"</span>);
-        }
-
-        <span class="kw">let </span>new_peer_handle = <span class="prelude-val">Some</span>(tokio::spawn(
-            NetworkInterface::incoming_connections_watchdog(
-                server,
-                from_network_message_tx,
-                network_interface.peers.clone(),
-            ),
-        ));
-
-        <span class="kw">let </span>peers = network_interface.peers.clone();
-
-        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
-            network_interface,
-            fs_interface: fs_interface.clone(),
-            mount_point: mount_point.clone(),
-            peers,
-            pod_conf: config,
-            <span class="attr">#[cfg(target_os = <span class="string">"linux"</span>)]
-            </span>fuse_handle: mount_fuse(<span class="kw-2">&amp;</span>mount_point, fs_interface.clone())<span class="question-mark">?</span>,
-            <span class="attr">#[cfg(target_os = <span class="string">"windows"</span>)]
-            </span>fsp_host: mount_fsp(<span class="kw-2">&amp;</span>mount_point, fs_interface.clone())<span class="question-mark">?</span>,
-            network_airport_handle,
-            peer_broadcast_handle,
-            new_peer_handle,
-        })
-    }
-}
-</code></pre></div></section></main></body></html>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/pods/declarations.rs`."><title>declarations.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-916cea96.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="wormhole" data-themes="" data-resource-suffix="" data-rustdoc-version="1.87.0 (17067e9ac 2025-05-09)" data-channel="1.87.0" data-search-js="search-e7298875.js" data-settings-js="settings-d72f25bb.js" ><script src="../../../static.files/storage-82c7156e.js"></script><script defer src="../../../static.files/src-script-63605ae7.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-fb8c74a8.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">wormhole/pods/</div>declarations.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span>std::{io, sync::Arc};
+<a href=#2 id=2 data-nosnippet>2</a>
+<a href=#3 id=3 data-nosnippet>3</a><span class="attr">#[cfg(target_os = <span class="string">"linux"</span>)]
+<a href=#4 id=4 data-nosnippet>4</a></span><span class="kw">use </span>fuser;
+<a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>log::{debug, info};
+<a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>parking_lot::RwLock;
+<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>tokio::sync::mpsc;
+<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>tokio::task::JoinHandle;
+<a href=#9 id=9 data-nosnippet>9</a><span class="attr">#[cfg(target_os = <span class="string">"windows"</span>)]
+<a href=#10 id=10 data-nosnippet>10</a></span><span class="kw">use </span>winfsp::host::FileSystemHost;
+<a href=#11 id=11 data-nosnippet>11</a>
+<a href=#12 id=12 data-nosnippet>12</a><span class="attr">#[cfg(target_os = <span class="string">"linux"</span>)]
+<a href=#13 id=13 data-nosnippet>13</a></span><span class="kw">use </span><span class="kw">crate</span>::fuse::fuse_impl::mount_fuse;
+<a href=#14 id=14 data-nosnippet>14</a><span class="attr">#[cfg(target_os = <span class="string">"windows"</span>)]
+<a href=#15 id=15 data-nosnippet>15</a></span><span class="kw">use </span><span class="kw">crate</span>::winfsp::winfsp_impl::mount_fsp;
+<a href=#16 id=16 data-nosnippet>16</a>
+<a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span><span class="kw">crate</span>::network::{message::Address, peer_ipc::PeerIPC, server::Server};
+<a href=#18 id=18 data-nosnippet>18</a>
+<a href=#19 id=19 data-nosnippet>19</a><span class="kw">use super</span>::{
+<a href=#20 id=20 data-nosnippet>20</a>    arbo::{index_folder, Arbo},
+<a href=#21 id=21 data-nosnippet>21</a>    disk_manager::DiskManager,
+<a href=#22 id=22 data-nosnippet>22</a>    fs_interface::FsInterface,
+<a href=#23 id=23 data-nosnippet>23</a>    network_interface::NetworkInterface,
+<a href=#24 id=24 data-nosnippet>24</a>    whpath::WhPath,
+<a href=#25 id=25 data-nosnippet>25</a>};
+<a href=#26 id=26 data-nosnippet>26</a>
+<a href=#27 id=27 data-nosnippet>27</a><span class="comment">// TODO
+<a href=#28 id=28 data-nosnippet>28</a></span><span class="kw">pub type </span>PodConfig = u64;
+<a href=#29 id=29 data-nosnippet>29</a>
+<a href=#30 id=30 data-nosnippet>30</a><span class="attr">#[allow(dead_code)]
+<a href=#31 id=31 data-nosnippet>31</a></span><span class="kw">pub struct </span>Pod {
+<a href=#32 id=32 data-nosnippet>32</a>    network_interface: Arc&lt;NetworkInterface&gt;,
+<a href=#33 id=33 data-nosnippet>33</a>    fs_interface: Arc&lt;FsInterface&gt;,
+<a href=#34 id=34 data-nosnippet>34</a>    mount_point: WhPath,
+<a href=#35 id=35 data-nosnippet>35</a>    peers: Arc&lt;RwLock&lt;Vec&lt;PeerIPC&gt;&gt;&gt;,
+<a href=#36 id=36 data-nosnippet>36</a>    pod_conf: PodConfig,
+<a href=#37 id=37 data-nosnippet>37</a>    <span class="attr">#[cfg(target_os = <span class="string">"linux"</span>)]
+<a href=#38 id=38 data-nosnippet>38</a>    </span>fuse_handle: fuser::BackgroundSession,
+<a href=#39 id=39 data-nosnippet>39</a>    <span class="attr">#[cfg(target_os = <span class="string">"windows"</span>)]
+<a href=#40 id=40 data-nosnippet>40</a>    </span>fsp_host: FileSystemHost&lt;<span class="lifetime">'static</span>&gt;,
+<a href=#41 id=41 data-nosnippet>41</a>    network_airport_handle: <span class="prelude-ty">Option</span>&lt;JoinHandle&lt;()&gt;&gt;,
+<a href=#42 id=42 data-nosnippet>42</a>    peer_broadcast_handle: <span class="prelude-ty">Option</span>&lt;JoinHandle&lt;()&gt;&gt;,
+<a href=#43 id=43 data-nosnippet>43</a>    new_peer_handle: <span class="prelude-ty">Option</span>&lt;JoinHandle&lt;()&gt;&gt;,
+<a href=#44 id=44 data-nosnippet>44</a>}
+<a href=#45 id=45 data-nosnippet>45</a>
+<a href=#46 id=46 data-nosnippet>46</a><span class="kw">impl </span>Pod {
+<a href=#47 id=47 data-nosnippet>47</a>    <span class="kw">pub async fn </span>new(
+<a href=#48 id=48 data-nosnippet>48</a>        mount_point: WhPath,
+<a href=#49 id=49 data-nosnippet>49</a>        config: PodConfig,
+<a href=#50 id=50 data-nosnippet>50</a>        <span class="kw-2">mut </span>peers: Vec&lt;Address&gt;,
+<a href=#51 id=51 data-nosnippet>51</a>        server: Arc&lt;Server&gt;,
+<a href=#52 id=52 data-nosnippet>52</a>        server_address: Address,
+<a href=#53 id=53 data-nosnippet>53</a>    ) -&gt; io::Result&lt;<span class="self">Self</span>&gt; {
+<a href=#54 id=54 data-nosnippet>54</a>        <span class="macro">log::info!</span>(<span class="string">"mount point {}"</span>, mount_point);
+<a href=#55 id=55 data-nosnippet>55</a>        <span class="kw">let </span>(arbo, next_inode) =
+<a href=#56 id=56 data-nosnippet>56</a>            index_folder(<span class="kw-2">&amp;</span>mount_point, <span class="kw-2">&amp;</span>server_address).expect(<span class="string">"unable to index folder"</span>);
+<a href=#57 id=57 data-nosnippet>57</a>        <span class="kw">let </span>arbo: Arc&lt;RwLock&lt;Arbo&gt;&gt; = Arc::new(RwLock::new(arbo));
+<a href=#58 id=58 data-nosnippet>58</a>        <span class="kw">let </span>(to_network_message_tx, to_network_message_rx) = mpsc::unbounded_channel();
+<a href=#59 id=59 data-nosnippet>59</a>        <span class="kw">let </span>(from_network_message_tx, from_network_message_rx) = mpsc::unbounded_channel();
+<a href=#60 id=60 data-nosnippet>60</a>
+<a href=#61 id=61 data-nosnippet>61</a>        peers.retain(|x| <span class="kw-2">*</span>x != server_address);
+<a href=#62 id=62 data-nosnippet>62</a>        <span class="kw">let </span>peers = PeerIPC::peer_startup(peers, from_network_message_tx.clone()).<span class="kw">await</span>;
+<a href=#63 id=63 data-nosnippet>63</a>        <span class="kw">let </span>peers_addrs: Vec&lt;Address&gt; = peers.iter().map(|peer| peer.address.clone()).collect();
+<a href=#64 id=64 data-nosnippet>64</a>        <span class="kw">let </span>network_interface = Arc::new(NetworkInterface::new(
+<a href=#65 id=65 data-nosnippet>65</a>            arbo.clone(),
+<a href=#66 id=66 data-nosnippet>66</a>            mount_point.clone(),
+<a href=#67 id=67 data-nosnippet>67</a>            to_network_message_tx,
+<a href=#68 id=68 data-nosnippet>68</a>            next_inode,
+<a href=#69 id=69 data-nosnippet>69</a>            Arc::new(RwLock::new(peers)),
+<a href=#70 id=70 data-nosnippet>70</a>            server_address,
+<a href=#71 id=71 data-nosnippet>71</a>        ));
+<a href=#72 id=72 data-nosnippet>72</a>
+<a href=#73 id=73 data-nosnippet>73</a>        <span class="kw">let </span>peer_broadcast_handle = <span class="prelude-val">Some</span>(tokio::spawn(NetworkInterface::contact_peers(
+<a href=#74 id=74 data-nosnippet>74</a>            network_interface.peers.clone(),
+<a href=#75 id=75 data-nosnippet>75</a>            to_network_message_rx,
+<a href=#76 id=76 data-nosnippet>76</a>        )));
+<a href=#77 id=77 data-nosnippet>77</a>
+<a href=#78 id=78 data-nosnippet>78</a>        <span class="kw">let </span>disk_manager = DiskManager::new(mount_point.clone())<span class="question-mark">?</span>;
+<a href=#79 id=79 data-nosnippet>79</a>
+<a href=#80 id=80 data-nosnippet>80</a>        <span class="comment">// TODO - maybe not mount fuse until remote arbo is pulled
+<a href=#81 id=81 data-nosnippet>81</a>        </span><span class="kw">let </span>fs_interface = Arc::new(FsInterface::new(
+<a href=#82 id=82 data-nosnippet>82</a>            network_interface.clone(),
+<a href=#83 id=83 data-nosnippet>83</a>            disk_manager,
+<a href=#84 id=84 data-nosnippet>84</a>            arbo.clone(),
+<a href=#85 id=85 data-nosnippet>85</a>        ));
+<a href=#86 id=86 data-nosnippet>86</a>
+<a href=#87 id=87 data-nosnippet>87</a>        <span class="kw">let </span>network_airport_handle = <span class="prelude-val">Some</span>(tokio::spawn(NetworkInterface::network_airport(
+<a href=#88 id=88 data-nosnippet>88</a>            from_network_message_rx,
+<a href=#89 id=89 data-nosnippet>89</a>            fs_interface.clone(),
+<a href=#90 id=90 data-nosnippet>90</a>        )));
+<a href=#91 id=91 data-nosnippet>91</a>
+<a href=#92 id=92 data-nosnippet>92</a>        <span class="kw">if </span>peers_addrs.len() &gt;= <span class="number">1 </span>{
+<a href=#93 id=93 data-nosnippet>93</a>            network_interface.register_to_others();
+<a href=#94 id=94 data-nosnippet>94</a>            <span class="macro">info!</span>(<span class="string">"Will pull filesystem from remote... {:?}"</span>, peers_addrs);
+<a href=#95 id=95 data-nosnippet>95</a>            network_interface
+<a href=#96 id=96 data-nosnippet>96</a>                .request_arbo(peers_addrs[<span class="number">0</span>].clone())
+<a href=#97 id=97 data-nosnippet>97</a>                .<span class="kw">await</span><span class="question-mark">?</span>;
+<a href=#98 id=98 data-nosnippet>98</a>
+<a href=#99 id=99 data-nosnippet>99</a>            <span class="macro">info!</span>(<span class="string">"Pull completed"</span>);
+<a href=#100 id=100 data-nosnippet>100</a>            <span class="comment">// debug!("arbo: {:#?}", network_interface.arbo);
+<a href=#101 id=101 data-nosnippet>101</a>        </span>} <span class="kw">else </span>{
+<a href=#102 id=102 data-nosnippet>102</a>            <span class="macro">info!</span>(<span class="string">"Created fresh new filesystem"</span>);
+<a href=#103 id=103 data-nosnippet>103</a>        }
+<a href=#104 id=104 data-nosnippet>104</a>
+<a href=#105 id=105 data-nosnippet>105</a>        <span class="kw">let </span>new_peer_handle = <span class="prelude-val">Some</span>(tokio::spawn(
+<a href=#106 id=106 data-nosnippet>106</a>            NetworkInterface::incoming_connections_watchdog(
+<a href=#107 id=107 data-nosnippet>107</a>                server,
+<a href=#108 id=108 data-nosnippet>108</a>                from_network_message_tx,
+<a href=#109 id=109 data-nosnippet>109</a>                network_interface.peers.clone(),
+<a href=#110 id=110 data-nosnippet>110</a>            ),
+<a href=#111 id=111 data-nosnippet>111</a>        ));
+<a href=#112 id=112 data-nosnippet>112</a>
+<a href=#113 id=113 data-nosnippet>113</a>        <span class="kw">let </span>peers = network_interface.peers.clone();
+<a href=#114 id=114 data-nosnippet>114</a>
+<a href=#115 id=115 data-nosnippet>115</a>        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
+<a href=#116 id=116 data-nosnippet>116</a>            network_interface,
+<a href=#117 id=117 data-nosnippet>117</a>            fs_interface: fs_interface.clone(),
+<a href=#118 id=118 data-nosnippet>118</a>            mount_point: mount_point.clone(),
+<a href=#119 id=119 data-nosnippet>119</a>            peers,
+<a href=#120 id=120 data-nosnippet>120</a>            pod_conf: config,
+<a href=#121 id=121 data-nosnippet>121</a>            <span class="attr">#[cfg(target_os = <span class="string">"linux"</span>)]
+<a href=#122 id=122 data-nosnippet>122</a>            </span>fuse_handle: mount_fuse(<span class="kw-2">&amp;</span>mount_point, fs_interface.clone())<span class="question-mark">?</span>,
+<a href=#123 id=123 data-nosnippet>123</a>            <span class="attr">#[cfg(target_os = <span class="string">"windows"</span>)]
+<a href=#124 id=124 data-nosnippet>124</a>            </span>fsp_host: mount_fsp(<span class="kw-2">&amp;</span>mount_point, fs_interface.clone())<span class="question-mark">?</span>,
+<a href=#125 id=125 data-nosnippet>125</a>            network_airport_handle,
+<a href=#126 id=126 data-nosnippet>126</a>            peer_broadcast_handle,
+<a href=#127 id=127 data-nosnippet>127</a>            new_peer_handle,
+<a href=#128 id=128 data-nosnippet>128</a>        })
+<a href=#129 id=129 data-nosnippet>129</a>    }
+<a href=#130 id=130 data-nosnippet>130</a>}</code></pre></div></section></main></body></html>
