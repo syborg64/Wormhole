@@ -30,6 +30,8 @@ use tokio_tungstenite::{accept_async, WebSocketStream};
 #[cfg(target_os = "windows")]
 use winfsp::winfsp_init;
 use wormhole::commands::{self, cli_commands::Cli};
+use wormhole::config::types::Config;
+use wormhole::config::LocalConfig;
 use wormhole::error::{CliError, CliSuccess, WhError, WhResult};
 use wormhole::pods::pod::Pod;
 
@@ -113,31 +115,55 @@ async fn handle_cli_command(
             }
         }
         Cli::Apply(mut pod_conf) => {
-            let opt_pod = if pod_conf.name == "." {
-                pods.iter()
-                    .find(|(_, pod)| pod.get_mount_point() == &pod_conf.path)
-            } else {
-                pods.iter().find(|(n, _)| n == &&pod_conf.name)
-            };
-            if let Some((_, pod)) = opt_pod {
-                pod_conf.path = pod.get_mount_point().clone();
-                let _ = commands::service::apply(
-                    pod.local_config.clone(),
-                    pod.global_config.clone(),
-                    pod_conf,
-                )
-                .await;
-                Ok(CliSuccess::Message("The new configuration is apply".to_owned()))
-            } else {
-                log::error!(
-                    "Pod at this path doesn't existe {:?} {:?}",
-                    pod_conf.name,
-                    pod_conf.path
-                );
-                Err(CliError::InvalidArgument {
-                    arg: pod_conf.path.to_string(),
-                })
-            }
+            todo!("TODO apply command in service");
+            // let opt_pod = if pod_conf.name == "." {
+            //     pods.iter()
+            //         .find(|(_, pod)| pod.get_mount_point() == &pod_conf.path)
+            //         .map(|(k, v)| (k.clone(), v.clone()))
+            // } else {
+            //     pods.iter()
+            //         .find(|(n, _)| n == &&pod_conf.name)
+            //         .map(|(k, v)| (k.clone(), v.clone()))
+            // }
+            // .ok_or_else(|| {
+            //     log::error!(
+            //         "Pod at this path doesn't exist {:?} {:?}",
+            //         pod_conf.name,
+            //         pod_conf.path
+            //     );
+            //     CliError::InvalidArgument {
+            //         arg: pod_conf.path.to_string(),
+            //     }
+            // })?;
+            // if let Some((old_name, pod)) = opt_pod {
+            //     pod_conf.path = pod.get_mount_point().clone();
+            //     let res = commands::service::apply(
+            //         pod.local_config.clone(),
+            //         pod.global_config.clone(),
+            //         pod_conf,
+            //     )
+            //     .await;
+            //     match LocalConfig::read_lock(&pod.local_config, "handle_cli_command::apply") {
+            //         Ok(local) => {
+            //             if local.general.name != *old_name {
+            //                 if let Some(pod) = pods.remove(old_name) {
+            //                     pods.insert(local.general.name.clone(), pod);
+            //                 }
+            //             }
+            //             res
+            //         }
+            //         Err(err) => Err(CliError::WhError { source: err }),
+            //     }
+            // } else {
+            //     log::error!(
+            //         "Pod at this path doesn't existe {:?} {:?}",
+            //         pod_conf.name,
+            //         pod_conf.path
+            //     );
+            //     Err(CliError::InvalidArgument {
+            //         arg: pod_conf.path.to_string(),
+            //     })
+            // }
         }
         _ => Err(CliError::InvalidCommand),
     };

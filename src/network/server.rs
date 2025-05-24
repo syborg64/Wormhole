@@ -16,6 +16,7 @@ pub struct Server {
     pub state: PeerMap,
 }
 
+//TODO - ne pas panic mais renvoyer une erreur
 impl Server {
     pub async fn setup(addr: &str) -> Server {
         Server {

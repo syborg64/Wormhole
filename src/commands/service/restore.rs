@@ -11,7 +11,7 @@ use crate::{commands::cli_commands::PodConf,
 pub async fn restore(local_config: Arc<RwLock<LocalConfig>>, global_config: Arc<RwLock<GlobalConfig>>, args: PodConf) -> CliResult {
     let local_conf = LocalConfig::read_lock(&local_config, "service::restore::local")?;
     let global_conf = GlobalConfig::read_lock(&global_config, "service::restore::globale")?;
-    for file in args.files.clone() {
+    for file in args.files {
         match file.as_str() {
             LOCAL_CONFIG_FNAME => {
                 let path = args.path.join(LOCAL_CONFIG_FNAME).inner;

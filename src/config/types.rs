@@ -4,7 +4,7 @@ use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::{
-    error::{WhError, WhResult},
+    error::{CliError, CliResult, WhError, WhResult},
     pods::arbo::LOCK_TIMEOUT,
 };
 
@@ -64,6 +64,17 @@ pub struct GeneralLocalConfig {
     pub address: String,
 }
 
+impl LocalConfig {
+    pub fn constructor(&mut self, local: Self) -> Result<(), CliError> {
+        self.general.name = local.general.name;
+        if local.general.address != self.general.address {
+            log::warn!("Local Config: Impossible to modify an ip address");
+            return Err(CliError::Unimplemented { arg: "Local Config: Impossible to modify an ip address".to_owned() });
+        }
+        Ok(())
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct GlobalConfig {
     pub general: GeneralGlobalConfig,
@@ -80,6 +91,20 @@ pub struct GeneralGlobalConfig {
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct RedundancyConfig {
     pub number: u64,
+}
+
+impl GlobalConfig {
+    pub fn constructor(&mut self, global: Self) -> Result<(), CliError> {
+        self.general.ignore_paths = global.general.ignore_paths;
+        self.general.pods_names = global.general.pods_names;
+        if global.general.peers != self.general.peers {
+            log::warn!("Global Config: Impossible to modify peers' ip address");
+            return Err(CliError::Unimplemented { arg: "Global Config: Impossible to modify peers' ip address".to_owned() });
+        }
+        self.redundancy.number = global.redundancy.number;
+
+        Ok(())
+    }
 }
 
 //OLD
