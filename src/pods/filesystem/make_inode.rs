@@ -30,11 +30,8 @@ impl FsInterface {
             SimpleFileType::Directory => FsEntry::Directory(Vec::new()),
         };
 
-        let new_inode_id = match (name.as_str(), parent_ino) {
-            (".global_config.toml", 1) => 2u64,
-            (".local_config.toml", 1) => 3u64,
-            _ => self.network_interface.n_get_next_inode()?,
-        };
+        let new_inode_id = Arbo::get_special(&name, parent_ino)
+            .ok_or(()).or_else(|_| self.network_interface.n_get_next_inode())?;
 
         let new_inode = Inode::new(name.clone(), parent_ino, new_inode_id, new_entry);
 

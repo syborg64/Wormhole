@@ -218,7 +218,7 @@ impl NetworkInterface {
         let inode_id = inode.id.clone();
         Arbo::n_write_lock(&self.arbo, "register_new_inode")?.n_add_inode(inode.clone())?;
 
-        if inode_id != 3u64 {
+        if !Arbo::is_local_only(inode_id) {
             if matches!(inode.entry, FsEntry::File(_)) {
                 self.apply_redundancy(inode_id)?;
             }
@@ -271,7 +271,7 @@ impl NetworkInterface {
     pub fn unregister_inode(&self, id: InodeId) -> Result<(), RemoveInode> {
         Arbo::n_write_lock(&self.arbo, "unregister_inode")?.n_remove_inode(id)?;
 
-        if id != 3u64 {
+        if !Arbo::is_local_only(id) {
             self.to_network_message_tx
                 .send(ToNetworkMessage::BroadcastMessage(
                     message::MessageContent::Remove(id),
@@ -424,21 +424,27 @@ impl NetworkInterface {
     }
 
     pub fn revoke_remote_hosts(&self, id: InodeId) -> WhResult<()> {
-        self.to_network_message_tx
-            .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::EditHosts(id, vec![self.self_addr.clone()]),
-            ))
-            .expect("revoke_remote_hosts: unable to update modification on the network thread");
-        self.apply_redundancy(id)
+        if !Arbo::is_local_only(id) {
+            self.to_network_message_tx
+                .send(ToNetworkMessage::BroadcastMessage(
+                    MessageContent::EditHosts(id, vec![self.self_addr.clone()]),
+                ))
+                .expect("revoke_remote_hosts: unable to update modification on the network thread");
+            self.apply_redundancy(id)
+        } else {
+            Ok(())
+        }
     }
 
     pub fn update_remote_hosts(&self, inode: &Inode) -> io::Result<()> {
         if let FsEntry::File(hosts) = &inode.entry {
-            self.to_network_message_tx
-                .send(ToNetworkMessage::BroadcastMessage(
-                    MessageContent::EditHosts(inode.id, hosts.clone()),
-                ))
-                .expect("update_remote_hosts: unable to update modification on the network thread");
+            if !Arbo::is_local_only(inode.id) {
+                self.to_network_message_tx
+                    .send(ToNetworkMessage::BroadcastMessage(
+                        MessageContent::EditHosts(inode.id, hosts.clone()),
+                    ))
+                    .expect("update_remote_hosts: unable to update modification on the network thread");
+            }
             Ok(())
         } else {
             Err(io::ErrorKind::InvalidInput.into())
@@ -520,11 +526,14 @@ impl NetworkInterface {
         arbo.n_set_inode_meta(id, fixed_meta.clone())?;
         drop(arbo);
 
-        self.to_network_message_tx
-            .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::EditMetadata(id, fixed_meta, self.self_addr.clone()),
-            ))
-            .expect("update_metadata: unable to update modification on the network thread");
+        if !Arbo::is_local_only(id) {
+            self.to_network_message_tx
+                .send(ToNetworkMessage::BroadcastMessage(
+                    MessageContent::EditMetadata(id, fixed_meta, self.self_addr.clone()),
+                ))
+                .expect("update_metadata: unable to update modification on the network thread");
+        }
+
         Ok(())
         /* REVIEW
          * This system (and others broadcasts systems) should be reviewed as they don't check success.
@@ -641,10 +650,10 @@ impl NetworkInterface {
         let mut entries = arbo.get_raw_entries();
 
         //Remove ignored entries
-        entries.remove(&3u64);
+        entries.retain(|ino, _| !Arbo::is_local_only(*ino));
         entries.entry(1u64).and_modify(|inode| {
             if let FsEntry::Directory(childrens) = &mut inode.entry {
-                childrens.retain(|x| *x != 3u64);
+                childrens.retain(|x| !Arbo::is_local_only(*x));
             }
         });
 

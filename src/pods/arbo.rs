@@ -176,6 +176,22 @@ impl Arbo {
         self.entries.clone()
     }
 
+    pub fn get_special(name: &str, parent_ino: u64) -> Option<u64> {
+        match (name, parent_ino) {
+            (".global_config.toml", 1) => Some(2u64),
+            (".local_config.toml", 1) => Some(3u64),
+            _ => None
+        }
+    }
+
+    pub fn is_special(ino: u64) -> bool {
+        ino <= 10u64
+    }
+
+    pub fn is_local_only(ino: u64) -> bool {
+        ino == 3u64 // ".local_config.toml"
+    }
+
     #[must_use]
     pub fn read_lock<'a>(
         arbo: &'a Arc<RwLock<Arbo>>,
