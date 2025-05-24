@@ -1,8 +1,7 @@
 use custom_error::custom_error;
 
 use crate::{
-    error::WhError,
-    pods::arbo::{Arbo, FsEntry, Inode, ARBO_FILE_FNAME, ARBO_FILE_INO, GLOBAL_CONFIG_FNAME, GLOBAL_CONFIG_INO, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO},
+    config::{types::Config, LocalConfig}, error::WhError, pods::arbo::{Arbo, FsEntry, Inode, ARBO_FILE_FNAME, ARBO_FILE_INO, GLOBAL_CONFIG_FNAME, GLOBAL_CONFIG_INO, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO}
 };
 
 use super::fs_interface::{FsInterface, SimpleFileType};
@@ -26,7 +25,7 @@ impl FsInterface {
         kind: SimpleFileType,
     ) -> Result<Inode, MakeInode> {
         let new_entry = match kind {
-            SimpleFileType::File => FsEntry::File(vec![self.network_interface.local_config.general.address.clone()]),
+            SimpleFileType::File => FsEntry::File(vec![LocalConfig::read_lock(&self.network_interface.local_config, "remove_inode_locally")?.general.address.clone()]),
             SimpleFileType::Directory => FsEntry::Directory(Vec::new()),
         };
 

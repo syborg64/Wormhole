@@ -88,21 +88,57 @@ async fn handle_cli_command(
         }
         Cli::Restore(mut resotre_args) => {
             let opt_pod = if resotre_args.name == "." {
-                pods
-                    .iter()
+                pods.iter()
                     .find(|(_, pod)| pod.get_mount_point() == &resotre_args.path)
-                    
             } else {
                 pods.iter().find(|(n, _)| n == &&resotre_args.name)
             };
             if let Some((_, pod)) = opt_pod {
                 resotre_args.path = pod.get_mount_point().clone();
-                commands::service::restore(pod.local_config.clone(), pod.global_config.clone(), resotre_args).await
+                commands::service::restore(
+                    pod.local_config.clone(),
+                    pod.global_config.clone(),
+                    resotre_args,
+                )
+                .await
             } else {
-                log::error!("Pod at this path doesn't existe {:?}, {:?}", resotre_args.name, resotre_args.path);
-                Err(CliError::InvalidArgument { arg: resotre_args.path.to_string() })
+                log::error!(
+                    "Pod at this path doesn't existe {:?}, {:?}",
+                    resotre_args.name,
+                    resotre_args.path
+                );
+                Err(CliError::InvalidArgument {
+                    arg: resotre_args.path.to_string(),
+                })
             }
-        },
+        }
+        Cli::Apply(mut pod_conf) => {
+            let opt_pod = if pod_conf.name == "." {
+                pods.iter()
+                    .find(|(_, pod)| pod.get_mount_point() == &pod_conf.path)
+            } else {
+                pods.iter().find(|(n, _)| n == &&pod_conf.name)
+            };
+            if let Some((_, pod)) = opt_pod {
+                pod_conf.path = pod.get_mount_point().clone();
+                let _ = commands::service::apply(
+                    pod.local_config.clone(),
+                    pod.global_config.clone(),
+                    pod_conf,
+                )
+                .await;
+                Ok(CliSuccess::Message("The new configuration is apply".to_owned()))
+            } else {
+                log::error!(
+                    "Pod at this path doesn't existe {:?} {:?}",
+                    pod_conf.name,
+                    pod_conf.path
+                );
+                Err(CliError::InvalidArgument {
+                    arg: pod_conf.path.to_string(),
+                })
+            }
+        }
         _ => Err(CliError::InvalidCommand),
     };
     let string_output = response_command.map_or_else(|e| e.to_string(), |a| a.to_string());
@@ -204,8 +240,7 @@ async fn main() {
     pods = cli_airport
         .await
         .expect("main: cli_airport didn't join properly");
-    terminal_handle
-        .abort();
+    terminal_handle.abort();
 
     log::info!("Stopping");
     for (name, pod) in pods.iter() {

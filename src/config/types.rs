@@ -1,6 +1,12 @@
-use std::{fs, path::Path, str};
+use std::{fs, path::Path, str, sync::Arc};
 
+use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+
+use crate::{
+    error::{WhError, WhResult},
+    pods::arbo::LOCK_TIMEOUT,
+};
 
 /** NOTE
  * To add elements in the configuration file :
@@ -22,6 +28,26 @@ pub trait Config: Serialize + DeserializeOwned {
     {
         let contents = fs::read_to_string(path)?;
         Ok(toml::from_str(&contents)?)
+    }
+
+    #[must_use]
+    fn read_lock<'a, T: Config>(
+        conf: &'a Arc<RwLock<T>>,
+        called_from: &'a str,
+    ) -> WhResult<RwLockReadGuard<'a, T>> {
+        conf.try_read_for(LOCK_TIMEOUT).ok_or(WhError::WouldBlock {
+            called_from: called_from.to_owned(),
+        })
+    }
+
+    #[must_use]
+    fn write_lock<'a, T: Config>(
+        conf: &'a Arc<RwLock<T>>,
+        called_from: &'a str,
+    ) -> WhResult<RwLockWriteGuard<'a, T>> {
+        conf.try_write_for(LOCK_TIMEOUT).ok_or(WhError::WouldBlock {
+            called_from: called_from.to_owned(),
+        })
     }
 }
 
@@ -47,7 +73,7 @@ pub struct GlobalConfig {
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct GeneralGlobalConfig {
     pub peers: Vec<String>,
-    pub ignore_paths: Vec<String>,  //FIXME - What is this ???
+    pub ignore_paths: Vec<String>, //FIXME - What is this ???
     pub pods_names: Vec<String>,
 }
 

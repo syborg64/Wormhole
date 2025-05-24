@@ -1,6 +1,7 @@
 use std::fs;
 use std::{io, sync::Arc};
 
+use crate::config::types::Config;
 use crate::config::{GlobalConfig, LocalConfig};
 use crate::error::{WhError, WhResult};
 #[cfg(target_os = "linux")]
@@ -53,8 +54,8 @@ pub struct Pod {
     network_airport_handle: Option<JoinHandle<()>>,
     peer_broadcast_handle: Option<JoinHandle<()>>,
     new_peer_handle: Option<JoinHandle<()>>,
-    pub local_config: Arc<LocalConfig>,
-    pub global_config: Arc<GlobalConfig>,
+    pub local_config: Arc<RwLock<LocalConfig>>,
+    pub global_config: Arc<RwLock<GlobalConfig>>,
 }
 
 pub async fn initiate_connection(
@@ -180,8 +181,8 @@ impl Pod {
         }
 
         let arbo: Arc<RwLock<Arbo>> = Arc::new(RwLock::new(arbo));
-        let local = Arc::new(local_config);
-        let global = Arc::new(global_config);
+        let local = Arc::new(RwLock::new(local_config));
+        let global = Arc::new(RwLock::new(global_config));
 
         let network_interface = Arc::new(NetworkInterface::new(
             arbo.clone(),
@@ -276,7 +277,7 @@ impl Pod {
                     .send(ToNetworkMessage::BroadcastMessage(
                         MessageContent::RemoveHosts(
                             ino,
-                            vec![self.local_config.general.address.clone()],
+                            vec![LocalConfig::read_lock(&self.local_config, "send_file_to_possible_hosts")?.general.address.clone()],
                         ),
                     ))
                     .expect("to_network_message_tx closed.");
@@ -288,7 +289,7 @@ impl Pod {
 
     /// Gets every file hosted by this pod only and sends them to other pods
     fn send_files_when_stopping(&self, arbo: &Arbo, peers: Vec<Address>) {
-        arbo.files_hosted_only_by(&self.local_config.general.address)
+        arbo.files_hosted_only_by(&LocalConfig::read_lock(&self.local_config, "send_files_when_stopping").map_err(|e| log::error!("{e}")).unwrap().general.address)
             .filter_map(|inode| {
                 Some((
                     inode.id,
@@ -325,7 +326,7 @@ impl Pod {
         self.network_interface
             .to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::Disconnect(self.local_config.general.address.clone()),
+                MessageContent::Disconnect(LocalConfig::read_lock(&self.local_config, "pod::stop")?.general.address.clone()),
             ))
             .expect("to_network_message_tx closed.");
 

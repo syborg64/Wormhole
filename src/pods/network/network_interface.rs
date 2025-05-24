@@ -4,7 +4,12 @@ use std::{
     sync::Arc,
 };
 
-use crate::{config::{GlobalConfig, LocalConfig}, error::{WhError, WhResult}, network::message::MessageAndStatus, pods::arbo::LOCAL_CONFIG_INO};
+use crate::{
+    config::{types::Config, GlobalConfig, LocalConfig},
+    error::{WhError, WhResult},
+    network::message::MessageAndStatus,
+    pods::arbo::LOCAL_CONFIG_INO,
+};
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::{
     broadcast,
@@ -132,8 +137,8 @@ pub struct NetworkInterface {
     pub next_inode: Mutex<InodeId>, // TODO - replace with InodeIndex type
     pub callbacks: Callbacks,
     pub peers: Arc<RwLock<Vec<PeerIPC>>>,
-    pub local_config: Arc<LocalConfig>,
-    pub global_config: Arc<GlobalConfig>,
+    pub local_config: Arc<RwLock<LocalConfig>>,
+    pub global_config: Arc<RwLock<GlobalConfig>>,
 }
 
 impl NetworkInterface {
@@ -143,8 +148,8 @@ impl NetworkInterface {
         to_network_message_tx: UnboundedSender<ToNetworkMessage>,
         next_inode: InodeId,
         peers: Arc<RwLock<Vec<PeerIPC>>>,
-        local_config: Arc<LocalConfig>,
-        global_config: Arc<GlobalConfig>,
+        local_config: Arc<RwLock<LocalConfig>>,
+        global_config: Arc<RwLock<GlobalConfig>>,
     ) -> Self {
         let next_inode = Mutex::new(next_inode);
 
@@ -323,7 +328,12 @@ impl NetworkInterface {
             return Err(io::ErrorKind::InvalidData.into());
         }
 
-        if hosts.contains(&self.local_config.general.address) {
+        if hosts.contains(
+            &LocalConfig::read_lock(&self.local_config, "network_interface::pull_file_async")
+                .map_err(|e| io::Error::new(ErrorKind::Other, e.to_string()))?
+                .general
+                .address,
+        ) {
             // if the asked file is already on disk
             Ok(None)
         } else {
@@ -336,7 +346,17 @@ impl NetworkInterface {
                 self.to_network_message_tx
                     .send(ToNetworkMessage::SpecificMessage(
                         (
-                            MessageContent::RequestFile(file, self.local_config.general.address.clone()),
+                            MessageContent::RequestFile(
+                                file,
+                                LocalConfig::read_lock(
+                                    &self.local_config,
+                                    "network_interface::pull_file_async",
+                                )
+                                .map_err(|e| io::Error::new(ErrorKind::Other, e.to_string()))?
+                                .general
+                                .address
+                                .clone(),
+                            ),
                             Some(status_tx.clone()),
                         ),
                         vec![host.clone()], // NOTE - naive choice for now
@@ -382,7 +402,12 @@ impl NetworkInterface {
             return Err(io::ErrorKind::InvalidData.into());
         }
 
-        if hosts.contains(&self.local_config.general.address) {
+        if hosts.contains(
+            &LocalConfig::read_lock(&self.local_config, "network_interface::pull_file_sync")
+                .map_err(|e| io::Error::new(ErrorKind::Other, e.to_string()))?
+                .general
+                .address,
+        ) {
             // if the asked file is already on disk
             Ok(None)
         } else {
@@ -395,7 +420,17 @@ impl NetworkInterface {
                 self.to_network_message_tx
                     .send(ToNetworkMessage::SpecificMessage(
                         (
-                            MessageContent::RequestFile(file, self.local_config.general.address.clone()),
+                            MessageContent::RequestFile(
+                                file,
+                                LocalConfig::read_lock(
+                                    &self.local_config,
+                                    "network_interface::pull_file_sync",
+                                )
+                                .map_err(|e| io::Error::new(ErrorKind::Other, e.to_string()))?
+                                .general
+                                .address
+                                .clone(),
+                            ),
                             Some(status_tx.clone()),
                         ),
                         vec![host.clone()], // NOTE - naive choice for now
@@ -430,7 +465,16 @@ impl NetworkInterface {
     pub fn revoke_remote_hosts(&self, id: InodeId) -> WhResult<()> {
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::EditHosts(id, vec![self.local_config.general.address.clone()]),
+                MessageContent::EditHosts(
+                    id,
+                    vec![LocalConfig::read_lock(
+                        &self.local_config,
+                        "network_interface::revoke_remote_hosts",
+                    )?
+                    .general
+                    .address
+                    .clone()],
+                ),
             ))
             .expect("revoke_remote_hosts: unable to update modification on the network thread");
         self.apply_redundancy(id)
@@ -463,7 +507,15 @@ impl NetworkInterface {
 
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::EditMetadata(id, meta, self.local_config.general.address.clone()),
+                MessageContent::EditMetadata(
+                    id,
+                    meta,
+                    LocalConfig::read_lock(&self.local_config, ".")
+                        .expect("update_metadata: can't read local config address")
+                        .general
+                        .address
+                        .clone(),
+                ),
             ))
             .expect("update_metadata: unable to update modification on the network thread");
         Ok(())
@@ -482,7 +534,17 @@ impl NetworkInterface {
 
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::EditMetadata(id, meta, self.local_config.general.address.clone()),
+                MessageContent::EditMetadata(
+                    id,
+                    meta,
+                    LocalConfig::read_lock(
+                        &self.local_config,
+                        "network_interface::n_update_metadata",
+                    )?
+                    .general
+                    .address
+                    .clone(),
+                ),
             ))
             .expect("update_metadata: unable to update modification on the network thread");
         Ok(())
@@ -507,10 +569,12 @@ impl NetworkInterface {
             .iter()
             .map(|peer| peer.address.clone())
             .filter(|addr| !current_hosts.contains(addr))
-            .take(self.global_config.redundancy.number as usize - current_hosts.len())
+            .take(GlobalConfig::read_lock(&self.global_config, "add_redundancy")?.redundancy.number as usize - current_hosts.len())
             .collect::<Vec<Address>>();
 
-        if (current_hosts.len() + possible_hosts.len()) < self.global_config.redundancy.number as usize {
+        if (current_hosts.len() + possible_hosts.len())
+            < GlobalConfig::read_lock(&self.global_config, "add_redundancy")?.redundancy.number as usize
+        {
             log::warn!("redundancy needs enough hosts");
             return Ok(()); // TODO - should be handled (is not ok)
         }
@@ -528,8 +592,13 @@ impl NetworkInterface {
         let hosts_nb = current_hosts.len();
         let discard_hosts: Vec<String> = current_hosts
             .into_iter()
-            .filter(|addr| *addr != self.local_config.general.address)
-            .take(hosts_nb - self.global_config.redundancy.number as usize)
+            .filter(|addr| *addr != LocalConfig::read_lock(
+                &self.local_config,
+                "network_interface::remove_redundancy",
+            ).expect("remove_redundancy: can't read the address in the local config")
+            .general
+            .address)
+            .take(hosts_nb - GlobalConfig::read_lock(&self.global_config, ".").expect("network_interface::remove_redundancy: can't read the redundancy number").redundancy.number as usize)
             .collect();
 
         // NOTE - removing hosts also remove their file on disk upon reception
@@ -551,9 +620,9 @@ impl NetworkInterface {
             }
         };
 
-        if current_hosts.len() < self.global_config.redundancy.number as usize {
+        if current_hosts.len() < GlobalConfig::read_lock(&self.global_config, "apply_redundancy")?.redundancy.number as usize {
             self.add_redundancy(file_id, current_hosts)?
-        } else if current_hosts.len() > self.global_config.redundancy.number as usize {
+        } else if current_hosts.len() > GlobalConfig::read_lock(&self.global_config, "apply_redundancy")?.redundancy.number as usize {
             self.remove_redundancy(file_id, current_hosts)
         }
         Ok(())
@@ -566,7 +635,16 @@ impl NetworkInterface {
     pub fn register_to_others(&self) {
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::Register(self.local_config.general.address.clone()),
+                MessageContent::Register(
+                    LocalConfig::read_lock(
+                        &self.local_config,
+                        ".",
+                    )
+                    .expect("network_interface::register_to_others: can't read the address in the local config")
+                    .general
+                    .address
+                    .clone(),
+                ),
             ))
             .expect("register_to_others: unable to update modification on the network thread");
     }

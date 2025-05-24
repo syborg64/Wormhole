@@ -61,9 +61,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             log::warn!("inspecting pod");
             todo!("inspect");
         }
-        Cli::Reload(_args) => {
+        Cli::Apply(args) => {
             log::warn!("reloading pod");
-            todo!("reload");
+            commands::cli::apply(ip, args);
         }
         Cli::Restore(args) => {
             println!("retore a specifique file config");

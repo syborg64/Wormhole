@@ -1,12 +1,16 @@
 use std::{fs::File, path::Path, sync::Arc};
 
-use crate::{commands::cli_commands::RestoreConf,
+use parking_lot::RwLock;
+
+use crate::{commands::cli_commands::PodConf,
     config::{types::Config, GlobalConfig, LocalConfig},
     error::{CliError, CliResult, CliSuccess},
     pods::arbo::{GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME}
 };
 
-pub async fn restore(local_config: Arc<LocalConfig>, global_config: Arc<GlobalConfig>, args: RestoreConf) -> CliResult {
+pub async fn restore(local_config: Arc<RwLock<LocalConfig>>, global_config: Arc<RwLock<GlobalConfig>>, args: PodConf) -> CliResult {
+    let local_conf = LocalConfig::read_lock(&local_config, "service::restore::local")?;
+    let global_conf = GlobalConfig::read_lock(&global_config, "service::restore::globale")?;
     for file in args.files.clone() {
         match file.as_str() {
             LOCAL_CONFIG_FNAME => {
@@ -14,7 +18,7 @@ pub async fn restore(local_config: Arc<LocalConfig>, global_config: Arc<GlobalCo
                 if !Path::new(&path).exists() {
                     File::create(path.clone())?;
                 }
-                if let Err(e) = local_config.write(path) {
+                if let Err(e) = local_conf.write(path) {
                     return Err(CliError::BoxError { arg: e });
                 }
             },
@@ -23,12 +27,12 @@ pub async fn restore(local_config: Arc<LocalConfig>, global_config: Arc<GlobalCo
                 if !Path::new(&path).exists() {
                     File::create(path.clone())?;
                 }
-                if let Err(e) = global_config.write(path) {
+                if let Err(e) = global_conf.write(path) {
                     return Err(CliError::BoxError { arg: e });
                 }
             },
             _ => {return Err(CliError::InvalidArgument { arg: file });}
         }
     }
-    Ok(CliSuccess::Message("bread".to_owned()))
+    Ok(CliSuccess::Message("Configuration files are restore".to_owned()))
 }

@@ -18,10 +18,10 @@ pub enum Cli {
     Inspect,
     /// Remove a pod from its network
     Remove(RemoveArgs),
-    /// Reload a pod
-    Reload(PodArgs),
+    /// Apply a new configuration to a pod
+    Apply(PodConf),
     /// Restore many or a specifique file configuration  
-    Restore(RestoreConf),
+    Restore(PodConf),
     /// Stops the service
     Interrupt,
 }
@@ -29,7 +29,7 @@ pub enum Cli {
 
 #[derive(Debug, clap::Args, Serialize, Deserialize)]
 #[command(version, about, long_about = None)]
-pub struct RestoreConf {
+pub struct PodConf {
     /// Pod name
     #[arg(long, short, default_value = ".")]
     pub name: String,
