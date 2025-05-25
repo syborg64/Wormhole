@@ -1,8 +1,8 @@
 use super::network_interface::{get_all_peers_address, NetworkInterface};
 use crate::{
     error::WhResult,
-    network::message::RedundancyMessage,
-    pods::{arbo::InodeId, filesystem::fs_interface::FsInterface},
+    network::message::{Address, RedundancyMessage},
+    pods::{arbo::{Arbo, InodeId}, filesystem::fs_interface::FsInterface},
 };
 use std::sync::Arc;
 use tokio::{sync::mpsc::UnboundedReceiver, task::JoinSet};
@@ -38,7 +38,7 @@ pub async fn redundancy_worker(
                         nw_interface.redundancy as usize
                     };
 
-                    push_redundancy(
+                    let new_hosts = push_redundancy(
                         &nw_interface,
                         all_peers,
                         ino,
@@ -46,6 +46,9 @@ pub async fn redundancy_worker(
                         target_redundancy,
                     )
                     .await;
+
+                    nw_interface.acknowledge_hosts_edition(ino, new_hosts);
+                    nw_interface.update_remote_hosts(Arbo::n_read_lock(&nw_interface.arbo, "redundancy_worker"))
                 }
                 Err(e) => {
                     log::error!("Redundancy: can't add job for {}. Error: {}", ino, e);
@@ -62,8 +65,9 @@ async fn push_redundancy(
     ino: InodeId,
     file_binary: Vec<u8>,
     target_redundancy: usize,
-) {
-    let mut set: JoinSet<WhResult<()>> = JoinSet::new();
+) -> Vec<Address> {
+    let mut success_hosts: Vec<Address> = Vec::new();
+    let mut set: JoinSet<WhResult<Address>> = JoinSet::new();
     for i in 0..target_redundancy {
         let nwi_clone = Arc::clone(nw_interface);
         //TODO cloning the whole file content in ram to send it to many hosts is terrible :
@@ -82,7 +86,7 @@ async fn push_redundancy(
                 log::error!("redundancy_worker: error in thread pool: {e}");
                 break;
             }
-            Some(Ok(Ok(()))) => (),
+            Some(Ok(Ok(host))) => success_hosts.push(host),
             Some(Ok(Err(crate::error::WhError::NetworkDied { called_from: _ }))) => {
                 log::warn!("Redundancy: NetworkDied on some host. Trying next...");
                 if current_try >= all_peers.len() {
@@ -105,5 +109,5 @@ async fn push_redundancy(
             }
         }
     }
-    set.join_all().await;
+    success_hosts
 }

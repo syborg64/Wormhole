@@ -436,20 +436,21 @@ impl NetworkInterface {
         inode: InodeId,
         data: Vec<u8>,
         to: Address,
-    ) -> WhResult<()> {
+    ) -> WhResult<Address> {
         let (status_tx, mut status_rx) = unbounded_channel();
         self.to_network_message_tx
             .send(ToNetworkMessage::SpecificMessage(
-                (
-                    MessageContent::RedundancyFile(inode, data),
-                    Some(status_tx),
-                ),
-                vec![to],
+                (MessageContent::RedundancyFile(inode, data), Some(status_tx)),
+                vec![to.clone()],
             ))
             .expect("send_file: unable to update modification on the network thread");
-        status_rx.recv().await.unwrap_or(Err(WhError::NetworkDied {
-            called_from: "network_interface::send_file_redundancy".to_owned(),
-        }))
+        status_rx
+            .recv()
+            .await
+            .unwrap_or(Err(WhError::NetworkDied {
+                called_from: "network_interface::send_file_redundancy".to_owned(),
+            }))
+            .map(|()| to)
     }
 
     pub fn revoke_remote_hosts(&self, id: InodeId) -> WhResult<()> {
@@ -458,7 +459,8 @@ impl NetworkInterface {
                 MessageContent::EditHosts(id, vec![self.self_addr.clone()]),
             ))
             .expect("revoke_remote_hosts: unable to update modification on the network thread");
-        self.apply_redundancy(id)
+        self.apply_redundancy(id);
+        Ok(())
     }
 
     pub fn update_remote_hosts(&self, inode: &Inode) -> io::Result<()> {
@@ -522,66 +524,10 @@ impl NetworkInterface {
 
     // SECTION Redundancy related
 
-    fn add_redundancy(&self, file_id: InodeId, current_hosts: Vec<Address>) -> WhResult<()> {
-        let possible_hosts: Vec<Address> = self
-            .peers
-            .try_read_for(LOCK_TIMEOUT)
-            .ok_or(WhError::WouldBlock {
-                called_from: "apply_redundancy: can't lock peers mutex".to_string(),
-            })?
-            .iter()
-            .map(|peer| peer.address.clone())
-            .filter(|addr| !current_hosts.contains(addr))
-            .take(self.redundancy as usize - current_hosts.len())
-            .collect::<Vec<Address>>();
-
-        if (current_hosts.len() + possible_hosts.len()) < self.redundancy as usize {
-            log::warn!("redundancy needs enough hosts");
-            return Ok(()); // TODO - should be handled (is not ok)
-        }
-
-        self.to_network_message_tx
-            .send(ToNetworkMessage::SpecificMessage(
-                (MessageContent::RequestPull(file_id), None),
-                possible_hosts,
-            ))
-            .expect("apply_redundancy: unable to send redundancy on the network thread");
-        Ok(())
-    }
-
-    fn remove_redundancy(&self, file_id: InodeId, current_hosts: Vec<Address>) {
-        let hosts_nb = current_hosts.len();
-        let discard_hosts: Vec<String> = current_hosts
-            .into_iter()
-            .filter(|addr| *addr != self.self_addr)
-            .take(hosts_nb - self.redundancy as usize)
-            .collect();
-
-        // NOTE - removing hosts also remove their file on disk upon reception
-        self.to_network_message_tx
-            .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::RemoveHosts(file_id, discard_hosts),
-            ))
-            .expect("apply_redundancy: unable to send discard redundancy on the network thread");
-    }
-
-    pub fn apply_redundancy(&self, file_id: InodeId) -> WhResult<()> {
-        let current_hosts: Vec<String> = {
-            let arbo = Arbo::n_read_lock(&self.arbo, "apply_redundancy")?;
-
-            if let FsEntry::File(current_hosts) = &arbo.n_get_inode(file_id)?.entry {
-                current_hosts.clone()
-            } else {
-                panic!("Can't apply redundancy to a folder");
-            }
-        };
-
-        if current_hosts.len() < self.redundancy as usize {
-            self.add_redundancy(file_id, current_hosts)?
-        } else if current_hosts.len() > self.redundancy as usize {
-            self.remove_redundancy(file_id, current_hosts)
-        }
-        Ok(())
+    pub fn apply_redundancy(&self, file_id: InodeId) {
+        self.to_redundancy_tx
+            .send(RedundancyMessage::ApplyTo(file_id))
+            .expect("network_interface::apply_redundancy: tx error");
     }
 
     // !SECTION ^ Redundancy related
