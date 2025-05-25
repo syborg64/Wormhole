@@ -477,6 +477,7 @@ impl NetworkInterface {
             .clone();
 
         if let FsEntry::File(hosts) = &inode.entry {
+            log::debug!("broadcasting EditHosts for {ino} to {:?}", hosts);
             self.to_network_message_tx
                 .send(ToNetworkMessage::BroadcastMessage(
                     MessageContent::EditHosts(inode.id, hosts.clone()),
@@ -489,19 +490,6 @@ impl NetworkInterface {
             })
         }
     }
-
-    // pub fn update_remote_hosts(&self, inode: &Inode) -> io::Result<()> {
-    //     if let FsEntry::File(hosts) = &inode.entry {
-    //         self.to_network_message_tx
-    //             .send(ToNetworkMessage::BroadcastMessage(
-    //                 MessageContent::EditHosts(inode.id, hosts.clone()),
-    //             ))
-    //             .expect("update_remote_hosts: unable to update modification on the network thread");
-    //         Ok(())
-    //     } else {
-    //         Err(io::ErrorKind::InvalidInput.into())
-    //     }
-    // }
 
     pub fn aknowledge_new_hosts(&self, id: InodeId, new_hosts: Vec<Address>) -> io::Result<()> {
         Arbo::write_lock(&self.arbo, "aknowledge_new_hosts")?.add_inode_hosts(id, new_hosts)
@@ -671,7 +659,11 @@ impl NetworkInterface {
 
             let action_result = match content.clone() { // remove scary clone
                 MessageContent::PullAnswer(id, binary) => fs_interface.recept_binary(id, binary),
-                MessageContent::RedundancyFile(id, binary) => fs_interface.recept_binary(id, binary),
+                MessageContent::RedundancyFile(id, binary) => fs_interface.recept_redundancy(id, binary)
+                    .map_err(|e| std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        format!("WhError: {e}"),
+                )),
                 MessageContent::Inode(inode) => fs_interface.recept_inode(inode).or_else(|err| {
                         Err(std::io::Error::new(
                             std::io::ErrorKind::Other,

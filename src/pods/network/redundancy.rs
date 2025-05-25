@@ -50,6 +50,7 @@ pub async fn redundancy_worker(
                     )
                     .await;
 
+                    log::debug!("REDUNDANCY: updating hosts to {:?}", new_hosts);
                     let _ = nw_interface.update_hosts(ino, new_hosts).inspect_err(|e| {
                         log::error!(
                             "redundancy_worker: Can't push redundancy hosts for ({ino}): {e}"

@@ -310,7 +310,7 @@ impl Pod {
                 ))
                 .expect("to_network_message_tx closed.");
 
-            if let Ok(()) = status_rx.blocking_recv().unwrap() {
+            if let Ok(()) = status_rx.blocking_recv().unwrap() { // FIXME change all to async (can't block within a runtime)
                 self.network_interface
                     .to_network_message_tx
                     .send(ToNetworkMessage::BroadcastMessage(

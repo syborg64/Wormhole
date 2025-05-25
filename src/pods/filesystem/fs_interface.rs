@@ -1,4 +1,4 @@
-use crate::error::WhResult;
+use crate::error::{WhError, WhResult};
 use crate::network::message::Address;
 use crate::pods::arbo::{
     Arbo, FsEntry, Inode, InodeId, Metadata, ARBO_FILE_FNAME, ARBO_FILE_INO, GLOBAL_CONFIG_FNAME,
@@ -205,6 +205,25 @@ impl FsInterface {
         }
     }
 
+    pub fn recept_redundancy(&self, id: InodeId, binary: Vec<u8>) -> WhResult<()> {
+        let path = Arbo::read_lock(&self.arbo, "recept_binary")
+            .expect("recept_binary: can't read lock arbo")
+            .n_get_path_from_inode_id(id)?;
+
+        self.disk
+            .write_file(path, &binary, 0)
+            .map_err(|e| WhError::DiskError {
+                detail: format!("recept_redundancy: can't write file ({id}): {e}"),
+            })
+            .inspect_err(|e| log::error!("{e}"))?;
+        // TODO -> in case of failure, other hosts still think this one is valid. Should send error report to the redundancy manager
+        Arbo::n_write_lock(&self.arbo, "recept_redundancy")?
+            .n_add_inode_hosts(id, vec![self.network_interface.self_addr.clone()])
+            .inspect_err(|e| {
+                log::error!("Can't update (local) hosts for redundancy pulled file ({id}): {e}")
+            })
+    }
+
     pub fn recept_binary(&self, id: InodeId, binary: Vec<u8>) -> io::Result<()> {
         let path = match Arbo::read_lock(&self.arbo, "recept_binary")
             .expect("recept_binary: can't read lock arbo")
@@ -220,7 +239,8 @@ impl FsInterface {
         };
 
         self.disk.write_file(path, &binary, 0)?;
-        self.network_interface
+        let _ = self
+            .network_interface
             .add_inode_hosts(id, vec![self.network_interface.self_addr.clone()])
             .inspect_err(|e| log::error!("Can't update hosts for pulled file ({id}): {e}"));
         let _ = self
