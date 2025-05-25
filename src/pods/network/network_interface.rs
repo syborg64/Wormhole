@@ -7,6 +7,7 @@ use std::{
 use crate::{
     error::{WhError, WhResult},
     network::message::{MessageAndStatus, RedundancyMessage},
+    pods::arbo::Hosts,
 };
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::{
@@ -643,6 +644,13 @@ impl NetworkInterface {
                 format!("disconnect_peer: can't write lock peers"),
             ))?
             .retain(|p| p.address != addr);
+
+        log::debug!("Disconnecting {addr}. Removing from inodes hosts");
+        for inode in Arbo::write_lock(&self.arbo, "disconnect_peer")?.inodes_mut() {
+            if let FsEntry::File(hosts) = &mut inode.entry {
+                hosts.retain(|h| *h != addr);
+            }
+        }
         Ok(())
     }
 
