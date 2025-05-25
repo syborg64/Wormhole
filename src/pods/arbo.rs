@@ -178,6 +178,11 @@ impl Arbo {
         self.entries.iter()
     }
 
+    // Use only if you know what you're doing, as those modifications won't be propagated to the network
+    pub fn inodes_mut(&mut self) -> std::collections::hash_map::ValuesMut<'_, InodeId, Inode> {
+        self.entries.values_mut()
+    }
+
     #[must_use]
     pub fn read_lock<'a>(
         arbo: &'a Arc<RwLock<Arbo>>,
@@ -231,13 +236,13 @@ impl Arbo {
     pub fn files_hosted_only_by<'a>(
         &'a self,
         host: &'a Address,
-    ) -> impl Iterator<Item = Inode> + use<'a> {
+    ) -> impl Iterator<Item = InodeId> + use<'a> {
         self.iter()
             .filter_map(move |(_, inode)| match &inode.entry {
                 FsEntry::Directory(_) => None,
                 FsEntry::File(hosts) => {
                     if hosts.len() == 1 && hosts.contains(&host) {
-                        Some(inode.clone())
+                        Some(inode.id)
                     } else {
                         None
                     }

@@ -38,7 +38,7 @@ use crate::pods::{
     whpath::WhPath,
 };
 
-use super::arbo::{InodeId, ARBO_FILE_FNAME};
+use super::arbo::{InodeId, ARBO_FILE_FNAME, ARBO_FILE_INO, GLOBAL_CONFIG_INO};
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -303,21 +303,18 @@ impl Pod {
                 .send(ToNetworkMessage::SpecificMessage(
                     (
                         // NOTE - file_content clone is not efficient, but no way to avoid it for now
-                        MessageContent::PullAnswer(ino, file_content.clone()),
+                        MessageContent::RedundancyFile(ino, file_content.clone()),
                         Some(status_tx.clone()),
                     ),
                     vec![host.clone()],
                 ))
                 .expect("to_network_message_tx closed.");
 
-            if let Ok(()) = status_rx.blocking_recv().unwrap() { // FIXME change all to async (can't block within a runtime)
+            if let Ok(()) = status_rx.blocking_recv().unwrap() {
                 self.network_interface
                     .to_network_message_tx
                     .send(ToNetworkMessage::BroadcastMessage(
-                        MessageContent::RemoveHosts(
-                            ino,
-                            vec![self.network_interface.self_addr.clone()],
-                        ),
+                        MessageContent::EditHosts(ino, vec![host.clone()]),
                     ))
                     .expect("to_network_message_tx closed.");
                 return Ok(());
@@ -329,13 +326,17 @@ impl Pod {
     /// Gets every file hosted by this pod only and sends them to other pods
     fn send_files_when_stopping(&self, arbo: &Arbo, peers: Vec<Address>) {
         arbo.files_hosted_only_by(&self.network_interface.self_addr)
-            .filter_map(|inode| {
-                Some((
-                    inode.id,
-                    arbo.n_get_path_from_inode_id(inode.id)
-                        .map_err(|e| log::error!("Pod::files_to_send_when_stopping(2): {e}"))
-                        .ok()?,
-                ))
+            .filter_map(|id| {
+                if id == GLOBAL_CONFIG_INO || id == LOCAL_CONFIG_INO || id == ARBO_FILE_INO {
+                    None
+                } else {
+                    Some((
+                        id,
+                        arbo.n_get_path_from_inode_id(id)
+                            .map_err(|e| log::error!("Pod::files_to_send_when_stopping(2): {e}"))
+                            .ok()?,
+                    ))
+                }
             })
             .for_each(|(id, path)| {
                 if let Err(e) = self.send_file_to_possible_hosts(&peers, id, path) {
@@ -382,9 +383,10 @@ impl Pod {
                 error_source: e.to_string(),
             })?;
 
+        *self.peers.write() = Vec::new(); // dropping PeerIPCs
         self.network_airport_handle.abort();
-        self.peer_broadcast_handle.abort();
         self.new_peer_handle.abort();
+        self.peer_broadcast_handle.abort();
         Ok(())
     }
 

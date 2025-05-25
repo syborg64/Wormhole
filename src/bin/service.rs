@@ -346,8 +346,11 @@ async fn main() {
     terminal_handle.abort();
 
     log::info!("Stopping");
-    for (name, pod) in pods.iter() {
-        match pod.stop() {
+    for (name, pod) in pods.into_iter() {
+        match tokio::task::spawn_blocking(move || pod.stop())
+            .await
+            .expect("main: pod stop: can't spawn blocking task")
+        {
             Ok(()) => log::info!("Stopped pod {name}"),
             Err(e) => log::error!("Pod {name} can't be stopped: {e}"),
         }
