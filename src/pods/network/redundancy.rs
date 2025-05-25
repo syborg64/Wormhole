@@ -2,7 +2,10 @@ use super::network_interface::{get_all_peers_address, NetworkInterface};
 use crate::{
     error::WhResult,
     network::message::{Address, RedundancyMessage},
-    pods::{arbo::{Arbo, InodeId}, filesystem::fs_interface::FsInterface},
+    pods::{
+        arbo::{Arbo, InodeId},
+        filesystem::fs_interface::FsInterface,
+    },
 };
 use std::sync::Arc;
 use tokio::{sync::mpsc::UnboundedReceiver, task::JoinSet};
@@ -47,8 +50,11 @@ pub async fn redundancy_worker(
                     )
                     .await;
 
-                    nw_interface.acknowledge_hosts_edition(ino, new_hosts);
-                    nw_interface.update_remote_hosts(Arbo::n_read_lock(&nw_interface.arbo, "redundancy_worker"))
+                    let _ = nw_interface.update_hosts(ino, new_hosts).inspect_err(|e| {
+                        log::error!(
+                            "redundancy_worker: Can't push redundancy hosts for ({ino}): {e}"
+                        )
+                    });
                 }
                 Err(e) => {
                     log::error!("Redundancy: can't add job for {}. Error: {}", ino, e);

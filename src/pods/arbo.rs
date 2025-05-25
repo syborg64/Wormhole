@@ -557,6 +557,20 @@ impl Arbo {
         Ok(())
     }
 
+    pub fn n_set_inode_hosts(&mut self, ino: InodeId, hosts: Vec<Address>) -> WhResult<()> {
+        let inode = self.n_get_inode_mut(ino)?;
+
+        inode.entry = match &inode.entry {
+            FsEntry::File(_) => FsEntry::File(hosts),
+            _ => {
+                return Err(WhError::InodeIsADirectory {
+                    detail: "n_set_inode_hosts".to_owned(),
+                })
+            }
+        };
+        Ok(())
+    }
+
     /// Add hosts to an inode
     ///
     /// Only works on inodes pointing files (no folders)
@@ -574,6 +588,25 @@ impl Arbo {
                 io::ErrorKind::Other,
                 "can't edit hosts on folder",
             ))
+        }
+    }
+
+    /// Add hosts to an inode
+    ///
+    /// Only works on inodes pointing files (no folders)
+    /// Ignore already existing hosts to avoid duplicates
+    pub fn n_add_inode_hosts(&mut self, ino: InodeId, mut new_hosts: Vec<Address>) -> WhResult<()> {
+        let inode = self.n_get_inode_mut(ino)?;
+
+        if let FsEntry::File(hosts) = &mut inode.entry {
+            hosts.append(&mut new_hosts);
+            hosts.sort();
+            hosts.dedup();
+            Ok(())
+        } else {
+            Err(WhError::InodeIsADirectory {
+                detail: "update_remote_hosts".to_owned(),
+            })
         }
     }
 

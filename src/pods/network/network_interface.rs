@@ -463,7 +463,23 @@ impl NetworkInterface {
         Ok(())
     }
 
-    pub fn update_remote_hosts(&self, inode: &Inode) -> io::Result<()> {
+    pub fn add_inode_hosts(&self, ino: InodeId, hosts: Vec<Address>) -> WhResult<()> {
+        Arbo::n_write_lock(&self.arbo, "network_interface::update_hosts")?
+            .n_add_inode_hosts(ino, hosts)?;
+        self.update_remote_hosts(ino)
+    }
+
+    pub fn update_hosts(&self, ino: InodeId, hosts: Vec<Address>) -> WhResult<()> {
+        Arbo::n_write_lock(&self.arbo, "network_interface::update_hosts")?
+            .n_set_inode_hosts(ino, hosts)?;
+        self.update_remote_hosts(ino)
+    }
+
+    fn update_remote_hosts(&self, ino: InodeId) -> WhResult<()> {
+        let inode = Arbo::n_read_lock(&self.arbo, "update_remote_hosts")?
+            .n_get_inode(ino)?
+            .clone();
+
         if let FsEntry::File(hosts) = &inode.entry {
             self.to_network_message_tx
                 .send(ToNetworkMessage::BroadcastMessage(
@@ -472,9 +488,24 @@ impl NetworkInterface {
                 .expect("update_remote_hosts: unable to update modification on the network thread");
             Ok(())
         } else {
-            Err(io::ErrorKind::InvalidInput.into())
+            Err(WhError::InodeIsADirectory {
+                detail: "update_remote_hosts".to_owned(),
+            })
         }
     }
+
+    // pub fn update_remote_hosts(&self, inode: &Inode) -> io::Result<()> {
+    //     if let FsEntry::File(hosts) = &inode.entry {
+    //         self.to_network_message_tx
+    //             .send(ToNetworkMessage::BroadcastMessage(
+    //                 MessageContent::EditHosts(inode.id, hosts.clone()),
+    //             ))
+    //             .expect("update_remote_hosts: unable to update modification on the network thread");
+    //         Ok(())
+    //     } else {
+    //         Err(io::ErrorKind::InvalidInput.into())
+    //     }
+    // }
 
     pub fn aknowledge_new_hosts(&self, id: InodeId, new_hosts: Vec<Address>) -> io::Result<()> {
         Arbo::write_lock(&self.arbo, "aknowledge_new_hosts")?.add_inode_hosts(id, new_hosts)

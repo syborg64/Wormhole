@@ -206,41 +206,28 @@ impl FsInterface {
     }
 
     pub fn recept_binary(&self, id: InodeId, binary: Vec<u8>) -> io::Result<()> {
-        let (path, inode) = {
-            let arbo = Arbo::read_lock(&self.arbo, "recept_binary")
-                .expect("recept_binary: can't read lock arbo");
-            (
-                match arbo.get_path_from_inode_id(id) {
-                    Ok(path) => path,
-                    Err(_) => {
-                        return self
-                            .network_interface
-                            .callbacks
-                            .resolve(Callback::Pull(id), false)
-                    }
-                },
-                arbo.get_inode(id)?.clone(),
-            )
+        let path = match Arbo::read_lock(&self.arbo, "recept_binary")
+            .expect("recept_binary: can't read lock arbo")
+            .n_get_path_from_inode_id(id)
+        {
+            Ok(path) => path,
+            Err(_) => {
+                return self
+                    .network_interface
+                    .callbacks
+                    .resolve(Callback::Pull(id), false)
+            }
         };
 
         self.disk.write_file(path, &binary, 0)?;
+        self.network_interface
+            .add_inode_hosts(id, vec![self.network_interface.self_addr.clone()])
+            .inspect_err(|e| log::error!("Can't update hosts for pulled file ({id}): {e}"));
         let _ = self
             .network_interface
             .callbacks
             .resolve(Callback::Pull(id), true);
-        let mut hosts;
-        if let FsEntry::File(hosts_source) = &inode.entry {
-            hosts = hosts_source.clone();
-            let self_addr = self.network_interface.self_addr.clone();
-            let idx = hosts.partition_point(|x| x <= &self_addr);
-            hosts.insert(idx, self_addr);
-        } else {
-            return Err(io::ErrorKind::InvalidInput.into());
-        }
-        Arbo::write_lock(&self.arbo, "recept_binary")
-            .expect("recept_binary: can't write lock arbo")
-            .set_inode_hosts(id, hosts)?;
-        self.network_interface.update_remote_hosts(&inode)
+        Ok(())
     }
 
     pub fn recept_edit_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
@@ -304,15 +291,11 @@ impl FsInterface {
         self.network_interface.send_file(inode, data, to)
     }
 
-    pub fn read_local_file(
-        &self,
-        inode: InodeId,
-    ) -> WhResult<Vec<u8>> {
+    pub fn read_local_file(&self, inode: InodeId) -> WhResult<Vec<u8>> {
         let path = Arbo::n_read_lock(&self.arbo, "send_arbo")?
             .get_path_from_inode_id(inode)
             .map_err(|_| crate::error::WhError::InodeNotFound)?;
-        self
-            .disk
+        self.disk
             .read_file(path, 0, u64::max_value())
             .map_err(|_| crate::error::WhError::InodeNotFound)
         // self.network_interface
