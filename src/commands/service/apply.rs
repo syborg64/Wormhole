@@ -8,7 +8,7 @@ use crate::{
 
 
 //TODO - pas modifier les address ip, mettre un warning disant qu'elle ne seront pas prise en compte
-pub async fn apply(
+pub fn apply(
     local_config: Arc<RwLock<LocalConfig>>,
     global_config: Arc<RwLock<GlobalConfig>>,
     args: PodConf,

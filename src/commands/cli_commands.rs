@@ -1,4 +1,6 @@
-use crate::pods::{arbo::{GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME}, whpath::WhPath};
+use std::collections::HashMap;
+
+use crate::pods::{arbo::{GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME}, pod::Pod, whpath::WhPath};
 use clap::{Args, Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
 
@@ -26,8 +28,7 @@ pub enum Cli {
     Interrupt,
 }
 
-
-#[derive(Debug, clap::Args, Serialize, Deserialize)]
+#[derive(Debug, clap::Args, Serialize, Deserialize, Clone)]
 #[command(version, about, long_about = None)]
 pub struct PodConf {
     /// Pod name

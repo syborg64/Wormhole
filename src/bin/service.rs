@@ -54,7 +54,7 @@ async fn handle_cli_command(
                 })
             }
             Err(e) => Err(e),
-        },
+        }
         Cli::Start(pod_args) => commands::service::start(pod_args).await,
         Cli::Stop(pod_args) => {
             if let Some(pod) = pods.remove(&pod_args.name) {
@@ -115,55 +115,55 @@ async fn handle_cli_command(
             }
         }
         Cli::Apply(mut pod_conf) => {
-            todo!("TODO apply command in service");
-            // let opt_pod = if pod_conf.name == "." {
-            //     pods.iter()
-            //         .find(|(_, pod)| pod.get_mount_point() == &pod_conf.path)
-            //         .map(|(k, v)| (k.clone(), v.clone()))
-            // } else {
-            //     pods.iter()
-            //         .find(|(n, _)| n == &&pod_conf.name)
-            //         .map(|(k, v)| (k.clone(), v.clone()))
-            // }
-            // .ok_or_else(|| {
-            //     log::error!(
-            //         "Pod at this path doesn't exist {:?} {:?}",
-            //         pod_conf.name,
-            //         pod_conf.path
-            //     );
-            //     CliError::InvalidArgument {
-            //         arg: pod_conf.path.to_string(),
-            //     }
-            // })?;
-            // if let Some((old_name, pod)) = opt_pod {
-            //     pod_conf.path = pod.get_mount_point().clone();
-            //     let res = commands::service::apply(
-            //         pod.local_config.clone(),
-            //         pod.global_config.clone(),
-            //         pod_conf,
-            //     )
-            //     .await;
-            //     match LocalConfig::read_lock(&pod.local_config, "handle_cli_command::apply") {
-            //         Ok(local) => {
-            //             if local.general.name != *old_name {
-            //                 if let Some(pod) = pods.remove(old_name) {
-            //                     pods.insert(local.general.name.clone(), pod);
-            //                 }
-            //             }
-            //             res
-            //         }
-            //         Err(err) => Err(CliError::WhError { source: err }),
-            //     }
-            // } else {
-            //     log::error!(
-            //         "Pod at this path doesn't existe {:?} {:?}",
-            //         pod_conf.name,
-            //         pod_conf.path
-            //     );
-            //     Err(CliError::InvalidArgument {
-            //         arg: pod_conf.path.to_string(),
-            //     })
-            // }
+            // Find the good pod
+            let opt_pod = if pod_conf.name == "." {
+                pods.iter()
+                    .find(|(_, pod)| pod.get_mount_point() == &pod_conf.path)
+            } else {
+                pods.iter()
+                    .find(|(n, _)| n == &&pod_conf.name)
+            };
+            
+            //Apply new confi in the pod and check if the name change
+            let res = if let Some((name, pod)) = opt_pod {
+                pod_conf.path = pod.get_mount_point().clone();
+                
+                match commands::service::apply(
+                    pod.local_config.clone(),
+                    pod.global_config.clone(),
+                    pod_conf.clone(),
+                ) {
+                    Err(err) => Err(err),
+                    Ok(_) => {
+                        match LocalConfig::read_lock(&pod.local_config.clone(), "handle_cli_command::apply") {
+                            Ok(local) => {
+                                if local.general.name != *name {
+                                    Ok(Some((local.general.name.clone(), name.clone())))
+                                } else {
+                                    Ok(None)
+                                }
+                            },
+                            Err(err) => Err(CliError::WhError { source: err })
+                        }
+                    }
+                }
+            } else {
+                Err(CliError::Message { reason: format!("This name or path doesn't existe in the hashmap: {:?}, {:?}", pod_conf.name, pod_conf.path) })
+            };
+
+            // Modify the name in the hashmap if it necessary
+            match res {
+                Ok(Some((new_name, old_name))) => {
+                    if let Some(pod) = pods.remove(&old_name) {
+                        pods.insert(new_name, pod);
+                        Ok(CliSuccess::Message("tt".to_owned()))
+                    } else {
+                        Err(CliError::Message { reason: "non".to_owned() })
+                    }
+                }
+                Ok(None) => {todo!()}
+                Err(err) => Err(err),
+            }
         }
         _ => Err(CliError::InvalidCommand),
     };

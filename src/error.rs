@@ -36,7 +36,8 @@ custom_error! {pub CliError
     InvalidArgument{arg: String} = "Invalid Argument: {arg} is not recognized",
     BoxError{arg: Box<dyn std::error::Error>} = "{arg}",
     IoError{source: io::Error} = "I/O error: {source}", // Pour les erreurs fs::remove_dir_all, etc.
-    Server{addr: String} = "Impossible to bind this address {addr},"
+    Server{addr: String} = "Impossible to bind this address {addr}",
+    Message{reason: String} = "{reason}",
 }
 
 #[derive(Debug)]
