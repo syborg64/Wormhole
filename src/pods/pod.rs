@@ -238,7 +238,6 @@ impl Pod {
 
         let redundancy_worker_handle = tokio::spawn(redundancy_worker(
             to_redundancy_rx,
-            to_network_message_tx,
             network_interface.clone(),
             fs_interface.clone(),
         ));
