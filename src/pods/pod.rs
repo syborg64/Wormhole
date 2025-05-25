@@ -10,6 +10,7 @@ use crate::network::message::{
     FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
 };
 use crate::pods::arbo::{FsEntry, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO, ROOT};
+use crate::pods::network::redundancy::redundancy_worker;
 #[cfg(target_os = "windows")]
 use crate::winfsp::winfsp_impl::mount_fsp;
 use custom_error::custom_error;
@@ -37,7 +38,7 @@ use crate::pods::{
     whpath::WhPath,
 };
 
-use super::arbo::{InodeId, ARBO_FILE_FNAME};
+use super::arbo::{InodeId, ARBO_FILE_FNAME, ARBO_FILE_INO, GLOBAL_CONFIG_INO};
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -51,9 +52,23 @@ pub struct Pod {
     fuse_handle: fuser::BackgroundSession,
     #[cfg(target_os = "windows")]
     fsp_host: FileSystemHost<'static>,
-    network_airport_handle: Option<JoinHandle<()>>,
-    peer_broadcast_handle: Option<JoinHandle<()>>,
-    new_peer_handle: Option<JoinHandle<()>>,
+    network_airport_handle: JoinHandle<()>,
+    peer_broadcast_handle: JoinHandle<()>,
+    new_peer_handle: JoinHandle<()>,
+    redundancy_worker_handle: JoinHandle<()>,
+}
+
+custom_error! {pub PodInfoError
+    WhError{source: WhError} = "{source}",
+    WrongFileType{detail: String} = @{format!("PodInfoError: wrong file type: {detail}")},
+    FileNotFound = @{format!("PodInfoError: file not found")},
+}
+
+pub enum PodInfoRequest {
+    FileHosts(WhPath),
+}
+pub enum PodInfoAnswer {
+    FileHosts(Vec<Address>),
 }
 
 pub async fn initiate_connection(
@@ -137,6 +152,7 @@ impl Pod {
             generate_arbo(&mount_point, &server_address).expect("unable to index folder");
         let (to_network_message_tx, to_network_message_rx) = mpsc::unbounded_channel();
         let (from_network_message_tx, mut from_network_message_rx) = mpsc::unbounded_channel();
+        let (to_redundancy_tx, mut to_redundancy_rx) = mpsc::unbounded_channel();
 
         global_config.general.peers.retain(|x| *x != server_address);
 
@@ -169,9 +185,14 @@ impl Pod {
                 }
             }
             next_inode += 1;
-            
+
             if let Err(_) = arbo.get_inode(LOCAL_CONFIG_INO) {
-                let _ = arbo.add_inode_from_parameters(LOCAL_CONFIG_FNAME.to_string(), LOCAL_CONFIG_INO, ROOT, FsEntry::File(vec![server_address.clone()]));
+                let _ = arbo.add_inode_from_parameters(
+                    LOCAL_CONFIG_FNAME.to_string(),
+                    LOCAL_CONFIG_INO,
+                    ROOT,
+                    FsEntry::File(vec![server_address.clone()]),
+                );
             }
         }
 
@@ -180,7 +201,8 @@ impl Pod {
         let network_interface = Arc::new(NetworkInterface::new(
             arbo.clone(),
             mount_point.clone(),
-            to_network_message_tx,
+            to_network_message_tx.clone(),
+            to_redundancy_tx.clone(),
             next_inode,
             Arc::new(RwLock::new(peers)),
             server_address,
@@ -195,26 +217,30 @@ impl Pod {
         ));
 
         // Start ability to recieve messages
-        let network_airport_handle = Some(tokio::spawn(NetworkInterface::network_airport(
+        let network_airport_handle = tokio::spawn(NetworkInterface::network_airport(
             from_network_message_rx,
             fs_interface.clone(),
-        )));
+        ));
 
         // Start ability to send messages
-        let peer_broadcast_handle = Some(tokio::spawn(NetworkInterface::contact_peers(
+        let peer_broadcast_handle = tokio::spawn(NetworkInterface::contact_peers(
             network_interface.peers.clone(),
             to_network_message_rx,
-        )));
+        ));
 
-        let new_peer_handle = Some(tokio::spawn(
-            NetworkInterface::incoming_connections_watchdog(
-                server,
-                from_network_message_tx.clone(),
-                network_interface.peers.clone(),
-            ),
+        let new_peer_handle = tokio::spawn(NetworkInterface::incoming_connections_watchdog(
+            server,
+            from_network_message_tx.clone(),
+            network_interface.peers.clone(),
         ));
 
         let peers = network_interface.peers.clone();
+
+        let redundancy_worker_handle = tokio::spawn(redundancy_worker(
+            to_redundancy_rx,
+            network_interface.clone(),
+            fs_interface.clone(),
+        ));
 
         Ok(Self {
             name: name.clone(),
@@ -229,7 +255,28 @@ impl Pod {
             network_airport_handle,
             peer_broadcast_handle,
             new_peer_handle,
+            redundancy_worker_handle,
         })
+    }
+
+    /// Get info from the pod (intended for the cli)
+    pub fn get_info(&self, request: PodInfoRequest) -> Result<PodInfoAnswer, PodInfoError> {
+        match request {
+            PodInfoRequest::FileHosts(path) => {
+                let entry = Arbo::n_read_lock(&self.network_interface.arbo, "Pod::get_info")?
+                    .get_inode_from_path(&path)
+                    .map_err(|_| PodInfoError::FileNotFound)?
+                    .entry
+                    .clone();
+
+                match entry {
+                    FsEntry::File(hosts) => Ok(PodInfoAnswer::FileHosts(hosts)),
+                    FsEntry::Directory(_) => Err(PodInfoError::WrongFileType {
+                        detail: "Asked path is a directory (directories have no hosts)".to_owned(),
+                    }),
+                }
+            }
+        }
     }
 
     /// for a given file, will try to send it to one host, trying each until succes
@@ -256,7 +303,7 @@ impl Pod {
                 .send(ToNetworkMessage::SpecificMessage(
                     (
                         // NOTE - file_content clone is not efficient, but no way to avoid it for now
-                        MessageContent::PullAnswer(ino, file_content.clone()),
+                        MessageContent::RedundancyFile(ino, file_content.clone()),
                         Some(status_tx.clone()),
                     ),
                     vec![host.clone()],
@@ -267,10 +314,7 @@ impl Pod {
                 self.network_interface
                     .to_network_message_tx
                     .send(ToNetworkMessage::BroadcastMessage(
-                        MessageContent::RemoveHosts(
-                            ino,
-                            vec![self.network_interface.self_addr.clone()],
-                        ),
+                        MessageContent::EditHosts(ino, vec![host.clone()]),
                     ))
                     .expect("to_network_message_tx closed.");
                 return Ok(());
@@ -282,13 +326,17 @@ impl Pod {
     /// Gets every file hosted by this pod only and sends them to other pods
     fn send_files_when_stopping(&self, arbo: &Arbo, peers: Vec<Address>) {
         arbo.files_hosted_only_by(&self.network_interface.self_addr)
-            .filter_map(|inode| {
-                Some((
-                    inode.id,
-                    arbo.n_get_path_from_inode_id(inode.id)
-                        .map_err(|e| log::error!("Pod::files_to_send_when_stopping(2): {e}"))
-                        .ok()?,
-                ))
+            .filter_map(|id| {
+                if id == GLOBAL_CONFIG_INO || id == LOCAL_CONFIG_INO || id == ARBO_FILE_INO {
+                    None
+                } else {
+                    Some((
+                        id,
+                        arbo.n_get_path_from_inode_id(id)
+                            .map_err(|e| log::error!("Pod::files_to_send_when_stopping(2): {e}"))
+                            .ok()?,
+                    ))
+                }
             })
             .for_each(|(id, path)| {
                 if let Err(e) = self.send_file_to_possible_hosts(&peers, id, path) {
@@ -333,7 +381,13 @@ impl Pod {
             .map(|_| ())
             .map_err(|e| PodStopError::ArboSavingFailed {
                 error_source: e.to_string(),
-            })
+            })?;
+
+        *self.peers.write() = Vec::new(); // dropping PeerIPCs
+        self.network_airport_handle.abort();
+        self.new_peer_handle.abort();
+        self.peer_broadcast_handle.abort();
+        Ok(())
     }
 
     pub fn get_name(&self) -> &str {

@@ -19,6 +19,7 @@ use std::collections::HashMap;
  *  and execute instructions on the disk
  */
 use std::env;
+use std::net::Ipv4Addr;
 
 use futures_util::stream::{SplitSink, SplitStream};
 use futures_util::{SinkExt, StreamExt};
@@ -33,7 +34,8 @@ use wormhole::commands::cli_commands::{Mode, StatusPodArgs};
 use wormhole::commands::PodCommand;
 use wormhole::commands::{self, cli_commands::Cli};
 use wormhole::error::{CliError, CliResult, CliSuccess, WhError, WhResult};
-use wormhole::pods::pod::{Pod, PodStopError};
+use wormhole::network::ip::IpP;
+use wormhole::pods::pod::{Pod, PodInfoAnswer, PodInfoError, PodInfoRequest, PodStopError};
 
 /*
 async fn response_to_cli(wrtier: SplitSink<WebSocketStream<TcpStream>, Message>,response_cmd: CliResult) {
@@ -133,6 +135,23 @@ async fn handle_cli_command(
                 })
             }
         }
+        Cli::GetHosts(args) => {
+            if let Some(pod) = pods.get(&args.name) {
+                match pod.get_info(PodInfoRequest::FileHosts(args.path)) {
+                    Ok(PodInfoAnswer::FileHosts(hosts)) => Ok(CliSuccess::WithData {
+                        message: "Hosts:".to_owned(),
+                        data: format!("{:?}", hosts),
+                    }),
+                    Err(error) => Err(CliError::PodInfoError { source: error }),
+                    _ => Ok(CliSuccess::Message(
+                        "ERROR: GetHosts -> wrong answer type received.".to_owned(),
+                    )),
+                }
+            } else {
+                Err(CliError::PodNotFound)
+            }
+        }
+
         Cli::Restore(resotre_args) => commands::service::restore(resotre_args).await,
         _ => Err(CliError::InvalidCommand),
     };
@@ -194,11 +213,22 @@ async fn start_cli_listener(
     ip: String,
     mut interrupt_rx: UnboundedReceiver<()>,
 ) -> HashMap<String, Pod> {
-    println!("Écoute des commandes CLI sur {}", ip);
-    let listener = TcpListener::bind(&ip)
-        .await
-        .expect(format!("Échec de la liaison au port {}", &ip).as_str());
-    info!("Écoute des commandes CLI sur {}", ip);
+    let mut ip: IpP = IpP::try_from(&ip).expect("start_cli_listener: invalid ip provided");
+    println!("Starting CLI's TcpListener on {}", ip.to_string());
+
+    let mut listener = TcpListener::bind(&ip.to_string()).await;
+    while let Err(e) = listener {
+        log::error!(
+            "Address {} not available due to {}, switching...",
+            ip.to_string(),
+            e
+        );
+        ip.set_port(ip.port + 1);
+        log::debug!("Starting CLI's TcpListener on {}", ip.to_string());
+        listener = TcpListener::bind(&ip.to_string()).await;
+    }
+    log::info!("Started CLI's TcpListener on {}", ip.to_string());
+    let listener = listener.unwrap();
 
     while let Some(Ok((stream, _))) = tokio::select! {
         v = listener.accept() => Some(v),
@@ -215,7 +245,7 @@ async fn start_cli_listener(
     }
     pods
 }
-
+/*
 async fn main_cli_airport(
     mut rx: UnboundedReceiver<PodCommand>,
     mut pods: HashMap<String, Pod>,
@@ -290,7 +320,7 @@ async fn main_cli_airport(
     }
     pods
 }
-
+*/
 #[tokio::main]
 async fn main() {
     // Créer un canal pour envoyer des commandes
@@ -313,12 +343,14 @@ async fn main() {
     pods = cli_airport
         .await
         .expect("main: cli_airport didn't join properly");
-    terminal_handle
-        .abort();
+    terminal_handle.abort();
 
     log::info!("Stopping");
-    for (name, pod) in pods.iter() {
-        match pod.stop() {
+    for (name, pod) in pods.into_iter() {
+        match tokio::task::spawn_blocking(move || pod.stop())
+            .await
+            .expect("main: pod stop: can't spawn blocking task")
+        {
             Ok(()) => log::info!("Stopped pod {name}"),
             Err(e) => log::error!("Pod {name} can't be stopped: {e}"),
         }

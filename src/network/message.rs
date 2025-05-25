@@ -19,6 +19,7 @@ pub enum MessageContent {
     Inode(Inode),
     RequestFile(InodeId, Address),
     PullAnswer(InodeId, Vec<u8>),
+    RedundancyFile(InodeId, Vec<u8>),
     Rename(InodeId, InodeId, String, String), //Parent, New Parent, Name, New Name
     EditHosts(InodeId, Vec<Address>),
     AddHosts(InodeId, Vec<Address>),
@@ -43,6 +44,12 @@ pub type Address = String;
 pub struct FromNetworkMessage {
     pub origin: Address,
     pub content: MessageContent,
+}
+
+/// Message going to the redundancy worker
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub enum RedundancyMessage {
+    ApplyTo(InodeId),
 }
 
 /// Message Going To Network

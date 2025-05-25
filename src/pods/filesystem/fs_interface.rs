@@ -1,5 +1,9 @@
+use crate::error::{WhError, WhResult};
 use crate::network::message::Address;
-use crate::pods::arbo::{Arbo, FsEntry, Inode, InodeId, Metadata, ARBO_FILE_FNAME, ARBO_FILE_INO, GLOBAL_CONFIG_FNAME, GLOBAL_CONFIG_INO, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO, LOCK_TIMEOUT};
+use crate::pods::arbo::{
+    Arbo, FsEntry, Inode, InodeId, Metadata, ARBO_FILE_FNAME, ARBO_FILE_INO, GLOBAL_CONFIG_FNAME,
+    GLOBAL_CONFIG_INO, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO, LOCK_TIMEOUT,
+};
 use crate::pods::disk_manager::DiskManager;
 use crate::pods::network::network_interface::{Callback, NetworkInterface};
 use crate::pods::whpath::WhPath;
@@ -201,42 +205,49 @@ impl FsInterface {
         }
     }
 
+    pub fn recept_redundancy(&self, id: InodeId, binary: Vec<u8>) -> WhResult<()> {
+        let path = Arbo::read_lock(&self.arbo, "recept_binary")
+            .expect("recept_binary: can't read lock arbo")
+            .n_get_path_from_inode_id(id)?;
+
+        self.disk
+            .write_file(path, &binary, 0)
+            .map_err(|e| WhError::DiskError {
+                detail: format!("recept_redundancy: can't write file ({id}): {e}"),
+            })
+            .inspect_err(|e| log::error!("{e}"))?;
+        // TODO -> in case of failure, other hosts still think this one is valid. Should send error report to the redundancy manager
+        Arbo::n_write_lock(&self.arbo, "recept_redundancy")?
+            .n_add_inode_hosts(id, vec![self.network_interface.self_addr.clone()])
+            .inspect_err(|e| {
+                log::error!("Can't update (local) hosts for redundancy pulled file ({id}): {e}")
+            })
+    }
+
     pub fn recept_binary(&self, id: InodeId, binary: Vec<u8>) -> io::Result<()> {
-        let (path, inode) = {
-            let arbo = Arbo::read_lock(&self.arbo, "recept_binary")
-                .expect("recept_binary: can't read lock arbo");
-            (
-                match arbo.get_path_from_inode_id(id) {
-                    Ok(path) => path,
-                    Err(_) => {
-                        return self
-                            .network_interface
-                            .callbacks
-                            .resolve(Callback::Pull(id), false)
-                    }
-                },
-                arbo.get_inode(id)?.clone(),
-            )
+        let path = match Arbo::read_lock(&self.arbo, "recept_binary")
+            .expect("recept_binary: can't read lock arbo")
+            .n_get_path_from_inode_id(id)
+        {
+            Ok(path) => path,
+            Err(_) => {
+                return self
+                    .network_interface
+                    .callbacks
+                    .resolve(Callback::Pull(id), false)
+            }
         };
 
         self.disk.write_file(path, &binary, 0)?;
         let _ = self
             .network_interface
+            .add_inode_hosts(id, vec![self.network_interface.self_addr.clone()])
+            .inspect_err(|e| log::error!("Can't update hosts for pulled file ({id}): {e}"));
+        let _ = self
+            .network_interface
             .callbacks
             .resolve(Callback::Pull(id), true);
-        let mut hosts;
-        if let FsEntry::File(hosts_source) = &inode.entry {
-            hosts = hosts_source.clone();
-            let self_addr = self.network_interface.self_addr.clone();
-            let idx = hosts.partition_point(|x| x <= &self_addr);
-            hosts.insert(idx, self_addr);
-        } else {
-            return Err(io::ErrorKind::InvalidInput.into());
-        }
-        Arbo::write_lock(&self.arbo, "recept_binary")
-            .expect("recept_binary: can't write lock arbo")
-            .set_inode_hosts(id, hosts)?;
-        self.network_interface.update_remote_hosts(&inode)
+        Ok(())
     }
 
     pub fn recept_edit_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
@@ -279,9 +290,13 @@ impl FsInterface {
     // SECTION remote -> read
     pub fn send_filesystem(&self, to: Address) -> io::Result<()> {
         let global_config_path = Arbo::read_lock(&self.arbo, "fs_interface::send_filesystem")?
-            .get_path_from_inode_id(GLOBAL_CONFIG_INO)?.set_relative();
+            .get_path_from_inode_id(GLOBAL_CONFIG_INO)?
+            .set_relative();
         log::info!("reading global config at {global_config_path}");
-        let global_config_bytes = self.disk.read_file_to_end(global_config_path).expect("lmao l'incompétence");
+        let global_config_bytes = self
+            .disk
+            .read_file_to_end(global_config_path)
+            .expect("lmao l'incompétence");
 
         self.network_interface.send_arbo(to, global_config_bytes)
     }
@@ -291,9 +306,20 @@ impl FsInterface {
     }
 
     pub fn send_file(&self, inode: InodeId, to: Address) -> io::Result<()> {
-        let arbo = Arbo::read_lock(&self.arbo, "send_arbo")?;
-        let path = arbo.get_path_from_inode_id(inode)?;
+        let path = Arbo::read_lock(&self.arbo, "send_arbo")?.get_path_from_inode_id(inode)?;
         let data = self.disk.read_file(path, 0, u64::max_value())?;
         self.network_interface.send_file(inode, data, to)
+    }
+
+    pub fn read_local_file(&self, inode: InodeId) -> WhResult<Vec<u8>> {
+        let path = Arbo::n_read_lock(&self.arbo, "send_arbo")?
+            .get_path_from_inode_id(inode)
+            .map_err(|_| crate::error::WhError::InodeNotFound)?;
+        self.disk
+            .read_file(path, 0, u64::max_value())
+            .map_err(|_| crate::error::WhError::InodeNotFound)
+        // self.network_interface
+        //     .send_file_redundancy(inode, data, to)
+        //     .await
     }
 }

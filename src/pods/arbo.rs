@@ -178,6 +178,11 @@ impl Arbo {
         self.entries.iter()
     }
 
+    // Use only if you know what you're doing, as those modifications won't be propagated to the network
+    pub fn inodes_mut(&mut self) -> std::collections::hash_map::ValuesMut<'_, InodeId, Inode> {
+        self.entries.values_mut()
+    }
+
     #[must_use]
     pub fn read_lock<'a>(
         arbo: &'a Arc<RwLock<Arbo>>,
@@ -231,13 +236,13 @@ impl Arbo {
     pub fn files_hosted_only_by<'a>(
         &'a self,
         host: &'a Address,
-    ) -> impl Iterator<Item = Inode> + use<'a> {
+    ) -> impl Iterator<Item = InodeId> + use<'a> {
         self.iter()
             .filter_map(move |(_, inode)| match &inode.entry {
                 FsEntry::Directory(_) => None,
                 FsEntry::File(hosts) => {
                     if hosts.len() == 1 && hosts.contains(&host) {
-                        Some(inode.clone())
+                        Some(inode.id)
                     } else {
                         None
                     }
@@ -557,6 +562,20 @@ impl Arbo {
         Ok(())
     }
 
+    pub fn n_set_inode_hosts(&mut self, ino: InodeId, hosts: Vec<Address>) -> WhResult<()> {
+        let inode = self.n_get_inode_mut(ino)?;
+
+        inode.entry = match &inode.entry {
+            FsEntry::File(_) => FsEntry::File(hosts),
+            _ => {
+                return Err(WhError::InodeIsADirectory {
+                    detail: "n_set_inode_hosts".to_owned(),
+                })
+            }
+        };
+        Ok(())
+    }
+
     /// Add hosts to an inode
     ///
     /// Only works on inodes pointing files (no folders)
@@ -574,6 +593,25 @@ impl Arbo {
                 io::ErrorKind::Other,
                 "can't edit hosts on folder",
             ))
+        }
+    }
+
+    /// Add hosts to an inode
+    ///
+    /// Only works on inodes pointing files (no folders)
+    /// Ignore already existing hosts to avoid duplicates
+    pub fn n_add_inode_hosts(&mut self, ino: InodeId, mut new_hosts: Vec<Address>) -> WhResult<()> {
+        let inode = self.n_get_inode_mut(ino)?;
+
+        if let FsEntry::File(hosts) = &mut inode.entry {
+            hosts.append(&mut new_hosts);
+            hosts.sort();
+            hosts.dedup();
+            Ok(())
+        } else {
+            Err(WhError::InodeIsADirectory {
+                detail: "update_remote_hosts".to_owned(),
+            })
         }
     }
 
