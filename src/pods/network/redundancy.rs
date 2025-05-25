@@ -34,11 +34,11 @@ pub async fn redundancy_worker(
                         }
                     };
 
-                    let target_redundancy = if nw_interface.redundancy as usize > all_peers.len() {
+                    let target_redundancy = if (nw_interface.redundancy - 1) as usize > all_peers.len() {
                         log::warn!("Redundancy: Not enough nodes to satisfies the target redundancies number.");
                         all_peers.len()
                     } else {
-                        nw_interface.redundancy as usize
+                        (nw_interface.redundancy - 1) as usize
                     };
 
                     let new_hosts = push_redundancy(
@@ -73,8 +73,9 @@ async fn push_redundancy(
     file_binary: Vec<u8>,
     target_redundancy: usize,
 ) -> Vec<Address> {
-    let mut success_hosts: Vec<Address> = Vec::new();
+    let mut success_hosts: Vec<Address> = vec![nw_interface.self_addr.clone()];
     let mut set: JoinSet<WhResult<Address>> = JoinSet::new();
+
     for i in 0..target_redundancy {
         let nwi_clone = Arc::clone(nw_interface);
         //TODO cloning the whole file content in ram to send it to many hosts is terrible :
