@@ -124,28 +124,6 @@ impl FsInterface {
             .map(|_| ())
     }
 
-    pub fn read_file(&self, file: InodeId, offset: u64, len: u64) -> io::Result<Vec<u8>> {
-        let cb = self.network_interface.pull_file_sync(file)?;
-
-        let status = match cb {
-            None => true,
-            Some(call) => self.network_interface.callbacks.wait_for(call)?,
-        };
-
-        if !status {
-            return Err(io::Error::new(
-                io::ErrorKind::BrokenPipe,
-                "unable to pull file",
-            ));
-        }
-
-        self.disk.read_file(
-            Arbo::read_lock(&self.arbo, "read_file")?.get_path_from_inode_id(file)?,
-            offset,
-            len,
-        )
-    }
-
     pub fn get_inode_attributes(&self, ino: InodeId) -> io::Result<Metadata> {
         let arbo = Arbo::read_lock(&self.arbo, "fs_interface::get_inode_attributes")?;
 
