@@ -19,6 +19,7 @@ use std::collections::HashMap;
  *  and execute instructions on the disk
  */
 use std::env;
+use std::net::Ipv4Addr;
 
 use futures_util::stream::SplitSink;
 use futures_util::{SinkExt, StreamExt};
@@ -30,10 +31,11 @@ use tokio_tungstenite::{accept_async, WebSocketStream};
 #[cfg(target_os = "windows")]
 use winfsp::winfsp_init;
 use wormhole::commands::{self, cli_commands::Cli};
+use wormhole::error::{CliError, CliResult, CliSuccess, WhError, WhResult};
+use wormhole::network::ip::IpP;
+use wormhole::pods::pod::{Pod, PodStopError};
 use wormhole::config::types::Config;
 use wormhole::config::LocalConfig;
-use wormhole::error::{CliError, CliSuccess, WhError, WhResult};
-use wormhole::pods::pod::Pod;
 
 type CliTcpWriter =
     SplitSink<WebSocketStream<tokio::net::TcpStream>, tokio_tungstenite::tungstenite::Message>;
@@ -218,11 +220,22 @@ async fn start_cli_listener(
     ip: String,
     mut interrupt_rx: UnboundedReceiver<()>,
 ) -> HashMap<String, Pod> {
-    log::info!("Écoute des commandes CLI sur {}", ip);
-    let listener = TcpListener::bind(&ip)
-        .await
-        .expect(format!("Échec de la liaison au port {}", &ip).as_str());
-    info!("Écoute des commandes CLI sur {}", ip);
+    let mut ip: IpP = IpP::try_from(&ip).expect("start_cli_listener: invalid ip provided");
+    println!("Starting CLI's TcpListener on {}", ip.to_string());
+
+    let mut listener = TcpListener::bind(&ip.to_string()).await;
+    while let Err(e) = listener {
+        log::error!(
+            "Address {} not available due to {}, switching...",
+            ip.to_string(),
+            e
+        );
+        ip.set_port(ip.port + 1);
+        log::debug!("Starting CLI's TcpListener on {}", ip.to_string());
+        listener = TcpListener::bind(&ip.to_string()).await;
+    }
+    log::info!("Started CLI's TcpListener on {}", ip.to_string());
+    let listener = listener.unwrap();
 
     while let Some(Ok((stream, _))) = tokio::select! {
         v = listener.accept() => Some(v),

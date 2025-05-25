@@ -687,7 +687,16 @@ impl NetworkInterface {
         });
 
         if let Some(peers) = self.peers.try_read_for(LOCK_TIMEOUT) {
-            let peers_address_list = peers.iter().map(|peer| peer.address.clone()).collect();
+            let peers_address_list = peers
+                .iter()
+                .filter_map(|peer| {
+                    if peer.address != to {
+                        Some(peer.address.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
 
             self.to_network_message_tx
                 .send(ToNetworkMessage::SpecificMessage(
@@ -852,14 +861,15 @@ impl NetworkInterface {
         nfa_tx: UnboundedSender<FromNetworkMessage>,
         existing_peers: Arc<RwLock<Vec<PeerIPC>>>,
     ) {
-        while let Ok((stream, _)) = server.listener.accept().await {
+        while let Ok((stream, addr)) = server.listener.accept().await {
+            log::debug!("GOT ADDRESS {addr}");
             let ws_stream = tokio_tungstenite::accept_async(stream)
                 .await
                 .expect("Error during the websocket handshake occurred");
-            let addr = ws_stream.get_ref().peer_addr().unwrap().to_string();
 
             let (write, read) = futures_util::StreamExt::split(ws_stream);
-            let new_peer = PeerIPC::connect_from_incomming(addr, nfa_tx.clone(), write, read);
+            let new_peer =
+                PeerIPC::connect_from_incomming(addr.to_string(), nfa_tx.clone(), write, read);
             {
                 existing_peers
                     .try_write_for(LOCK_TIMEOUT)
