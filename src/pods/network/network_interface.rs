@@ -454,11 +454,7 @@ impl NetworkInterface {
     }
 
     pub fn revoke_remote_hosts(&self, id: InodeId) -> WhResult<()> {
-        self.to_network_message_tx
-            .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::EditHosts(id, vec![self.self_addr.clone()]),
-            ))
-            .expect("revoke_remote_hosts: unable to update modification on the network thread");
+        self.update_hosts(id, vec![self.self_addr.clone()])?;
         self.apply_redundancy(id);
         Ok(())
     }
