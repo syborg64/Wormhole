@@ -5,16 +5,14 @@ use std::{
 };
 
 use parking_lot::{Mutex, RwLock};
-use tokio::sync::{
-    broadcast,
-    mpsc::{UnboundedReceiver, UnboundedSender},
-};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::{
     error::WhError,
     pods::{
         arbo::{FsEntry, Metadata},
         filesystem::{make_inode::MakeInode, remove_inode::RemoveInode},
+        network::callbacks::Callback,
         whpath::WhPath,
     },
 };
@@ -35,99 +33,7 @@ use crate::pods::{
     filesystem::fs_interface::FsInterface,
 };
 
-#[derive(Eq, Hash, PartialEq, Clone, Copy, Debug)]
-pub enum Callback {
-    Pull(InodeId),
-    PullFs,
-}
-
-pub struct Callbacks {
-    callbacks: RwLock<HashMap<Callback, broadcast::Sender<bool>>>,
-}
-
-impl Callbacks {
-    pub fn create(&self, call: Callback) -> io::Result<Callback> {
-        if let Some(mut callbacks) = self.callbacks.try_write_for(LOCK_TIMEOUT) {
-            if !callbacks.contains_key(&call) {
-                let (tx, _) = broadcast::channel(1);
-
-                callbacks.insert(call, tx);
-            };
-            Ok(call)
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::WouldBlock,
-                "unable to write_lock callbacks",
-            ))
-        }
-    }
-
-    pub fn resolve(&self, call: Callback, status: bool) -> io::Result<()> {
-        if let Some(mut callbacks) = self.callbacks.try_write_for(LOCK_TIMEOUT) {
-            if let Some(cb) = callbacks.remove(&call) {
-                cb.send(status).map(|_| ()).map_err(|send_error| {
-                    io::Error::new(io::ErrorKind::AddrNotAvailable, send_error.to_string())
-                })
-            } else {
-                Err(io::Error::new(
-                    io::ErrorKind::WouldBlock,
-                    "no such callback active",
-                ))
-            }
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::WouldBlock,
-                "unable to read_lock callbacks",
-            ))
-        }
-    }
-
-    pub fn wait_for(&self, call: Callback) -> io::Result<bool> {
-        let mut waiter = if let Some(callbacks) = self.callbacks.try_read_for(LOCK_TIMEOUT) {
-            if let Some(cb) = callbacks.get(&call) {
-                cb.subscribe()
-            } else {
-                return Err(io::Error::new(
-                    io::ErrorKind::WouldBlock,
-                    "no such callback active",
-                ));
-            }
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::WouldBlock,
-                "unable to read_lock callbacks",
-            ));
-        };
-
-        match waiter.blocking_recv() {
-            Ok(status) => Ok(status),
-            Err(_) => Ok(false), // maybe change to a better handling
-        }
-    }
-
-    pub async fn async_wait_for(&self, call: Callback) -> io::Result<bool> {
-        let mut waiter = if let Some(callbacks) = self.callbacks.try_read_for(LOCK_TIMEOUT) {
-            if let Some(cb) = callbacks.get(&call) {
-                cb.subscribe()
-            } else {
-                return Err(io::Error::new(
-                    io::ErrorKind::WouldBlock,
-                    "no such callback active",
-                ));
-            }
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::WouldBlock,
-                "unable to read_lock callbacks",
-            ));
-        };
-
-        match waiter.recv().await {
-            Ok(status) => Ok(status),
-            Err(_) => Ok(false), // maybe change to a better handling
-        }
-    }
-}
+use crate::pods::network::callbacks::Callbacks;
 
 pub struct NetworkInterface {
     pub arbo: Arc<RwLock<Arbo>>,
@@ -313,61 +219,6 @@ impl NetworkInterface {
         let mut arbo = Arbo::n_write_lock(&self.arbo, "acknowledge_metadata")?;
         arbo.n_set_inode_hosts(id, vec![host])?;
         arbo.n_set_inode_meta(id, meta) // TODO - if unable to update for some reason, should be passed to the background worker
-    }
-
-    // REVIEW - recheck and simplify this if possible
-    pub async fn pull_file_async(&self, file: InodeId) -> io::Result<Option<Callback>> {
-        let hosts = {
-            let arbo = Arbo::read_lock(&self.arbo, "pull_file")?;
-            if let FsEntry::File(hosts) = &arbo.get_inode(file)?.entry {
-                hosts.clone()
-            } else {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "pull_file: can't pull a folder",
-                ));
-            }
-        };
-
-        if hosts.len() == 0 {
-            log::error!("No hosts hold the file");
-            return Err(io::ErrorKind::InvalidData.into());
-        }
-
-        if hosts.contains(&self.self_addr) {
-            // if the asked file is already on disk
-            Ok(None)
-        } else {
-            let callback = self.callbacks.create(Callback::Pull(file))?;
-            let (status_tx, mut status_rx) = tokio::sync::mpsc::unbounded_channel::<WhResult<()>>();
-
-            // will try to pull on all redundancies until success
-            for host in hosts {
-                // trying on host `pull_from`
-                self.to_network_message_tx
-                    .send(ToNetworkMessage::SpecificMessage(
-                        (
-                            MessageContent::RequestFile(file, self.self_addr.clone()),
-                            Some(status_tx.clone()),
-                        ),
-                        vec![host.clone()], // NOTE - naive choice for now
-                    ))
-                    .expect("pull_file: unable to request on the network thread");
-
-                // processing status
-                match status_rx
-                    .recv()
-                    .await
-                    .expect("pull_file: unable to get status from the network thread")
-                {
-                    Ok(()) => return Ok(Some(callback)),
-                    Err(_) => continue,
-                }
-            }
-            let _ = self.callbacks.resolve(callback, true);
-            log::error!("No host is currently able to send the file\nFile: {file}");
-            return Err(io::ErrorKind::NotConnected.into());
-        }
     }
 
     pub fn send_file(&self, inode: InodeId, data: Vec<u8>, to: Address) -> io::Result<()> {
