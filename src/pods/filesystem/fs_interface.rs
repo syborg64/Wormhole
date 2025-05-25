@@ -1,12 +1,14 @@
+use crate::config::types::Config;
+use crate::config::LocalConfig;
 use crate::network::message::Address;
-use crate::pods::arbo::{Arbo, FsEntry, Inode, InodeId, Metadata, ARBO_FILE_FNAME, ARBO_FILE_INO, GLOBAL_CONFIG_FNAME, GLOBAL_CONFIG_INO, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO, LOCK_TIMEOUT};
+use crate::pods::arbo::{Arbo, FsEntry, Inode, InodeId, Metadata, GLOBAL_CONFIG_INO};
 use crate::pods::disk_manager::DiskManager;
 use crate::pods::network::network_interface::{Callback, NetworkInterface};
 use crate::pods::whpath::WhPath;
 
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use std::io;
+use std::io::{self, ErrorKind};
 use std::sync::Arc;
 
 use super::make_inode::MakeInode;
@@ -35,7 +37,7 @@ impl Into<SimpleFileType> for &FsEntry {
 }
 
 /// Provides functions to allow primitive handlers like Fuse & WinFSP to
-/// interract with wormhole.
+/// interract with wormhole
 impl FsInterface {
     pub fn new(
         network_interface: Arc<NetworkInterface>,
@@ -185,7 +187,7 @@ impl FsInterface {
         };
 
         match inode.entry {
-            FsEntry::File(hosts) if hosts.contains(&self.network_interface.self_addr) => self
+            FsEntry::File(hosts) if hosts.contains(&LocalConfig::read_lock(&self.network_interface.local_config, "recept_inode")?.general.address) => self
                 .disk
                 .new_file(new_path, inode.meta.perm)
                 .map(|_| ())
@@ -227,7 +229,7 @@ impl FsInterface {
         let mut hosts;
         if let FsEntry::File(hosts_source) = &inode.entry {
             hosts = hosts_source.clone();
-            let self_addr = self.network_interface.self_addr.clone();
+            let self_addr = LocalConfig::read_lock(&self.network_interface.local_config, "recept_binary").map_err(|e| io::Error::new(ErrorKind::Other, e.to_string()))?.general.address.clone();
             let idx = hosts.partition_point(|x| x <= &self_addr);
             hosts.insert(idx, self_addr);
         } else {
@@ -240,7 +242,7 @@ impl FsInterface {
     }
 
     pub fn recept_edit_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
-        if !hosts.contains(&self.network_interface.self_addr) {
+        if !hosts.contains(&LocalConfig::read_lock(&self.network_interface.local_config, "recept_binary").map_err(|e| io::Error::new(ErrorKind::Other, e.to_string()))?.general.address) {
             if let Err(e) = self.disk.remove_file(
                 Arbo::read_lock(&self.arbo, "recept_edit_hosts")?.get_path_from_inode_id(id)?,
             ) {
@@ -255,7 +257,7 @@ impl FsInterface {
     }
 
     pub fn recept_remove_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
-        if hosts.contains(&self.network_interface.self_addr) {
+        if hosts.contains(&LocalConfig::read_lock(&self.network_interface.local_config, "recept_remove_hosts").map_err(|e| io::Error::new(ErrorKind::Other, e.to_string()))?.general.address) {
             if let Err(e) = self.disk.remove_file(
                 Arbo::read_lock(&self.arbo, "recept_remove_hosts")?.get_path_from_inode_id(id)?,
             ) {

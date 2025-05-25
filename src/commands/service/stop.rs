@@ -1,9 +1,4 @@
-use std::collections::HashMap;
-
-use tokio::sync::{mpsc, oneshot::channel};
-
 use crate::{
-    commands::{cli_commands::StatusPodArgs},
     error::{CliError, CliSuccess},
     pods::pod::Pod,
 };

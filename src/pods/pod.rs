@@ -1,7 +1,7 @@
 use std::fs;
 use std::{io, sync::Arc};
 
-use crate::config::types::Config as _;
+use crate::config::types::Config;
 use crate::config::{GlobalConfig, LocalConfig};
 use crate::error::{WhError, WhResult};
 #[cfg(target_os = "linux")]
@@ -54,6 +54,8 @@ pub struct Pod {
     network_airport_handle: Option<JoinHandle<()>>,
     peer_broadcast_handle: Option<JoinHandle<()>>,
     new_peer_handle: Option<JoinHandle<()>>,
+    pub local_config: Arc<RwLock<LocalConfig>>,
+    pub global_config: Arc<RwLock<GlobalConfig>>,
 }
 
 pub async fn initiate_connection(
@@ -125,7 +127,7 @@ impl Pod {
     pub async fn new(
         name: String,
         global_config: GlobalConfig,
-        // local_config: LocalConfig,
+        local_config: LocalConfig,
         mount_point: WhPath,
         server: Arc<Server>,
         server_address: Address,
@@ -143,18 +145,21 @@ impl Pod {
         let mut peers = vec![];
 
         if let Some((fs_serialized, peers_addrs, ipc, global_config_bytes)) = initiate_connection(
-            global_config.general.peers,
+            global_config.clone().general.peers,
             server_address.clone(),
             &from_network_message_tx,
             &mut from_network_message_rx,
         )
         .await
         {
-            fs::write(
-                mount_point.join(GLOBAL_CONFIG_FNAME).to_string(),
-                global_config_bytes,
-            )
-            .expect("can't write global_config file");
+            if !global_config_bytes.is_empty() {
+                info!("mount point service: {}", mount_point.join(GLOBAL_CONFIG_FNAME).to_string());
+                fs::write(
+                    mount_point.join(GLOBAL_CONFIG_FNAME).to_string(),
+                    global_config_bytes,
+                )
+                .expect("can't write global_config file");
+            }
             // TODO use global_config ?
 
             peers = PeerIPC::peer_startup(peers_addrs, from_network_message_tx.clone()).await;
@@ -176,6 +181,8 @@ impl Pod {
         }
 
         let arbo: Arc<RwLock<Arbo>> = Arc::new(RwLock::new(arbo));
+        let local = Arc::new(RwLock::new(local_config));
+        let global = Arc::new(RwLock::new(global_config));
 
         let network_interface = Arc::new(NetworkInterface::new(
             arbo.clone(),
@@ -183,8 +190,8 @@ impl Pod {
             to_network_message_tx,
             next_inode,
             Arc::new(RwLock::new(peers)),
-            server_address,
-            global_config.redundancy.number,
+            local.clone(),
+            global.clone()
         ));
 
         let disk_manager = DiskManager::new(mount_point.clone())?;
@@ -215,7 +222,6 @@ impl Pod {
         ));
 
         let peers = network_interface.peers.clone();
-
         Ok(Self {
             name: name.clone(),
             network_interface,
@@ -229,6 +235,8 @@ impl Pod {
             network_airport_handle,
             peer_broadcast_handle,
             new_peer_handle,
+            local_config: local.clone(),
+            global_config: global.clone(),
         })
     }
 
@@ -269,7 +277,7 @@ impl Pod {
                     .send(ToNetworkMessage::BroadcastMessage(
                         MessageContent::RemoveHosts(
                             ino,
-                            vec![self.network_interface.self_addr.clone()],
+                            vec![LocalConfig::read_lock(&self.local_config, "send_file_to_possible_hosts")?.general.address.clone()],
                         ),
                     ))
                     .expect("to_network_message_tx closed.");
@@ -281,7 +289,7 @@ impl Pod {
 
     /// Gets every file hosted by this pod only and sends them to other pods
     fn send_files_when_stopping(&self, arbo: &Arbo, peers: Vec<Address>) {
-        arbo.files_hosted_only_by(&self.network_interface.self_addr)
+        arbo.files_hosted_only_by(&LocalConfig::read_lock(&self.local_config, "send_files_when_stopping").map_err(|e| log::error!("{e}")).unwrap().general.address)
             .filter_map(|inode| {
                 Some((
                     inode.id,
@@ -318,7 +326,7 @@ impl Pod {
         self.network_interface
             .to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::Disconnect(self.network_interface.self_addr.clone()),
+                MessageContent::Disconnect(LocalConfig::read_lock(&self.local_config, "pod::stop")?.general.address.clone()),
             ))
             .expect("to_network_message_tx closed.");
 
