@@ -311,16 +311,6 @@ impl Pod {
                 .expect("to_network_message_tx closed.");
 
             if let Ok(()) = status_rx.blocking_recv().unwrap() {
-                // FIXME change all to async (can't block within a runtime)
-                self.network_interface
-                    .to_network_message_tx
-                    .send(ToNetworkMessage::BroadcastMessage(
-                        MessageContent::RemoveHosts(
-                            ino,
-                            vec![self.network_interface.self_addr.clone()],
-                        ),
-                    ))
-                    .expect("to_network_message_tx closed.");
                 return Ok(());
             }
         }
@@ -388,10 +378,7 @@ impl Pod {
                 error_source: e.to_string(),
             })?;
 
-        self.peers
-            .write()
-            .iter()
-            .for_each(|peer| peer.thread.abort());
+        *self.peers.write() = Vec::new(); // dropping PeerIPCs
         self.network_airport_handle.abort();
         self.new_peer_handle.abort();
         self.peer_broadcast_handle.abort();
