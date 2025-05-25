@@ -10,7 +10,7 @@ use crate::{
     commands::{
         cli::message::cli_messager,
         cli_commands::{Cli, PodArgs}, default_local_config,
-    }, config::{types::Config, LocalConfig}, error::CliError, pods::{arbo::{GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME}, whpath::WhPath}
+    }, config::{types::Config, LocalConfig}, error::{CliError, CliResult}, pods::{arbo::{GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME}, whpath::WhPath}
 };
 
 fn mod_file_conf_content(path: WhPath, name: String, ip: &str) -> Result<(), CliError> {
@@ -29,14 +29,11 @@ fn mod_file_conf_content(path: WhPath, name: String, ip: &str) -> Result<(), Cli
     Ok(())
 }
 
-fn is_new_wh_file_config(path: &WhPath) -> Result<(), Box<dyn std::error::Error>> {
+fn is_new_wh_file_config(path: &WhPath) -> CliResult<()> {
     let files_name = vec![LOCAL_CONFIG_FNAME, GLOBAL_CONFIG_FNAME];
     for file_name in files_name {
         if fs::metadata(path.clone().push(file_name).inner.clone()).is_err() {
-            return Err(Box::new(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("The file config {} does not exist", file_name),
-            )));
+            return Err(CliError::FileConfigName { name: file_name.to_owned() });
         }
     }
     Ok(())
@@ -44,7 +41,7 @@ fn is_new_wh_file_config(path: &WhPath) -> Result<(), Box<dyn std::error::Error>
 
 
 //FIXME - Error id name of the pod not check (can be already exist)
-pub fn new(ip: &str, mut args: PodArgs) -> Result<(), Box<dyn std::error::Error>> {
+pub fn new(ip: &str, mut args: PodArgs) -> CliResult<()> {
     let p = env::current_dir()?;
     let path = WhPath::from(&p.display().to_string());
     args.path = if args.path.inner != "." {
@@ -67,5 +64,6 @@ pub fn new(ip: &str, mut args: PodArgs) -> Result<(), Box<dyn std::error::Error>
             ip: args.ip,
             additional_hosts: args.additional_hosts,
         }),
-    ))
+    ))?;
+    Ok(())
 }

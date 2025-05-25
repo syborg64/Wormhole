@@ -61,17 +61,16 @@ async fn handle_cli_command(
                 commands::service::stop(pod).await
             } else {
                 log::warn!("(TODO) Stopping a pod by path is not yet implemented");
-                Err(CliError::InvalidCommand)
+                Err(CliError::PodRemovalFailed { name: pod_args.name })
             }
         }
         Cli::Remove(remove_arg) => {
-            let opt = if let Some(name) = remove_arg.clone().name {
-                // pods.get(&name)
-                pods.remove(&name)
-            } else if let Some(path) = remove_arg.clone().path {
+            let opt = if remove_arg.name != "." {
+                pods.remove(&remove_arg.name)
+            } else if remove_arg.path.inner != "." {
                 let key_to_remove = pods
                     .iter()
-                    .find(|(_, pod)| pod.get_mount_point() == &path)
+                    .find(|(_, pod)| pod.get_mount_point() == &remove_arg.path)
                     .map(|(key, _)| key.clone());
 
                 key_to_remove.and_then(|key| pods.remove(&key))
@@ -82,10 +81,7 @@ async fn handle_cli_command(
             if let Some(pod) = opt {
                 commands::service::remove(remove_arg, pod).await
             } else {
-                log::info!("Pod not found");
-                Err(CliError::PodRemovalFailed {
-                    reason: String::from("Pod not found"),
-                })
+                Err(CliError::PodRemovalFailed { name: remove_arg.name })
             }
         }
         Cli::Restore(mut resotre_args) => {
@@ -102,16 +98,13 @@ async fn handle_cli_command(
                     pod.global_config.clone(),
                     resotre_args,
                 )
-                .await
             } else {
                 log::error!(
                     "Pod at this path doesn't existe {:?}, {:?}",
                     resotre_args.name,
                     resotre_args.path
                 );
-                Err(CliError::InvalidArgument {
-                    arg: resotre_args.path.to_string(),
-                })
+                Err(CliError::PodRemovalFailed { name: resotre_args.name })
             }
         }
         Cli::Apply(mut pod_conf) => {
@@ -225,7 +218,7 @@ async fn start_cli_listener(
     ip: String,
     mut interrupt_rx: UnboundedReceiver<()>,
 ) -> HashMap<String, Pod> {
-    println!("Écoute des commandes CLI sur {}", ip);
+    log::info!("Écoute des commandes CLI sur {}", ip);
     let listener = TcpListener::bind(&ip)
         .await
         .expect(format!("Échec de la liaison au port {}", &ip).as_str());
@@ -287,7 +280,7 @@ pub async fn terminal_watchdog(tx: UnboundedSender<()>) {
         // NOTE -  on ctrl-D -> quit
         match read {
             0 => {
-                println!("Quiting!");
+                log::info!("Quiting!");
                 let _ = tx.send(());
                 return;
             }

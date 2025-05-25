@@ -2,6 +2,8 @@ use custom_error::custom_error;
 use std::{fmt, io};
 
 use crate::pods::pod::PodStopError;
+use tokio_tungstenite::tungstenite;
+use bincode;
 
 custom_error! {pub WhError
     InodeNotFound = "Entry not found",
@@ -26,16 +28,24 @@ impl WhError {
 pub type WhResult<T> = Result<T, WhError>;
 
 custom_error! {pub CliError
-    Unimplemented{arg: String} = "{arg} not implemented", 
+    BoxError{arg: Box<dyn std::error::Error>} = "{arg}",
+    BincodeError = "Serialization error",
+    TungsteniteError = "WebSocket error",
+    IoError{source: io::Error} = "I/O error: {source}", // Pour les erreurs fs::remove_dir_all, etc.
+    
     PodStopError{source: PodStopError} = "{source}",
     WhError{source: WhError} = "{source}",
+    
+    FileConfigName{name: String} = "This isn't a configuration's file: {name}",
+
     PodCreationFailed{reason: io::Error} = "Pod creation failed: {reason}",
-    PodRemovalFailed{reason: String} = "Pod removal failed: {reason}",
+    PodRemovalFailed{name: String} = "Pod removal failed, a pod with this name {name} doens't existe",
+    
     InvalidConfig{file: String} = "Configuration file {file} is missing or invalid",
     InvalidCommand = "Unrecognized command",
     InvalidArgument{arg: String} = "Invalid Argument: {arg} is not recognized",
-    BoxError{arg: Box<dyn std::error::Error>} = "{arg}",
-    IoError{source: io::Error} = "I/O error: {source}", // Pour les erreurs fs::remove_dir_all, etc.
+    
+    Unimplemented{arg: String} = "{arg} not implemented", 
     Server{addr: String} = "Impossible to bind this address {addr}",
     Message{reason: String} = "{reason}",
 }
@@ -57,4 +67,27 @@ impl fmt::Display for CliSuccess {
     }
 }
 
-pub type CliResult = Result<CliSuccess, CliError>;
+impl From<Box<dyn std::error::Error>> for CliError {
+    fn from(arg: Box<dyn std::error::Error>) -> Self {
+        CliError::BoxError { arg }
+    }
+}
+
+impl From<bincode::Error> for CliError {
+    fn from(err: bincode::Error) -> Self {
+        CliError::BoxError {
+            arg: Box::new(err) as Box<dyn std::error::Error>
+        }
+    }
+}
+
+// Conversion pour tungstenite::Error
+impl From<tokio_tungstenite::tungstenite::Error> for CliError {
+    fn from(err: tokio_tungstenite::tungstenite::Error) -> Self {
+        CliError::BoxError {
+            arg: Box::new(err) as Box<dyn std::error::Error>
+        }
+    }
+}
+
+pub type CliResult<T> = Result<T, CliError>;

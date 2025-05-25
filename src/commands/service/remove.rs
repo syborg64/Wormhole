@@ -3,7 +3,7 @@ use crate::{
     error::{CliError, CliResult, CliSuccess}, pods::pod::Pod,
 };
 
-pub async fn remove(args: RemoveArgs, _pod: Pod) -> CliResult {
+pub async fn remove(args: RemoveArgs, _pod: Pod) -> CliResult<CliSuccess> {
     match args.mode {
         Mode::Simple => Err(CliError::Unimplemented{ arg: "Mode Simple".into() }),
         Mode::Clone => Err(CliError::Unimplemented { arg: "Mode Clone".into() }),

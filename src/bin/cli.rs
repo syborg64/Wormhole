@@ -63,7 +63,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Cli::Apply(args) => {
             log::warn!("reloading pod");
-            commands::cli::apply(ip, args);
+            commands::cli::apply(ip, args)?;
         }
         Cli::Restore(args) => {
             println!("retore a specifique file config");

@@ -7,12 +7,13 @@ use crate::{
         Cli::{self},
         StatusPodArgs,
     },
+    error::CliResult,
     pods::whpath::WhPath,
 };
 
 use super::cli_messager;
 
-pub fn start(ip: &str, mut start_args: StatusPodArgs) -> Result<(), Box<dyn std::error::Error>> {
+pub fn start(ip: &str, mut start_args: StatusPodArgs) -> CliResult<()> {
     if start_args.name == "." {
         let p = env::current_dir()?;
         let path = WhPath::from(&p.display().to_string());

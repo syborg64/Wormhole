@@ -105,10 +105,10 @@ pub enum Mode {
 pub struct RemoveArgs {
     /// Name of the deleted pod
     #[arg(long, short, required_unless_present = "path", conflicts_with = "path")]
-    pub name: Option<String>,
+    pub name: String,
     /// Change to DIRECTORY before doing anything
     #[arg(long, short = 'C', required_unless_present = "name", conflicts_with = "name")]
-    pub path: Option<WhPath>,
+    pub path: WhPath,
     /// Mode for pod removal
     #[arg(long, default_value = "simple")]
     pub mode: Mode,

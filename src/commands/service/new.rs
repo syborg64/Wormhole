@@ -1,12 +1,8 @@
-use std::env;
 use std::sync::Arc;
-
-use log::info;
-
 use crate::{
     commands::{cli_commands::PodArgs, default_global_config, default_local_config},
     config::{types::Config, GlobalConfig, LocalConfig},
-    error::CliError,
+    error::{CliError, CliResult},
     network::server::Server,
     pods::{
         arbo::{GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME},
@@ -15,9 +11,8 @@ use crate::{
     },
 };
 
-pub async fn new(args: PodArgs) -> Result<Pod, CliError> {
+pub async fn new(args: PodArgs) -> CliResult<Pod> {
     let (global_config, local_config, server, mount_point) = pod_value(&args).await?;
-    println!("mount_point: {:?}", mount_point);
     Pod::new(
         args.name.clone(),
         global_config,
@@ -54,7 +49,7 @@ fn add_hosts(
 
 async fn pod_value(
     args: &PodArgs,
-) -> Result<(GlobalConfig, LocalConfig, Arc<Server>, WhPath), CliError> {
+) -> CliResult<(GlobalConfig, LocalConfig, Arc<Server>, WhPath)> {
     let local_path = args.path.clone().join(LOCAL_CONFIG_FNAME).inner;
     let mut local_config: LocalConfig =
         LocalConfig::read(&local_path).unwrap_or(default_local_config(&args.name));
