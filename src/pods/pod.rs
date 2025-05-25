@@ -148,8 +148,6 @@ impl Pod {
         let mut global_config = global_config;
 
         log::info!("mount point {}", mount_point);
-        let (mut arbo, mut next_inode) =
-            generate_arbo(&mount_point, &server_address).expect("unable to index folder");
         let (to_network_message_tx, to_network_message_rx) = mpsc::unbounded_channel();
         let (from_network_message_tx, mut from_network_message_rx) = mpsc::unbounded_channel();
         let (to_redundancy_tx, mut to_redundancy_rx) = mpsc::unbounded_channel();
@@ -158,7 +156,7 @@ impl Pod {
 
         let mut peers = vec![];
 
-        if let Some((fs_serialized, peers_addrs, ipc, global_config_bytes)) = initiate_connection(
+        let (arbo, next_inode) = if let Some((fs_serialized, peers_addrs, ipc, global_config_bytes)) = initiate_connection(
             global_config.general.peers,
             server_address.clone(),
             &from_network_message_tx,
@@ -176,15 +174,9 @@ impl Pod {
             peers = PeerIPC::peer_startup(peers_addrs, from_network_message_tx.clone()).await;
             peers.push(ipc);
             register_to_others(&peers, &server_address)?;
+
+            let mut arbo = Arbo::new();
             arbo.overwrite_self(fs_serialized.fs_index);
-            for index in arbo.get_raw_entries().keys() {
-                // TEMP FIX FOR MERGE
-                // FIXME is it resolved @iddeko ?
-                if *index > next_inode {
-                    next_inode = *index;
-                }
-            }
-            next_inode += 1;
 
             if let Err(_) = arbo.get_inode(LOCAL_CONFIG_INO) {
                 let _ = arbo.add_inode_from_parameters(
@@ -194,7 +186,11 @@ impl Pod {
                     FsEntry::File(vec![server_address.clone()]),
                 );
             }
-        }
+            let next_inode = arbo.iter().fold(0, |acc, (ino, _)| u64::max(acc, *ino)) + 1;
+            (arbo, next_inode)
+        } else {
+            generate_arbo(&mount_point, &server_address).expect("unable to index folder")
+        };
 
         let arbo: Arc<RwLock<Arbo>> = Arc::new(RwLock::new(arbo));
 
