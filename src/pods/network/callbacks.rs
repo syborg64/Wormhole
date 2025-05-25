@@ -4,7 +4,7 @@ use parking_lot::RwLock;
 use tokio::sync::broadcast;
 
 use crate::{
-    error::WhResult,
+    error::{WhError, WhResult},
     pods::arbo::{InodeId, LOCK_TIMEOUT},
 };
 
@@ -67,6 +67,27 @@ impl Callbacks {
                 io::ErrorKind::WouldBlock,
                 "unable to read_lock callbacks",
             ))
+        }
+    }
+
+    pub fn n_wait_for(&self, call: Callback) -> WhResult<bool> {
+        let mut waiter = if let Some(callbacks) = self.callbacks.try_read_for(LOCK_TIMEOUT) {
+            if let Some(cb) = callbacks.get(&call) {
+                cb.subscribe()
+            } else {
+                return Err(WhError::WouldBlock {
+                    called_from: "no such callback active".to_string(),
+                });
+            }
+        } else {
+            return Err(WhError::WouldBlock {
+                called_from: "unable to read_lock callbacks".to_string(),
+            });
+        };
+
+        match waiter.blocking_recv() {
+            Ok(status) => Ok(status),
+            Err(_) => Ok(false), // maybe change to a better handling
         }
     }
 

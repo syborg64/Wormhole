@@ -2,9 +2,11 @@ use crate::pods::arbo::{FsEntry, Inode, Metadata};
 use crate::pods::filesystem::fs_interface::{FsInterface, SimpleFileType};
 use crate::pods::filesystem::make_inode::MakeInode;
 use crate::pods::filesystem::open::OpenError;
+use crate::pods::filesystem::read::ReadError;
 use crate::pods::filesystem::remove_inode::RemoveFile;
 use crate::pods::filesystem::write::WriteError;
 use crate::pods::filesystem::xattrs::GetXAttrError;
+use crate::pods::network::pull_file::PullError;
 use crate::pods::whpath::WhPath;
 use fuser::{
     BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData,
@@ -350,10 +352,19 @@ impl Filesystem for FuseController {
 
         match content {
             Ok(content) => reply.data(&content),
-            Err(err) => {
-                log::error!("fuse_impl error: {:?}", err);
-                reply.error(err.raw_os_error().unwrap_or(EIO))
+            Err(ReadError::WhError { source }) => reply.error(source.to_libc()),
+            Err(ReadError::PullError {
+                source: PullError::WhError { source },
+            }) => reply.error(source.to_libc()),
+            Err(ReadError::CantPull) => reply.error(libc::ENETUNREACH),
+            Err(ReadError::LocalReadFailed { io }) => {
+                reply.error(io.raw_os_error().expect(
+                    "Local creation error should always be the underling libc::open os error",
+                ))
             }
+            Err(ReadError::PullError {
+                source: PullError::NoHostAvailable,
+            }) => reply.error(libc::ENETUNREACH),
         }
     }
 
