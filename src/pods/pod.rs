@@ -303,7 +303,7 @@ impl Pod {
                 .send(ToNetworkMessage::SpecificMessage(
                     (
                         // NOTE - file_content clone is not efficient, but no way to avoid it for now
-                        MessageContent::PullAnswer(ino, file_content.clone()),
+                        MessageContent::RedundancyFile(ino, file_content.clone()),
                         Some(status_tx.clone()),
                     ),
                     vec![host.clone()],
@@ -311,6 +311,12 @@ impl Pod {
                 .expect("to_network_message_tx closed.");
 
             if let Ok(()) = status_rx.blocking_recv().unwrap() {
+                self.network_interface
+                    .to_network_message_tx
+                    .send(ToNetworkMessage::BroadcastMessage(
+                        MessageContent::EditHosts(ino, vec![host.clone()]),
+                    ))
+                    .expect("to_network_message_tx closed.");
                 return Ok(());
             }
         }
@@ -333,7 +339,6 @@ impl Pod {
                 }
             })
             .for_each(|(id, path)| {
-                log::debug!("Sending {id}:{path} to other hosts...");
                 if let Err(e) = self.send_file_to_possible_hosts(&peers, id, path) {
                     log::warn!("{e}");
                 }
