@@ -15,7 +15,7 @@ use crate::error::WhError;
 use crate::pods::filesystem::fs_interface::SimpleFileType;
 use crate::pods::whpath::WhPath;
 
-use super::filesystem::{make_inode::MakeInode, remove_inode::RemoveInode};
+use super::filesystem::{make_inode::MakeInode, remove_inode::RemoveInodeError};
 
 // SECTION consts
 
@@ -401,17 +401,17 @@ impl Arbo {
 
     #[must_use]
     /// Remove inode from the [Arbo]
-    pub fn n_remove_inode(&mut self, id: InodeId) -> Result<Inode, RemoveInode> {
+    pub fn n_remove_inode(&mut self, id: InodeId) -> Result<Inode, RemoveInodeError> {
         let inode = self.n_get_inode(id)?;
         match &inode.entry {
             FsEntry::File(_) => {}
             FsEntry::Directory(children) if children.len() == 0 => {}
-            FsEntry::Directory(_) => return Err(RemoveInode::NonEmpty),
+            FsEntry::Directory(_) => return Err(RemoveInodeError::NonEmpty),
         }
 
         self.n_remove_child(inode.parent, inode.id)?;
 
-        self.entries.remove(&id).ok_or(RemoveInode::WhError {
+        self.entries.remove(&id).ok_or(RemoveInodeError::WhError {
             source: WhError::InodeNotFound,
         })
     }

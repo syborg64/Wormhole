@@ -1,7 +1,7 @@
 use crate::pods::arbo::{FsEntry, Inode, Metadata};
 use crate::pods::filesystem::fs_interface::{FsInterface, SimpleFileType};
 use crate::pods::filesystem::make_inode::MakeInode;
-use crate::pods::filesystem::remove_inode::RemoveFile;
+use crate::pods::filesystem::remove_inode::RemoveFileError;
 use crate::pods::filesystem::write::WriteError;
 use crate::pods::filesystem::xattrs::GetXAttrError;
 use crate::pods::whpath::WhPath;
@@ -457,26 +457,26 @@ impl Filesystem for FuseController {
     fn unlink(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: fuser::ReplyEmpty) {
         match self.fs_interface.fuse_remove_inode(parent, name) {
             Ok(()) => reply.ok(),
-            Err(RemoveFile::WhError { source }) => reply.error(source.to_libc()),
-            Err(RemoveFile::LocalDeletionFailed { io }) => {
+            Err(RemoveFileError::WhError { source }) => reply.error(source.to_libc()),
+            Err(RemoveFileError::LocalDeletionFailed { io }) => {
                 reply.error(io.raw_os_error().expect(
                     "Local creation error should always be the underling libc::open os error",
                 ))
             }
-            Err(RemoveFile::NonEmpty) => reply.error(libc::ENOTEMPTY),
+            Err(RemoveFileError::NonEmpty) => reply.error(libc::ENOTEMPTY),
         }
     }
 
     fn rmdir(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: fuser::ReplyEmpty) {
         match self.fs_interface.fuse_remove_inode(parent, name) {
             Ok(()) => reply.ok(),
-            Err(RemoveFile::WhError { source }) => reply.error(source.to_libc()),
-            Err(RemoveFile::LocalDeletionFailed { io }) => {
+            Err(RemoveFileError::WhError { source }) => reply.error(source.to_libc()),
+            Err(RemoveFileError::LocalDeletionFailed { io }) => {
                 reply.error(io.raw_os_error().expect(
                     "Local creation error should always be the underling libc::open os error",
                 ))
             }
-            Err(RemoveFile::NonEmpty) => reply.error(libc::ENOTEMPTY),
+            Err(RemoveFileError::NonEmpty) => reply.error(libc::ENOTEMPTY),
         }
     }
 

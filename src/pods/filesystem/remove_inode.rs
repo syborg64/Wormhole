@@ -9,24 +9,24 @@ use super::fs_interface::FsInterface;
 
 custom_error! {
     /// Error describing the removal of a [Inode] from the [Arbo]
-    pub RemoveInode
+    pub RemoveInodeError
     WhError{source: WhError} = "{source}",
     NonEmpty = "Can't remove non-empty dir",
 }
 
 custom_error! {
     /// Error describing the removal of a [Inode] from the [Arbo] and the local file or folder
-    pub RemoveFile
+    pub RemoveFileError
     WhError{source: WhError} = "{source}",
     NonEmpty = "Can't remove non-empty dir",
     LocalDeletionFailed{io: std::io::Error} = "Local Deletion failed: {io}"
 }
 
-impl From<RemoveInode> for RemoveFile {
-    fn from(value: RemoveInode) -> Self {
+impl From<RemoveInodeError> for RemoveFileError {
+    fn from(value: RemoveInodeError) -> Self {
         match value {
-            RemoveInode::WhError { source } => RemoveFile::WhError { source },
-            RemoveInode::NonEmpty => RemoveFile::NonEmpty,
+            RemoveInodeError::WhError { source } => RemoveFileError::WhError { source },
+            RemoveInodeError::NonEmpty => RemoveFileError::NonEmpty,
         }
     }
 }
@@ -37,7 +37,7 @@ impl FsInterface {
         &self,
         parent: InodeId,
         name: &std::ffi::OsStr,
-    ) -> Result<(), RemoveFile> {
+    ) -> Result<(), RemoveFileError> {
         let target = {
             let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface::fuse_remove_inode")?;
             let parent = arbo.n_get_inode(parent)?;
@@ -48,7 +48,7 @@ impl FsInterface {
         self.remove_inode(target)
     }
 
-    fn remove_inode_locally(&self, id: InodeId) -> Result<(), RemoveFile> {
+    pub fn remove_inode_locally(&self, id: InodeId) -> Result<(), RemoveFileError> {
         let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface::remove_inode")?;
         let to_remove_path = arbo.n_get_path_from_inode_id(id)?;
 
@@ -56,24 +56,24 @@ impl FsInterface {
             FsEntry::File(hosts) if hosts.contains(&self.network_interface.self_addr) => self
                 .disk
                 .remove_file(&to_remove_path)
-                .map_err(|io| RemoveFile::LocalDeletionFailed { io })?,
+                .map_err(|io| RemoveFileError::LocalDeletionFailed { io })?,
             FsEntry::File(_) => { /* Nothing to do */ }
             FsEntry::Directory(children) if children.is_empty() => self
                 .disk
                 .remove_dir(&to_remove_path)
-                .map_err(|io| RemoveFile::LocalDeletionFailed { io })?,
-            FsEntry::Directory(_) => return Err(RemoveFile::NonEmpty),
+                .map_err(|io| RemoveFileError::LocalDeletionFailed { io })?,
+            FsEntry::Directory(_) => return Err(RemoveFileError::NonEmpty),
         };
         Ok(())
     }
 
-    pub fn remove_inode(&self, id: InodeId) -> Result<(), RemoveFile> {
+    pub fn remove_inode(&self, id: InodeId) -> Result<(), RemoveFileError> {
         self.remove_inode_locally(id)?;
         self.network_interface.unregister_inode(id)?;
         Ok(())
     }
 
-    pub fn recept_remove_inode(&self, id: InodeId) -> Result<(), RemoveFile> {
+    pub fn recept_remove_inode(&self, id: InodeId) -> Result<(), RemoveFileError> {
         self.remove_inode_locally(id)?;
         self.network_interface.acknowledge_unregister_inode(id)?;
         Ok(())

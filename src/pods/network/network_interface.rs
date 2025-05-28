@@ -268,7 +268,7 @@ impl NetworkInterface {
     }
 
     /// Remove [Inode] from the [Arbo] and inform the network of the removal
-    pub fn unregister_inode(&self, id: InodeId) -> Result<(), RemoveInode> {
+    pub fn unregister_inode(&self, id: InodeId) -> Result<(), RemoveInodeError> {
         Arbo::n_write_lock(&self.arbo, "unregister_inode")?.n_remove_inode(id)?;
 
         if !Arbo::is_local_only(id) {
@@ -283,7 +283,7 @@ impl NetworkInterface {
     }
 
     /// Remove [Inode] from the [Arbo]
-    pub fn acknowledge_unregister_inode(&self, id: InodeId) -> Result<Inode, RemoveInode> {
+    pub fn acknowledge_unregister_inode(&self, id: InodeId) -> Result<Inode, RemoveInodeError> {
         Arbo::n_write_lock(&self.arbo, "acknowledge_unregister_inode")?.n_remove_inode(id)
     }
 
