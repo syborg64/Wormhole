@@ -598,5 +598,3 @@ impl NetworkInterface {
 
     // !SECTION ^ Node related
 }
-
-// Touch 1, Write 2, Read 2
