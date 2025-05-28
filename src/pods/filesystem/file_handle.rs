@@ -53,20 +53,24 @@ impl FileHandleManager {
     }
 
     pub fn read_lock<'a>(
-        arbo: &'a Arc<RwLock<FileHandleManager>>,
+        file_handle_manager: &'a Arc<RwLock<FileHandleManager>>,
         called_from: &'a str,
     ) -> WhResult<RwLockReadGuard<'a, FileHandleManager>> {
-        arbo.try_read_for(LOCK_TIMEOUT).ok_or(WhError::WouldBlock {
-            called_from: called_from.to_owned(),
-        })
+        file_handle_manager
+            .try_read_for(LOCK_TIMEOUT)
+            .ok_or(WhError::WouldBlock {
+                called_from: called_from.to_owned(),
+            })
     }
 
     pub fn write_lock<'a>(
-        arbo: &'a Arc<RwLock<FileHandleManager>>,
+        file_handle_manager: &'a Arc<RwLock<FileHandleManager>>,
         called_from: &'a str,
     ) -> WhResult<RwLockWriteGuard<'a, FileHandleManager>> {
-        arbo.try_write_for(LOCK_TIMEOUT).ok_or(WhError::WouldBlock {
-            called_from: called_from.to_owned(),
-        })
+        file_handle_manager
+            .try_write_for(LOCK_TIMEOUT)
+            .ok_or(WhError::WouldBlock {
+                called_from: called_from.to_owned(),
+            })
     }
 }
