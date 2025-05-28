@@ -131,10 +131,6 @@ impl FsInterface {
         Ok(arbo.get_inode(ino)?.meta.clone())
     }
 
-    pub fn set_inode_attributes(&self, ino: InodeId, meta: Metadata) -> io::Result<()> {
-        self.network_interface.update_metadata(ino, meta)
-    }
-
     pub fn read_dir(&self, ino: InodeId) -> io::Result<Vec<Inode>> {
         let arbo = Arbo::read_lock(&self.arbo, "fs_interface.read_dir")?;
         let dir = arbo.get_inode(ino)?;
@@ -221,10 +217,10 @@ impl FsInterface {
         self.network_interface.update_remote_hosts(&inode)
     }
 
-    pub fn recept_edit_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
+    pub fn recept_edit_hosts(&self, id: InodeId, hosts: Vec<Address>) -> WhResult<()> {
         if !hosts.contains(&self.network_interface.self_addr) {
             if let Err(e) = self.disk.remove_file(
-                Arbo::read_lock(&self.arbo, "recept_edit_hosts")?.get_path_from_inode_id(id)?,
+                Arbo::n_read_lock(&self.arbo, "recept_edit_hosts")?.n_get_path_from_inode_id(id)?,
             ) {
                 log::debug!("recept_edit_hosts: can't delete file. {}", e);
             }
@@ -242,7 +238,9 @@ impl FsInterface {
                 log::debug!("recept_revoke_hosts: can't delete file. {}", e);
             }
         }
-        self.network_interface.acknowledge_metadata(id, meta, host)
+        self.network_interface.acknowledge_metadata(id, meta)?;
+        self.network_interface
+            .acknowledge_hosts_edition(id, vec![host])
     }
 
     pub fn recept_add_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {

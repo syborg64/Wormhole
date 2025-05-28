@@ -24,7 +24,7 @@ pub enum MessageContent {
     RevokeFile(InodeId, Address, Metadata),
     AddHosts(InodeId, Vec<Address>),
     RemoveHosts(InodeId, Vec<Address>),
-    EditMetadata(InodeId, Metadata, Address),
+    EditMetadata(InodeId, Metadata),
     SetXAttr(InodeId, String, Vec<u8>),
     RemoveXAttr(InodeId, String),
     RequestFs,

@@ -193,15 +193,15 @@ impl NetworkInterface {
         Arbo::n_write_lock(&self.arbo, "acknowledge_unregister_inode")?.n_remove_inode(id)
     }
 
-    pub fn acknowledge_hosts_edition(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
-        let mut arbo = Arbo::write_lock(&self.arbo, "acknowledge_hosts_edition")?;
+    pub fn acknowledge_hosts_edition(&self, id: InodeId, hosts: Vec<Address>) -> WhResult<()> {
+        let mut arbo = Arbo::n_write_lock(&self.arbo, "acknowledge_hosts_edition")?;
 
-        arbo.set_inode_hosts(id, hosts) // TODO - if unable to update for some reason, should be passed to the background worker
+        arbo.n_set_inode_hosts(id, hosts) // TODO - if unable to update for some reason, should be passed to the background worker
     }
 
-    pub fn acknowledge_metadata(&self, id: InodeId, meta: Metadata, host: Address) -> WhResult<()> {
+    pub fn acknowledge_metadata(&self, id: InodeId, meta: Metadata) -> WhResult<()> {
         let mut arbo = Arbo::n_write_lock(&self.arbo, "acknowledge_metadata")?;
-        arbo.n_set_inode_hosts(id, vec![host])?;
+
         arbo.n_set_inode_meta(id, meta) // TODO - if unable to update for some reason, should be passed to the background worker
     }
 
@@ -267,7 +267,7 @@ impl NetworkInterface {
 
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::EditMetadata(id, meta, self.self_addr.clone()),
+                MessageContent::EditMetadata(id, meta),
             ))
             .expect("update_metadata: unable to update modification on the network thread");
         Ok(())
@@ -286,7 +286,7 @@ impl NetworkInterface {
 
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::EditMetadata(id, meta, self.self_addr.clone()),
+                MessageContent::EditMetadata(id, meta),
             ))
             .expect("update_metadata: unable to update modification on the network thread");
         Ok(())
@@ -462,7 +462,12 @@ impl NetworkInterface {
                             format!("WhError: {err}"),
                         ))
                     }),
-                MessageContent::EditHosts(id, hosts) => fs_interface.recept_edit_hosts(id, hosts),
+                MessageContent::EditHosts(id, hosts) => fs_interface.recept_edit_hosts(id, hosts).or_else(|err| {
+                        Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            format!("WhError: {err}"),
+                        ))
+                    }),
                 MessageContent::RevokeFile(id, host, meta) => fs_interface.recept_revoke_hosts(id, host, meta).or_else(|err| {
                         Err(std::io::Error::new(
                             std::io::ErrorKind::Other,
@@ -473,8 +478,8 @@ impl NetworkInterface {
                 MessageContent::RemoveHosts(id, hosts) => {
                     fs_interface.recept_remove_hosts(id, hosts)
                 }
-                MessageContent::EditMetadata(id, meta, host) =>
-                    fs_interface.network_interface.acknowledge_metadata(id, meta, host).or_else(|err| {
+                MessageContent::EditMetadata(id, meta) =>
+                    fs_interface.network_interface.acknowledge_metadata(id, meta).or_else(|err| {
                         Err(std::io::Error::new(
                             std::io::ErrorKind::Other,
                             format!("WhError: {err}"),
