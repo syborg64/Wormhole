@@ -6,7 +6,7 @@ use custom_error::custom_error;
 use parking_lot::RwLockReadGuard;
 
 use super::{
-    file_handle::{AccessMode, FileHandle, FileHandleManager},
+    file_handle::{AccessMode, FileHandle, FileHandleManager, UUID},
     fs_interface::FsInterface,
 };
 
@@ -22,7 +22,7 @@ custom_error! {
 
 fn check_file_handle<'a>(
     file_handles: &'a RwLockReadGuard<FileHandleManager>,
-    file_handle_id: u64,
+    file_handle_id: UUID,
 ) -> Result<&'a FileHandle, WriteError> {
     match file_handles.handles.get(&file_handle_id) {
         Some(&FileHandle {
@@ -54,7 +54,7 @@ impl FsInterface {
         id: InodeId,
         data: &[u8],
         offset: u64,
-        file_handle: u64,
+        file_handle: UUID,
     ) -> Result<u64, WriteError> {
         let file_handles = FileHandleManager::read_lock(&self.file_handles, "write")?;
         let _file_handle = check_file_handle(&file_handles, file_handle)?;

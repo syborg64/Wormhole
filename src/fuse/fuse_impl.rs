@@ -611,14 +611,14 @@ impl Filesystem for FuseController {
     fn release(
         &mut self,
         _req: &Request<'_>,
-        ino: u64,
-        _fh: u64, //Could check that fh is correct, but it doesn't seems necessary now
+        _ino: u64,
+        file_handle: u64,
         _flags: i32,
         _lock_owner: Option<u64>,
         _flush: bool,
         reply: fuser::ReplyEmpty,
     ) {
-        match self.fs_interface.release(ino) {
+        match self.fs_interface.release(file_handle) {
             Ok(()) => reply.ok(),
             Err(err) => reply.error(err.to_libc()),
         }

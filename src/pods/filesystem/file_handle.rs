@@ -9,7 +9,7 @@ use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use crate::{
     error::{WhError, WhResult},
-    pods::arbo::{InodeId, LOCK_TIMEOUT},
+    pods::arbo::LOCK_TIMEOUT,
 };
 
 #[derive(Debug)]
@@ -24,7 +24,7 @@ pub type UUID = u64;
 
 #[derive(Debug)]
 pub struct FileHandle {
-    pub uuid: u64,
+    pub uuid: UUID,
     pub perm: AccessMode,
     pub no_atime: bool,
     pub direct: bool,
@@ -32,7 +32,7 @@ pub struct FileHandle {
 
 #[derive(Debug)]
 pub struct FileHandleManager {
-    pub handles: HashMap<InodeId, FileHandle>,
+    pub handles: HashMap<UUID, FileHandle>,
     pub hasher: DefaultHasher,
 }
 

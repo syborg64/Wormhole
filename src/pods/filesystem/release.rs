@@ -1,11 +1,14 @@
 use crate::error::WhResult;
 
-use super::{file_handle::FileHandleManager, fs_interface::FsInterface};
+use super::{
+    file_handle::{FileHandleManager, UUID},
+    fs_interface::FsInterface,
+};
 
 impl FsInterface {
-    pub fn release(&self, ino: u64) -> WhResult<()> {
+    pub fn release(&self, file_handle: UUID) -> WhResult<()> {
         let mut file_handles = FileHandleManager::write_lock(&self.file_handles, "write")?;
-        file_handles.handles.remove(&ino);
+        file_handles.handles.remove(&file_handle);
         return Ok(());
     }
 }
