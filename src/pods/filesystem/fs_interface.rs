@@ -234,10 +234,12 @@ impl FsInterface {
 
     pub fn recept_revoke_hosts(&self, id: InodeId, host: Address, meta: Metadata) -> WhResult<()> {
         if host != self.network_interface.self_addr {
+            // TODO: recept_revoke_hosts, for the redudancy, should recieve the written text (data from write) instead of deleting and adding it back completely with apply_redudancy
             if let Err(e) = self.disk.remove_file(
-                Arbo::n_read_lock(&self.arbo, "recept_edit_hosts")?.n_get_path_from_inode_id(id)?,
+                Arbo::n_read_lock(&self.arbo, "recept_revoke_hosts")?
+                    .n_get_path_from_inode_id(id)?,
             ) {
-                log::debug!("recept_edit_hosts: can't delete file. {}", e);
+                log::debug!("recept_revoke_hosts: can't delete file. {}", e);
             }
         }
         self.network_interface
