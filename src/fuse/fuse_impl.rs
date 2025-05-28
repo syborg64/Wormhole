@@ -421,6 +421,7 @@ impl Filesystem for FuseController {
             Err(MakeInode::AlreadyExist) => reply.error(libc::EEXIST),
             Err(MakeInode::ParentNotFound) => reply.error(libc::ENOENT),
             Err(MakeInode::ParentNotFolder) => reply.error(libc::ENOTDIR),
+            Err(MakeInode::ProtectedNameIsFolder) => reply.error(libc::EISDIR),
         }
         //todo when persmissions are added reply.error(libc::EACCES)
     }
@@ -449,6 +450,7 @@ impl Filesystem for FuseController {
             Err(MakeInode::AlreadyExist) => reply.error(libc::EEXIST),
             Err(MakeInode::ParentNotFound) => reply.error(libc::ENOENT),
             Err(MakeInode::ParentNotFolder) => reply.error(libc::ENOTDIR),
+            Err(MakeInode::ProtectedNameIsFolder) => reply.error(libc::EISDIR),
         }
     }
 
@@ -563,6 +565,7 @@ impl Filesystem for FuseController {
             Err(MakeInode::AlreadyExist) => reply.error(libc::EEXIST),
             Err(MakeInode::ParentNotFound) => reply.error(libc::ENOENT),
             Err(MakeInode::ParentNotFolder) => reply.error(libc::ENOTDIR),
+            Err(MakeInode::ProtectedNameIsFolder) => reply.error(libc::EISDIR),
         }
     }
 
