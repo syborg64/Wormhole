@@ -24,12 +24,14 @@ const READ_BIT_FLAG: u16 = 4u16;
 
 impl FsInterface {
     pub fn open(&self, ino: InodeId, flags: i32) -> Result<u64, OpenError> {
-        let arbo = Arbo::n_read_lock(&self.arbo, "open")?;
-        let inode = arbo.n_get_inode(ino)?;
+        let inode_perm = Arbo::n_read_lock(&self.arbo, "open")?
+            .n_get_inode(ino)?
+            .meta
+            .perm;
 
         let perm = match flags & libc::O_ACCMODE {
             libc::O_RDONLY => {
-                if inode.meta.perm & READ_BIT_FLAG == 0 {
+                if inode_perm & READ_BIT_FLAG == 0 {
                     return Err(OpenError::WrongPermissions);
                 }
                 //Behavior is undefined, but most filesystems return EACCES
@@ -39,7 +41,7 @@ impl FsInterface {
                 }
                 //Open is from internal exec syscall
                 if flags & FMODE_EXEC != 0 {
-                    if inode.meta.perm & EXECUTE_BIT_FLAG == 0 {
+                    if inode_perm & EXECUTE_BIT_FLAG == 0 {
                         return Err(OpenError::WrongPermissions);
                     }
                     AccessMode::Execute
@@ -47,13 +49,12 @@ impl FsInterface {
                     AccessMode::Read
                 }
             }
-            libc::O_WRONLY if (inode.meta.perm & WRITE_BIT_FLAG == 0) => {
+            libc::O_WRONLY if (inode_perm & WRITE_BIT_FLAG == 0) => {
                 return Err(OpenError::WrongPermissions);
             }
             libc::O_WRONLY => AccessMode::Write,
             libc::O_RDWR
-                if (inode.meta.perm & WRITE_BIT_FLAG == 0
-                    || inode.meta.perm & READ_BIT_FLAG == 0) =>
+                if (inode_perm & WRITE_BIT_FLAG == 0 || inode_perm & READ_BIT_FLAG == 0) =>
             {
                 return Err(OpenError::WrongPermissions);
             }
