@@ -199,23 +199,7 @@ impl NetworkInterface {
         arbo.set_inode_hosts(id, hosts) // TODO - if unable to update for some reason, should be passed to the background worker
     }
 
-    pub fn acknowledge_metadata(
-        &self,
-        id: InodeId,
-        meta: Metadata,
-        host: Address,
-    ) -> io::Result<()> {
-        let mut arbo = Arbo::write_lock(&self.arbo, "acknowledge_metadata")?;
-        arbo.set_inode_hosts(id, vec![host])?;
-        arbo.set_inode_meta(id, meta) // TODO - if unable to update for some reason, should be passed to the background worker
-    }
-
-    pub fn n_acknowledge_metadata(
-        &self,
-        id: InodeId,
-        meta: Metadata,
-        host: Address,
-    ) -> WhResult<()> {
+    pub fn acknowledge_metadata(&self, id: InodeId, meta: Metadata, host: Address) -> WhResult<()> {
         let mut arbo = Arbo::n_write_lock(&self.arbo, "acknowledge_metadata")?;
         arbo.n_set_inode_hosts(id, vec![host])?;
         arbo.n_set_inode_meta(id, meta) // TODO - if unable to update for some reason, should be passed to the background worker
@@ -489,9 +473,13 @@ impl NetworkInterface {
                 MessageContent::RemoveHosts(id, hosts) => {
                     fs_interface.recept_remove_hosts(id, hosts)
                 }
-                MessageContent::EditMetadata(id, meta, host) => {
-                    fs_interface.recept_edit_metadata(id, meta, host)
-                }
+                MessageContent::EditMetadata(id, meta, host) =>
+                    fs_interface.network_interface.acknowledge_metadata(id, meta, host).or_else(|err| {
+                        Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            format!("WhError: {err}"),
+                        ))
+                    }),
                 MessageContent::Remove(id) => fs_interface.recept_remove_inode(id).or_else(|err| {
                         Err(std::io::Error::new(
                             std::io::ErrorKind::Other,

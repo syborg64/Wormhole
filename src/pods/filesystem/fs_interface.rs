@@ -242,8 +242,7 @@ impl FsInterface {
                 log::debug!("recept_revoke_hosts: can't delete file. {}", e);
             }
         }
-        self.network_interface
-            .n_acknowledge_metadata(id, meta, host)
+        self.network_interface.acknowledge_metadata(id, meta, host)
     }
 
     pub fn recept_add_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
@@ -262,14 +261,6 @@ impl FsInterface {
         self.network_interface.aknowledge_hosts_removal(id, hosts)
     }
 
-    pub fn recept_edit_metadata(
-        &self,
-        id: InodeId,
-        meta: Metadata,
-        host: Address,
-    ) -> io::Result<()> {
-        self.network_interface.acknowledge_metadata(id, meta, host)
-    }
     // !SECTION
 
     // SECTION remote -> read
