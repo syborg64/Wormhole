@@ -57,7 +57,11 @@ impl FsInterface {
                 .disk
                 .remove_file(to_remove_path)
                 .map_err(|io| RemoveFile::LocalDeletionFailed { io })?,
-            FsEntry::File(_) => { /* Nothing to do */ }
+            FsEntry::File(_) => {
+                // TODO: Remove when wormhole initialisation is cleaner
+                // try to delete the file even if it's not owned to prevent from conflicts on creation later
+                let _ = self.disk.remove_file(to_remove_path);
+            }
             FsEntry::Directory(children) if children.is_empty() => self
                 .disk
                 .remove_dir(to_remove_path)

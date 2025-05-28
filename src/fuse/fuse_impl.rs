@@ -357,11 +357,10 @@ impl Filesystem for FuseController {
                 source: PullError::WhError { source },
             }) => reply.error(source.to_libc()),
             Err(ReadError::CantPull) => reply.error(libc::ENETUNREACH),
-            Err(ReadError::LocalReadFailed { io }) => {
-                reply.error(io.raw_os_error().expect(
-                    "Local creation error should always be the underling libc::open os error",
-                ))
-            }
+            Err(ReadError::LocalReadFailed { io }) => reply.error(
+                io.raw_os_error()
+                    .expect("Local read error should always be the underling libc::open os error"),
+            ),
             Err(ReadError::PullError {
                 source: PullError::NoHostAvailable,
             }) => reply.error(libc::ENETUNREACH),

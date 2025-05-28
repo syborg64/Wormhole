@@ -31,7 +31,7 @@ impl NetworkInterface {
             }
         };
 
-        assert!(hosts.len() == 0, "No hosts hold the file.");
+        assert!(hosts.len() != 0, "No hosts hold the file.");
 
         if hosts.contains(&self.self_addr) {
             // if the asked file is already on disk
@@ -71,16 +71,16 @@ impl NetworkInterface {
 
     // REVIEW - recheck and simplify this if possible
     pub fn pull_file_sync(&self, file: InodeId) -> Result<Option<Callback>, PullError> {
+        let arbo = Arbo::n_read_lock(&self.arbo, "pull file sync")?;
         let hosts = {
-            let arbo = Arbo::n_read_lock(&self.arbo, "pull_file")?;
             if let FsEntry::File(hosts) = &arbo.n_get_inode(file)?.entry {
-                hosts.clone()
+                hosts
             } else {
                 panic!("Pulling a folder is a non-sens.")
             }
         };
 
-        assert!(hosts.len() == 0, "No hosts hold the file.");
+        assert!(hosts.len() != 0, "No hosts hold the file.");
 
         if hosts.contains(&self.self_addr) {
             // if the asked file is already on disk
@@ -103,6 +103,7 @@ impl NetworkInterface {
                     .expect("pull_file: unable to request on the network thread");
 
                 // processing status
+                log::error!("2: ...");
                 match status_rx
                     .blocking_recv()
                     .expect("pull_file: unable to get status from the network thread")
