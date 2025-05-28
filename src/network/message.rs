@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::fmt::{self, Debug};
 
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -32,6 +32,30 @@ pub enum MessageContent {
     FsAnswer(FileSystemSerialized, Vec<Address>),
 }
 
+impl fmt::Display for MessageContent {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let name = match self {
+            MessageContent::Register(_) => "Register",
+            MessageContent::Remove(_) => "Remove",
+            MessageContent::Inode(_) => "Inode",
+            MessageContent::RequestFile(_, _) => "RequestFile",
+            MessageContent::PullAnswer(_, _) => "PullAnswer",
+            MessageContent::Rename(_, _, _, _) => "Rename",
+            MessageContent::EditHosts(_, _) => "EditHosts",
+            MessageContent::RevokeFile(_, _, _) => "RevokeFile",
+            MessageContent::AddHosts(_, _) => "AddHosts",
+            MessageContent::RemoveHosts(_, _) => "RemoveHosts",
+            MessageContent::EditMetadata(_, _) => "EditMetadata",
+            MessageContent::SetXAttr(_, _, _) => "SetXAttr",
+            MessageContent::RemoveXAttr(_, _) => "RemoveXAttr",
+            MessageContent::RequestFs => "RequestFs",
+            MessageContent::RequestPull(_) => "RequestPull",
+            MessageContent::FsAnswer(_, _) => "FsAnswer",
+        };
+        write!(f, "{}", name)
+    }
+}
+
 pub type MessageAndStatus = (MessageContent, Option<UnboundedSender<WhResult<()>>>);
 
 pub type Address = String;
@@ -50,6 +74,25 @@ pub struct FromNetworkMessage {
 pub enum ToNetworkMessage {
     BroadcastMessage(MessageContent),
     SpecificMessage(MessageAndStatus, Vec<Address>),
+}
+
+impl fmt::Display for ToNetworkMessage {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ToNetworkMessage::BroadcastMessage(content) => {
+                write!(f, "ToNetworkMessage::BroadcastMessage({})", content)
+            }
+            ToNetworkMessage::SpecificMessage((content, callback), adress) => {
+                write!(
+                    f,
+                    "ToNetworkMessage::SpecificMessage({}, callback: {}, to: {:?})",
+                    content,
+                    callback.is_some(),
+                    adress
+                )
+            }
+        }
+    }
 }
 
 #[serde_as]

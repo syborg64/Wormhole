@@ -452,9 +452,10 @@ impl NetworkInterface {
                 Some(message) => message,
                 None => continue,
             };
-            log::debug!("message from {} : {:?}", origin, content);
+            log::debug!("From {}: {:?}", origin, content);
+            let content_name = content.to_string();
 
-            let action_result = match content.clone() { // remove scary clone
+            let action_result = match content { // remove scary clone
                 MessageContent::PullAnswer(id, binary) => fs_interface.recept_binary(id, binary),
                 MessageContent::Inode(inode) => fs_interface.recept_inode(inode).or_else(|err| {
                         Err(std::io::Error::new(
@@ -523,7 +524,7 @@ impl NetworkInterface {
             };
             if let Err(error) = action_result {
                 log::error!(
-                    "Network airport couldn't operate operation {content:?}, error found: {error}"
+                    "Network airport couldn't operate operation {content_name:?}, error found: {error}"
                 );
             }
         }
@@ -542,7 +543,7 @@ impl NetworkInterface {
                 .map(|peer| (peer.sender.clone(), peer.address.clone()))
                 .collect();
 
-            println!("broadcasting message to peers:\n{:?}", message);
+            log::info!("broadcasting message to peers:\n{:?}", message);
             log::info!(
                 "peers list {:#?}",
                 peers_list
@@ -554,7 +555,6 @@ impl NetworkInterface {
             match message {
                 ToNetworkMessage::BroadcastMessage(message_content) => {
                     peers_tx.iter().for_each(|(channel, address)| {
-                        println!("peer: {}", address);
                         channel
                             .send((message_content.clone(), None))
                             .expect(&format!("failed to send message to peer {}", address))

@@ -103,7 +103,6 @@ impl NetworkInterface {
                     .expect("pull_file: unable to request on the network thread");
 
                 // processing status
-                log::error!("2: ...");
                 match status_rx
                     .blocking_recv()
                     .expect("pull_file: unable to get status from the network thread")

@@ -41,7 +41,6 @@ impl DiskManager {
     pub fn new_file(&self, mut path: WhPath) -> io::Result<()> {
         path = path.set_relative();
         let (f_path, name) = path.split_folder_file();
-        log::error!("new file path: {}: {} , {}", &path.inner, f_path, name);
         if let Some(entries) = self
             .folders
             .write()
@@ -121,7 +120,6 @@ impl DiskManager {
 
     pub fn write_file(&self, mut path: WhPath, binary: &[u8], offset: u64) -> io::Result<u64> {
         path = path.set_relative();
-        log::error!("write file path: {}", &path.inner);
         if let Some(file) = self
             .files
             .write()
@@ -153,7 +151,6 @@ impl DiskManager {
 
     pub fn read_file(&self, mut path: WhPath, offset: u64, len: u64) -> io::Result<Vec<u8>> {
         path = path.set_relative();
-        log::error!("read file path: {}", &path.inner);
         if let Some(file) = self
             .files
             .read()
