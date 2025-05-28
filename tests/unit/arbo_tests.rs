@@ -20,7 +20,6 @@ fn arbo_values(inode: &Inode, expected_result: Inode) {
     // Check that the metadata is correct
     assert_eq!(inode.meta.ino, expected_result.meta.ino);
     assert_eq!(inode.meta.size, expected_result.meta.size);
-    println!("id: {:?}", inode.id);
     assert_eq!(inode.meta.blocks, expected_result.meta.blocks);
     assert_eq!(inode.meta.kind, expected_result.meta.kind);
     assert_eq!(inode.meta.perm, expected_result.meta.perm);
@@ -79,7 +78,7 @@ fn test_inserting_and_retreiving_files() {
             uid: 0,
             gid: 0,
             rdev: 0,
-            blksize: 512,
+            blksize: BLOCK_SIZE as u32,
             flags: 0,
         },
         xattrs: HashMap::new(),
@@ -104,7 +103,7 @@ fn test_inserting_and_retreiving_files() {
             uid: 0,
             gid: 0,
             rdev: 0,
-            blksize: 512,
+            blksize: BLOCK_SIZE as u32,
             flags: 0,
         },
         xattrs: HashMap::new(),
