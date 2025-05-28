@@ -1,37 +1,81 @@
 use crate::{
     error::WhError,
-    pods::arbo::{Arbo, InodeId},
+    pods::arbo::{Arbo, InodeId, BLOCK_SIZE},
 };
 use custom_error::custom_error;
+use parking_lot::RwLockReadGuard;
 
-use super::fs_interface::FsInterface;
+use super::{
+    file_handle::{AccessMode, FileHandle, FileHandleManager, UUID},
+    fs_interface::FsInterface,
+};
 
 custom_error! {
-    /// Error describing the removal of a [Inode] from the [Arbo]
+    /// Error describing the write syscall
     pub WriteError
     WhError{source: WhError} = "{source}",
-    LocalWriteFailed{io: std::io::Error} = "Local write failed: {io}"
+    LocalWriteFailed{io: std::io::Error} = "Local write failed: {io}",
+    NoFileHandle = "The file doesn't have a file handle",
+    NoWritePermission = "The permissions doesn't allow to write",
+    BadFd = "The file handle and the inode id doesn't match",
+}
+
+fn check_file_handle<'a>(
+    file_handles: &'a RwLockReadGuard<FileHandleManager>,
+    file_handle_id: UUID,
+) -> Result<&'a FileHandle, WriteError> {
+    match file_handles.handles.get(&file_handle_id) {
+        Some(&FileHandle {
+            perm: AccessMode::Read,
+            direct: _,
+            uuid: _,
+            no_atime: _,
+        }) => return Err(WriteError::NoWritePermission),
+        Some(&FileHandle {
+            perm: AccessMode::Execute,
+            direct: _,
+            uuid: _,
+            no_atime: _,
+        }) => return Err(WriteError::NoWritePermission),
+        Some(&FileHandle {
+            perm: _,
+            direct: _,
+            uuid,
+            no_atime: _,
+        }) if uuid != file_handle_id => return Err(WriteError::BadFd),
+        None => return Err(WriteError::NoFileHandle),
+        Some(file_handle) => Ok(file_handle),
+    }
 }
 
 impl FsInterface {
-    pub fn write(&self, id: InodeId, data: &[u8], offset: u64) -> Result<u64, WriteError> {
+    pub fn write(
+        &self,
+        id: InodeId,
+        data: &[u8],
+        offset: u64,
+        file_handle: UUID,
+    ) -> Result<u64, WriteError> {
+        let file_handles = FileHandleManager::read_lock(&self.file_handles, "write")?;
+        let _file_handle = check_file_handle(&file_handles, file_handle)?;
+
         let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface.write")?;
-        let path = arbo.n_get_path_from_inode_id(id)?;
         let mut meta = arbo.n_get_inode(id)?.meta.clone();
+        let path = arbo.n_get_path_from_inode_id(id)?;
         drop(arbo);
 
-        let newsize = offset + data.len() as u64;
-        if newsize > meta.size {
-            meta.size = newsize;
-            self.network_interface.n_update_metadata(id, meta)?;
-        }
+        let new_size = (offset + data.len() as u64).max(meta.size);
+        let blocks = (new_size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+        meta.size = new_size;
+        meta.blocks = blocks;
 
         let written = self
             .disk
             .write_file(path, data, offset)
             .map_err(|io| WriteError::LocalWriteFailed { io })?;
 
-        self.network_interface.revoke_remote_hosts(id)?;
+        self.network_interface
+            .write_file(id, new_size, blocks, meta)?;
         Ok(written)
     }
 }
