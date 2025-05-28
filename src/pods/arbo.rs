@@ -607,7 +607,6 @@ impl Arbo {
         Ok(())
     }
 
-    #[must_use]
     pub fn set_inode_size(&mut self, ino: InodeId, size: u64) -> WhResult<()> {
         self.n_get_inode_mut(ino)?.meta.size = size;
         Ok(())
