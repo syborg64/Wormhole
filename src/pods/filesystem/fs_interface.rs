@@ -2,7 +2,6 @@ use crate::network::message::Address;
 use crate::pods::arbo::{Arbo, FsEntry, Inode, InodeId, Metadata};
 use crate::pods::disk_manager::DiskManager;
 use crate::pods::network::network_interface::{Callback, NetworkInterface};
-use crate::pods::whpath::WhPath;
 
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -57,52 +56,6 @@ impl FsInterface {
         self.network_interface.update_metadata(ino, meta)
     }
 
-    fn construct_file_path(&self, parent: InodeId, name: &String) -> io::Result<WhPath> {
-        let arbo = Arbo::read_lock(&self.arbo, "fs_interface.get_begin_path_end_path")?;
-        let parent_path = arbo.get_path_from_inode_id(parent)?;
-
-        return Ok(parent_path.join(name));
-    }
-
-    // TODO:  Must handle the file creation if the file is not replicated like ino 3
-    pub fn rename(
-        &self,
-        parent: InodeId,
-        new_parent: InodeId,
-        name: &String,
-        new_name: &String,
-    ) -> io::Result<()> {
-        let parent_path = self.construct_file_path(parent, name)?;
-        let new_parent_path = self.construct_file_path(new_parent, new_name)?;
-        let _ = self
-            .disk
-            .mv_file(&parent_path, &new_parent_path)
-            .inspect_err(|err| log::error!("disk.mv_file fail: {err:?}"));
-        self.network_interface
-            .broadcast_rename_file(parent, new_parent, name, new_name)?;
-        self.network_interface
-            .arbo_rename_file(parent, new_parent, name, new_name)?;
-        Ok(())
-    }
-
-    pub fn accept_rename(
-        &self,
-        parent: InodeId,
-        new_parent: InodeId,
-        name: &String,
-        new_name: &String,
-    ) -> io::Result<()> {
-        let parent_path = self.construct_file_path(parent, name)?;
-        let new_parent_path = self.construct_file_path(new_parent, new_name)?;
-        match self.get_entry_from_name(parent, name.clone())?.entry {
-            FsEntry::File(items) if !items.contains(&self.network_interface.self_addr) => { /* not on disk */
-            }
-            _ => self.disk.mv_file(&parent_path, &new_parent_path)?,
-        }
-        self.network_interface
-            .arbo_rename_file(parent, new_parent, name, new_name)?;
-        Ok(())
-    }
 
     // !SECTION
 

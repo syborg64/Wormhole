@@ -3,6 +3,7 @@ use crate::pods::filesystem::fs_interface::{FsInterface, SimpleFileType};
 use crate::pods::filesystem::make_inode::MakeInode;
 use crate::pods::filesystem::remove_inode::RemoveFileError;
 use crate::pods::filesystem::write::WriteError;
+use crate::pods::filesystem::rename::RenameError;
 use crate::pods::filesystem::xattrs::GetXAttrError;
 use crate::pods::whpath::WhPath;
 use fuser::{
@@ -487,7 +488,7 @@ impl Filesystem for FuseController {
         name: &OsStr,
         new_parent: u64,
         newname: &OsStr,
-        _flags: u32,
+        flags: u32,
         reply: fuser::ReplyEmpty,
     ) {
         match self.fs_interface.rename(
@@ -501,9 +502,25 @@ impl Filesystem for FuseController {
                 .to_owned()
                 .into_string()
                 .expect("Don't support non unicode yet"),
+            flags & libc::RENAME_NOREPLACE == 0,
         ) {
             Ok(()) => reply.ok(),
-            Err(err) => reply.error(err.raw_os_error().unwrap_or(EIO)),
+            Err(RenameError::WhError { source }) => reply.error(source.to_libc()),
+            Err(RenameError::LocalRenamingFailed { io }) => {
+                reply.error(io.raw_os_error().expect(
+                    "Local renaming error should always be the underling libc::open os error",
+                ))
+            }
+            Err(RenameError::LocalOverwriteFailed { io }) => reply.error(io.raw_os_error().expect(
+                "Local overwrite error should always be the underling libc::open os error",
+            )),
+            Err(RenameError::OverwriteNonEmpty) => reply.error(libc::ENOTEMPTY),
+            Err(RenameError::DestinationExists) => reply.error(libc::EEXIST),
+            Err(RenameError::SourceParentNotFolder) => reply.error(libc::ENOTDIR),
+            Err(RenameError::SourceParentNotFound) => reply.error(libc::ENOENT),
+            Err(RenameError::DestinationParentNotFolder) => reply.error(libc::ENOTDIR),
+            Err(RenameError::DestinationParentNotFound) => reply.error(libc::ENOENT),
+            Err(RenameError::ProtectedNameIsFolder) => reply.error(libc::ENOTDIR),
         }
     }
 

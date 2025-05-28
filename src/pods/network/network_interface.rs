@@ -14,7 +14,7 @@ use crate::{
     error::WhError,
     pods::{
         arbo::{FsEntry, Metadata},
-        filesystem::{make_inode::MakeInode, remove_inode::RemoveInode},
+        filesystem::{make_inode::MakeInode, remove_inode::RemoveInodeError, rename::RenameError},
         whpath::WhPath,
     },
 };
@@ -233,31 +233,47 @@ impl NetworkInterface {
         // TODO - if unable to update for some reason, should be passed to the background worker
     }
 
-    pub fn broadcast_rename_file(
+    pub fn n_rename(
         &self,
         parent: InodeId,
         new_parent: InodeId,
         name: &String,
         new_name: &String,
-    ) -> io::Result<()> {
+        overwrite: bool,
+    ) -> Result<(), RenameError> {
+        let mut arbo = Arbo::n_write_lock(&self.arbo, "arbo_rename_file")?;
+
+        arbo.n_mv_inode(parent, new_parent, name, new_name)?;
+
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                message::MessageContent::Rename(parent, new_parent, name.clone(), new_name.clone(), overwrite),
+                message::MessageContent::Rename(
+                    parent,
+                    new_parent,
+                    name.clone(),
+                    new_name.clone(),
+                    overwrite,
+                ),
             ))
             .expect("broadcast_rename_file: unable to update modification on the network thread");
         Ok(())
     }
 
-    pub fn arbo_rename_file(
+    pub fn acknowledge_rename(
         &self,
         parent: InodeId,
         new_parent: InodeId,
         name: &String,
         new_name: &String,
-    ) -> io::Result<()> {
-        let mut arbo = Arbo::write_lock(&self.arbo, "arbo_rename_file")?;
+    ) -> Result<(), RenameError> {
+        let mut arbo = Arbo::n_write_lock(&self.arbo, "arbo_rename_file")?;
 
-        arbo.mv_inode(parent, new_parent, name, new_name)
+        arbo.n_mv_inode(parent, new_parent, name, new_name)
+            .map_err(|err| match err {
+                WhError::InodeNotFound => RenameError::DestinationParentNotFound,
+                WhError::InodeIsNotADirectory => RenameError::DestinationParentNotFolder,
+                source => RenameError::WhError { source },
+            })
     }
 
     #[must_use]
@@ -724,9 +740,15 @@ impl NetworkInterface {
                 MessageContent::RequestFile(inode, peer) => fs_interface.send_file(inode, peer),
                 MessageContent::RequestFs => fs_interface.send_filesystem(origin),
                 MessageContent::Register(addr) => Ok(fs_interface.register_new_node(origin, addr)),
-                MessageContent::Rename(parent, new_parent, name, new_name, overwrite) => {
-                    fs_interface.accept_rename(parent, new_parent, &name, &new_name)
-                }
+                MessageContent::Rename(parent, new_parent, name, new_name, overwrite) =>
+                    fs_interface
+                    .recept_rename(parent, new_parent, &name, &new_name, overwrite)
+                    .map_err(|err| {
+                        std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            format!("WhError: {err}"),
+                        )
+                    }),
                 MessageContent::RequestPull(id) => fs_interface.pull_file_async(id).await,
                 MessageContent::SetXAttr(ino, key, data) => fs_interface
                     .network_interface
