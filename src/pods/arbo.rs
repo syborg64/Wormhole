@@ -433,9 +433,12 @@ impl Arbo {
             .ok_or(io::Error::new(io::ErrorKind::NotFound, "entry not found"))
     }
 
-    // not public as the modifications are not automaticly propagated on other related inodes
+    //REVIEW: This restriction seems execisve, it keep making me write unclear code and make the process tedious,
+    //obligate us to create too many one liners while keeping the same "problem" of not propagating the change to the other inode
+    //Performance is very important with this project so we should not force ourself to take a ass-backward way each time we interact with the arbo
+    ////REMOVED: not public as the modifications are not automaticly propagated on other related inodes
     #[must_use]
-    fn n_get_inode_mut(&mut self, ino: InodeId) -> WhResult<&mut Inode> {
+    pub fn n_get_inode_mut(&mut self, ino: InodeId) -> WhResult<&mut Inode> {
         self.entries.get_mut(&ino).ok_or(WhError::InodeNotFound)
     }
 
@@ -602,9 +605,8 @@ impl Arbo {
         Ok(())
     }
 
-    // not public as the modifications are not automaticly propagated on other related inodes
     #[must_use]
-    fn set_inode_size(&mut self, ino: InodeId, size: u64) -> WhResult<()> {
+    pub fn set_inode_size(&mut self, ino: InodeId, size: u64) -> WhResult<()> {
         self.n_get_inode_mut(ino)?.meta.size = size;
         Ok(())
     }

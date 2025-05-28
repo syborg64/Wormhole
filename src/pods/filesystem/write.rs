@@ -57,45 +57,22 @@ impl FsInterface {
         file_handle: u64,
     ) -> Result<u64, WriteError> {
         let file_handles = FileHandleManager::read_lock(&self.file_handles, "write")?;
-        let file_handle_res = check_file_handle(&file_handles, file_handle);
-        log::error!(
-            "=> {:?}, {:?}, {:?}, {:?}",
-            file_handles,
-            file_handle_res,
-            id,
-            file_handle
-        );
-        if file_handle_res.is_err() {
-            return Err(file_handle_res.err().unwrap());
-        }
-        log::debug!("1");
+        let _file_handle = check_file_handle(&file_handles, file_handle)?;
 
         let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface.write")?;
-        log::debug!("2");
-        let path = arbo.n_get_path_from_inode_id(id)?;
-        log::debug!("4");
-
         let mut meta = arbo.n_get_inode(id)?.meta.clone();
-        log::debug!("5");
+        let path = arbo.n_get_path_from_inode_id(id)?;
         drop(arbo);
 
-        log::debug!("6");
-        let newsize = offset + data.len() as u64;
-        log::debug!("7");
-        if newsize > meta.size {
-            log::debug!("7.5");
-            meta.size = newsize;
-        }
-        log::debug!("8");
+        let new_size = (offset + data.len() as u64).max(meta.size);
+        meta.size = new_size;
 
         let written = self
             .disk
             .write_file(path, data, offset)
             .map_err(|io| WriteError::LocalWriteFailed { io })?;
-        log::debug!("9");
 
-        self.network_interface.revoke_remote_hosts(id, meta)?;
-        log::debug!("10");
+        self.network_interface.write_file(id, new_size, meta)?;
         Ok(written)
     }
 }

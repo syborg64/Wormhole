@@ -231,7 +231,23 @@ impl NetworkInterface {
         Ok(())
     }
 
-    pub fn revoke_remote_hosts(&self, id: InodeId, meta: Metadata) -> WhResult<()> {
+    fn affect_write_locally(&self, id: InodeId, new_size: u64) -> WhResult<()> {
+        let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface.affect_write_locally")?;
+        //REVIEW: By setting this n_get_inode_mut to pub I could reduce the arbo hashmap lookup from 3 to 1
+        let inode = arbo.n_get_inode_mut(id)?;
+
+        inode.meta.size = new_size;
+
+        inode.entry = match &inode.entry {
+            FsEntry::File(_) => FsEntry::File(vec![self.self_addr.clone()]),
+            _ => panic!("Can't edit hosts on folder"),
+        };
+        Ok(())
+    }
+
+    pub fn write_file(&self, id: InodeId, new_size: u64, meta: Metadata) -> WhResult<()> {
+        self.affect_write_locally(id, new_size)?;
+
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
                 MessageContent::RevokeFile(id, self.self_addr.clone(), meta),
@@ -589,3 +605,5 @@ impl NetworkInterface {
 
     // !SECTION ^ Node related
 }
+
+// Touch 1, Write 2, Read 2
