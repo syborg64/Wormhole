@@ -124,7 +124,7 @@ impl Filesystem for FuseController {
         match attrs {
             Ok(attrs) => reply.attr(&TTL, &attrs.into()),
             Err(err) => {
-                log::error!("fuse_impl error: {:?}", err);
+                log::error!("getattr error: {:?}", err);
                 reply.error(err.raw_os_error().unwrap_or(EIO))
             }
         }
@@ -191,7 +191,7 @@ impl Filesystem for FuseController {
                 },
             },
             Err(err) => {
-                log::error!("fuse_impl::setattr: {:?}", err);
+                log::error!("setattr: {:?}", err);
                 reply.error(err.raw_os_error().unwrap_or(EIO));
                 return;
             }
@@ -200,7 +200,7 @@ impl Filesystem for FuseController {
         match self.fs_interface.set_inode_meta(ino, attrs.clone()) {
             Ok(_) => reply.attr(&TTL, &attrs.into()),
             Err(err) => {
-                log::error!("fuse_impl::setattr: {:?}", err);
+                log::error!("setattr: {:?}", err);
                 reply.error(err.raw_os_error().unwrap_or(EIO))
             }
         }
@@ -345,7 +345,7 @@ impl Filesystem for FuseController {
         buf.resize(size as usize, 0);
         let result = self.fs_interface.read_file(
             ino,
-            offset.try_into().expect("fuse_impl::read offset negative"),
+            offset.try_into().expect("read::read offset negative"),
             &mut buf,
         );
 
@@ -355,7 +355,7 @@ impl Filesystem for FuseController {
                 reply.data(&buf)
             }
             Err(err) => {
-                log::error!("fuse_impl error: {:?}", err);
+                log::error!("read: {:?}", err);
                 reply.error(err.raw_os_error().unwrap_or(EIO))
             }
         }
