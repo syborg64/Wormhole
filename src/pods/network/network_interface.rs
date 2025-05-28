@@ -11,7 +11,7 @@ use crate::{
     error::WhError,
     pods::{
         arbo::{FsEntry, Metadata},
-        filesystem::{make_inode::MakeInode, remove_inode::RemoveInode},
+        filesystem::{make_inode::MakeInodeError, remove_inode::RemoveInode},
         network::callbacks::Callback,
         whpath::WhPath,
     },
@@ -120,7 +120,7 @@ impl NetworkInterface {
 
     #[must_use]
     /// Add the requested entry to the arbo and inform the network
-    pub fn register_new_inode(&self, inode: Inode) -> Result<(), MakeInode> {
+    pub fn register_new_inode(&self, inode: Inode) -> Result<(), MakeInodeError> {
         let inode_id = inode.id.clone();
         Arbo::n_write_lock(&self.arbo, "register_new_inode")?.n_add_inode(inode.clone())?;
 
@@ -168,7 +168,7 @@ impl NetworkInterface {
 
     #[must_use]
     /// Get a new inode, add the requested entry to the arbo and inform the network
-    pub fn acknowledge_new_file(&self, inode: Inode, _id: InodeId) -> Result<(), MakeInode> {
+    pub fn acknowledge_new_file(&self, inode: Inode, _id: InodeId) -> Result<(), MakeInodeError> {
         let mut arbo = Arbo::n_write_lock(&self.arbo, "acknowledge_new_file")?;
         arbo.n_add_inode(inode)
     }
@@ -215,12 +215,13 @@ impl NetworkInterface {
         Ok(())
     }
 
-    fn affect_write_locally(&self, id: InodeId, new_size: u64) -> WhResult<()> {
+    fn affect_write_locally(&self, id: InodeId, new_size: u64, blocks: u64) -> WhResult<()> {
         let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface.affect_write_locally")?;
         //REVIEW: By setting this n_get_inode_mut to pub I could reduce the arbo hashmap lookup from 3 to 1
         let inode = arbo.n_get_inode_mut(id)?;
 
         inode.meta.size = new_size;
+        inode.meta.blocks = blocks;
 
         inode.entry = match &inode.entry {
             FsEntry::File(_) => FsEntry::File(vec![self.self_addr.clone()]),
@@ -229,8 +230,14 @@ impl NetworkInterface {
         Ok(())
     }
 
-    pub fn write_file(&self, id: InodeId, new_size: u64, meta: Metadata) -> WhResult<()> {
-        self.affect_write_locally(id, new_size)?;
+    pub fn write_file(
+        &self,
+        id: InodeId,
+        new_size: u64,
+        blocks: u64,
+        meta: Metadata,
+    ) -> WhResult<()> {
+        self.affect_write_locally(id, new_size, blocks)?;
 
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(

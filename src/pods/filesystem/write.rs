@@ -1,6 +1,6 @@
 use crate::{
     error::WhError,
-    pods::arbo::{Arbo, InodeId},
+    pods::arbo::{Arbo, InodeId, BLOCK_SIZE},
 };
 use custom_error::custom_error;
 use parking_lot::RwLockReadGuard;
@@ -65,14 +65,17 @@ impl FsInterface {
         drop(arbo);
 
         let new_size = (offset + data.len() as u64).max(meta.size);
+        let blocks = (new_size + BLOCK_SIZE - 1) / BLOCK_SIZE;
         meta.size = new_size;
+        meta.blocks = blocks;
 
         let written = self
             .disk
             .write_file(path, data, offset)
             .map_err(|io| WriteError::LocalWriteFailed { io })?;
 
-        self.network_interface.write_file(id, new_size, meta)?;
+        self.network_interface
+            .write_file(id, new_size, blocks, meta)?;
         Ok(written)
     }
 }

@@ -13,7 +13,7 @@ use crate::error::WhError;
 use crate::pods::filesystem::fs_interface::SimpleFileType;
 use crate::pods::whpath::WhPath;
 
-use super::filesystem::{make_inode::MakeInode, remove_inode::RemoveInode};
+use super::filesystem::{make_inode::MakeInodeError, remove_inode::RemoveInode};
 
 // SECTION consts
 
@@ -56,6 +56,8 @@ pub type ArboIndex = HashMap<InodeId, Inode>;
 pub struct Arbo {
     entries: ArboIndex,
 }
+
+pub const BLOCK_SIZE: u64 = 512;
 
 // !SECTION
 
@@ -113,7 +115,7 @@ impl Inode {
             uid: 0,
             gid: 0,
             rdev: 0,
-            blksize: 1,
+            blksize: BLOCK_SIZE as u32,
             flags: 0,
         };
 
@@ -271,13 +273,13 @@ impl Arbo {
 
     #[must_use]
     /// Insert a given [Inode] inside the local arbo
-    pub fn n_add_inode(&mut self, inode: Inode) -> Result<(), MakeInode> {
+    pub fn n_add_inode(&mut self, inode: Inode) -> Result<(), MakeInodeError> {
         if self.entries.contains_key(&inode.id) {
-            return Err(MakeInode::AlreadyExist);
+            return Err(MakeInodeError::AlreadyExist);
         }
 
         match self.entries.get_mut(&inode.parent) {
-            None => Err(MakeInode::ParentNotFound),
+            None => Err(MakeInodeError::ParentNotFound),
             Some(Inode {
                 parent: _,
                 id: _,
@@ -290,7 +292,7 @@ impl Arbo {
                 self.entries.insert(inode.id, inode);
                 Ok(())
             }
-            Some(_) => Err(MakeInode::ParentNotFolder),
+            Some(_) => Err(MakeInodeError::ParentNotFolder),
         }
     }
 
@@ -302,7 +304,7 @@ impl Arbo {
         id: InodeId, //REVIEW: Renamed id to be more coherent with the Inode struct
         parent_ino: InodeId,
         entry: FsEntry,
-    ) -> Result<(), MakeInode> {
+    ) -> Result<(), MakeInodeError> {
         let inode = Inode::new(name, parent_ino, id, entry);
 
         self.n_add_inode(inode)
@@ -729,7 +731,7 @@ impl TryInto<Metadata> for fs::Metadata {
         Ok(Metadata {
             ino: 0,
             size: self.len(),
-            blocks: 1,
+            blocks: 0,
             atime: self.accessed()?,
             mtime: self.modified()?,
             ctime: self.modified()?,

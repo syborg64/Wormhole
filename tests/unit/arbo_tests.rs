@@ -4,7 +4,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 use wormhole::pods::{
-    arbo::{Arbo, FsEntry, Inode, Metadata, ROOT},
+    arbo::{Arbo, FsEntry, Inode, Metadata, BLOCK_SIZE, ROOT},
     filesystem::fs_interface::SimpleFileType,
 };
 
@@ -20,6 +20,7 @@ fn arbo_values(inode: &Inode, expected_result: Inode) {
     // Check that the metadata is correct
     assert_eq!(inode.meta.ino, expected_result.meta.ino);
     assert_eq!(inode.meta.size, expected_result.meta.size);
+    println!("id: {:?}", inode.id);
     assert_eq!(inode.meta.blocks, expected_result.meta.blocks);
     assert_eq!(inode.meta.kind, expected_result.meta.kind);
     assert_eq!(inode.meta.perm, expected_result.meta.perm);
@@ -62,18 +63,18 @@ fn test_inserting_and_retreiving_files() {
         meta: Metadata {
             ino: 10,
             size: 0,
-            blocks: 1,
+            blocks: 0,
             atime: SystemTime::now(),
             mtime: SystemTime::now(),
             ctime: SystemTime::now(),
             crtime: SystemTime::now(),
-            kind: SimpleFileType::Directory,
+            kind: SimpleFileType::File,
             perm: 0o777,
             nlink: 0,
             uid: 0,
             gid: 0,
             rdev: 0,
-            blksize: 1,
+            blksize: 512,
             flags: 0,
         },
         xattrs: HashMap::new(),
@@ -87,18 +88,18 @@ fn test_inserting_and_retreiving_files() {
         meta: Metadata {
             ino: 11,
             size: 0,
-            blocks: 1,
+            blocks: 0,
             atime: SystemTime::now(),
             mtime: SystemTime::now(),
             ctime: SystemTime::now(),
             crtime: SystemTime::now(),
-            kind: SimpleFileType::Directory,
+            kind: SimpleFileType::File,
             perm: 0o777,
             nlink: 0,
             uid: 0,
             gid: 0,
             rdev: 0,
-            blksize: 1,
+            blksize: 512,
             flags: 0,
         },
         xattrs: HashMap::new(),

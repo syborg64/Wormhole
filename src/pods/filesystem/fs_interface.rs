@@ -12,7 +12,7 @@ use std::io;
 use std::sync::Arc;
 
 use super::file_handle::FileHandleManager;
-use super::make_inode::MakeInode;
+use super::make_inode::MakeInodeError;
 
 pub struct FsInterface {
     pub network_interface: Arc<NetworkInterface>,
@@ -152,7 +152,7 @@ impl FsInterface {
     // !SECTION
 
     // SECTION - remote -> write
-    pub fn recept_inode(&self, inode: Inode) -> Result<(), MakeInode> {
+    pub fn recept_inode(&self, inode: Inode) -> Result<(), MakeInodeError> {
         self.network_interface
             .acknowledge_new_file(inode.clone(), inode.id)?;
         self.network_interface.promote_next_inode(inode.id + 1)?;
@@ -167,13 +167,13 @@ impl FsInterface {
                 .disk
                 .new_file(new_path, inode.meta.perm)
                 .map(|_| ())
-                .map_err(|io| MakeInode::LocalCreationFailed { io }),
+                .map_err(|io| MakeInodeError::LocalCreationFailed { io }),
             FsEntry::File(_) => Ok(()),
             FsEntry::Directory(_) => self
                 .disk
                 .new_dir(new_path, inode.meta.perm)
                 .map(|_| ())
-                .map_err(|io| MakeInode::LocalCreationFailed { io }),
+                .map_err(|io| MakeInodeError::LocalCreationFailed { io }),
             // TODO - remove when merge is handled because new file should create folder
             // FsEntry::Directory(_) => {}
         }
