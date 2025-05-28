@@ -1,6 +1,6 @@
 use crate::pods::{
     arbo::{Arbo, InodeId},
-    filesystem::file_handle::{new_uuid, AccessMode, FileHandle, FileHandleManager},
+    filesystem::file_handle::{AccessMode, FileHandle, FileHandleManager},
 };
 
 use crate::error::WhError;
@@ -72,9 +72,8 @@ impl FsInterface {
         let direct = flags & libc::O_DIRECT != 0;
         let no_atime = flags & libc::O_NOATIME != 0;
 
-        let uuid = new_uuid();
-
         let mut file_handles = FileHandleManager::write_lock(&self.file_handles, "open")?;
+        let uuid = file_handles.new_uuid();
         file_handles.handles.insert(
             uuid,
             FileHandle {

@@ -33,23 +33,24 @@ pub struct FileHandle {
 #[derive(Debug)]
 pub struct FileHandleManager {
     pub handles: HashMap<InodeId, FileHandle>,
-}
-
-pub fn new_uuid() -> UUID {
-    let mut hasher = DefaultHasher::new();
-    let start = SystemTime::now();
-    let since_the_epoch = start
-        .duration_since(UNIX_EPOCH)
-        .expect("We are earlier than 1970");
-    since_the_epoch.hash(&mut hasher);
-    hasher.finish()
+    pub hasher: DefaultHasher,
 }
 
 impl FileHandleManager {
     pub fn new() -> Self {
         Self {
             handles: HashMap::new(),
+            hasher: DefaultHasher::new(),
         }
+    }
+
+    pub fn new_uuid(&mut self) -> UUID {
+        let start = SystemTime::now();
+        let since_the_epoch = start
+            .duration_since(UNIX_EPOCH)
+            .expect("We are earlier than 1970");
+        since_the_epoch.hash(&mut self.hasher);
+        self.hasher.finish()
     }
 
     pub fn read_lock<'a>(
