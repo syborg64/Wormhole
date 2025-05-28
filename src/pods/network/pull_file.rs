@@ -76,7 +76,7 @@ impl NetworkInterface {
             if let FsEntry::File(hosts) = &arbo.n_get_inode(file)?.entry {
                 hosts
             } else {
-                panic!("Pulling a folder is a non-sens.")
+                panic!("Pulling a folder is invalid.")
             }
         };
 
