@@ -6,8 +6,9 @@ use crate::{
 };
 
 use super::{
+    file_handle::{FileHandleManager, UUID},
     fs_interface::{FsInterface, SimpleFileType},
-    open::OpenError,
+    open::{check_permissions, OpenError},
 };
 
 custom_error! {pub MakeInodeError
@@ -21,6 +22,7 @@ custom_error! {pub MakeInodeError
 custom_error! {pub CreateError
     MakeInode{source: MakeInodeError} = "{source}",
     OpenError{source: OpenError} = "{source}",
+    WhError{source: WhError} = "{source}",
 }
 
 impl FsInterface {
@@ -28,12 +30,20 @@ impl FsInterface {
         &self,
         parent_ino: u64,
         name: String,
-        kind: SimpleFileType,
         flags: i32,
-    ) -> Result<(Inode, u64), CreateError> {
-        let inode = self.make_inode(parent_ino, name, kind)?;
+    ) -> Result<(Inode, UUID), CreateError> {
+        let inode = self.make_inode(parent_ino, name, SimpleFileType::File)?;
 
-        let file_handle = self.open(inode.id, flags)?;
+        let perm = check_permissions(flags, inode.meta.perm)?;
+
+        //TRUNC has no use on a new file so it can be removed
+
+        // CREATE FLAG is set can be on but it has no use for us currently
+        //if flags & libc::O_CREAT != 0 {
+        //}
+
+        let mut file_handles = FileHandleManager::write_lock(&self.file_handles, "create")?;
+        let file_handle = file_handles.insert_new_file_handle(flags, perm)?;
         return Ok((inode, file_handle));
     }
 

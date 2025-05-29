@@ -567,12 +567,10 @@ impl Filesystem for FuseController {
         flags: i32,
         reply: fuser::ReplyCreate,
     ) {
-        match self.fs_interface.create(
-            parent,
-            name.to_string_lossy().to_string(),
-            SimpleFileType::File,
-            flags,
-        ) {
+        match self
+            .fs_interface
+            .create(parent, name.to_string_lossy().to_string(), flags)
+        {
             Ok((inode, fh)) => reply.created(&TTL, &inode.meta.into(), 0, fh, flags as u32),
             Err(CreateError::MakeInode {
                 source: MakeInodeError::LocalCreationFailed { io },
@@ -593,6 +591,7 @@ impl Filesystem for FuseController {
             Err(CreateError::MakeInode {
                 source: MakeInodeError::ParentNotFolder,
             }) => reply.error(libc::ENOTDIR),
+            Err(CreateError::WhError { source }) => reply.error(source.to_libc()),
             Err(CreateError::OpenError {
                 source: OpenError::WhError { source },
             }) => reply.error(source.to_libc()),

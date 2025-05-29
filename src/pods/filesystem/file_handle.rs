@@ -53,6 +53,23 @@ impl FileHandleManager {
         self.hasher.finish()
     }
 
+    pub fn insert_new_file_handle(&mut self, flags: i32, perm: AccessMode) -> WhResult<UUID> {
+        let direct = flags & libc::O_DIRECT != 0;
+        let no_atime = flags & libc::O_NOATIME != 0;
+
+        let uuid = self.new_uuid();
+        self.handles.insert(
+            uuid,
+            FileHandle {
+                uuid,
+                perm,
+                direct,
+                no_atime,
+            },
+        );
+        Ok(uuid)
+    }
+
     pub fn read_lock<'a>(
         file_handle_manager: &'a Arc<RwLock<FileHandleManager>>,
         called_from: &'a str,
