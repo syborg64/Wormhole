@@ -59,7 +59,7 @@ pub struct Arbo {
     entries: ArboIndex,
 }
 
-pub const BLOCK_SIZE: u64 = 512;
+pub const BLOCK_SIZE: usize = 512;
 
 // !SECTION
 

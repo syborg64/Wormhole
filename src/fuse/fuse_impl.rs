@@ -462,7 +462,7 @@ impl Filesystem for FuseController {
             Err(MakeInodeError::AlreadyExist) => reply.error(libc::EEXIST),
             Err(MakeInodeError::ParentNotFound) => reply.error(libc::ENOENT),
             Err(MakeInodeError::ParentNotFolder) => reply.error(libc::ENOTDIR),
-            Err(MakeInodeMakeInodeError::ProtectedNameIsFolder) => reply.error(libc::EISDIR),
+            Err(MakeInodeError::ProtectedNameIsFolder) => reply.error(libc::EISDIR),
         }
     }
 
