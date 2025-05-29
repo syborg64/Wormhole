@@ -259,12 +259,15 @@ impl NetworkInterface {
     ) -> WhResult<()> {
         let meta = self.affect_write_locally(id, new_size)?;
 
-        self.to_network_message_tx
-            .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::RevokeFile(id, self.self_addr.clone(), meta),
-            ))
-            .expect("revoke_remote_hosts: unable to update modification on the network thread");
-        self.apply_redundancy(id)
+        if !Arbo::is_local_only(id) {
+            self.to_network_message_tx
+                .send(ToNetworkMessage::BroadcastMessage(
+                    MessageContent::RevokeFile(id, self.self_addr.clone(), meta),
+                ))
+                .expect("revoke_remote_hosts: unable to update modification on the network thread");
+            self.apply_redundancy(id)?;
+        }
+        Ok(())
     }
 
     pub fn update_remote_hosts(&self, inode: &Inode) -> io::Result<()> {
