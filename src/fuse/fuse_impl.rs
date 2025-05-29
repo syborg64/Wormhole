@@ -499,7 +499,7 @@ impl Filesystem for FuseController {
         name: &OsStr,
         new_parent: u64,
         newname: &OsStr,
-        _flags: u32,
+        flags: u32,
         reply: fuser::ReplyEmpty,
     ) {
         match self.fs_interface.rename(

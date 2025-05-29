@@ -356,7 +356,7 @@ impl NetworkInterface {
         if !Arbo::is_local_only(id) {
             self.to_network_message_tx
                 .send(ToNetworkMessage::BroadcastMessage(
-                    MessageContent::EditMetadata(id, fixed_meta, self.self_addr.clone()),
+                    MessageContent::EditMetadata(id, fixed_meta),
                 ))
                 .expect("update_metadata: unable to update modification on the network thread");
         }

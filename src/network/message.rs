@@ -40,7 +40,7 @@ impl fmt::Display for MessageContent {
             MessageContent::Inode(_) => "Inode",
             MessageContent::RequestFile(_, _) => "RequestFile",
             MessageContent::PullAnswer(_, _) => "PullAnswer",
-            MessageContent::Rename(_, _, _, _) => "Rename",
+            MessageContent::Rename(_, _, _, _, _) => "Rename",
             MessageContent::EditHosts(_, _) => "EditHosts",
             MessageContent::RevokeFile(_, _, _) => "RevokeFile",
             MessageContent::AddHosts(_, _) => "AddHosts",
