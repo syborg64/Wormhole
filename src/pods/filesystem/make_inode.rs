@@ -6,7 +6,7 @@ use crate::{
 };
 
 use super::{
-    file_handle::FileHandleManager,
+    file_handle::{FileHandleManager, UUID},
     fs_interface::{FsInterface, SimpleFileType},
     open::{check_permissions, OpenError},
 };
@@ -31,7 +31,7 @@ impl FsInterface {
         parent_ino: u64,
         name: String,
         flags: i32,
-    ) -> Result<(Inode, u64), CreateError> {
+    ) -> Result<(Inode, UUID), CreateError> {
         let inode = self.make_inode(parent_ino, name, SimpleFileType::File)?;
 
         let perm = check_permissions(flags, inode.meta.perm)?;
