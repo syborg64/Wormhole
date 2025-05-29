@@ -60,22 +60,17 @@ impl FsInterface {
         let _file_handle = check_file_handle(&file_handles, file_handle)?;
 
         let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface.write")?;
-        let mut meta = arbo.n_get_inode(id)?.meta.clone();
         let path = arbo.n_get_path_from_inode_id(id)?;
         drop(arbo);
 
-        let new_size = (offset + data.len()).max(meta.size as usize);
-        let blocks = (new_size + BLOCK_SIZE - 1) / BLOCK_SIZE;
-        meta.size = new_size as u64;
-        meta.blocks = blocks as u64;
-
+        let new_size = offset + data.len();
         let written = self
             .disk
             .write_file(&path, data, offset)
             .map_err(|io| WriteError::LocalWriteFailed { io })?;
 
         self.network_interface
-            .write_file(id, new_size, blocks, meta)?;
+            .write_file(id, new_size)?;
         Ok(written)
     }
 }

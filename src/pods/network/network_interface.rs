@@ -1,7 +1,8 @@
 use std::{
     collections::HashMap,
     io::{self, ErrorKind},
-    sync::Arc, time::UNIX_EPOCH,
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 use parking_lot::{Mutex, RwLock};
@@ -10,8 +11,10 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use crate::{
     error::WhError,
     pods::{
-        arbo::{FsEntry, Metadata},
-        filesystem::{make_inode::MakeInodeError, remove_inode::RemoveInodeError, rename::RenameError},
+        arbo::{FsEntry, Metadata, BLOCK_SIZE},
+        filesystem::{
+            make_inode::MakeInodeError, remove_inode::RemoveInodeError, rename::RenameError,
+        },
         network::callbacks::Callback,
         whpath::WhPath,
     },
@@ -231,29 +234,30 @@ impl NetworkInterface {
         Ok(())
     }
 
-    fn affect_write_locally(&self, id: InodeId, new_size: u64, blocks: u64) -> WhResult<()> {
+    fn affect_write_locally(&self, id: InodeId, new_size: usize) -> WhResult<Metadata> {
         let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface.affect_write_locally")?;
-        //REVIEW: By setting this n_get_inode_mut to pub I could reduce the arbo hashmap lookup from 3 to 1
         let inode = arbo.n_get_inode_mut(id)?;
 
-        inode.meta.size = new_size;
-        inode.meta.blocks = blocks;
+
+        let new_size = new_size.max(inode.meta.size as usize);
+        inode.meta.size = new_size as u64;
+        inode.meta.blocks = ((new_size + BLOCK_SIZE - 1) / BLOCK_SIZE) as u64;
+
+        inode.meta.mtime = SystemTime::now();
 
         inode.entry = match &inode.entry {
             FsEntry::File(_) => FsEntry::File(vec![self.self_addr.clone()]),
             _ => panic!("Can't edit hosts on folder"),
         };
-        Ok(())
+        Ok(inode.meta.clone())
     }
 
     pub fn write_file(
         &self,
         id: InodeId,
-        new_size: u64,
-        blocks: u64,
-        meta: Metadata,
+        new_size: usize,
     ) -> WhResult<()> {
-        self.affect_write_locally(id, new_size, blocks)?;
+        let meta = self.affect_write_locally(id, new_size)?;
 
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
