@@ -238,7 +238,6 @@ impl NetworkInterface {
         let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface.affect_write_locally")?;
         let inode = arbo.n_get_inode_mut(id)?;
 
-
         let new_size = new_size.max(inode.meta.size as usize);
         inode.meta.size = new_size as u64;
         inode.meta.blocks = ((new_size + BLOCK_SIZE - 1) / BLOCK_SIZE) as u64;
@@ -252,11 +251,7 @@ impl NetworkInterface {
         Ok(inode.meta.clone())
     }
 
-    pub fn write_file(
-        &self,
-        id: InodeId,
-        new_size: usize,
-    ) -> WhResult<()> {
+    pub fn write_file(&self, id: InodeId, new_size: usize) -> WhResult<()> {
         let meta = self.affect_write_locally(id, new_size)?;
 
         if !Arbo::is_local_only(id) {
@@ -277,7 +272,9 @@ impl NetworkInterface {
                     .send(ToNetworkMessage::BroadcastMessage(
                         MessageContent::EditHosts(inode.id, hosts.clone()),
                     ))
-                    .expect("update_remote_hosts: unable to update modification on the network thread");
+                    .expect(
+                        "update_remote_hosts: unable to update modification on the network thread",
+                    );
             }
             Ok(())
         } else {
