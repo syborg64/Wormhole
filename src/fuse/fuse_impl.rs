@@ -1,10 +1,13 @@
 use crate::pods::arbo::{FsEntry, Inode, Metadata};
 use crate::pods::filesystem::fs_interface::{FsInterface, SimpleFileType};
-use crate::pods::filesystem::make_inode::MakeInode;
+use crate::pods::filesystem::make_inode::{CreateError, MakeInodeError};
+use crate::pods::filesystem::open::OpenError;
+use crate::pods::filesystem::read::ReadError;
 use crate::pods::filesystem::remove_inode::RemoveFileError;
 use crate::pods::filesystem::write::WriteError;
 use crate::pods::filesystem::rename::RenameError;
 use crate::pods::filesystem::xattrs::GetXAttrError;
+use crate::pods::network::pull_file::PullError;
 use crate::pods::whpath::WhPath;
 use fuser::{
     BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData,
@@ -355,10 +358,18 @@ impl Filesystem for FuseController {
                 buf.resize(size, 0);
                 reply.data(&buf)
             }
-            Err(err) => {
-                log::error!("read: {:?}", err);
-                reply.error(err.raw_os_error().unwrap_or(EIO))
-            }
+            Err(ReadError::WhError { source }) => reply.error(source.to_libc()),
+            Err(ReadError::PullError {
+                source: PullError::WhError { source },
+            }) => reply.error(source.to_libc()),
+            Err(ReadError::CantPull) => reply.error(libc::ENETUNREACH),
+            Err(ReadError::LocalReadFailed { io }) => reply.error(
+                io.raw_os_error()
+                    .expect("Local read error should always be the underling libc::open os error"),
+            ),
+            Err(ReadError::PullError {
+                source: PullError::NoHostAvailable,
+            }) => reply.error(libc::ENETUNREACH),
         }
     }
 
@@ -413,16 +424,16 @@ impl Filesystem for FuseController {
             SimpleFileType::File,
         ) {
             Ok(node) => reply.entry(&TTL, &node.meta.into(), 0),
-            Err(MakeInode::LocalCreationFailed { io }) => {
+            Err(MakeInodeError::LocalCreationFailed { io }) => {
                 reply.error(io.raw_os_error().expect(
                     "Local creation error should always be the underling libc::open os error",
                 ))
             }
-            Err(MakeInode::WhError { source }) => reply.error(source.to_libc()),
-            Err(MakeInode::AlreadyExist) => reply.error(libc::EEXIST),
-            Err(MakeInode::ParentNotFound) => reply.error(libc::ENOENT),
-            Err(MakeInode::ParentNotFolder) => reply.error(libc::ENOTDIR),
-            Err(MakeInode::ProtectedNameIsFolder) => reply.error(libc::EISDIR),
+            Err(MakeInodeError::WhError { source }) => reply.error(source.to_libc()),
+            Err(MakeInodeError::AlreadyExist) => reply.error(libc::EEXIST),
+            Err(MakeInodeError::ParentNotFound) => reply.error(libc::ENOENT),
+            Err(MakeInodeError::ParentNotFolder) => reply.error(libc::ENOTDIR),
+            Err(MakeInodeError::ProtectedNameIsFolder) => reply.error(libc::EISDIR),
         }
         //todo when persmissions are added reply.error(libc::EACCES)
     }
@@ -442,16 +453,16 @@ impl Filesystem for FuseController {
             SimpleFileType::Directory,
         ) {
             Ok(node) => reply.entry(&TTL, &node.meta.into(), 0),
-            Err(MakeInode::LocalCreationFailed { io }) => {
+            Err(MakeInodeError::LocalCreationFailed { io }) => {
                 reply.error(io.raw_os_error().expect(
                     "Local creation error should always be the underling libc::open os error",
                 ))
             }
-            Err(MakeInode::WhError { source }) => reply.error(source.to_libc()),
-            Err(MakeInode::AlreadyExist) => reply.error(libc::EEXIST),
-            Err(MakeInode::ParentNotFound) => reply.error(libc::ENOENT),
-            Err(MakeInode::ParentNotFolder) => reply.error(libc::ENOTDIR),
-            Err(MakeInode::ProtectedNameIsFolder) => reply.error(libc::EISDIR),
+            Err(MakeInodeError::WhError { source }) => reply.error(source.to_libc()),
+            Err(MakeInodeError::AlreadyExist) => reply.error(libc::EEXIST),
+            Err(MakeInodeError::ParentNotFound) => reply.error(libc::ENOENT),
+            Err(MakeInodeError::ParentNotFolder) => reply.error(libc::ENOTDIR),
+            Err(MakeInodeMakeInodeError::ProtectedNameIsFolder) => reply.error(libc::EISDIR),
         }
     }
 
@@ -488,7 +499,7 @@ impl Filesystem for FuseController {
         name: &OsStr,
         new_parent: u64,
         newname: &OsStr,
-        flags: u32,
+        _flags: u32,
         reply: fuser::ReplyEmpty,
     ) {
         match self.fs_interface.rename(
@@ -524,11 +535,21 @@ impl Filesystem for FuseController {
         }
     }
 
+    fn open(&mut self, _req: &Request<'_>, ino: u64, flags: i32, reply: fuser::ReplyOpen) {
+        match self.fs_interface.open(ino, flags) {
+            Ok(file_handle) => reply.opened(file_handle, flags as u32), // TODO - check flags ?,
+            Err(OpenError::WhError { source }) => reply.error(source.to_libc()),
+            Err(OpenError::MultipleAccessFlags) => reply.error(libc::EINVAL),
+            Err(OpenError::TruncReadOnly) => reply.error(libc::EACCES),
+            Err(OpenError::WrongPermissions) => reply.error(libc::EPERM),
+        };
+    }
+
     fn write(
         &mut self,
         _req: &Request<'_>,
         ino: u64,
-        _fh: u64,
+        file_handle: u64,
         offset: i64,
         data: &[u8],
         _write_flags: u32,
@@ -540,7 +561,7 @@ impl Filesystem for FuseController {
             .try_into()
             .expect("fuser write: can't convert i64 to u64");
 
-        match self.fs_interface.write(ino, data, offset) {
+        match self.fs_interface.write(ino, data, offset, file_handle) {
             Ok(written) => reply.written(
                 written
                     .try_into()
@@ -552,6 +573,9 @@ impl Filesystem for FuseController {
                     "Local creation error should always be the underling libc::open os error",
                 ))
             }
+            Err(WriteError::BadFd) => reply.error(libc::EBADFD),
+            Err(WriteError::NoFileHandle) => reply.error(libc::EBADFD), // Shouldn't happend
+            Err(WriteError::NoWritePermission) => reply.error(libc::EPERM), // Shouldn't happend, write not call with wrong perms, already stopped
         }
     }
 
@@ -567,40 +591,64 @@ impl Filesystem for FuseController {
         flags: i32,
         reply: fuser::ReplyCreate,
     ) {
-        match self.fs_interface.make_inode(
+        match self.fs_interface.create(
             parent,
             name.to_string_lossy().to_string(),
             SimpleFileType::File,
+            flags,
         ) {
-            Ok(inode) => reply.created(&TTL, &inode.meta.into(), 0, inode.id, flags as u32),
-            Err(MakeInode::LocalCreationFailed { io }) => {
+            Ok((inode, fh)) => reply.created(&TTL, &inode.meta.into(), 0, fh, flags as u32),
+            Err(CreateError::MakeInode {
+                source: MakeInodeError::LocalCreationFailed { io },
+            }) => {
                 reply.error(io.raw_os_error().expect(
                     "Local creation error should always be the underling libc::open os error",
                 ))
             }
-            Err(MakeInode::WhError { source }) => reply.error(source.to_libc()),
-            Err(MakeInode::AlreadyExist) => reply.error(libc::EEXIST),
-            Err(MakeInode::ParentNotFound) => reply.error(libc::ENOENT),
-            Err(MakeInode::ParentNotFolder) => reply.error(libc::ENOTDIR),
-            Err(MakeInode::ProtectedNameIsFolder) => reply.error(libc::EISDIR),
+            Err(CreateError::MakeInode {
+                source: MakeInodeError::WhError { source },
+            }) => reply.error(source.to_libc()),
+            Err(CreateError::MakeInode {
+                source: MakeInodeError::AlreadyExist,
+            }) => reply.error(libc::EEXIST),
+            Err(CreateError::MakeInode {
+                source: MakeInodeError::ParentNotFound,
+            }) => reply.error(libc::ENOENT),
+            Err(CreateError::MakeInode {
+                source: MakeInodeError::ParentNotFolder,
+            }) => reply.error(libc::EISDIR),
+            Err(CreateError::MakeInode {
+                source: MakeInodeError::ProtectedNameIsFolder,
+            }) => reply.error(libc::ENOTDIR),
+            Err(CreateError::OpenError {
+                source: OpenError::WhError { source },
+            }) => reply.error(source.to_libc()),
+            Err(CreateError::OpenError {
+                source: OpenError::MultipleAccessFlags,
+            }) => reply.error(libc::EINVAL),
+            Err(CreateError::OpenError {
+                source: OpenError::TruncReadOnly,
+            }) => reply.error(libc::EACCES),
+            Err(CreateError::OpenError {
+                source: OpenError::WrongPermissions,
+            }) => reply.error(libc::EPERM),
         }
-    }
-
-    fn open(&mut self, _req: &Request<'_>, ino: u64, flags: i32, reply: fuser::ReplyOpen) {
-        reply.opened(ino, flags as u32); // TODO - check flags ?
     }
 
     fn release(
         &mut self,
         _req: &Request<'_>,
         _ino: u64,
-        _fh: u64,
+        file_handle: u64,
         _flags: i32,
         _lock_owner: Option<u64>,
         _flush: bool,
         reply: fuser::ReplyEmpty,
     ) {
-        reply.ok();
+        match self.fs_interface.release(file_handle) {
+            Ok(()) => reply.ok(),
+            Err(err) => reply.error(err.to_libc()),
+        }
     }
 }
 

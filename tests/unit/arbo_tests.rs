@@ -4,7 +4,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 use wormhole::pods::{
-    arbo::{Arbo, FsEntry, Inode, Metadata, ROOT},
+    arbo::{Arbo, FsEntry, Inode, Metadata, BLOCK_SIZE, ROOT},
     filesystem::fs_interface::SimpleFileType,
 };
 
@@ -49,13 +49,8 @@ fn test_inserting_and_retreiving_files() {
         "can't add file1 in / folder"
     );
     assert!(
-        arbo.add_inode_from_parameters(
-            "file2".to_owned(),
-            11,
-            ROOT,
-            FsEntry::Directory(Vec::new())
-        )
-        .is_ok(),
+        arbo.add_inode_from_parameters("file2".to_owned(), 11, ROOT, FsEntry::File(Vec::new()))
+            .is_ok(),
         "can't add file2 in / folder"
     );
 
@@ -78,7 +73,7 @@ fn test_inserting_and_retreiving_files() {
             uid: 0,
             gid: 0,
             rdev: 0,
-            blksize: 1,
+            blksize: BLOCK_SIZE as u32,
             flags: 0,
         },
         xattrs: HashMap::new(),
@@ -88,7 +83,7 @@ fn test_inserting_and_retreiving_files() {
         id: 11,
         parent: 1,
         name: "file2".to_owned(),
-        entry: FsEntry::Directory(Vec::new()),
+        entry: FsEntry::File(Vec::new()),
         meta: Metadata {
             ino: 11,
             size: 0,
@@ -97,13 +92,13 @@ fn test_inserting_and_retreiving_files() {
             mtime: SystemTime::now(),
             ctime: SystemTime::now(),
             crtime: SystemTime::now(),
-            kind: SimpleFileType::Directory,
+            kind: SimpleFileType::File,
             perm: 0o777,
             nlink: 0,
             uid: 0,
             gid: 0,
             rdev: 0,
-            blksize: 1,
+            blksize: BLOCK_SIZE as u32,
             flags: 0,
         },
         xattrs: HashMap::new(),

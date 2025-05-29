@@ -15,7 +15,7 @@ use crate::error::WhError;
 use crate::pods::filesystem::fs_interface::SimpleFileType;
 use crate::pods::whpath::WhPath;
 
-use super::filesystem::{make_inode::MakeInode, remove_inode::RemoveInodeError};
+use super::filesystem::{make_inode::MakeInodeError, remove_inode::RemoveInodeError};
 
 // SECTION consts
 
@@ -58,6 +58,8 @@ pub type ArboIndex = HashMap<InodeId, Inode>;
 pub struct Arbo {
     entries: ArboIndex,
 }
+
+pub const BLOCK_SIZE: u64 = 512;
 
 // !SECTION
 
@@ -115,7 +117,7 @@ impl Inode {
             uid: 0,
             gid: 0,
             rdev: 0,
-            blksize: 1,
+            blksize: BLOCK_SIZE as u32,
             flags: 0,
         };
 
@@ -289,13 +291,13 @@ impl Arbo {
 
     #[must_use]
     /// Insert a given [Inode] inside the local arbo
-    pub fn n_add_inode(&mut self, inode: Inode) -> Result<(), MakeInode> {
+    pub fn n_add_inode(&mut self, inode: Inode) -> Result<(), MakeInodeError> {
         if self.entries.contains_key(&inode.id) {
-            return Err(MakeInode::AlreadyExist);
+            return Err(MakeInodeError::AlreadyExist);
         }
 
         match self.entries.get_mut(&inode.parent) {
-            None => Err(MakeInode::ParentNotFound),
+            None => Err(MakeInodeError::ParentNotFound),
             Some(Inode {
                 parent: _,
                 id: _,
@@ -308,7 +310,7 @@ impl Arbo {
                 self.entries.insert(inode.id, inode);
                 Ok(())
             }
-            Some(_) => Err(MakeInode::ParentNotFolder),
+            Some(_) => Err(MakeInodeError::ParentNotFolder),
         }
     }
 
@@ -320,7 +322,7 @@ impl Arbo {
         id: InodeId, //REVIEW: Renamed id to be more coherent with the Inode struct
         parent_ino: InodeId,
         entry: FsEntry,
-    ) -> Result<(), MakeInode> {
+    ) -> Result<(), MakeInodeError> {
         let inode = Inode::new(name, parent_ino, id, entry);
 
         self.n_add_inode(inode)
@@ -482,9 +484,12 @@ impl Arbo {
             .ok_or(io::Error::new(io::ErrorKind::NotFound, "entry not found"))
     }
 
-    // not public as the modifications are not automaticly propagated on other related inodes
+    //REVIEW: This restriction seems execisve, it keep making me write unclear code and make the process tedious,
+    //obligate us to create too many one liners while keeping the same "problem" of not propagating the change to the other inode
+    //Performance is very important with this project so we should not force ourself to take a ass-backward way each time we interact with the arbo
+    ////REMOVED: not public as the modifications are not automaticly propagated on other related inodes
     #[must_use]
-    fn n_get_inode_mut(&mut self, ino: InodeId) -> WhResult<&mut Inode> {
+    pub fn n_get_inode_mut(&mut self, ino: InodeId) -> WhResult<&mut Inode> {
         self.entries.get_mut(&ino).ok_or(WhError::InodeNotFound)
     }
 
@@ -585,6 +590,16 @@ impl Arbo {
         Ok(())
     }
 
+    pub fn n_set_inode_hosts(&mut self, ino: InodeId, hosts: Vec<Address>) -> WhResult<()> {
+        let inode = self.n_get_inode_mut(ino)?;
+
+        inode.entry = match &inode.entry {
+            FsEntry::File(_) => FsEntry::File(hosts),
+            _ => panic!("Can't edit hosts on folder"),
+        };
+        Ok(())
+    }
+
     /// Add hosts to an inode
     ///
     /// Only works on inodes pointing files (no folders)
@@ -638,6 +653,11 @@ impl Arbo {
         let inode = self.n_get_inode_mut(ino)?;
 
         inode.meta = meta;
+        Ok(())
+    }
+
+    pub fn set_inode_size(&mut self, ino: InodeId, size: u64) -> WhResult<()> {
+        self.n_get_inode_mut(ino)?.meta.size = size;
         Ok(())
     }
 
@@ -762,7 +782,7 @@ impl TryInto<Metadata> for fs::Metadata {
         Ok(Metadata {
             ino: 0,
             size: self.len(),
-            blocks: 1,
+            blocks: 0,
             atime: self.accessed()?,
             mtime: self.modified()?,
             ctime: self.modified()?,

@@ -55,9 +55,13 @@ impl FsInterface {
         match &arbo.n_get_inode(id)?.entry {
             FsEntry::File(hosts) if hosts.contains(&self.network_interface.self_addr) => self
                 .disk
-                .remove_file(&to_remove_path)
-                .map_err(|io| RemoveFileError::LocalDeletionFailed { io })?,
-            FsEntry::File(_) => { /* Nothing to do */ }
+                .remove_file(to_remove_path)
+                .map_err(|io| RemoveFile::LocalDeletionFailed { io })?,
+            FsEntry::File(_) => {
+                // TODO: Remove when wormhole initialisation is cleaner
+                // try to delete the file even if it's not owned to prevent from conflicts on creation later
+                let _ = self.disk.remove_file(to_remove_path);
+            }
             FsEntry::Directory(children) if children.is_empty() => self
                 .disk
                 .remove_dir(&to_remove_path)
