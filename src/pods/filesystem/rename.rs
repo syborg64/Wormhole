@@ -8,15 +8,10 @@ use crate::{
     },
 };
 
-use super::{fs_interface::FsInterface, remove_inode::RemoveFileError};
-
-// custom_error! {
-//     /// Error describing the renaming of a [Inode] from the [Arbo]
-//     pub RenameInode
-//     WhError{source: WhError} = "{source}",
-//     DestinationParentNotFound = "Destination parent does not exist",
-//     DestinationParentNotFolder = "Destination parent isn't a folder",
-// }
+use super::{
+    fs_interface::FsInterface, make_inode::MakeInodeError, read::ReadError,
+    remove_inode::RemoveFileError,
+};
 
 custom_error! {
     /// Error describing the removal of a [Inode] from the [Arbo] and the local file or folder
@@ -31,6 +26,8 @@ custom_error! {
     DestinationExists = "Destination name already exists",
     LocalRenamingFailed{io: std::io::Error} = "Local renaming failed: {io}",
     ProtectedNameIsFolder = "Protected name can't be used for folders",
+    ReadFailed{source: ReadError} = "Read failed on copy: {source}",
+    LocalWriteFailed{io: std::io::Error} = "Write failed on copy: {io}",
 }
 
 impl FsInterface {
@@ -76,47 +73,52 @@ impl FsInterface {
         let mut data = vec![];
         data.resize(meta.size as usize, 0u8);
         self.read_file(source_ino, 0, &mut data)
-            .map_err(|io| RenameError::LocalOverwriteFailed { io })?;
-
-        self.remove_inode(source_ino).map_err(|err| match err {
-            RemoveFileError::WhError { source } => RenameError::WhError { source },
-            RemoveFileError::NonEmpty => unreachable!("special files cannot be folders"),
-            RemoveFileError::LocalDeletionFailed { io } => RenameError::LocalRenamingFailed { io },
-        })?;
+            .map_err(|err| match err {
+                ReadError::WhError { source } => RenameError::WhError { source },
+                err => err.into(),
+            })?;
 
         let dest_ino = if let Some(dest_ino) = dest_ino {
-            let mut meta  = self.get_inode_attributes(dest_ino).ok().ok_or(WhError::InodeNotFound)?;
+            let mut meta = self
+                .get_inode_attributes(dest_ino)
+                .ok()
+                .ok_or(WhError::InodeNotFound)?;
             meta.size = 0;
-            self.set_inode_meta(dest_ino, meta).map_err(|err| RenameError::LocalOverwriteFailed { io: err })?;
+            self.set_inode_meta(dest_ino, meta)
+                .map_err(|err| RenameError::LocalOverwriteFailed { io: err })?;
             dest_ino
         } else {
             self.make_inode(new_parent, new_name.clone(), meta.kind)
                 .map_err(|err| match err {
-                    super::make_inode::MakeInode::WhError { source } => {
-                        RenameError::WhError { source }
-                    }
-                    super::make_inode::MakeInode::AlreadyExist => RenameError::DestinationExists,
-                    super::make_inode::MakeInode::ParentNotFound => {
-                        RenameError::DestinationParentNotFound
-                    }
-                    super::make_inode::MakeInode::ParentNotFolder => {
-                        RenameError::DestinationParentNotFolder
-                    }
-                    super::make_inode::MakeInode::LocalCreationFailed { io } => {
+                    MakeInodeError::WhError { source } => RenameError::WhError { source },
+                    MakeInodeError::AlreadyExist => RenameError::DestinationExists,
+                    MakeInodeError::ParentNotFound => RenameError::DestinationParentNotFound,
+                    MakeInodeError::ParentNotFolder => RenameError::DestinationParentNotFolder,
+                    MakeInodeError::LocalCreationFailed { io } => {
                         RenameError::LocalRenamingFailed { io }
                     }
-                    super::make_inode::MakeInode::ProtectedNameIsFolder => {
-                        RenameError::ProtectedNameIsFolder
-                    }
+                    MakeInodeError::ProtectedNameIsFolder => RenameError::ProtectedNameIsFolder,
                 })?
                 .id
         };
 
-        self.write(dest_ino, &data, 0).map_err(|err| match err {
-            super::write::WriteError::WhError { source } => RenameError::WhError { source },
-            super::write::WriteError::LocalWriteFailed { io } => {
-                RenameError::LocalRenamingFailed { io }
-            }
+        {
+            // write the new file
+            let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface.write")?;
+            let path = arbo.n_get_path_from_inode_id(dest_ino)?;
+            drop(arbo);
+
+            let new_size = data.len();
+            self.disk
+                .write_file(&path, &data, 0)
+                .map_err(|io| RenameError::LocalWriteFailed { io })?;
+
+            self.network_interface.write_file(dest_ino, new_size)?;
+        }
+        self.remove_inode(source_ino).map_err(|err| match err {
+            RemoveFileError::WhError { source } => RenameError::WhError { source },
+            RemoveFileError::NonEmpty => unreachable!("special files cannot be folders"),
+            RemoveFileError::LocalDeletionFailed { io } => RenameError::LocalRenamingFailed { io },
         })?;
 
         Ok(())
@@ -140,7 +142,9 @@ impl FsInterface {
         new_name: &String,
         overwrite: bool,
     ) -> Result<(), RenameError> {
-        log::debug!("rename!! {}", overwrite);
+        if parent == new_parent && name == new_name {
+            return Ok(());
+        }
 
         let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface::remove_inode")?;
         let src_ino = arbo
@@ -184,7 +188,9 @@ impl FsInterface {
                     return Err(RenameError::LocalOverwriteFailed { io })
                 }
                 Err(RemoveFileError::NonEmpty) => return Err(RenameError::OverwriteNonEmpty),
-                Err(RemoveFileError::WhError { source }) => return Err(RenameError::WhError { source }),
+                Err(RemoveFileError::WhError { source }) => {
+                    return Err(RenameError::WhError { source })
+                }
             }
         }
 

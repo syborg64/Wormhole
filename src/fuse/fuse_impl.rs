@@ -532,6 +532,11 @@ impl Filesystem for FuseController {
             Err(RenameError::DestinationParentNotFolder) => reply.error(libc::ENOTDIR),
             Err(RenameError::DestinationParentNotFound) => reply.error(libc::ENOENT),
             Err(RenameError::ProtectedNameIsFolder) => reply.error(libc::ENOTDIR),
+            Err(RenameError::ReadFailed { source: _ }) => reply.error(libc::EIO), // TODO
+            Err(RenameError::LocalWriteFailed { io }) => reply.error(
+                io.raw_os_error()
+                    .expect("Local read error should always be the underling os error"),
+            ),
         }
     }
 
