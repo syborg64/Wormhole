@@ -79,7 +79,6 @@ impl DiskManager for DummyDiskManager {
         let path = path.clone().set_relative();
         let (f_path, name) = path.split_folder_file();
         let f_path: WhPath = (&f_path).into();
-        log::error!("new file path: {}: {} , {}", &path.inner, f_path, name);
         let mut lock = self.files.write().expect("VirtDisk::new_file rwLock");
         match lock.get_mut(&f_path) {
             Some(VirtualFile::Folder(vec)) => Ok::<(), io::Error>(vec.push(path.clone())),
