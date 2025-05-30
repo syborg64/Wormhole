@@ -199,12 +199,6 @@ impl NetworkInterface {
         arbo.n_set_inode_hosts(id, hosts) // TODO - if unable to update for some reason, should be passed to the background worker
     }
 
-    pub fn acknowledge_metadata(&self, id: InodeId, meta: Metadata) -> WhResult<()> {
-        let mut arbo = Arbo::n_write_lock(&self.arbo, "acknowledge_metadata")?;
-
-        arbo.n_set_inode_meta(id, meta) // TODO - if unable to update for some reason, should be passed to the background worker
-    }
-
     pub fn send_file(&self, inode: InodeId, data: Vec<u8>, to: Address) -> io::Result<()> {
         self.to_network_message_tx
             .send(ToNetworkMessage::SpecificMessage(
@@ -268,35 +262,12 @@ impl NetworkInterface {
         Arbo::write_lock(&self.arbo, "aknowledge_hosts_removal")?.remove_inode_hosts(id, new_hosts)
     }
 
-    pub fn update_metadata(&self, id: InodeId, meta: Metadata) -> io::Result<()> {
-        let mut arbo = Arbo::write_lock(&self.arbo, "network_interface::update_metadata")?;
-        arbo.set_inode_meta(id, meta.clone())?;
-
+    pub fn send_metadata(&self, id: InodeId, meta: Metadata) {
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
                 MessageContent::EditMetadata(id, meta),
             ))
-            .expect("update_metadata: unable to update modification on the network thread");
-        Ok(())
-        /* REVIEW
-         * This system (and others broadcasts systems) should be reviewed as they don't check success.
-         * In this case, if another host misses this order, it will not update it's file.
-         * We could create a "broadcast" callback with the number of awaited confirmations and a timeout
-         * before resend or fail declaration.
-         * Or send a bunch of Specific messages
-         */
-    }
-
-    pub fn n_update_metadata(&self, id: InodeId, meta: Metadata) -> WhResult<()> {
-        let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface::update_metadata")?;
-        arbo.n_set_inode_meta(id, meta.clone())?;
-
-        self.to_network_message_tx
-            .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::EditMetadata(id, meta),
-            ))
-            .expect("update_metadata: unable to update modification on the network thread");
-        Ok(())
+            .expect("send_metadata: unable to update modification on the network thread");
         /* REVIEW
          * This system (and others broadcasts systems) should be reviewed as they don't check success.
          * In this case, if another host misses this order, it will not update it's file.
@@ -487,7 +458,7 @@ impl NetworkInterface {
                     fs_interface.recept_remove_hosts(id, hosts)
                 }
                 MessageContent::EditMetadata(id, meta) =>
-                    fs_interface.network_interface.acknowledge_metadata(id, meta).or_else(|err| {
+                    fs_interface.acknowledge_metadata(id, meta, false).or_else(|err| {
                         Err(std::io::Error::new(
                             std::io::ErrorKind::Other,
                             format!("WhError: {err}"),

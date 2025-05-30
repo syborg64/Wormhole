@@ -2,6 +2,7 @@ use crate::error::WhResult;
 use crate::network::message::Address;
 use crate::pods::arbo::{Arbo, FsEntry, Inode, InodeId, Metadata};
 use crate::pods::disk_manager::DiskManager;
+use crate::pods::filesystem::attrs::AcknoledgeSetAttrError;
 use crate::pods::network::callbacks::Callback;
 use crate::pods::network::network_interface::NetworkInterface;
 use crate::pods::whpath::WhPath;
@@ -54,14 +55,6 @@ impl FsInterface {
     }
 
     // SECTION - local -> write
-    pub fn set_inode_meta(&self, ino: InodeId, meta: Metadata) -> io::Result<()> {
-        let path = Arbo::read_lock(&self.arbo, "fs_interface::set_inode_meta")?
-            .get_path_from_inode_id(ino)?;
-
-        self.disk.set_file_size(path, meta.size)?;
-        self.network_interface.update_metadata(ino, meta)
-    }
-
     fn construct_file_path(&self, parent: InodeId, name: &String) -> io::Result<WhPath> {
         let arbo = Arbo::read_lock(&self.arbo, "fs_interface.get_begin_path_end_path")?;
         let parent_path = arbo.get_path_from_inode_id(parent)?;
@@ -228,7 +221,12 @@ impl FsInterface {
         self.network_interface.acknowledge_hosts_edition(id, hosts)
     }
 
-    pub fn recept_revoke_hosts(&self, id: InodeId, host: Address, meta: Metadata) -> WhResult<()> {
+    pub fn recept_revoke_hosts(
+        &self,
+        id: InodeId,
+        host: Address,
+        meta: Metadata,
+    ) -> Result<(), AcknoledgeSetAttrError> {
         if host != self.network_interface.self_addr {
             // TODO: recept_revoke_hosts, for the redudancy, should recieve the written text (data from write) instead of deleting and adding it back completely with apply_redudancy
             if let Err(e) = self.disk.remove_file(
@@ -238,9 +236,10 @@ impl FsInterface {
                 log::debug!("recept_revoke_hosts: can't delete file. {}", e);
             }
         }
-        self.network_interface.acknowledge_metadata(id, meta)?;
+        self.acknowledge_metadata(id, meta, true)?;
         self.network_interface
             .acknowledge_hosts_edition(id, vec![host])
+            .map_err(|source| AcknoledgeSetAttrError::WhError { source })
     }
 
     pub fn recept_add_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {

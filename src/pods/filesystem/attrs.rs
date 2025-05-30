@@ -1,0 +1,205 @@
+use std::time::SystemTime;
+
+use custom_error::custom_error;
+use fuser::{FileAttr, TimeOrNow};
+
+use crate::{
+    error::WhError,
+    pods::{
+        arbo::{Arbo, FsEntry, InodeId, Metadata, BLOCK_SIZE},
+        filesystem::{
+            file_handle::{AccessMode, FileHandleManager, UUID},
+            fs_interface::FsInterface,
+            permissions::has_write_perm,
+        },
+    },
+};
+
+fn time_or_now_to_system_time(time: TimeOrNow) -> SystemTime {
+    match time {
+        TimeOrNow::Now => SystemTime::now(),
+        TimeOrNow::SpecificTime(time) => time,
+    }
+}
+
+custom_error! {pub SetAttrError
+    WhError{source: WhError} = "{source}",
+    SizeNoPerm = "Edit size require to have the write permission on the file",
+    InvalidFileHandle = "File handle not found in the open file handles",
+    SetFileSizeIoError {io: std::io::Error } = "Set file size disk side failed"
+}
+
+custom_error! {pub AcknoledgeSetAttrError
+    WhError{source: WhError} = "{source}",
+    SetFileSizeIoError {io: std::io::Error } = "Set file size disk side failed"
+}
+
+impl Into<FileAttr> for Metadata {
+    fn into(self) -> FileAttr {
+        FileAttr {
+            ino: self.ino,
+            size: self.size,
+            blocks: self.size,
+            atime: self.atime,
+            mtime: self.mtime,
+            ctime: self.ctime,
+            crtime: self.crtime,
+            kind: self.kind.into(),
+            perm: self.perm,
+            nlink: self.nlink,
+            uid: self.uid,
+            gid: self.gid,
+            rdev: self.rdev,
+            flags: self.flags,
+            blksize: self.blksize,
+        }
+    }
+}
+
+impl Into<Metadata> for FileAttr {
+    fn into(self) -> Metadata {
+        Metadata {
+            ino: self.ino,
+            size: self.size,
+            blocks: self.blocks,
+            atime: self.atime,
+            mtime: self.mtime,
+            ctime: self.ctime,
+            crtime: self.crtime,
+            kind: self.kind.into(),
+            perm: self.perm,
+            nlink: self.nlink,
+            uid: self.uid,
+            gid: self.gid,
+            rdev: self.rdev,
+            flags: self.flags,
+            blksize: self.blksize,
+        }
+    }
+}
+
+impl FsInterface {
+    //fn get_inode_attributes(&self, ino: InodeId) -> WhResult<&Metadata> {}
+
+    pub fn acknowledge_metadata(
+        &self,
+        ino: InodeId,
+        meta: Metadata,
+        set_folder_size: bool,
+    ) -> Result<(), AcknoledgeSetAttrError> {
+        let mut arbo = Arbo::n_write_lock(&self.arbo, "acknowledge_metadata")?;
+        let inode = arbo.n_get_inode_mut(ino)?;
+
+        if meta.size != inode.meta.size {
+            match &inode.entry {
+                FsEntry::File(hosts) => {
+                    if hosts.contains(&self.network_interface.self_addr) {
+                        let path = arbo.n_get_path_from_inode_id(ino)?;
+
+                        self.disk
+                            .set_file_size(path, meta.size)
+                            .map_err(|io| AcknoledgeSetAttrError::SetFileSizeIoError { io })?;
+                    }
+                }
+                FsEntry::Directory(_) if set_folder_size == false => {
+                    return Err(AcknoledgeSetAttrError::WhError {
+                        source: WhError::InodeIsADirectory,
+                    });
+                }
+                _ => (),
+            }
+        }
+        arbo.n_get_inode_mut(ino)?.meta = meta;
+        Ok(())
+    }
+
+    pub fn setattr(
+        &self,
+        ino: InodeId,
+        uid: Option<u32>,
+        gid: Option<u32>,
+        size: Option<u64>,
+        atime: Option<fuser::TimeOrNow>,
+        mtime: Option<fuser::TimeOrNow>,
+        ctime: Option<std::time::SystemTime>,
+        file_handle: Option<UUID>,
+        flags: Option<u32>,
+    ) -> Result<Metadata, SetAttrError> {
+        let mut arbo = Arbo::n_write_lock(&self.arbo, "fs_interface::get_inode_attributes")?;
+        let path = arbo.n_get_path_from_inode_id(ino)?;
+        let inode = arbo.n_get_inode_mut(ino)?;
+        //Except for size, No permissions are required on the file itself, but permission is required on all of the directories in pathname that lead to the file.
+
+        // Extract specific informations from the file handle if it's defined
+        let (fh_perm, no_atime) = if let Some(file_handle) = file_handle {
+            let file_handler = FileHandleManager::read_lock(&self.file_handles, "setattr")?;
+            match file_handler.handles.get(&file_handle) {
+                None => return Err(SetAttrError::InvalidFileHandle),
+                Some(file_handle) => (Some(file_handle.perm), file_handle.no_atime),
+            }
+        } else {
+            (None, false)
+        };
+
+        // Set size if size it's defined, take permission from the file handle if the
+        if let Some(size) = size {
+            match fh_perm {
+                Some(perm) if perm != AccessMode::Write && perm != AccessMode::ReadWrite => {
+                    return Err(SetAttrError::SizeNoPerm)
+                }
+                None if !has_write_perm(inode.meta.perm) => return Err(SetAttrError::SizeNoPerm),
+                _ => {
+                    // In theory if size > meta.size, the file doesn't change in the memory but in case of read, the read should zero fill the rest of the file
+                    // But for now we don't support sparse file
+                    self.disk
+                        .set_file_size(path, inode.meta.size)
+                        .map_err(|io| SetAttrError::SetFileSizeIoError { io })?;
+                    inode.meta.size = size;
+                    inode.meta.blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+                }
+            };
+        }
+
+        if !no_atime {
+            if let Some(atime) = atime {
+                inode.meta.atime = time_or_now_to_system_time(atime);
+            } else {
+                inode.meta.atime = SystemTime::now();
+            }
+        }
+
+        if let Some(mtime) = mtime {
+            inode.meta.mtime = time_or_now_to_system_time(mtime);
+        // Only size change represent a modification
+        } else if size.is_some() {
+            inode.meta.mtime = SystemTime::now();
+        }
+
+        inode.meta.ctime = ctime.unwrap_or(SystemTime::now());
+
+        //crtime is ignored because crtime is macos only and should'nt be updated after file creation anyway
+        //
+        // REVIEW- we could implement this code for a perfect macos 1 to 1, but I think allowing such a feature
+        // on only one os is a very weird behavior
+        //
+        // if cfg!(target_os = "macos") {
+        //     if let Some(crtime) = crtime {
+        //         meta.crtime = crtime;
+        //     }
+        // }
+
+        if let Some(uid) = uid {
+            inode.meta.uid = uid;
+        }
+        if let Some(gid) = gid {
+            inode.meta.gid = gid;
+        }
+        if let Some(flags) = flags {
+            inode.meta.flags = flags;
+        }
+        let meta = inode.meta.clone();
+        drop(arbo);
+        self.network_interface.send_metadata(ino, meta.clone());
+        return Ok(meta);
+    }
+}
