@@ -4,10 +4,13 @@ use std::{fmt, io};
 use crate::pods::pod::PodStopError;
 use tokio_tungstenite::tungstenite;
 use bincode;
+use crate::pods::pod::{Pod, PodInfoError, PodStopError};
 
 custom_error! {pub WhError
     InodeNotFound = "Entry not found",
     InodeIsNotADirectory = "Entry is not a directory",
+    InodeIsADirectory{detail: String} = @{format!("Can't operate this action on a directory: {detail}")},
+    DiskError{detail: String} = @{format!("DiskError: {detail}")},
     DeadLock = "A DeadLock occured",
     NetworkDied{called_from: String} = @{format!("{called_from}: Unable to update modification on the network")},
     WouldBlock{called_from: String} = @{format!("{called_from}: Unable to lock arbo")},
@@ -18,6 +21,8 @@ impl WhError {
         match self {
             WhError::InodeNotFound => libc::ENOENT,
             WhError::InodeIsNotADirectory => libc::ENOTDIR,
+            WhError::InodeIsADirectory { detail: _ } => libc::EISDIR,
+            WhError::DiskError { detail: _ } => libc::EIO, // could also be ENOSPC (no space left)
             WhError::DeadLock => libc::EDEADLOCK,
             WhError::NetworkDied { called_from: _ } => libc::ENETDOWN,
             WhError::WouldBlock { called_from: _ } => libc::EWOULDBLOCK,
@@ -33,6 +38,8 @@ custom_error! {pub CliError
     TungsteniteError = "WebSocket error",
     IoError{source: io::Error} = "I/O error: {source}", // Pour les erreurs fs::remove_dir_all, etc.
     
+    PodNotFound = "Pod not found",
+    PodInfoError{source: PodInfoError} = "{source}",
     PodStopError{source: PodStopError} = "{source}",
     WhError{source: WhError} = "{source}",
     

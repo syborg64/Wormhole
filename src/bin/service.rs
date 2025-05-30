@@ -160,6 +160,24 @@ async fn handle_cli_command(
                 Err(err) => Err(err),
             }
         }
+        Cli::GetHosts(args) => {
+            if let Some(pod) = pods.get(&args.name) {
+                match pod.get_info(PodInfoRequest::FileHosts(args.path)) {
+                    Ok(PodInfoAnswer::FileHosts(hosts)) => Ok(CliSuccess::WithData {
+                        message: "Hosts:".to_owned(),
+                        data: format!("{:?}", hosts),
+                    }),
+                    Err(error) => Err(CliError::PodInfoError { source: error }),
+                    _ => Ok(CliSuccess::Message(
+                        "ERROR: GetHosts -> wrong answer type received.".to_owned(),
+                    )),
+                }
+            } else {
+                Err(CliError::PodNotFound)
+            }
+        }
+
+        Cli::Restore(resotre_args) => commands::service::restore(resotre_args).await,
         _ => Err(CliError::InvalidCommand),
     };
     let string_output = response_command.map_or_else(|e| e.to_string(), |a| a.to_string());
@@ -275,8 +293,11 @@ async fn main() {
     terminal_handle.abort();
 
     log::info!("Stopping");
-    for (name, pod) in pods.iter() {
-        match pod.stop() {
+    for (name, pod) in pods.into_iter() {
+        match tokio::task::spawn_blocking(move || pod.stop())
+            .await
+            .expect("main: pod stop: can't spawn blocking task")
+        {
             Ok(()) => log::info!("Stopped pod {name}"),
             Err(e) => log::error!("Pod {name} can't be stopped: {e}"),
         }

@@ -61,6 +61,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             log::warn!("inspecting pod");
             todo!("inspect");
         }
+        Cli::GetHosts(args) => {
+            commands::cli::get_hosts(ip, args)?;
+        }
         Cli::Apply(args) => {
             log::warn!("reloading pod");
             commands::cli::apply(ip, args)?;

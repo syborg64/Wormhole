@@ -105,3 +105,10 @@ impl PeerIPC {
         .collect()
     }
 }
+
+impl Drop for PeerIPC {
+    fn drop(&mut self) {
+        log::debug!("Dropping PeerIPC {}", self.address);
+        self.thread.abort();
+    }
+}
