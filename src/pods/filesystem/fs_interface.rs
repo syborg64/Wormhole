@@ -1,3 +1,4 @@
+use crate::config::{types::Config, LocalConfig};
 use crate::error::{WhError, WhResult};
 use crate::network::message::Address;
 use crate::pods::arbo::{
@@ -10,7 +11,7 @@ use crate::pods::whpath::WhPath;
 
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use std::io;
+use std::io::{self, ErrorKind};
 use std::sync::Arc;
 
 use super::make_inode::MakeInode;
@@ -39,7 +40,7 @@ impl Into<SimpleFileType> for &FsEntry {
 }
 
 /// Provides functions to allow primitive handlers like Fuse & WinFSP to
-/// interract with wormhole.
+/// interract with wormhole
 impl FsInterface {
     pub fn new(
         network_interface: Arc<NetworkInterface>,
@@ -189,11 +190,18 @@ impl FsInterface {
         };
 
         match inode.entry {
-            FsEntry::File(hosts) if hosts.contains(&self.network_interface.self_addr) => self
-                .disk
-                .new_file(new_path, inode.meta.perm)
-                .map(|_| ())
-                .map_err(|io| MakeInode::LocalCreationFailed { io }),
+            FsEntry::File(hosts)
+                if hosts.contains(
+                    &LocalConfig::read_lock(&self.network_interface.local_config, "recept_inode")?
+                        .general
+                        .address,
+                ) =>
+            {
+                self.disk
+                    .new_file(new_path, inode.meta.perm)
+                    .map(|_| ())
+                    .map_err(|io| MakeInode::LocalCreationFailed { io })
+            }
             FsEntry::File(_) => Ok(()),
             FsEntry::Directory(_) => self
                 .disk
@@ -217,8 +225,14 @@ impl FsInterface {
             })
             .inspect_err(|e| log::error!("{e}"))?;
         // TODO -> in case of failure, other hosts still think this one is valid. Should send error report to the redundancy manager
+
+        let address =
+            LocalConfig::read_lock(&self.network_interface.local_config, "revoke_remote_hosts")?
+                .general
+                .address
+                .clone();
         Arbo::n_write_lock(&self.arbo, "recept_redundancy")?
-            .n_add_inode_hosts(id, vec![self.network_interface.self_addr.clone()])
+            .n_add_inode_hosts(id, vec![address])
             .inspect_err(|e| {
                 log::error!("Can't update (local) hosts for redundancy pulled file ({id}): {e}")
             })
@@ -239,9 +253,22 @@ impl FsInterface {
         };
 
         self.disk.write_file(path, &binary, 0)?;
+        let address =
+            LocalConfig::read_lock(&self.network_interface.local_config, "revoke_remote_hosts")
+                .map_err(|e| {
+                    log::error!("recept_binary: can't get self address: {e}");
+                    io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("recept_binary: can't get self address: {e}"),
+                    )
+                })?
+                .general
+                .address
+                .clone();
+
         let _ = self
             .network_interface
-            .add_inode_hosts(id, vec![self.network_interface.self_addr.clone()])
+            .add_inode_hosts(id, vec![address])
             .inspect_err(|e| log::error!("Can't update hosts for pulled file ({id}): {e}"));
         let _ = self
             .network_interface
@@ -251,7 +278,12 @@ impl FsInterface {
     }
 
     pub fn recept_edit_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
-        if !hosts.contains(&self.network_interface.self_addr) {
+        if !hosts.contains(
+            &LocalConfig::read_lock(&self.network_interface.local_config, "recept_binary")
+                .map_err(|e| io::Error::new(ErrorKind::Other, e.to_string()))?
+                .general
+                .address,
+        ) {
             if let Err(e) = self.disk.remove_file(
                 Arbo::read_lock(&self.arbo, "recept_edit_hosts")?.get_path_from_inode_id(id)?,
             ) {
@@ -266,7 +298,12 @@ impl FsInterface {
     }
 
     pub fn recept_remove_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
-        if hosts.contains(&self.network_interface.self_addr) {
+        if hosts.contains(
+            &LocalConfig::read_lock(&self.network_interface.local_config, "recept_remove_hosts")
+                .map_err(|e| io::Error::new(ErrorKind::Other, e.to_string()))?
+                .general
+                .address,
+        ) {
             if let Err(e) = self.disk.remove_file(
                 Arbo::read_lock(&self.arbo, "recept_remove_hosts")?.get_path_from_inode_id(id)?,
             ) {

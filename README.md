@@ -13,13 +13,32 @@ For users and other softwares, the files behaves like any normal files, while th
 
 ## How to launch
 (this is for demo purposes and will be changed)
+
+The connection between the cli and the service is made by default on the address 127.0.0.1:8081 but can be modified by adding the new address in the command just after the binary (to be done for both)
+
 ```
-cargo run --bin service -- ./virtual       "127.0.0.1:8080" "127.0.0.2:8080"
-^---------------------     ^-------        ^--------------  ^---------------
-Build and run              where to mount  host ip          other ips (multiple possible)
+cargo run --bin wormhole-service
+^---------------------
+Build and run
 ```
 
-## Guide to Using Docker Images and Test Commands
+Create a new Wormhole network
+```
+cargo run --bin wormhole-cli new pod_name -C virutal1/ -i 127.17.0.1:8081
+^---------------------       ^--                ^-----       ^---------------
+Build and run                 command            directory     host ip
+```
+
+Join an existing Wormhole network
+```
+cargo run --bin wormhole-cli new pod_name2 -C virutal2/ -i 127.17.0.2:8081 -u 127.17.0.1:8081 -a 127.17.0.3:8081 127.17.0.4:8081 127.17.0.5:8081
+^---------------------       ^--                ^-----       ^----------       ^-------------     ^-----------------------------------------------
+Build and run                 command            directory     host ip         ip of node to join     additionnal host
+```
+
+
+
+## Guide to Using Docker Images and Test Commands (Not up to date)
 
 #### **1. Start the Infrastructure**
 ```bash

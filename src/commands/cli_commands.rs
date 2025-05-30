@@ -1,18 +1,8 @@
-use crate::pods::{pod::Pod, whpath::WhPath};
+use std::collections::HashMap;
+
+use crate::pods::{arbo::{GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME}, pod::Pod, whpath::WhPath};
 use clap::{Args, Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
-
-// FIXME deprecated
-pub enum PodCommand {
-    NewPod(String, Pod),
-    StartPod(StatusPodArgs),
-    StopPod(
-        StatusPodArgs,
-        tokio::sync::oneshot::Sender<Result<String, crate::pods::pod::PodStopError>>,
-    ),
-    RemovePod(RemoveArgs),
-    Interrupt,
-}
 
 #[derive(Debug, Parser, Serialize, Deserialize)] // requires `derive` feature
 #[command(name = "wormhole")]
@@ -32,21 +22,26 @@ pub enum Cli {
     GetHosts(GetHostsArgs),
     /// Remove a pod from its network
     Remove(RemoveArgs),
-    /// Reload a pod
-    Reload(PodArgs),
+    /// Apply a new configuration to a pod
+    Apply(PodConf),
     /// Restore many or a specifique file configuration  
-    Restore(RestoreConf),
+    Restore(PodConf),
     /// Stops the service
     Interrupt,
 }
 
-
-#[derive(Debug, clap::Args, Serialize, Deserialize)]
+#[derive(Debug, clap::Args, Serialize, Deserialize, Clone)]
 #[command(version, about, long_about = None)]
-pub struct RestoreConf {
-    /// Names of all files that you want to restore
-    #[arg(long, short, default_value = "")]
-    pub names: Vec<String>,
+pub struct PodConf {
+    /// Pod name
+    #[arg(long, short, default_value = ".")]
+    pub name: String,
+    /// Path of the pod
+    #[arg(long, short = 'C', default_value = ".")]
+    pub path: WhPath,
+    /// Names of all configuration files that you want to restore
+    #[arg(long, short, default_values_t = [String::from(LOCAL_CONFIG_FNAME), String::from(GLOBAL_CONFIG_FNAME)])]
+    pub files: Vec<String>,
 }
 
 #[derive(Debug, clap::Args, Serialize, Deserialize)]
@@ -67,7 +62,7 @@ pub struct PodArgs {
     #[arg(long, short = 'C', default_value = ".")]
     pub path: WhPath,
     /// Modify the default ip address of the Pod
-    #[arg(long, short, default_value = "127.0.0.1:8080")]
+    #[arg(long, short, default_value = "127.17.0.1:8081")]
     pub ip: String,
     /// Network url as <address of node to join from> + ':' + <network name>'
     #[arg(long, short)]
@@ -81,11 +76,11 @@ pub struct PodArgs {
 #[command(version, about, long_about = None)]
 pub struct StatusPodArgs {
     /// Name of the pod for updating status pod. If the name equal 'None' the name will be read from the current directory
-    #[arg(long, short)]
-    pub name: Option<String>,
+    #[arg(long, short, default_value = ".")]
+    pub name: String,
     /// Path is used uniquely if the pod name is 'None'
-    #[arg(long, short)]
-    pub path: Option<WhPath>,
+    #[arg(long, short = 'C', default_value = ".")]
+    pub path: WhPath,
 }
 
 #[derive(Debug, clap::Args, Serialize, Deserialize)]
@@ -121,10 +116,10 @@ pub enum Mode {
 pub struct RemoveArgs {
     /// Name of the deleted pod
     #[arg(long, short, required_unless_present = "path", conflicts_with = "path")]
-    pub name: Option<String>,
+    pub name: String,
     /// Change to DIRECTORY before doing anything
     #[arg(long, short = 'C', required_unless_present = "name", conflicts_with = "name")]
-    pub path: Option<WhPath>,
+    pub path: WhPath,
     /// Mode for pod removal
     #[arg(long, default_value = "simple")]
     pub mode: Mode,

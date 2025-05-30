@@ -1,7 +1,7 @@
 use std::fs;
 use std::{io, sync::Arc};
 
-use crate::config::types::Config as _;
+use crate::config::types::Config;
 use crate::config::{GlobalConfig, LocalConfig};
 use crate::error::{WhError, WhResult};
 #[cfg(target_os = "linux")]
@@ -10,7 +10,7 @@ use crate::network::message::{
     FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
 };
 use crate::pods::arbo::{FsEntry, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO, ROOT};
-use crate::pods::network::redundancy::redundancy_worker;
+use crate::pods::network::redundancy::{self, redundancy_worker};
 #[cfg(target_os = "windows")]
 use crate::winfsp::winfsp_impl::mount_fsp;
 use custom_error::custom_error;
@@ -56,6 +56,8 @@ pub struct Pod {
     peer_broadcast_handle: JoinHandle<()>,
     new_peer_handle: JoinHandle<()>,
     redundancy_worker_handle: JoinHandle<()>,
+    pub global_config: Arc<RwLock<GlobalConfig>>,
+    pub local_config: Arc<RwLock<LocalConfig>>,
 }
 
 custom_error! {pub PodInfoError
@@ -140,7 +142,7 @@ impl Pod {
     pub async fn new(
         name: String,
         global_config: GlobalConfig,
-        // local_config: LocalConfig,
+        local_config: LocalConfig,
         mount_point: WhPath,
         server: Arc<Server>,
         server_address: Address,
@@ -156,43 +158,54 @@ impl Pod {
 
         let mut peers = vec![];
 
-        let (arbo, next_inode) = if let Some((fs_serialized, peers_addrs, ipc, global_config_bytes)) = initiate_connection(
-            global_config.general.peers,
-            server_address.clone(),
-            &from_network_message_tx,
-            &mut from_network_message_rx,
-        )
-        .await
-        {
-            fs::write(
-                mount_point.join(GLOBAL_CONFIG_FNAME).to_string(),
-                global_config_bytes,
-            )
-            .expect("can't write global_config file");
-            // TODO use global_config ?
+        let (arbo, next_inode) =
+            if let Some((fs_serialized, peers_addrs, ipc, global_config_bytes)) =
+                initiate_connection(
+                    global_config.general.peers.clone(),
+                    server_address.clone(),
+                    &from_network_message_tx,
+                    &mut from_network_message_rx,
+                )
+                .await
+            {
+                if !global_config_bytes.is_empty() {
+                    info!(
+                        "mount point service: {}",
+                        mount_point.join(GLOBAL_CONFIG_FNAME).to_string()
+                    );
+                    fs::write(
+                        mount_point.join(GLOBAL_CONFIG_FNAME).to_string(),
+                        global_config_bytes,
+                    )
+                    .expect("can't write global_config file");
+                }
+                // TODO use global_config ?
 
-            peers = PeerIPC::peer_startup(peers_addrs, from_network_message_tx.clone()).await;
-            peers.push(ipc);
-            register_to_others(&peers, &server_address)?;
+                peers = PeerIPC::peer_startup(peers_addrs, from_network_message_tx.clone()).await;
+                peers.push(ipc);
+                register_to_others(&peers, &server_address)?;
 
-            let mut arbo = Arbo::new();
-            arbo.overwrite_self(fs_serialized.fs_index);
+                let mut arbo = Arbo::new();
+                arbo.overwrite_self(fs_serialized.fs_index);
 
-            if let Err(_) = arbo.get_inode(LOCAL_CONFIG_INO) {
-                let _ = arbo.add_inode_from_parameters(
-                    LOCAL_CONFIG_FNAME.to_string(),
-                    LOCAL_CONFIG_INO,
-                    ROOT,
-                    FsEntry::File(vec![server_address.clone()]),
-                );
-            }
-            let next_inode = arbo.iter().fold(0, |acc, (ino, _)| u64::max(acc, *ino)) + 1;
-            (arbo, next_inode)
-        } else {
-            generate_arbo(&mount_point, &server_address).expect("unable to index folder")
-        };
+                if let Err(_) = arbo.get_inode(LOCAL_CONFIG_INO) {
+                    let _ = arbo.add_inode_from_parameters(
+                        LOCAL_CONFIG_FNAME.to_string(),
+                        LOCAL_CONFIG_INO,
+                        ROOT,
+                        FsEntry::File(vec![server_address.clone()]),
+                    );
+                }
+                let next_inode = arbo.iter().fold(0, |acc, (ino, _)| u64::max(acc, *ino)) + 1;
+                (arbo, next_inode)
+            } else {
+                generate_arbo(&mount_point, &server_address).expect("unable to index folder")
+            };
 
+        let redundancy_target = global_config.redundancy.number;
         let arbo: Arc<RwLock<Arbo>> = Arc::new(RwLock::new(arbo));
+        let local = Arc::new(RwLock::new(local_config));
+        let global = Arc::new(RwLock::new(global_config));
 
         let network_interface = Arc::new(NetworkInterface::new(
             arbo.clone(),
@@ -201,8 +214,8 @@ impl Pod {
             to_redundancy_tx.clone(),
             next_inode,
             Arc::new(RwLock::new(peers)),
-            server_address,
-            global_config.redundancy.number,
+            local.clone(),
+            global.clone(),
         ));
 
         let disk_manager = DiskManager::new(mount_point.clone())?;
@@ -236,6 +249,8 @@ impl Pod {
             to_redundancy_rx,
             network_interface.clone(),
             fs_interface.clone(),
+            redundancy_target,
+            server_address,
         ));
 
         Ok(Self {
@@ -251,6 +266,8 @@ impl Pod {
             network_airport_handle,
             peer_broadcast_handle,
             new_peer_handle,
+            local_config: local.clone(),
+            global_config: global.clone(),
             redundancy_worker_handle,
         })
     }
@@ -321,7 +338,17 @@ impl Pod {
 
     /// Gets every file hosted by this pod only and sends them to other pods
     fn send_files_when_stopping(&self, arbo: &Arbo, peers: Vec<Address>) {
-        arbo.files_hosted_only_by(&self.network_interface.self_addr)
+        let address = if let Ok(local_conf_lock) = LocalConfig::read_lock(
+            &self.network_interface.local_config,
+            "send_files_when_stopping",
+        ) {
+            local_conf_lock.general.address.clone()
+        } else {
+            log::error!("send_files_when_stopping: can't lock local conf to get local address. No files sent.");
+            return;
+        };
+
+        arbo.files_hosted_only_by(&address)
             .filter_map(|id| {
                 if id == GLOBAL_CONFIG_INO || id == LOCAL_CONFIG_INO || id == ARBO_FILE_INO {
                     None
@@ -362,7 +389,12 @@ impl Pod {
         self.network_interface
             .to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::Disconnect(self.network_interface.self_addr.clone()),
+                MessageContent::Disconnect(
+                    LocalConfig::read_lock(&self.local_config, "pod::stop")?
+                        .general
+                        .address
+                        .clone(),
+                ),
             ))
             .expect("to_network_message_tx closed.");
 

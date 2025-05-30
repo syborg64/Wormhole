@@ -3,7 +3,8 @@
 // AgarthaSoftware - 2024
 
 //use crate::INSTANCE_PATH;
-use std::error::Error;
+
+use crate::error::CliResult;
 
 #[cfg(target_os = "windows")]
 #[must_use]
@@ -19,7 +20,7 @@ pub fn register(path: &std::path::PathBuf, name: &str) -> Result<(), Box<dyn Err
 
 #[cfg(target_os = "linux")]
 #[must_use]
-pub fn register(_path: &std::path::PathBuf, _name: &str) -> Result<(), Box<dyn Error>> {
+pub fn register(_path: &std::path::PathBuf, _name: &str) -> CliResult<()> {
     Ok(())
     /*
     let canonical = path.canonicalize()?;

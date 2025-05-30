@@ -5,9 +5,11 @@ use std::{
 };
 
 use crate::{
+    config::{types::Config, GlobalConfig, LocalConfig},
     error::{WhError, WhResult},
-    network::message::{MessageAndStatus, RedundancyMessage},
-    pods::arbo::Hosts,
+    network::message::MessageAndStatus,
+    network::message::RedundancyMessage,
+    pods::arbo::LOCAL_CONFIG_INO,
 };
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::{
@@ -147,8 +149,8 @@ pub struct NetworkInterface {
     pub next_inode: Mutex<InodeId>, // TODO - replace with InodeIndex type
     pub callbacks: Callbacks,
     pub peers: Arc<RwLock<Vec<PeerIPC>>>,
-    pub self_addr: Address,
-    pub redundancy: u64,
+    pub local_config: Arc<RwLock<LocalConfig>>,
+    pub global_config: Arc<RwLock<GlobalConfig>>,
 }
 
 impl NetworkInterface {
@@ -159,8 +161,8 @@ impl NetworkInterface {
         to_redundancy_tx: UnboundedSender<RedundancyMessage>,
         next_inode: InodeId,
         peers: Arc<RwLock<Vec<PeerIPC>>>,
-        self_addr: Address,
-        redundancy: u64,
+        local_config: Arc<RwLock<LocalConfig>>,
+        global_config: Arc<RwLock<GlobalConfig>>,
     ) -> Self {
         let next_inode = Mutex::new(next_inode);
 
@@ -174,8 +176,8 @@ impl NetworkInterface {
                 callbacks: HashMap::new().into(),
             },
             peers,
-            self_addr,
-            redundancy,
+            local_config,
+            global_config,
         }
     }
 
@@ -315,6 +317,10 @@ impl NetworkInterface {
 
     // REVIEW - recheck and simplify this if possible
     pub async fn pull_file_async(&self, file: InodeId) -> io::Result<Option<Callback>> {
+        if file == LOCAL_CONFIG_INO {
+            log::info!("pull file async: We don't have redundancy for the local configuration");
+            return Ok(None);
+        }
         let hosts = {
             let arbo = Arbo::read_lock(&self.arbo, "pull_file")?;
             if let FsEntry::File(hosts) = &arbo.get_inode(file)?.entry {
@@ -332,7 +338,12 @@ impl NetworkInterface {
             return Err(io::ErrorKind::InvalidData.into());
         }
 
-        if hosts.contains(&self.self_addr) {
+        if hosts.contains(
+            &LocalConfig::read_lock(&self.local_config, "network_interface::pull_file_async")
+                .map_err(|e| io::Error::new(ErrorKind::Other, e.to_string()))?
+                .general
+                .address,
+        ) {
             // if the asked file is already on disk
             Ok(None)
         } else {
@@ -345,7 +356,17 @@ impl NetworkInterface {
                 self.to_network_message_tx
                     .send(ToNetworkMessage::SpecificMessage(
                         (
-                            MessageContent::RequestFile(file, self.self_addr.clone()),
+                            MessageContent::RequestFile(
+                                file,
+                                LocalConfig::read_lock(
+                                    &self.local_config,
+                                    "network_interface::pull_file_async",
+                                )
+                                .map_err(|e| io::Error::new(ErrorKind::Other, e.to_string()))?
+                                .general
+                                .address
+                                .clone(),
+                            ),
                             Some(status_tx.clone()),
                         ),
                         vec![host.clone()], // NOTE - naive choice for now
@@ -370,6 +391,10 @@ impl NetworkInterface {
 
     // REVIEW - recheck and simplify this if possible
     pub fn pull_file_sync(&self, file: InodeId) -> io::Result<Option<Callback>> {
+        if file == LOCAL_CONFIG_INO {
+            log::info!("pull file sync: We don't have redundancy for the local configuration");
+            return Ok(None);
+        }
         let hosts = {
             let arbo = Arbo::read_lock(&self.arbo, "pull_file")?;
             if let FsEntry::File(hosts) = &arbo.get_inode(file)?.entry {
@@ -387,7 +412,12 @@ impl NetworkInterface {
             return Err(io::ErrorKind::InvalidData.into());
         }
 
-        if hosts.contains(&self.self_addr) {
+        if hosts.contains(
+            &LocalConfig::read_lock(&self.local_config, "network_interface::pull_file_sync")
+                .map_err(|e| io::Error::new(ErrorKind::Other, e.to_string()))?
+                .general
+                .address,
+        ) {
             // if the asked file is already on disk
             Ok(None)
         } else {
@@ -400,7 +430,17 @@ impl NetworkInterface {
                 self.to_network_message_tx
                     .send(ToNetworkMessage::SpecificMessage(
                         (
-                            MessageContent::RequestFile(file, self.self_addr.clone()),
+                            MessageContent::RequestFile(
+                                file,
+                                LocalConfig::read_lock(
+                                    &self.local_config,
+                                    "network_interface::pull_file_sync",
+                                )
+                                .map_err(|e| io::Error::new(ErrorKind::Other, e.to_string()))?
+                                .general
+                                .address
+                                .clone(),
+                            ),
                             Some(status_tx.clone()),
                         ),
                         vec![host.clone()], // NOTE - naive choice for now
@@ -455,7 +495,11 @@ impl NetworkInterface {
     }
 
     pub fn revoke_remote_hosts(&self, id: InodeId) -> WhResult<()> {
-        self.update_hosts(id, vec![self.self_addr.clone()])?;
+        let address = LocalConfig::read_lock(&self.local_config, "revoke_remote_hosts")?
+            .general
+            .address
+            .clone();
+        self.update_hosts(id, vec![address])?;
         self.apply_redundancy(id);
         Ok(())
     }
@@ -506,7 +550,15 @@ impl NetworkInterface {
 
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::EditMetadata(id, meta, self.self_addr.clone()),
+                MessageContent::EditMetadata(
+                    id,
+                    meta,
+                    LocalConfig::read_lock(&self.local_config, ".")
+                        .expect("update_metadata: can't read local config address")
+                        .general
+                        .address
+                        .clone(),
+                ),
             ))
             .expect("update_metadata: unable to update modification on the network thread");
         Ok(())
@@ -525,7 +577,17 @@ impl NetworkInterface {
 
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::EditMetadata(id, meta, self.self_addr.clone()),
+                MessageContent::EditMetadata(
+                    id,
+                    meta,
+                    LocalConfig::read_lock(
+                        &self.local_config,
+                        "network_interface::n_update_metadata",
+                    )?
+                    .general
+                    .address
+                    .clone(),
+                ),
             ))
             .expect("update_metadata: unable to update modification on the network thread");
         Ok(())
@@ -553,7 +615,16 @@ impl NetworkInterface {
     pub fn register_to_others(&self) {
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::Register(self.self_addr.clone()),
+                MessageContent::Register(
+                    LocalConfig::read_lock(
+                        &self.local_config,
+                        ".",
+                    )
+                    .expect("network_interface::register_to_others: can't read the address in the local config")
+                    .general
+                    .address
+                    .clone(),
+                ),
             ))
             .expect("register_to_others: unable to update modification on the network thread");
     }

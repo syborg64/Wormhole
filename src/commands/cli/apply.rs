@@ -6,7 +6,8 @@ use crate::{commands::cli_commands::{Cli, PodConf}, error::{CliError, CliResult}
 
 use super::cli_messager;
 
-pub fn restore(ip: &str, mut args: PodConf) -> CliResult<()> {
+
+pub fn apply(ip: &str, mut args: PodConf) -> CliResult<()> {
   let files_name = vec![LOCAL_CONFIG_FNAME, GLOBAL_CONFIG_FNAME];
     
     for file in args.files.clone() {
@@ -26,6 +27,7 @@ pub fn restore(ip: &str, mut args: PodConf) -> CliResult<()> {
     let rt = Runtime::new().unwrap();
     rt.block_on(cli_messager(
       ip,
-      Cli::Restore(PodConf { name: args.name, path: args.path, files: args.files }),
-    ))
-  }
+      Cli::Apply(PodConf { name: args.name, path: args.path, files: args.files }),
+    ))?;
+    Ok(())
+}
