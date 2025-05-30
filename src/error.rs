@@ -1,10 +1,10 @@
 use custom_error::custom_error;
 use std::{fmt, io};
 
+use crate::pods::pod::PodInfoError;
 use crate::pods::pod::PodStopError;
-use tokio_tungstenite::tungstenite;
 use bincode;
-use crate::pods::pod::{Pod, PodInfoError, PodStopError};
+use tokio_tungstenite::tungstenite;
 
 custom_error! {pub WhError
     InodeNotFound = "Entry not found",
@@ -37,22 +37,22 @@ custom_error! {pub CliError
     BincodeError = "Serialization error",
     TungsteniteError = "WebSocket error",
     IoError{source: io::Error} = "I/O error: {source}", // Pour les erreurs fs::remove_dir_all, etc.
-    
+
     PodNotFound = "Pod not found",
     PodInfoError{source: PodInfoError} = "{source}",
     PodStopError{source: PodStopError} = "{source}",
     WhError{source: WhError} = "{source}",
-    
+
     FileConfigName{name: String} = "This isn't a configuration's file: {name}",
 
     PodCreationFailed{reason: io::Error} = "Pod creation failed: {reason}",
     PodRemovalFailed{name: String} = "Pod removal failed, a pod with this name {name} doens't existe",
-    
+
     InvalidConfig{file: String} = "Configuration file {file} is missing or invalid",
     InvalidCommand = "Unrecognized command",
     InvalidArgument{arg: String} = "Invalid Argument: {arg} is not recognized",
-    
-    Unimplemented{arg: String} = "{arg} not implemented", 
+
+    Unimplemented{arg: String} = "{arg} not implemented",
     Server{addr: String} = "Impossible to bind this address {addr}",
     Message{reason: String} = "{reason}",
 }
@@ -83,7 +83,7 @@ impl From<Box<dyn std::error::Error>> for CliError {
 impl From<bincode::Error> for CliError {
     fn from(err: bincode::Error) -> Self {
         CliError::BoxError {
-            arg: Box::new(err) as Box<dyn std::error::Error>
+            arg: Box::new(err) as Box<dyn std::error::Error>,
         }
     }
 }
@@ -92,7 +92,7 @@ impl From<bincode::Error> for CliError {
 impl From<tokio_tungstenite::tungstenite::Error> for CliError {
     fn from(err: tokio_tungstenite::tungstenite::Error) -> Self {
         CliError::BoxError {
-            arg: Box::new(err) as Box<dyn std::error::Error>
+            arg: Box::new(err) as Box<dyn std::error::Error>,
         }
     }
 }

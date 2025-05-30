@@ -9,6 +9,7 @@ use crate::{
 };
 use std::sync::Arc;
 use tokio::{sync::mpsc::UnboundedReceiver, task::JoinSet};
+use crate::config::{GlobalConfig, types::Config};
 
 /// Redundancy Worker
 /// Worker that applies the redundancy to files
@@ -16,6 +17,8 @@ pub async fn redundancy_worker(
     mut reception: UnboundedReceiver<RedundancyMessage>,
     nw_interface: Arc<NetworkInterface>,
     fs_interface: Arc<FsInterface>,
+    redundancy: u64, // TODO - when updated in conf, send a message to this worker for update
+    self_addr: Address // TODO - Same
 ) {
     loop {
         let message = match reception.recv().await {
@@ -34,11 +37,11 @@ pub async fn redundancy_worker(
                         }
                     };
 
-                    let target_redundancy = if (nw_interface.redundancy - 1) as usize > all_peers.len() {
+                    let target_redundancy = if (redundancy - 1) as usize > all_peers.len() {
                         log::warn!("Redundancy: Not enough nodes to satisfies the target redundancies number.");
                         all_peers.len()
                     } else {
-                        (nw_interface.redundancy - 1) as usize
+                        (redundancy - 1) as usize
                     };
 
                     let new_hosts = push_redundancy(
@@ -47,6 +50,7 @@ pub async fn redundancy_worker(
                         ino,
                         file_binary,
                         target_redundancy,
+                        self_addr.clone()
                     )
                     .await;
 
@@ -72,8 +76,9 @@ async fn push_redundancy(
     ino: InodeId,
     file_binary: Vec<u8>,
     target_redundancy: usize,
+    self_addr: Address,
 ) -> Vec<Address> {
-    let mut success_hosts: Vec<Address> = vec![nw_interface.self_addr.clone()];
+    let mut success_hosts: Vec<Address> = vec![self_addr];
     let mut set: JoinSet<WhResult<Address>> = JoinSet::new();
 
     for i in 0..target_redundancy {

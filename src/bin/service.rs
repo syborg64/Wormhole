@@ -33,7 +33,7 @@ use winfsp::winfsp_init;
 use wormhole::commands::{self, cli_commands::Cli};
 use wormhole::error::{CliError, CliResult, CliSuccess, WhError, WhResult};
 use wormhole::network::ip::IpP;
-use wormhole::pods::pod::{Pod, PodStopError};
+use wormhole::pods::pod::{Pod, PodInfoAnswer, PodInfoRequest, PodStopError};
 use wormhole::config::types::Config;
 use wormhole::config::LocalConfig;
 
@@ -176,8 +176,29 @@ async fn handle_cli_command(
                 Err(CliError::PodNotFound)
             }
         }
-
-        Cli::Restore(resotre_args) => commands::service::restore(resotre_args).await,
+        Cli::Restore(mut resotre_args) => {
+            let opt_pod = if resotre_args.name == "." {
+                pods.iter()
+                    .find(|(_, pod)| pod.get_mount_point() == &resotre_args.path)
+            } else {
+                pods.iter().find(|(n, _)| n == &&resotre_args.name)
+            };
+            if let Some((_, pod)) = opt_pod {
+                resotre_args.path = pod.get_mount_point().clone();
+                commands::service::restore(
+                    pod.local_config.clone(),
+                    pod.global_config.clone(),
+                    resotre_args,
+                )
+            } else {
+                log::error!(
+                    "Pod at this path doesn't existe {:?}, {:?}",
+                    resotre_args.name,
+                    resotre_args.path
+                );
+                Err(CliError::PodRemovalFailed { name: resotre_args.name })
+            }
+        }
         _ => Err(CliError::InvalidCommand),
     };
     let string_output = response_command.map_or_else(|e| e.to_string(), |a| a.to_string());

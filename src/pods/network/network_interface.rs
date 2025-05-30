@@ -8,9 +8,8 @@ use crate::{
     config::{types::Config, GlobalConfig, LocalConfig},
     error::{WhError, WhResult},
     network::message::MessageAndStatus,
+    network::message::RedundancyMessage,
     pods::arbo::LOCAL_CONFIG_INO,
-    network::message::{MessageAndStatus, RedundancyMessage},
-    pods::arbo::Hosts,
 };
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::{
@@ -496,7 +495,11 @@ impl NetworkInterface {
     }
 
     pub fn revoke_remote_hosts(&self, id: InodeId) -> WhResult<()> {
-        self.update_hosts(id, vec![self.self_addr.clone()])?;
+        let address = LocalConfig::read_lock(&self.local_config, "revoke_remote_hosts")?
+            .general
+            .address
+            .clone();
+        self.update_hosts(id, vec![address])?;
         self.apply_redundancy(id);
         Ok(())
     }
