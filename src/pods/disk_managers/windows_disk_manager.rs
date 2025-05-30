@@ -37,7 +37,7 @@ impl WindowsDiskManager {
         };
 
         if handle == INVALID_HANDLE_VALUE {
-            unsafe { return Err(io::ErrorKind::InvalidInput.into()) }
+            return Err(io::ErrorKind::InvalidInput.into());
         }
 
         Ok(Self {
