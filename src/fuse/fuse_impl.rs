@@ -514,7 +514,7 @@ impl Filesystem for FuseController {
                 .into_string()
                 .expect("Don't support non unicode yet"),
             flags & libc::RENAME_NOREPLACE == 0,
-        ) {
+        ).inspect_err(|err| log::error!("rename: {err}")) {
             Ok(()) => reply.ok(),
             Err(RenameError::WhError { source }) => reply.error(source.to_libc()),
             Err(RenameError::LocalRenamingFailed { io }) => {
