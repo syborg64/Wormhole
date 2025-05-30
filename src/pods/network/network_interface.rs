@@ -7,15 +7,11 @@ use std::{
 use crate::{
     config::{types::Config, GlobalConfig, LocalConfig},
     error::{WhError, WhResult},
-    network::message::MessageAndStatus,
-    network::message::RedundancyMessage,
-    pods::arbo::LOCAL_CONFIG_INO,
+    network::message::{MessageAndStatus, RedundancyMessage},
+    pods::filesystem::make_inode::MakeInodeError,
 };
 use parking_lot::{Mutex, RwLock};
-use tokio::sync::{
-    broadcast,
-    mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
-};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::network::{
     message::{
@@ -26,7 +22,7 @@ use crate::network::{
 };
 use crate::pods::{
     arbo::{FsEntry, Metadata},
-    filesystem::{make_inode::MakeInode, remove_inode::RemoveInode},
+    filesystem::remove_inode::RemoveInode,
     whpath::WhPath,
 };
 
@@ -35,100 +31,9 @@ use crate::pods::{
     filesystem::fs_interface::FsInterface,
 };
 
-#[derive(Eq, Hash, PartialEq, Clone, Copy, Debug)]
-pub enum Callback {
-    Pull(InodeId),
-    PullFs,
-}
+use crate::pods::network::callbacks::Callbacks;
 
-#[derive(Debug)]
-pub struct Callbacks {
-    callbacks: RwLock<HashMap<Callback, broadcast::Sender<bool>>>,
-}
-
-impl Callbacks {
-    pub fn create(&self, call: Callback) -> io::Result<Callback> {
-        if let Some(mut callbacks) = self.callbacks.try_write_for(LOCK_TIMEOUT) {
-            if !callbacks.contains_key(&call) {
-                let (tx, _) = broadcast::channel(1);
-
-                callbacks.insert(call, tx);
-            };
-            Ok(call)
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::WouldBlock,
-                "unable to write_lock callbacks",
-            ))
-        }
-    }
-
-    pub fn resolve(&self, call: Callback, status: bool) -> io::Result<()> {
-        if let Some(mut callbacks) = self.callbacks.try_write_for(LOCK_TIMEOUT) {
-            if let Some(cb) = callbacks.remove(&call) {
-                cb.send(status).map(|_| ()).map_err(|send_error| {
-                    io::Error::new(io::ErrorKind::AddrNotAvailable, send_error.to_string())
-                })
-            } else {
-                Err(io::Error::new(
-                    io::ErrorKind::WouldBlock,
-                    "no such callback active",
-                ))
-            }
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::WouldBlock,
-                "unable to read_lock callbacks",
-            ))
-        }
-    }
-
-    pub fn wait_for(&self, call: Callback) -> io::Result<bool> {
-        let mut waiter = if let Some(callbacks) = self.callbacks.try_read_for(LOCK_TIMEOUT) {
-            if let Some(cb) = callbacks.get(&call) {
-                cb.subscribe()
-            } else {
-                return Err(io::Error::new(
-                    io::ErrorKind::WouldBlock,
-                    "no such callback active",
-                ));
-            }
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::WouldBlock,
-                "unable to read_lock callbacks",
-            ));
-        };
-
-        match waiter.blocking_recv() {
-            Ok(status) => Ok(status),
-            Err(_) => Ok(false), // maybe change to a better handling
-        }
-    }
-
-    pub async fn async_wait_for(&self, call: Callback) -> io::Result<bool> {
-        let mut waiter = if let Some(callbacks) = self.callbacks.try_read_for(LOCK_TIMEOUT) {
-            if let Some(cb) = callbacks.get(&call) {
-                cb.subscribe()
-            } else {
-                return Err(io::Error::new(
-                    io::ErrorKind::WouldBlock,
-                    "no such callback active",
-                ));
-            }
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::WouldBlock,
-                "unable to read_lock callbacks",
-            ));
-        };
-
-        match waiter.recv().await {
-            Ok(status) => Ok(status),
-            Err(_) => Ok(false), // maybe change to a better handling
-        }
-    }
-}
+use super::callbacks::Callback;
 
 pub fn get_all_peers_address(peers: &Arc<RwLock<Vec<PeerIPC>>>) -> WhResult<Vec<Address>> {
     Ok(peers
@@ -229,7 +134,7 @@ impl NetworkInterface {
 
     #[must_use]
     /// Add the requested entry to the arbo and inform the network
-    pub fn register_new_inode(&self, inode: Inode) -> Result<(), MakeInode> {
+    pub fn register_new_inode(&self, inode: Inode) -> Result<(), MakeInodeError> {
         let inode_id = inode.id.clone();
         Arbo::n_write_lock(&self.arbo, "register_new_inode")?.n_add_inode(inode.clone())?;
 
@@ -273,7 +178,7 @@ impl NetworkInterface {
 
     #[must_use]
     /// Get a new inode, add the requested entry to the arbo and inform the network
-    pub fn acknowledge_new_file(&self, inode: Inode, _id: InodeId) -> Result<(), MakeInode> {
+    pub fn acknowledge_new_file(&self, inode: Inode, _id: InodeId) -> Result<(), MakeInodeError> {
         let mut arbo = Arbo::n_write_lock(&self.arbo, "acknowledge_new_file")?;
         arbo.n_add_inode(inode)
     }
@@ -298,168 +203,16 @@ impl NetworkInterface {
         Arbo::n_write_lock(&self.arbo, "acknowledge_unregister_inode")?.n_remove_inode(id)
     }
 
-    pub fn acknowledge_hosts_edition(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
-        let mut arbo = Arbo::write_lock(&self.arbo, "acknowledge_hosts_edition")?;
+    pub fn acknowledge_hosts_edition(&self, id: InodeId, hosts: Vec<Address>) -> WhResult<()> {
+        let mut arbo = Arbo::n_write_lock(&self.arbo, "acknowledge_hosts_edition")?;
 
-        arbo.set_inode_hosts(id, hosts) // TODO - if unable to update for some reason, should be passed to the background worker
+        arbo.n_set_inode_hosts(id, hosts) // TODO - if unable to update for some reason, should be passed to the background worker
     }
 
-    pub fn acknowledge_metadata(
-        &self,
-        id: InodeId,
-        meta: Metadata,
-        host: Address,
-    ) -> io::Result<()> {
-        let mut arbo = Arbo::write_lock(&self.arbo, "acknowledge_metadata")?;
-        arbo.set_inode_hosts(id, vec![host])?;
-        arbo.set_inode_meta(id, meta) // TODO - if unable to update for some reason, should be passed to the background worker
-    }
+    pub fn acknowledge_metadata(&self, id: InodeId, meta: Metadata) -> WhResult<()> {
+        let mut arbo = Arbo::n_write_lock(&self.arbo, "acknowledge_metadata")?;
 
-    // REVIEW - recheck and simplify this if possible
-    pub async fn pull_file_async(&self, file: InodeId) -> io::Result<Option<Callback>> {
-        if file == LOCAL_CONFIG_INO {
-            log::info!("pull file async: We don't have redundancy for the local configuration");
-            return Ok(None);
-        }
-        let hosts = {
-            let arbo = Arbo::read_lock(&self.arbo, "pull_file")?;
-            if let FsEntry::File(hosts) = &arbo.get_inode(file)?.entry {
-                hosts.clone()
-            } else {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "pull_file: can't pull a folder",
-                ));
-            }
-        };
-
-        if hosts.len() == 0 {
-            log::error!("No hosts hold the file");
-            return Err(io::ErrorKind::InvalidData.into());
-        }
-
-        if hosts.contains(
-            &LocalConfig::read_lock(&self.local_config, "network_interface::pull_file_async")
-                .map_err(|e| io::Error::new(ErrorKind::Other, e.to_string()))?
-                .general
-                .address,
-        ) {
-            // if the asked file is already on disk
-            Ok(None)
-        } else {
-            let callback = self.callbacks.create(Callback::Pull(file))?;
-            let (status_tx, mut status_rx) = tokio::sync::mpsc::unbounded_channel::<WhResult<()>>();
-
-            // will try to pull on all redundancies until success
-            for host in hosts {
-                // trying on host `pull_from`
-                self.to_network_message_tx
-                    .send(ToNetworkMessage::SpecificMessage(
-                        (
-                            MessageContent::RequestFile(
-                                file,
-                                LocalConfig::read_lock(
-                                    &self.local_config,
-                                    "network_interface::pull_file_async",
-                                )
-                                .map_err(|e| io::Error::new(ErrorKind::Other, e.to_string()))?
-                                .general
-                                .address
-                                .clone(),
-                            ),
-                            Some(status_tx.clone()),
-                        ),
-                        vec![host.clone()], // NOTE - naive choice for now
-                    ))
-                    .expect("pull_file: unable to request on the network thread");
-
-                // processing status
-                match status_rx
-                    .recv()
-                    .await
-                    .expect("pull_file: unable to get status from the network thread")
-                {
-                    Ok(()) => return Ok(Some(callback)),
-                    Err(_) => continue,
-                }
-            }
-            let _ = self.callbacks.resolve(callback, true);
-            log::error!("No host is currently able to send the file\nFile: {file}");
-            return Err(io::ErrorKind::NotConnected.into());
-        }
-    }
-
-    // REVIEW - recheck and simplify this if possible
-    pub fn pull_file_sync(&self, file: InodeId) -> io::Result<Option<Callback>> {
-        if file == LOCAL_CONFIG_INO {
-            log::info!("pull file sync: We don't have redundancy for the local configuration");
-            return Ok(None);
-        }
-        let hosts = {
-            let arbo = Arbo::read_lock(&self.arbo, "pull_file")?;
-            if let FsEntry::File(hosts) = &arbo.get_inode(file)?.entry {
-                hosts.clone()
-            } else {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "pull_file: can't pull a folder",
-                ));
-            }
-        };
-
-        if hosts.len() == 0 {
-            log::error!("No hosts hold the file");
-            return Err(io::ErrorKind::InvalidData.into());
-        }
-
-        if hosts.contains(
-            &LocalConfig::read_lock(&self.local_config, "network_interface::pull_file_sync")
-                .map_err(|e| io::Error::new(ErrorKind::Other, e.to_string()))?
-                .general
-                .address,
-        ) {
-            // if the asked file is already on disk
-            Ok(None)
-        } else {
-            let callback = self.callbacks.create(Callback::Pull(file))?;
-            let (status_tx, mut status_rx) = tokio::sync::mpsc::unbounded_channel::<WhResult<()>>();
-
-            // will try to pull on all redundancies until success
-            for host in hosts {
-                // trying on host `pull_from`
-                self.to_network_message_tx
-                    .send(ToNetworkMessage::SpecificMessage(
-                        (
-                            MessageContent::RequestFile(
-                                file,
-                                LocalConfig::read_lock(
-                                    &self.local_config,
-                                    "network_interface::pull_file_sync",
-                                )
-                                .map_err(|e| io::Error::new(ErrorKind::Other, e.to_string()))?
-                                .general
-                                .address
-                                .clone(),
-                            ),
-                            Some(status_tx.clone()),
-                        ),
-                        vec![host.clone()], // NOTE - naive choice for now
-                    ))
-                    .expect("pull_file: unable to request on the network thread");
-
-                // processing status
-                match status_rx
-                    .blocking_recv()
-                    .expect("pull_file: unable to get status from the network thread")
-                {
-                    Ok(()) => return Ok(Some(callback)),
-                    Err(_) => continue,
-                }
-            }
-            let _ = self.callbacks.resolve(callback, true);
-            log::error!("No host is currently able to send the file\nFile: {file}");
-            return Err(io::ErrorKind::NotConnected.into());
-        }
+        arbo.n_set_inode_meta(id, meta) // TODO - if unable to update for some reason, should be passed to the background worker
     }
 
     pub fn send_file(&self, inode: InodeId, data: Vec<u8>, to: Address) -> io::Result<()> {
@@ -472,26 +225,45 @@ impl NetworkInterface {
         Ok(())
     }
 
-    pub async fn send_file_redundancy(
+    fn affect_write_locally(&self, id: InodeId, new_size: u64, blocks: u64) -> WhResult<()> {
+        let address = LocalConfig::read_lock(&self.local_config, "affect_write_locally")?
+            .general
+            .address
+            .clone();
+        let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface.affect_write_locally")?;
+        let inode = arbo.n_get_inode_mut(id)?;
+
+        inode.meta.size = new_size;
+        inode.meta.blocks = blocks;
+
+        inode.entry = match &inode.entry {
+            FsEntry::File(_) => FsEntry::File(vec![address]),
+            _ => panic!("Can't edit hosts on folder"),
+        };
+        Ok(())
+    }
+
+    pub fn write_file(
         &self,
-        inode: InodeId,
-        data: Vec<u8>,
-        to: Address,
-    ) -> WhResult<Address> {
-        let (status_tx, mut status_rx) = unbounded_channel();
+        id: InodeId,
+        new_size: u64,
+        blocks: u64,
+        meta: Metadata,
+    ) -> WhResult<()> {
+        self.affect_write_locally(id, new_size, blocks)?;
+
+        let address = LocalConfig::read_lock(&self.local_config, "affect_write_locally")?
+            .general
+            .address
+            .clone();
+
         self.to_network_message_tx
-            .send(ToNetworkMessage::SpecificMessage(
-                (MessageContent::RedundancyFile(inode, data), Some(status_tx)),
-                vec![to.clone()],
+            .send(ToNetworkMessage::BroadcastMessage(
+                MessageContent::RevokeFile(id, address, meta),
             ))
-            .expect("send_file: unable to update modification on the network thread");
-        status_rx
-            .recv()
-            .await
-            .unwrap_or(Err(WhError::NetworkDied {
-                called_from: "network_interface::send_file_redundancy".to_owned(),
-            }))
-            .map(|()| to)
+            .expect("revoke_remote_hosts: unable to update modification on the network thread");
+        self.apply_redundancy(id);
+        Ok(())
     }
 
     pub fn revoke_remote_hosts(&self, id: InodeId) -> WhResult<()> {
@@ -550,15 +322,7 @@ impl NetworkInterface {
 
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::EditMetadata(
-                    id,
-                    meta,
-                    LocalConfig::read_lock(&self.local_config, ".")
-                        .expect("update_metadata: can't read local config address")
-                        .general
-                        .address
-                        .clone(),
-                ),
+                MessageContent::EditMetadata(id, meta),
             ))
             .expect("update_metadata: unable to update modification on the network thread");
         Ok(())
@@ -577,17 +341,7 @@ impl NetworkInterface {
 
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::EditMetadata(
-                    id,
-                    meta,
-                    LocalConfig::read_lock(
-                        &self.local_config,
-                        "network_interface::n_update_metadata",
-                    )?
-                    .general
-                    .address
-                    .clone(),
-                ),
+                MessageContent::EditMetadata(id, meta),
             ))
             .expect("update_metadata: unable to update modification on the network thread");
         Ok(())
@@ -734,9 +488,10 @@ impl NetworkInterface {
                 Some(message) => message,
                 None => continue,
             };
-            log::debug!("message from {} : {:?}", origin, content);
+            log::debug!("From {}: {:?}", origin, content);
+            let content_name = content.to_string();
 
-            let action_result = match content.clone() { // remove scary clone
+            let action_result = match content { // remove scary clone
                 MessageContent::PullAnswer(id, binary) => fs_interface.recept_binary(id, binary),
                 MessageContent::RedundancyFile(id, binary) => fs_interface.recept_redundancy(id, binary)
                     .map_err(|e| std::io::Error::new(
@@ -749,14 +504,29 @@ impl NetworkInterface {
                             format!("WhError: {err}"),
                         ))
                     }),
-                MessageContent::EditHosts(id, hosts) => fs_interface.recept_edit_hosts(id, hosts),
+                MessageContent::EditHosts(id, hosts) => fs_interface.recept_edit_hosts(id, hosts).or_else(|err| {
+                        Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            format!("WhError: {err}"),
+                        ))
+                    }),
+                MessageContent::RevokeFile(id, host, meta) => fs_interface.recept_revoke_hosts(id, host, meta).or_else(|err| {
+                        Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            format!("WhError: {err}"),
+                        ))
+                    }),
                 MessageContent::AddHosts(id, hosts) => fs_interface.recept_add_hosts(id, hosts),
                 MessageContent::RemoveHosts(id, hosts) => {
                     fs_interface.recept_remove_hosts(id, hosts)
                 }
-                MessageContent::EditMetadata(id, meta, host) => {
-                    fs_interface.recept_edit_metadata(id, meta, host)
-                }
+                MessageContent::EditMetadata(id, meta) =>
+                    fs_interface.network_interface.acknowledge_metadata(id, meta).or_else(|err| {
+                        Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            format!("WhError: {err}"),
+                        ))
+                    }),
                 MessageContent::Remove(id) => fs_interface.recept_remove_inode(id).or_else(|err| {
                         Err(std::io::Error::new(
                             std::io::ErrorKind::Other,
@@ -769,7 +539,6 @@ impl NetworkInterface {
                 MessageContent::Rename(parent, new_parent, name, new_name) => {
                     fs_interface.accept_rename(parent, new_parent, &name, &new_name)
                 }
-                MessageContent::RequestPull(id) => fs_interface.pull_file_async(id).await,
                 MessageContent::SetXAttr(ino, key, data) => fs_interface
                     .network_interface
                     .recept_inode_xattr(ino, key, data)
@@ -796,7 +565,7 @@ impl NetworkInterface {
             };
             if let Err(error) = action_result {
                 log::error!(
-                    "Network airport couldn't operate operation {content:?}, error found: {error}"
+                    "Network airport couldn't operate operation {content_name:?}, error found: {error}"
                 );
             }
         }
@@ -819,7 +588,6 @@ impl NetworkInterface {
             match message {
                 ToNetworkMessage::BroadcastMessage(message_content) => {
                     peers_tx.iter().for_each(|(channel, address)| {
-                        println!("peer: {}", address);
                         channel
                             .send((message_content.clone(), None))
                             .expect(&format!("failed to send message to peer {}", address))

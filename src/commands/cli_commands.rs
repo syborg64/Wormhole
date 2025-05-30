@@ -1,6 +1,4 @@
-use std::collections::HashMap;
-
-use crate::pods::{arbo::{GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME}, pod::Pod, whpath::WhPath};
+use crate::pods::{arbo::{GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME}, whpath::WhPath};
 use clap::{Args, Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
 

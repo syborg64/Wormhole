@@ -4,7 +4,7 @@ use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::{
-    error::{CliError, CliResult, WhError, WhResult},
+    error::{CliError, WhError, WhResult},
     pods::arbo::LOCK_TIMEOUT,
 };
 

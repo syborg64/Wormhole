@@ -4,7 +4,6 @@ use std::{fmt, io};
 use crate::pods::pod::PodInfoError;
 use crate::pods::pod::PodStopError;
 use bincode;
-use tokio_tungstenite::tungstenite;
 
 custom_error! {pub WhError
     InodeNotFound = "Entry not found",

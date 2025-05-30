@@ -99,7 +99,7 @@ impl DiskManager {
         let mut buf = Vec::<u8>::new();
         self.handle
             .open_file(path.set_relative())?
-            .read_to_end(&mut buf);
+            .read_to_end(&mut buf)?;
         Ok(buf)
     }
 

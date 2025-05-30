@@ -10,7 +10,7 @@ use crate::network::message::{
     FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
 };
 use crate::pods::arbo::{FsEntry, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO, ROOT};
-use crate::pods::network::redundancy::{self, redundancy_worker};
+use crate::pods::network::redundancy::redundancy_worker;
 #[cfg(target_os = "windows")]
 use crate::winfsp::winfsp_impl::mount_fsp;
 use custom_error::custom_error;
@@ -152,7 +152,7 @@ impl Pod {
         log::info!("mount point {}", mount_point);
         let (to_network_message_tx, to_network_message_rx) = mpsc::unbounded_channel();
         let (from_network_message_tx, mut from_network_message_rx) = mpsc::unbounded_channel();
-        let (to_redundancy_tx, mut to_redundancy_rx) = mpsc::unbounded_channel();
+        let (to_redundancy_tx, to_redundancy_rx) = mpsc::unbounded_channel();
 
         global_config.general.peers.retain(|x| *x != server_address);
 

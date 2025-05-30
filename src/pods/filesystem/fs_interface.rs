@@ -1,12 +1,10 @@
 use crate::config::{types::Config, LocalConfig};
 use crate::error::{WhError, WhResult};
 use crate::network::message::Address;
-use crate::pods::arbo::{
-    Arbo, FsEntry, Inode, InodeId, Metadata, ARBO_FILE_FNAME, ARBO_FILE_INO, GLOBAL_CONFIG_FNAME,
-    GLOBAL_CONFIG_INO, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO, LOCK_TIMEOUT,
-};
+use crate::pods::arbo::{Arbo, FsEntry, Inode, InodeId, Metadata, GLOBAL_CONFIG_INO};
 use crate::pods::disk_manager::DiskManager;
-use crate::pods::network::network_interface::{Callback, NetworkInterface};
+use crate::pods::network::callbacks::Callback;
+use crate::pods::network::network_interface::NetworkInterface;
 use crate::pods::whpath::WhPath;
 
 use parking_lot::RwLock;
@@ -14,12 +12,14 @@ use serde::{Deserialize, Serialize};
 use std::io::{self, ErrorKind};
 use std::sync::Arc;
 
-use super::make_inode::MakeInode;
+use super::file_handle::FileHandleManager;
+use super::make_inode::MakeInodeError;
 
 #[derive(Debug)]
 pub struct FsInterface {
     pub network_interface: Arc<NetworkInterface>,
     pub disk: DiskManager,
+    pub file_handles: Arc<RwLock<FileHandleManager>>,
     pub arbo: Arc<RwLock<Arbo>>, // here only to read, as most write are made by network_interface
                                  // REVIEW - check self.arbo usage to be only reading
 }
@@ -50,6 +50,7 @@ impl FsInterface {
         Self {
             network_interface,
             disk: disk_manager,
+            file_handles: Arc::new(RwLock::new(FileHandleManager::new())),
             arbo,
         }
     }
@@ -118,44 +119,10 @@ impl FsInterface {
             .cloned()
     }
 
-    // NOTE - ignores the callback. To pull a file normaly, please use a process similar to read_file
-    pub async fn pull_file_async(&self, file: InodeId) -> io::Result<()> {
-        self.network_interface
-            .pull_file_async(file)
-            .await
-            .map(|_| ())
-    }
-
-    pub fn read_file(&self, file: InodeId, offset: u64, len: u64) -> io::Result<Vec<u8>> {
-        let cb = self.network_interface.pull_file_sync(file)?;
-
-        let status = match cb {
-            None => true,
-            Some(call) => self.network_interface.callbacks.wait_for(call)?,
-        };
-
-        if !status {
-            return Err(io::Error::new(
-                io::ErrorKind::BrokenPipe,
-                "unable to pull file",
-            ));
-        }
-
-        self.disk.read_file(
-            Arbo::read_lock(&self.arbo, "read_file")?.get_path_from_inode_id(file)?,
-            offset,
-            len,
-        )
-    }
-
     pub fn get_inode_attributes(&self, ino: InodeId) -> io::Result<Metadata> {
         let arbo = Arbo::read_lock(&self.arbo, "fs_interface::get_inode_attributes")?;
 
         Ok(arbo.get_inode(ino)?.meta.clone())
-    }
-
-    pub fn set_inode_attributes(&self, ino: InodeId, meta: Metadata) -> io::Result<()> {
-        self.network_interface.update_metadata(ino, meta)
     }
 
     pub fn read_dir(&self, ino: InodeId) -> io::Result<Vec<Inode>> {
@@ -179,7 +146,7 @@ impl FsInterface {
     // !SECTION
 
     // SECTION - remote -> write
-    pub fn recept_inode(&self, inode: Inode) -> Result<(), MakeInode> {
+    pub fn recept_inode(&self, inode: Inode) -> Result<(), MakeInodeError> {
         self.network_interface
             .acknowledge_new_file(inode.clone(), inode.id)?;
         self.network_interface.promote_next_inode(inode.id + 1)?;
@@ -190,6 +157,7 @@ impl FsInterface {
         };
 
         match inode.entry {
+            // REVIEW - is it still useful to create an empty file in this case ?
             FsEntry::File(hosts)
                 if hosts.contains(
                     &LocalConfig::read_lock(&self.network_interface.local_config, "recept_inode")?
@@ -200,14 +168,14 @@ impl FsInterface {
                 self.disk
                     .new_file(new_path, inode.meta.perm)
                     .map(|_| ())
-                    .map_err(|io| MakeInode::LocalCreationFailed { io })
+                    .map_err(|io| MakeInodeError::LocalCreationFailed { io })
             }
             FsEntry::File(_) => Ok(()),
             FsEntry::Directory(_) => self
                 .disk
                 .new_dir(new_path, inode.meta.perm)
                 .map(|_| ())
-                .map_err(|io| MakeInode::LocalCreationFailed { io }),
+                .map_err(|io| MakeInodeError::LocalCreationFailed { io }),
             // TODO - remove when merge is handled because new file should create folder
             // FsEntry::Directory(_) => {}
         }
@@ -277,20 +245,38 @@ impl FsInterface {
         Ok(())
     }
 
-    pub fn recept_edit_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
+    pub fn recept_edit_hosts(&self, id: InodeId, hosts: Vec<Address>) -> WhResult<()> {
         if !hosts.contains(
-            &LocalConfig::read_lock(&self.network_interface.local_config, "recept_binary")
-                .map_err(|e| io::Error::new(ErrorKind::Other, e.to_string()))?
+            &LocalConfig::read_lock(&self.network_interface.local_config, "recept_binary")?
                 .general
                 .address,
         ) {
             if let Err(e) = self.disk.remove_file(
-                Arbo::read_lock(&self.arbo, "recept_edit_hosts")?.get_path_from_inode_id(id)?,
+                Arbo::n_read_lock(&self.arbo, "recept_edit_hosts")?.n_get_path_from_inode_id(id)?,
             ) {
                 log::debug!("recept_edit_hosts: can't delete file. {}", e);
             }
         }
         self.network_interface.acknowledge_hosts_edition(id, hosts)
+    }
+
+    pub fn recept_revoke_hosts(&self, id: InodeId, host: Address, meta: Metadata) -> WhResult<()> {
+        if host
+            != LocalConfig::read_lock(&self.network_interface.local_config, "recept_binary")?
+                .general
+                .address
+        {
+            // TODO: recept_revoke_hosts, for the redudancy, should recieve the written text (data from write) instead of deleting and adding it back completely with apply_redudancy
+            if let Err(e) = self.disk.remove_file(
+                Arbo::n_read_lock(&self.arbo, "recept_revoke_hosts")?
+                    .n_get_path_from_inode_id(id)?,
+            ) {
+                log::debug!("recept_revoke_hosts: can't delete file. {}", e);
+            }
+        }
+        self.network_interface.acknowledge_metadata(id, meta)?;
+        self.network_interface
+            .acknowledge_hosts_edition(id, vec![host])
     }
 
     pub fn recept_add_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
@@ -314,14 +300,6 @@ impl FsInterface {
         self.network_interface.aknowledge_hosts_removal(id, hosts)
     }
 
-    pub fn recept_edit_metadata(
-        &self,
-        id: InodeId,
-        meta: Metadata,
-        host: Address,
-    ) -> io::Result<()> {
-        self.network_interface.acknowledge_metadata(id, meta, host)
-    }
     // !SECTION
 
     // SECTION remote -> read

@@ -19,11 +19,9 @@ use std::collections::HashMap;
  *  and execute instructions on the disk
  */
 use std::env;
-use std::net::Ipv4Addr;
 
 use futures_util::stream::SplitSink;
 use futures_util::{SinkExt, StreamExt};
-use log::info;
 use tokio::net::TcpListener;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio_tungstenite::tungstenite::Message;
@@ -31,11 +29,11 @@ use tokio_tungstenite::{accept_async, WebSocketStream};
 #[cfg(target_os = "windows")]
 use winfsp::winfsp_init;
 use wormhole::commands::{self, cli_commands::Cli};
-use wormhole::error::{CliError, CliResult, CliSuccess, WhError, WhResult};
-use wormhole::network::ip::IpP;
-use wormhole::pods::pod::{Pod, PodInfoAnswer, PodInfoRequest, PodStopError};
 use wormhole::config::types::Config;
 use wormhole::config::LocalConfig;
+use wormhole::error::{CliError, CliSuccess, WhError, WhResult};
+use wormhole::network::ip::IpP;
+use wormhole::pods::pod::{Pod, PodInfoAnswer, PodInfoRequest};
 
 type CliTcpWriter =
     SplitSink<WebSocketStream<tokio::net::TcpStream>, tokio_tungstenite::tungstenite::Message>;
@@ -56,14 +54,16 @@ async fn handle_cli_command(
                 })
             }
             Err(e) => Err(e),
-        }
+        },
         Cli::Start(pod_args) => commands::service::start(pod_args).await,
         Cli::Stop(pod_args) => {
             if let Some(pod) = pods.remove(&pod_args.name) {
                 commands::service::stop(pod).await
             } else {
                 log::warn!("(TODO) Stopping a pod by path is not yet implemented");
-                Err(CliError::PodRemovalFailed { name: pod_args.name })
+                Err(CliError::PodRemovalFailed {
+                    name: pod_args.name,
+                })
             }
         }
         Cli::Remove(remove_arg) => {
@@ -83,7 +83,9 @@ async fn handle_cli_command(
             if let Some(pod) = opt {
                 commands::service::remove(remove_arg, pod).await
             } else {
-                Err(CliError::PodRemovalFailed { name: remove_arg.name })
+                Err(CliError::PodRemovalFailed {
+                    name: remove_arg.name,
+                })
             }
         }
         Cli::Restore(mut resotre_args) => {
@@ -106,7 +108,9 @@ async fn handle_cli_command(
                     resotre_args.name,
                     resotre_args.path
                 );
-                Err(CliError::PodRemovalFailed { name: resotre_args.name })
+                Err(CliError::PodRemovalFailed {
+                    name: resotre_args.name,
+                })
             }
         }
         Cli::Apply(mut pod_conf) => {
@@ -115,14 +119,13 @@ async fn handle_cli_command(
                 pods.iter()
                     .find(|(_, pod)| pod.get_mount_point() == &pod_conf.path)
             } else {
-                pods.iter()
-                    .find(|(n, _)| n == &&pod_conf.name)
+                pods.iter().find(|(n, _)| n == &&pod_conf.name)
             };
-            
+
             //Apply new confi in the pod and check if the name change
             let res = if let Some((name, pod)) = opt_pod {
                 pod_conf.path = pod.get_mount_point().clone();
-                
+
                 match commands::service::apply(
                     pod.local_config.clone(),
                     pod.global_config.clone(),
@@ -130,20 +133,28 @@ async fn handle_cli_command(
                 ) {
                     Err(err) => Err(err),
                     Ok(_) => {
-                        match LocalConfig::read_lock(&pod.local_config.clone(), "handle_cli_command::apply") {
+                        match LocalConfig::read_lock(
+                            &pod.local_config.clone(),
+                            "handle_cli_command::apply",
+                        ) {
                             Ok(local) => {
                                 if local.general.name != *name {
                                     Ok(Some((local.general.name.clone(), name.clone())))
                                 } else {
                                     Ok(None)
                                 }
-                            },
-                            Err(err) => Err(CliError::WhError { source: err })
+                            }
+                            Err(err) => Err(CliError::WhError { source: err }),
                         }
                     }
                 }
             } else {
-                Err(CliError::Message { reason: format!("This name or path doesn't existe in the hashmap: {:?}, {:?}", pod_conf.name, pod_conf.path) })
+                Err(CliError::Message {
+                    reason: format!(
+                        "This name or path doesn't existe in the hashmap: {:?}, {:?}",
+                        pod_conf.name, pod_conf.path
+                    ),
+                })
             };
 
             // Modify the name in the hashmap if it necessary
@@ -153,10 +164,14 @@ async fn handle_cli_command(
                         pods.insert(new_name, pod);
                         Ok(CliSuccess::Message("tt".to_owned()))
                     } else {
-                        Err(CliError::Message { reason: "non".to_owned() })
+                        Err(CliError::Message {
+                            reason: "non".to_owned(),
+                        })
                     }
                 }
-                Ok(None) => {todo!()}
+                Ok(None) => {
+                    todo!()
+                }
                 Err(err) => Err(err),
             }
         }
@@ -168,35 +183,12 @@ async fn handle_cli_command(
                         data: format!("{:?}", hosts),
                     }),
                     Err(error) => Err(CliError::PodInfoError { source: error }),
-                    _ => Ok(CliSuccess::Message(
-                        "ERROR: GetHosts -> wrong answer type received.".to_owned(),
-                    )),
+                    // _ => Ok(CliSuccess::Message(
+                    //     "ERROR: GetHosts -> wrong answer type received.".to_owned(),
+                    // )),
                 }
             } else {
                 Err(CliError::PodNotFound)
-            }
-        }
-        Cli::Restore(mut resotre_args) => {
-            let opt_pod = if resotre_args.name == "." {
-                pods.iter()
-                    .find(|(_, pod)| pod.get_mount_point() == &resotre_args.path)
-            } else {
-                pods.iter().find(|(n, _)| n == &&resotre_args.name)
-            };
-            if let Some((_, pod)) = opt_pod {
-                resotre_args.path = pod.get_mount_point().clone();
-                commands::service::restore(
-                    pod.local_config.clone(),
-                    pod.global_config.clone(),
-                    resotre_args,
-                )
-            } else {
-                log::error!(
-                    "Pod at this path doesn't existe {:?}, {:?}",
-                    resotre_args.name,
-                    resotre_args.path
-                );
-                Err(CliError::PodRemovalFailed { name: resotre_args.name })
             }
         }
         _ => Err(CliError::InvalidCommand),

@@ -1,15 +1,14 @@
 use super::network_interface::{get_all_peers_address, NetworkInterface};
 use crate::{
-    error::WhResult,
-    network::message::{Address, RedundancyMessage},
-    pods::{
-        arbo::{Arbo, InodeId},
-        filesystem::fs_interface::FsInterface,
-    },
+    error::{WhError, WhResult},
+    network::message::{Address, MessageContent, RedundancyMessage, ToNetworkMessage},
+    pods::{arbo::InodeId, filesystem::fs_interface::FsInterface},
 };
 use std::sync::Arc;
-use tokio::{sync::mpsc::UnboundedReceiver, task::JoinSet};
-use crate::config::{GlobalConfig, types::Config};
+use tokio::{
+    sync::mpsc::{unbounded_channel, UnboundedReceiver},
+    task::JoinSet,
+};
 
 /// Redundancy Worker
 /// Worker that applies the redundancy to files
@@ -18,7 +17,7 @@ pub async fn redundancy_worker(
     nw_interface: Arc<NetworkInterface>,
     fs_interface: Arc<FsInterface>,
     redundancy: u64, // TODO - when updated in conf, send a message to this worker for update
-    self_addr: Address // TODO - Same
+    self_addr: Address, // TODO - Same
 ) {
     loop {
         let message = match reception.recv().await {
@@ -50,7 +49,7 @@ pub async fn redundancy_worker(
                         ino,
                         file_binary,
                         target_redundancy,
-                        self_addr.clone()
+                        self_addr.clone(),
                     )
                     .await;
 
@@ -123,4 +122,30 @@ async fn push_redundancy(
         }
     }
     success_hosts
+}
+
+impl NetworkInterface {
+    pub async fn send_file_redundancy(
+        &self,
+        inode: InodeId,
+        data: Vec<u8>,
+        to: Address,
+    ) -> WhResult<Address> {
+        let (status_tx, mut status_rx) = unbounded_channel();
+
+        self.to_network_message_tx
+            .send(ToNetworkMessage::SpecificMessage(
+                (MessageContent::RedundancyFile(inode, data), Some(status_tx)),
+                vec![to.clone()],
+            ))
+            .expect("send_file: unable to update modification on the network thread");
+
+        status_rx
+            .recv()
+            .await
+            .unwrap_or(Err(WhError::NetworkDied {
+                called_from: "network_interface::send_file_redundancy".to_owned(),
+            }))
+            .map(|()| to)
+    }
 }
