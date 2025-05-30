@@ -295,16 +295,12 @@ impl WhPath {
                 if i + 1 < chars.len() && (chars[i + 1] == '/' || chars[i + 1] == '.') {
                     i += 1;
                     j += 2;
-                    println!("i: {}, j: {}", i, j);
                 } else {
-                    println!("i: {}, j: {}", i, j);
                     break;
                 }
             } else if chars[i] == '/' {
                 j += 1;
-                println!("i: {}, j: {}", i, j);
             } else {
-                println!("i: {}, j: {}", i, j);
                 break;
             }
             i += 1;
