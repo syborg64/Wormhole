@@ -683,6 +683,7 @@ impl Arbo {
 /// 1 - "/"
 /// 2 - ".global_config.toml"
 /// 3 - ".local_config.toml"
+#[cfg(target_os = "linux")]
 fn index_folder_recursive(
     arbo: &mut Arbo,
     parent: InodeId,
@@ -796,34 +797,6 @@ impl TryInto<Metadata> for fs::Metadata {
             gid: self.gid(),
             rdev: self.rdev() as u32,
             blksize: self.blksize() as u32,
-            flags: 0,
-        })
-    }
-}
-
-#[cfg(not(target_os = "linux"))]
-impl TryInto<Metadata> for fs::Metadata {
-    type Error = std::io::Error;
-    fn try_into(self) -> Result<Metadata, std::io::Error> {
-        Ok(Metadata {
-            ino: 0,
-            size: self.len(),
-            blocks: 1,
-            atime: self.accessed()?,
-            mtime: self.modified()?,
-            ctime: self.modified()?,
-            crtime: self.created()?,
-            kind: if self.is_file() {
-                SimpleFileType::File
-            } else {
-                SimpleFileType::Directory
-            },
-            perm: 0, // TODO!
-            nlink: 0,
-            uid: 0,
-            gid: 0,
-            rdev: 0,
-            blksize: 0,
             flags: 0,
         })
     }
