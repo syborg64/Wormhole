@@ -738,8 +738,6 @@ pub fn index_folder(path: &WhPath, host: &String) -> io::Result<(Arbo, InodeId)>
 
 /* NOTE
  * is currently made with fuse in sight. Will probably need to be edited to be windows compatible
- * todo: remove fields that aren't used in wormhole itself:
- *   blocks, nlink, user, group, dev, blksize, flags
  */
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Metadata {
