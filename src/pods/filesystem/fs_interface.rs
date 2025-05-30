@@ -189,7 +189,8 @@ impl FsInterface {
         self.disk
             .write_file(path, &binary, 0)
             .map_err(|e| WhError::DiskError {
-                detail: format!("recept_redundancy: can't write file ({id}): {e}"),
+                detail: format!("recept_redundancy: can't write file ({id})"),
+                err: e,
             })
             .inspect_err(|e| log::error!("{e}"))?;
         // TODO -> in case of failure, other hosts still think this one is valid. Should send error report to the redundancy manager
