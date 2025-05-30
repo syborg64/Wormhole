@@ -90,9 +90,6 @@ impl DiskManager for WindowsDiskManager {
     }
 
     fn write_file(&self, path: &WhPath, binary: &[u8], offset: usize) -> io::Result<usize> {
-        #[cfg(target_os = "linux")]
-        return std::fs::File::open(&self.mount_point.join(path).inner)?.write_at(binary, offset);
-        #[cfg(target_os = "windows")]
         return std::fs::File::open(&self.mount_point.join(path).inner)?.seek_write(binary, offset as u64);
     }
 
