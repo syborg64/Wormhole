@@ -8,7 +8,7 @@ use crate::error::CliResult;
 
 #[cfg(target_os = "windows")]
 #[must_use]
-pub fn register(path: &std::path::PathBuf, name: &str) -> Result<(), Box<dyn Error>> {
+pub fn register(_path: &std::path::PathBuf, _name: &str) -> CliResult<()> {
     return Ok(());
     // let canonical = path.canonicalize();
     // std::os::windows::fs::symlink_dir(
