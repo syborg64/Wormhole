@@ -1,6 +1,6 @@
 use crate::{
     error::WhError,
-    pods::arbo::{Arbo, InodeId, BLOCK_SIZE},
+    pods::arbo::{Arbo, InodeId},
 };
 use custom_error::custom_error;
 use parking_lot::RwLockReadGuard;
