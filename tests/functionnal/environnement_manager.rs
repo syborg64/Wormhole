@@ -43,11 +43,21 @@ impl EnvironnementManager {
         }
     }
 
-    pub fn add_service(
-        &mut self,
-        ip: IpP,
-        pipe_output: bool,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn add_service(&mut self, pipe_output: bool) -> Result<(), Box<dyn std::error::Error>> {
+        let ip = self
+            .services
+            .iter()
+            .map(|service| &service.ip)
+            .max_by(|ip1, ip2| ip1.port.cmp(&ip2.port))
+            .map_or_else(
+                || IpP::try_from(&"127.0.0.1:8081".to_string()).unwrap(),
+                |ip| {
+                    let mut ip = ip.clone();
+                    ip.set_port(ip.port + 1);
+                    ip
+                },
+            );
+
         let mut command = Command::new("cargo");
         command.kill_on_drop(true);
 
@@ -86,42 +96,36 @@ impl EnvironnementManager {
         connect_to: Option<&IpP>,
         pipe_output: bool,
     ) -> Result<std::process::ExitStatus, Box<dyn std::error::Error>> {
-        let mut command = Command::new("cargo");
-        command.kill_on_drop(true);
+        let mut command = std::process::Command::new("cargo");
 
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()?;
-        let test = rt.block_on(
-            command
-                .args({
-                    let mut args = vec![
-                        "run".to_string(),
-                        "--bin".to_string(),
-                        "wormhole-cli".to_string(),
-                        service_ip.to_string(), // service ip
-                        "new".to_string(),
-                        network_name, // network name
-                        "-C".to_string(),
-                        dir_path.to_string_lossy().to_string(),
-                        ip.to_string(),
-                    ];
+        Ok(command
+            .args({
+                let mut args = vec![
+                    "run".to_string(),
+                    "--bin".to_string(),
+                    "wormhole-cli".to_string(),
+                    service_ip.to_string(), // service ip
+                    "new".to_string(),
+                    network_name, // network name
+                    "-C".to_string(),
+                    dir_path.to_string_lossy().to_string(),
+                    ip.to_string(),
+                ];
 
-                    if let Some(peer) = connect_to {
-                        args.push("-u".to_string());
-                        args.push(peer.to_string());
-                    }
-                    args
-                })
-                .stdout(Self::generate_pipe(pipe_output))
-                .stderr(Self::generate_pipe(pipe_output))
-                .spawn()?
-                .wait(),
-        )?;
-        Ok(test)
+                if let Some(peer) = connect_to {
+                    args.push("-u".to_string());
+                    args.push(peer.to_string());
+                }
+                args
+            })
+            .stdout(Self::generate_pipe(pipe_output))
+            .stderr(Self::generate_pipe(pipe_output))
+            .spawn()?
+            .wait()?)
     }
 
-    /// Create a network for each service running (1 pod per service, connected to every other service's pods)
+    /// Create pod connected a network for each service running
+    /// except if the service already has a pod on that network
     pub async fn create_network(
         &mut self,
         network_name: String,
