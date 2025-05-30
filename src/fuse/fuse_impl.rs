@@ -619,10 +619,10 @@ impl Filesystem for FuseController {
             }) => reply.error(libc::ENOENT),
             Err(CreateError::MakeInode {
                 source: MakeInodeError::ParentNotFolder,
-            }) => reply.error(libc::EISDIR),
+            }) => reply.error(libc::ENOTDIR),
             Err(CreateError::MakeInode {
                 source: MakeInodeError::ProtectedNameIsFolder,
-            }) => reply.error(libc::ENOTDIR),
+            }) => reply.error(libc::EISDIR),
             Err(CreateError::WhError { source }) => reply.error(source.to_libc()),
             Err(CreateError::OpenError {
                 source: OpenError::WhError { source },

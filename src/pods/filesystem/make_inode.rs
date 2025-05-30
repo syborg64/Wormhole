@@ -63,7 +63,7 @@ impl FsInterface {
         };
 
         let special_ino = Arbo::get_special(&name, parent_ino);
-        if special_ino.is_some() && kind == SimpleFileType::File {
+        if special_ino.is_some() && kind != SimpleFileType::File {
             return Err(MakeInodeError::ProtectedNameIsFolder);
         }
         let new_inode_id = special_ino
