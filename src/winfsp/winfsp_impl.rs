@@ -32,7 +32,7 @@ use crate::{
         arbo::{Arbo, Metadata},
         filesystem::{
             fs_interface::{FsInterface, SimpleFileType},
-            make_inode::MakeInode,
+            make_inode::MakeInodeError,
             write::WriteError,
         },
         whpath::WhPath,
@@ -312,11 +312,11 @@ impl FileSystemContext for FSPController {
 
                 Ok(WormholeHandle(inode.id))
             }
-            Err(MakeInode::AlreadyExist) => Err(STATUS_OBJECT_NAME_COLLISION.into()),
-            Err(MakeInode::LocalCreationFailed { io }) => Err(io.into()),
-            Err(MakeInode::ParentNotFolder) => Err(STATUS_NOT_A_DIRECTORY.into()),
-            Err(MakeInode::ParentNotFound) => Err(STATUS_OBJECT_NAME_NOT_FOUND.into()),
-            Err(MakeInode::WhError { source: _ }) => Err(STATUS_OBJECT_NAME_NOT_FOUND.into()),
+            Err(MakeInodeError::AlreadyExist) => Err(STATUS_OBJECT_NAME_COLLISION.into()),
+            Err(MakeInodeError::LocalCreationFailed { io }) => Err(io.into()),
+            Err(MakeInodeError::ParentNotFolder) => Err(STATUS_NOT_A_DIRECTORY.into()),
+            Err(MakeInodeError::ParentNotFound) => Err(STATUS_OBJECT_NAME_NOT_FOUND.into()),
+            Err(MakeInodeError::WhError { source: _ }) => Err(STATUS_OBJECT_NAME_NOT_FOUND.into()),
         }
         .inspect_err(|e| log::error!("create::{e}"))
     }
