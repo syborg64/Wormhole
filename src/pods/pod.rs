@@ -298,11 +298,12 @@ impl Pod {
         possible_hosts: &Vec<Address>,
         ino: InodeId,
         path: WhPath,
+        file_size: u64,
     ) -> Result<(), PodStopError> {
         let file_content = self
             .fs_interface
             .disk
-            .read_file_to_end(path.clone())
+            .read_file(path.clone(), 0, file_size)
             .map_err(|e| PodStopError::FileNotReadable {
                 file: path.clone(),
                 reason: e.to_string(),
@@ -349,20 +350,24 @@ impl Pod {
         };
 
         arbo.files_hosted_only_by(&address)
-            .filter_map(|id| {
-                if id == GLOBAL_CONFIG_INO || id == LOCAL_CONFIG_INO || id == ARBO_FILE_INO {
+            .filter_map(|inode| {
+                if inode.id == GLOBAL_CONFIG_INO
+                    || inode.id == LOCAL_CONFIG_INO
+                    || inode.id == ARBO_FILE_INO
+                {
                     None
                 } else {
                     Some((
-                        id,
-                        arbo.n_get_path_from_inode_id(id)
+                        inode.id,
+                        arbo.n_get_path_from_inode_id(inode.id)
                             .map_err(|e| log::error!("Pod::files_to_send_when_stopping(2): {e}"))
                             .ok()?,
+                        inode.meta.size,
                     ))
                 }
             })
-            .for_each(|(id, path)| {
-                if let Err(e) = self.send_file_to_possible_hosts(&peers, id, path) {
+            .for_each(|(id, path, file_size)| {
+                if let Err(e) = self.send_file_to_possible_hosts(&peers, id, path, file_size) {
                     log::warn!("{e}");
                 }
             });

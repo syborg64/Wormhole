@@ -95,14 +95,6 @@ impl DiskManager {
         Ok(buf)
     }
 
-    pub fn read_file_to_end(&self, path: WhPath) -> io::Result<Vec<u8>> {
-        let mut buf = Vec::<u8>::new();
-        self.handle
-            .open_file(path.set_relative())?
-            .read_to_end(&mut buf)?;
-        Ok(buf)
-    }
-
     pub fn new_dir(&self, path: WhPath, permissions: u16) -> io::Result<()> {
         self.handle
             .create_dir(path.set_relative(), permissions as libc::mode_t)

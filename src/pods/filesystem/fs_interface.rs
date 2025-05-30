@@ -305,13 +305,16 @@ impl FsInterface {
 
     // SECTION remote -> read
     pub fn send_filesystem(&self, to: Address) -> io::Result<()> {
-        let global_config_path = Arbo::read_lock(&self.arbo, "fs_interface::send_filesystem")?
+        let arbo = Arbo::read_lock(&self.arbo, "fs_interface::send_filesystem")?;
+        let global_config_file_size = arbo.get_inode(GLOBAL_CONFIG_INO)?.meta.size;
+        let global_config_path = arbo
             .get_path_from_inode_id(GLOBAL_CONFIG_INO)?
             .set_relative();
+        drop(arbo);
         log::info!("reading global config at {global_config_path}");
         let global_config_bytes = self
             .disk
-            .read_file_to_end(global_config_path)
+            .read_file(global_config_path, 0, global_config_file_size)
             .expect("lmao l'incompétence");
 
         self.network_interface.send_arbo(to, global_config_bytes)
