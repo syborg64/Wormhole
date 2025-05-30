@@ -52,7 +52,7 @@ custom_error! {pub CliError
     InvalidArgument{arg: String} = "Invalid Argument: {arg} is not recognized",
 
     Unimplemented{arg: String} = "{arg} not implemented",
-    Server{addr: String} = "Impossible to bind this address {addr}",
+    Server{addr: String, err: std::io::Error} = "Impossible to bind to this address {addr}",
     Message{reason: String} = "{reason}",
 }
 

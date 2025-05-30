@@ -19,8 +19,9 @@ impl Server {
         Ok(Server {
             listener: TcpListener::bind(addr)
                 .await
-                .map_err(|_| CliError::Server {
+                .map_err(|e| CliError::Server {
                     addr: addr.to_owned(),
+                    err: e,
                 })?,
             state: PeerMap::new(Mutex::new(HashMap::new())),
         })
