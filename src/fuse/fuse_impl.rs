@@ -347,13 +347,10 @@ impl Filesystem for FuseController {
     ) {
         let mut buf = vec![];
         buf.resize(size as usize, 0);
-        let result = self.fs_interface.read_file(
+        match self.fs_interface.read_file(
             ino,
             offset.try_into().expect("read::read offset negative"),
-            &mut buf,
-        );
-
-        match result {
+            &mut buf) {
             Ok(size) => {
                 buf.resize(size, 0);
                 reply.data(&buf)
