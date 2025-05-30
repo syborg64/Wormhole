@@ -16,7 +16,8 @@ custom_error! {pub MakeInodeError
     AlreadyExist = "File already existing",
     ParentNotFound = "Parent does not exist",
     ParentNotFolder = "Parent isn't a folder",
-    LocalCreationFailed{io: std::io::Error} = "Local creation failed: {io}"
+    LocalCreationFailed{io: std::io::Error} = "Local creation failed: {io}",
+    ProtectedNameIsFolder = "Protected name can't be used for folders",
 }
 
 custom_error! {pub CreateError
@@ -61,11 +62,13 @@ impl FsInterface {
             SimpleFileType::Directory => FsEntry::Directory(Vec::new()),
         };
 
-        let new_inode_id = match (name.as_str(), parent_ino) {
-            (".global_config.toml", 1) => 2u64,
-            (".local_config.toml", 1) => 3u64,
-            _ => self.network_interface.n_get_next_inode()?,
-        };
+        let special_ino = Arbo::get_special(&name, parent_ino);
+        if special_ino.is_some() && kind != SimpleFileType::File {
+            return Err(MakeInodeError::ProtectedNameIsFolder);
+        }
+        let new_inode_id = special_ino
+            .ok_or(())
+            .or_else(|_| self.network_interface.n_get_next_inode())?;
 
         let new_inode = Inode::new(name.clone(), parent_ino, new_inode_id, new_entry);
 
@@ -87,12 +90,12 @@ impl FsInterface {
         match kind {
             SimpleFileType::File => self
                 .disk
-                .new_file(new_path, new_inode.meta.perm)
+                .new_file(&new_path, new_inode.meta.perm)
                 .map(|_| ())
                 .map_err(|io| MakeInodeError::LocalCreationFailed { io }),
             SimpleFileType::Directory => self
                 .disk
-                .new_dir(new_path, new_inode.meta.perm)
+                .new_dir(&new_path, new_inode.meta.perm)
                 .map_err(|io| MakeInodeError::LocalCreationFailed { io }),
         }?;
 

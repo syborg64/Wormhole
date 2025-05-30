@@ -1,6 +1,6 @@
 use crate::{
     error::WhError,
-    pods::arbo::{Arbo, InodeId, BLOCK_SIZE},
+    pods::arbo::{Arbo, InodeId},
 };
 use custom_error::custom_error;
 use parking_lot::RwLockReadGuard;
@@ -53,29 +53,24 @@ impl FsInterface {
         &self,
         id: InodeId,
         data: &[u8],
-        offset: u64,
+        offset: usize,
         file_handle: UUID,
-    ) -> Result<u64, WriteError> {
+    ) -> Result<usize, WriteError> {
         let file_handles = FileHandleManager::read_lock(&self.file_handles, "write")?;
         let _file_handle = check_file_handle(&file_handles, file_handle)?;
 
         let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface.write")?;
-        let mut meta = arbo.n_get_inode(id)?.meta.clone();
         let path = arbo.n_get_path_from_inode_id(id)?;
         drop(arbo);
 
-        let new_size = (offset + data.len() as u64).max(meta.size);
-        let blocks = (new_size + BLOCK_SIZE - 1) / BLOCK_SIZE;
-        meta.size = new_size;
-        meta.blocks = blocks;
-
+        let new_size = offset + data.len();
         let written = self
             .disk
-            .write_file(path, data, offset)
+            .write_file(&path, data, offset)
             .map_err(|io| WriteError::LocalWriteFailed { io })?;
 
         self.network_interface
-            .write_file(id, new_size, blocks, meta)?;
+            .write_file(id, new_size)?;
         Ok(written)
     }
 }

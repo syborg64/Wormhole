@@ -13,6 +13,10 @@ use crate::config::GlobalConfig;
 #[cfg(target_os = "linux")]
 use crate::fuse::fuse_impl::mount_fuse;
 use crate::network::message::{FileSystemSerialized, FromNetworkMessage, MessageContent};
+#[cfg(target_os = "linux")]
+use crate::pods::disk_manager::unix_disk_manager::UnixDiskManager;
+#[cfg(target_os = "windows")]
+use crate::pods::disk_manager::dummy_disk_manager::DummyDiskManager;
 #[cfg(target_os = "windows")]
 use crate::winfsp::winfsp_impl::mount_fsp;
 
@@ -20,7 +24,6 @@ use crate::network::{message::Address, peer_ipc::PeerIPC, server::Server};
 
 use crate::pods::{
     arbo::{index_folder, Arbo},
-    disk_manager::DiskManager,
     filesystem::fs_interface::FsInterface,
     network::network_interface::NetworkInterface,
     whpath::WhPath,
@@ -154,8 +157,10 @@ impl Pod {
             server_address,
             global_config.redundancy.number,
         ));
-
-        let disk_manager = DiskManager::new(mount_point.clone())?;
+        #[cfg(target_os = "linux")]
+        let disk_manager = Box::new(UnixDiskManager::new(&mount_point)?);
+        #[cfg(target_os = "windows")]
+        let disk_manager = Box::new(DummyDiskManager::new(&mount_point)?);
         let fs_interface = Arc::new(FsInterface::new(
             network_interface.clone(),
             disk_manager,
