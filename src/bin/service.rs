@@ -290,6 +290,16 @@ async fn main() {
     let mut pods: HashMap<String, Pod> = HashMap::new();
 
     env_logger::init();
+
+    #[cfg(target_os = "windows")]
+    match winfsp_init() {
+        Ok(_token) => println!("got fsp token!"),
+        Err(err) => {
+            println!("fsp error: {:?}", err);
+            std::process::exit(84)
+        }
+    }
+
     let ip: String = env::args()
         .nth(1)
         .unwrap_or("127.0.0.1:8081".to_string())
