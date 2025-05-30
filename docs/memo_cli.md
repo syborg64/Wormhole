@@ -1,4 +1,4 @@
-# memo cli for the noobz
+# memo for the cli usage
 
 Create 3 virtual folders (virtual, virtual2, virtual3)
 for each :
