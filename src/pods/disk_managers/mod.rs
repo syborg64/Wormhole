@@ -3,12 +3,9 @@ use std::io;
 use super::whpath::WhPath;
 
 #[cfg(target_os = "linux")]
-#[path = "./disk_managers/unix_disk_manager.rs"]
 pub mod unix_disk_manager;
 #[cfg(target_os = "windows")]
-#[path = "./disk_managers/windows_disk_manager.rs"]
 pub mod windows_disk_manager;
-#[path = "./disk_managers/dummy_disk_manager.rs"]
 pub mod dummy_disk_manager;
 
 pub struct DiskSizeInfo {

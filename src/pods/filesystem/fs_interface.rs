@@ -1,7 +1,7 @@
 use crate::error::WhResult;
 use crate::network::message::Address;
 use crate::pods::arbo::{Arbo, FsEntry, Inode, InodeId, Metadata};
-use crate::pods::disk_manager::DiskManager;
+use crate::pods::disk_managers::DiskManager;
 use crate::pods::network::callbacks::Callback;
 use crate::pods::network::network_interface::NetworkInterface;
 
