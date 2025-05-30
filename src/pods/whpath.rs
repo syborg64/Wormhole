@@ -288,25 +288,28 @@ impl WhPath {
     ///!SECTION- A modifier pour prendre en compte les fichiers cachés ?
     fn remove_leading_slash(segment: &str) -> &str {
         let mut j = 0;
-        for i in 0..segment.len() {
-            if segment.chars().nth(i) == Some('.')
-                && (segment.chars().nth(i + 1) == Some('/')
-                    || segment.chars().nth(i + 1) == Some('.'))
-            {
-                j += 2;
-            } else if segment.chars().nth(i) == Some('/') {
+        let mut i = 0;
+        let chars: Vec<char> = segment.chars().collect();
+        while i < chars.len() {
+            if chars[i] == '.' {
+                if i + 1 < chars.len() && (chars[i + 1] == '/' || chars[i + 1] == '.') {
+                    i += 1;
+                    j += 2;
+                    println!("i: {}, j: {}", i, j);
+                } else {
+                    println!("i: {}, j: {}", i, j);
+                    break;
+                }
+            } else if chars[i] == '/' {
                 j += 1;
+                println!("i: {}, j: {}", i, j);
             } else {
+                println!("i: {}, j: {}", i, j);
                 break;
             }
+            i += 1;
         }
-        // for c in segment.chars() {
-        //     if (c == '.' && c. == '/') || c == '/' {
-        //         i += 1;
-        //     } else {
-        //         break;
-        //     }
-        // }
+        println!("j: {}", j);
         return &segment[j..];
     }
 
@@ -377,7 +380,7 @@ mod tests {
         assert_eq!(WhPath::remove_leading_slash("./bar"), "bar");
         assert_eq!(WhPath::remove_leading_slash("/bar"), "bar");
         assert_eq!(WhPath::remove_leading_slash(""), "");
-        assert_eq!(WhPath::remove_leading_slash(".bar"), "bar");
+        assert_eq!(WhPath::remove_leading_slash(".bar"), ".bar");
     }
 
     #[test]
