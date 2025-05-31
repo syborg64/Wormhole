@@ -10,9 +10,9 @@ use serial_test::serial;
 async fn sync_start_state() {
     println!("====== STARTING SYNC START STATE========");
     let mut env = EnvironnementManager::new();
-    env.add_service(false).unwrap();
+    env.add_service(true).unwrap();
     std::thread::sleep(std::time::Duration::from_secs_f32(2.0));
-    env.create_network("default".to_owned(), false)
+    env.create_network("default".to_owned(), true)
         .await
         .unwrap();
     std::thread::sleep(std::time::Duration::from_secs_f32(2.0));
