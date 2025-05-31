@@ -9,16 +9,13 @@ use nt_time::FileTime;
 use ntapi::ntioapi::FILE_DIRECTORY_FILE;
 use winapi::shared::{
     ntstatus::STATUS_INVALID_DEVICE_REQUEST,
-    winerror::{ERROR_ALREADY_EXISTS, ERROR_GEN_FAILURE, ERROR_INVALID_NAME},
+    winerror::{ERROR_ALREADY_EXISTS, ERROR_GEN_FAILURE},
 };
-use windows::Win32::{
+use windows::Win32::
     Foundation::{
-        NTSTATUS, STATUS_CANCELLED, STATUS_DEVICE_NOT_READY, STATUS_NOT_A_DIRECTORY,
-        STATUS_OBJECT_NAME_COLLISION, STATUS_OBJECT_NAME_NOT_FOUND, STATUS_PENDING,
-        STATUS_POSSIBLE_DEADLOCK, WIN32_ERROR,
-    },
-    Storage::FileSystem::{FILE_ATTRIBUTE_ARCHIVE, FILE_ATTRIBUTE_DIRECTORY},
-};
+        NTSTATUS, STATUS_CANCELLED, STATUS_DIRECTORY_NOT_EMPTY, STATUS_FILE_IS_A_DIRECTORY, STATUS_NOT_A_DIRECTORY, STATUS_OBJECT_NAME_EXISTS, STATUS_OBJECT_NAME_NOT_FOUND, STATUS_OBJECT_PATH_NOT_FOUND
+    }
+;
 use winfsp::{
     filesystem::{DirInfo, FileInfo, FileSecurity, FileSystemContext, WideNameInfo},
     host::{FileSystemHost, VolumeParams},
@@ -26,82 +23,18 @@ use winfsp::{
 };
 use winfsp_sys::{FspCleanupDelete, FILE_ACCESS_RIGHTS};
 
-use crate::{
-    error::WhError,
+use crate::
     pods::{
-        arbo::{Arbo, Metadata},
+        arbo::Arbo,
         filesystem::{
             fs_interface::{FsInterface, SimpleFileType},
             make_inode::MakeInodeError,
+            rename::RenameError,
             write::WriteError,
         },
         whpath::WhPath,
-    },
-};
-
-impl TryInto<WhPath> for &winfsp::U16CStr {
-    type Error = WIN32_ERROR;
-
-    fn try_into(self) -> Result<WhPath, Self::Error> {
-        match self.to_string() {
-            Err(_) => Err(WIN32_ERROR(ERROR_INVALID_NAME)),
-            Ok(string) => Ok(WhPath::from(&string.replace("\\", "/"))),
-        }
     }
-}
-
-impl WhPath {
-    pub fn to_winfsp(&self) -> String {
-        self.inner.replace("/", "\\")
-    }
-}
-
-impl Into<FileInfo> for Metadata {
-    fn into(self) -> FileInfo {
-        (&self).into()
-    }
-}
-
-impl Into<FileInfo> for &Metadata {
-    fn into(self) -> FileInfo {
-        let attributes = match self.kind {
-            SimpleFileType::File => FILE_ATTRIBUTE_ARCHIVE,
-            SimpleFileType::Directory => FILE_ATTRIBUTE_DIRECTORY,
-        };
-        let now = FileTime::now();
-        FileInfo {
-            file_attributes: attributes.0,
-            reparse_tag: 0,
-            allocation_size: self.size as u64,
-            file_size: self.size as u64,
-            creation_time: FileTime::try_from(self.crtime).unwrap_or(now).to_raw(),
-            last_access_time: FileTime::try_from(self.atime).unwrap_or(now).to_raw(),
-            last_write_time: FileTime::try_from(self.mtime).unwrap_or(now).to_raw(),
-            change_time: FileTime::try_from(self.ctime).unwrap_or(now).to_raw(),
-            index_number: self.ino,
-            hard_links: 0,
-            ea_size: 0,
-        }
-    }
-}
-
-impl Into<FspError> for &WhError {
-    fn into(self) -> FspError {
-        match self {
-            WhError::InodeNotFound => STATUS_OBJECT_NAME_NOT_FOUND.into(),
-            WhError::InodeIsNotADirectory => STATUS_NOT_A_DIRECTORY.into(),
-            WhError::DeadLock => STATUS_POSSIBLE_DEADLOCK.into(),
-            WhError::NetworkDied { called_from: _ } => STATUS_DEVICE_NOT_READY.into(),
-            WhError::WouldBlock { called_from: _ } => STATUS_PENDING.into(),
-        }
-    }
-}
-
-impl Into<FspError> for WhError {
-    fn into(self) -> FspError {
-        (&self).into()
-    }
-}
+;
 
 #[derive(PartialEq, Debug)]
 pub struct WormholeHandle(u64);
