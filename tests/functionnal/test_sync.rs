@@ -1,5 +1,3 @@
-use std::{fs::DirEntry, path::PathBuf};
-
 use crate::functionnal::append_to_path;
 
 use super::environnement_manager;

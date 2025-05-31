@@ -1,19 +1,12 @@
 use std::{
-    os::{
-        fd::AsFd,
-        unix::{net::UnixStream, process::ExitStatusExt},
-    },
-    path::{Path, PathBuf},
-    process::ExitStatus,
+    os::{fd::AsFd, unix::net::UnixStream},
+    path::Path,
 };
 
 use assert_fs::TempDir;
 use std::process::Stdio;
-use tokio::{process::Command, task::spawn_blocking};
-use wormhole::{
-    network::{ip::IpP, message::Address},
-    pods::whpath::WhPath,
-};
+use tokio::process::Command;
+use wormhole::network::ip::IpP;
 
 pub struct Service {
     pub instance: tokio::process::Child,
