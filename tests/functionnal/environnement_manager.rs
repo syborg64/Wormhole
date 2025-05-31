@@ -43,6 +43,7 @@ impl EnvironnementManager {
         }
     }
 
+    /// Create a service on the next available ip. No pods are created.
     pub fn add_service(&mut self, pipe_output: bool) -> Result<(), Box<dyn std::error::Error>> {
         let ip = self
             .services
@@ -88,6 +89,7 @@ impl EnvironnementManager {
         Ok(())
     }
 
+    /// Cli commands to create a pod
     fn cli_pod_creation_command(
         network_name: String,
         service_ip: &IpP,
@@ -141,7 +143,7 @@ impl EnvironnementManager {
             .wait()?)
     }
 
-    /// Create pod connected a network for each service running
+    /// Create pod connected to a network for each service running
     /// except if the service already has a pod on that network
     pub async fn create_network(
         &mut self,
