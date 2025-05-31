@@ -97,7 +97,23 @@ impl EnvironnementManager {
         pipe_output: bool,
     ) -> Result<std::process::ExitStatus, Box<dyn std::error::Error>> {
         let mut command = std::process::Command::new("cargo");
+        log::info!("Cli template command.");
+        command
+            .args(&[
+                "run".to_string(),
+                "--bin".to_string(),
+                "wormhole-cli".to_string(),
+                "template".to_string(),
+                "-C".to_string(),
+                dir_path.to_string_lossy().to_string(),
+            ])
+            .stdout(Self::generate_pipe(pipe_output))
+            .stderr(Self::generate_pipe(pipe_output))
+            .spawn()?
+            .wait()?;
 
+        let mut command = std::process::Command::new("cargo");
+        log::info!("Cli new pod command.");
         Ok(command
             .args({
                 let mut args = vec![
@@ -163,6 +179,7 @@ impl EnvironnementManager {
                         service
                             .pods
                             .push((network_name.clone(), pod_ip.clone(), temp_dir));
+                        log::info!("pod created successfully");
                         Some(pod_ip)
                     }
                     Ok(status) => panic!("Error code from the cli: {status}"),
