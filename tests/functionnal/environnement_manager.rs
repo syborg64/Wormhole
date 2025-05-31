@@ -109,6 +109,7 @@ impl EnvironnementManager {
                     network_name, // network name
                     "-C".to_string(),
                     dir_path.to_string_lossy().to_string(),
+                    "-i".to_string(),
                     ip.to_string(),
                 ];
 
@@ -151,7 +152,7 @@ impl EnvironnementManager {
                 let exit_status = Self::cli_pod_creation_command(
                     network_name.clone(),
                     &service.ip,
-                    temp_dir.path(), // FIXME - services shoud have one path per pod
+                    temp_dir.path(),
                     &pod_ip,
                     conn_to.as_ref(),
                     pipe_output,

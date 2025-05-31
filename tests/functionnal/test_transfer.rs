@@ -13,7 +13,7 @@ async fn basic_text_file_transfer() {
     env.add_service(false).unwrap();
     env.add_service(false).unwrap();
     std::thread::sleep(std::time::Duration::from_secs_f32(2.0));
-    env.create_network("default".to_string(), false)
+    env.create_network("default".to_string(), true)
         .await
         .unwrap();
 
