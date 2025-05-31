@@ -8,12 +8,13 @@ use serial_test::serial;
 #[serial]
 #[tokio::test]
 async fn basic_text_file_transfer() {
+    println!("====== STARTING BASIC TEXT FILE TRANSFER ========");
     let mut env = EnvironnementManager::new();
     env.add_service(false).unwrap();
     env.add_service(false).unwrap();
     env.add_service(false).unwrap();
     std::thread::sleep(std::time::Duration::from_secs_f32(2.0));
-    env.create_network("default".to_string(), true)
+    env.create_network("default".to_string(), false)
         .await
         .unwrap();
 

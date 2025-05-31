@@ -1,3 +1,5 @@
+use std::{fs::DirEntry, path::PathBuf};
+
 use crate::functionnal::append_to_path;
 
 use super::environnement_manager;
@@ -8,6 +10,7 @@ use serial_test::serial;
 #[serial]
 #[tokio::test]
 async fn sync_start_state() {
+    println!("====== STARTING SYNC START STATE========");
     let mut env = EnvironnementManager::new();
     env.add_service(false).unwrap();
     std::thread::sleep(std::time::Duration::from_secs_f32(2.0));
@@ -45,12 +48,14 @@ async fn sync_start_state() {
         .unwrap();
     std::thread::sleep(std::time::Duration::from_secs_f32(2.0));
 
-    for paths in [
+    for path in [
         &env.services[0].pods[0].2.path().to_owned(),
+        &env.services[1].pods[0].2.path().to_owned(),
         &env.services[2].pods[0].2.path().to_owned(),
     ] {
-        match std::fs::read_to_string(append_to_path(paths, "/bar.txt")) {
-            Err(_) => assert!(false, "File doesn't exist"),
+        let path = append_to_path(path, "/bar.txt");
+        match std::fs::read_to_string(&path) {
+            Err(_) => assert!(false, "File {:?} doesn't exist", path),
             Ok(_content) => assert!(
                 true,                        /*content == "Goodbye world!"*/
                 "File content is incorrect"  // No support for file streaming yet

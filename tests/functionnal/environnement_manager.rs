@@ -148,6 +148,7 @@ impl EnvironnementManager {
         network_name: String,
         pipe_output: bool,
     ) -> Result<(), Box<dyn std::error::Error>> {
+        println!("called create_network {network_name}");
         let last_pod_ip = self
             .services
             .iter()
@@ -159,32 +160,43 @@ impl EnvironnementManager {
         self.services
             .iter_mut()
             .fold(last_pod_ip, |conn_to, service| {
-                let temp_dir = assert_fs::TempDir::new().expect("can't create temp dir");
-                let mut pod_ip = conn_to
-                    .clone()
-                    .unwrap_or(IpP::try_from(&"127.0.0.1:8080".to_string()).unwrap());
-                pod_ip.set_ip_last(pod_ip.get_ip_last() + 1);
+                if let Some((_, ip, _)) = service.pods.iter().find(|(nw, _, _)| *nw == network_name)
+                {
+                    Some(ip.clone())
+                } else {
+                    let temp_dir = assert_fs::TempDir::new().expect("can't create temp dir");
+                    let mut pod_ip = conn_to
+                        .clone()
+                        .unwrap_or(IpP::try_from(&"127.0.0.1:8080".to_string()).unwrap());
+                    pod_ip.set_ip_last(pod_ip.get_ip_last() + 1);
 
-                let exit_status = Self::cli_pod_creation_command(
-                    network_name.clone(),
-                    &service.ip,
-                    temp_dir.path(),
-                    &pod_ip,
-                    conn_to.as_ref(),
-                    pipe_output,
-                );
+                    println!(
+                        "creating pod with parameters:\nservice: {}\npod_ip: {}\nconn_to: {:?}",
+                        service.ip.to_string(),
+                        pod_ip.to_string(),
+                        conn_to
+                    );
+                    let exit_status = Self::cli_pod_creation_command(
+                        network_name.clone(),
+                        &service.ip,
+                        temp_dir.path(),
+                        &pod_ip,
+                        conn_to.as_ref(),
+                        pipe_output,
+                    );
 
-                match exit_status {
-                    Ok(status) if status.success() => {
-                        service
-                            .pods
-                            .push((network_name.clone(), pod_ip.clone(), temp_dir));
-                        log::info!("pod created successfully");
-                        Some(pod_ip)
-                    }
-                    Ok(status) => panic!("Error code from the cli: {status}"),
-                    Err(e) => {
-                        panic!("Cli command to create pod failed: {e}");
+                    match exit_status {
+                        Ok(status) if status.success() => {
+                            service
+                                .pods
+                                .push((network_name.clone(), pod_ip.clone(), temp_dir));
+                            log::info!("pod created successfully");
+                            Some(pod_ip)
+                        }
+                        Ok(status) => panic!("Error code from the cli: {status}"),
+                        Err(e) => {
+                            panic!("Cli command to create pod failed: {e}");
+                        }
                     }
                 }
             });
