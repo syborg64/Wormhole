@@ -24,9 +24,17 @@ async fn basic_text_file_transfer() {
     std::thread::sleep(std::time::Duration::from_secs_f32(2.0));
 
     for paths in [
+        &env.services[0].pods[0].2.path().to_owned(),
         &env.services[1].pods[0].2.path().to_owned(),
         &env.services[2].pods[0].2.path().to_owned(),
     ] {
+        println!(
+            "files: {:#?}",
+            std::fs::read_dir(&paths)
+                .expect("can't read dir")
+                .map(|p| p.unwrap().path())
+                .collect::<Vec<std::path::PathBuf>>()
+        );
         match std::fs::read_to_string(append_to_path(paths, "/foo.txt")) {
             Ok(content) => assert!(content == "Hello world!", "File content is incorrect"),
             Err(_) => assert!(false, "File doesn't exist"),
