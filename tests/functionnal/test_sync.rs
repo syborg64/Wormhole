@@ -52,13 +52,6 @@ async fn sync_start_state() {
         &env.services[2].pods[0].2.path().to_owned(),
     ] {
         let path = append_to_path(path, "/bar.txt");
-        println!(
-            "files: {:#?}",
-            std::fs::read_dir(&path)
-                .expect("can't read dir")
-                .map(|p| p.unwrap().path())
-                .collect::<Vec<std::path::PathBuf>>()
-        );
         match std::fs::read_to_string(&path) {
             Err(_) => assert!(false, "File {:?} doesn't exist", path),
             Ok(_content) => assert!(
