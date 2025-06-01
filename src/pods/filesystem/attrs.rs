@@ -26,7 +26,7 @@ custom_error! {pub SetAttrError
     WhError{source: WhError} = "{source}",
     SizeNoPerm = "Edit size require to have the write permission on the file",
     InvalidFileHandle = "File handle not found in the open file handles",
-    SetFileSizeIoError {io: std::io::Error } = "Set file size disk side failed"
+    SetFileSizeIoError { io: std::io::Error } = "Set file size disk side failed"
 }
 
 custom_error! {pub AcknoledgeSetAttrError
@@ -85,34 +85,42 @@ impl FsInterface {
         &self,
         ino: InodeId,
         meta: Metadata,
-        set_folder_size: bool,
     ) -> Result<(), AcknoledgeSetAttrError> {
         let mut arbo = Arbo::n_write_lock(&self.arbo, "acknowledge_metadata")?;
+        let path = arbo.n_get_path_from_inode_id(ino)?;
         let inode = arbo.n_get_inode_mut(ino)?;
 
-        if meta.size != inode.meta.size {
+        if meta.size != inode.meta.size || meta.perm != inode.meta.perm {
             match &inode.entry {
-                FsEntry::File(hosts) => {
-                    if hosts.contains(&self.network_interface.self_addr) {
-                        let path = arbo.n_get_path_from_inode_id(ino)?;
-
-                        self.disk
-                            .set_permisions(&path, meta.perm as u16)
-                            .map_err(|io| AcknoledgeSetAttrError::SetFileSizeIoError { io })?;
-
-                        self.disk
-                            .set_file_size(&path, meta.size as usize)
-                            .map_err(|io| AcknoledgeSetAttrError::SetFileSizeIoError { io })?;
-                    }
-                }
-                FsEntry::Directory(_) if set_folder_size == false => {
+                FsEntry::Directory(_) if meta.size != inode.meta.size => {
                     return Err(AcknoledgeSetAttrError::WhError {
                         source: WhError::InodeIsADirectory,
                     });
                 }
-                _ => (),
+                FsEntry::Directory(_) => {
+                    if meta.perm != inode.meta.perm {
+                        self.disk
+                            .set_permisions(&path, meta.perm as u16)
+                            .map_err(|io| AcknoledgeSetAttrError::SetFileSizeIoError { io })?;
+                    }
+                }
+                FsEntry::File(hosts) => {
+                    if hosts.contains(&self.network_interface.self_addr) {
+                        if meta.size != inode.meta.size {
+                            self.disk
+                                .set_file_size(&path, meta.size as usize)
+                                .map_err(|io| AcknoledgeSetAttrError::SetFileSizeIoError { io })?;
+                        }
+                        if meta.perm != inode.meta.perm {
+                            self.disk
+                                .set_permisions(&path, meta.perm as u16)
+                                .map_err(|io| AcknoledgeSetAttrError::SetFileSizeIoError { io })?;
+                        }
+                    }
+                }
             }
         }
+
         arbo.n_get_inode_mut(ino)?.meta = meta;
         Ok(())
     }

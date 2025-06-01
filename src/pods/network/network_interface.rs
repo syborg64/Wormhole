@@ -508,7 +508,7 @@ impl NetworkInterface {
                     fs_interface.recept_remove_hosts(id, hosts)
                 }
                 MessageContent::EditMetadata(id, meta) =>
-                    fs_interface.acknowledge_metadata(id, meta, false).or_else(|err| {
+                    fs_interface.acknowledge_metadata(id, meta).or_else(|err| {
                         Err(std::io::Error::new(
                             std::io::ErrorKind::Other,
                             format!("WhError: {err}"),

@@ -1,7 +1,7 @@
 use std::{
     ffi::CString,
     fs::Permissions,
-    io::Read,
+    io::{Read, Seek},
     os::unix::fs::{FileExt, PermissionsExt},
 };
 
@@ -78,7 +78,9 @@ impl DiskManager for UnixDiskManager {
     }
 
     fn set_file_size(&self, path: &WhPath, size: usize) -> io::Result<()> {
-        let file = self.handle.write_file(path.clone().set_relative(), 0o600)?;
+        let file = self
+            .handle
+            .append_file(path.clone().set_relative(), 0o600)?;
         file.set_len(size as u64)
     }
 

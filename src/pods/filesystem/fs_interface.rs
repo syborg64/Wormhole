@@ -202,7 +202,7 @@ impl FsInterface {
                 log::debug!("recept_revoke_hosts: can't delete file. {}", e);
             }
         }
-        self.acknowledge_metadata(id, meta, true)?;
+        self.acknowledge_metadata(id, meta)?;
         self.network_interface
             .acknowledge_hosts_edition(id, vec![host])
             .map_err(|source| AcknoledgeSetAttrError::WhError { source })
