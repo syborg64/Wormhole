@@ -287,7 +287,7 @@ impl NetworkInterface {
     pub fn update_metadata(&self, id: InodeId, meta: Metadata) -> WhResult<()> {
         let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface::update_metadata")?;
         let mut fixed_meta = meta;
-        let ref_meta = arbo.n_get_inode(id)?.meta.clone();
+        let ref_meta = &arbo.n_get_inode(id)?.meta;
 
         // meta's SystemTime is fragile: it can be silently corrupted such that
         // serialization leads to a failure we can't deal with
@@ -317,7 +317,6 @@ impl NetworkInterface {
                 ))
                 .expect("update_metadata: unable to update modification on the network thread");
         }
-
         Ok(())
         /* REVIEW
          * This system (and others broadcasts systems) should be reviewed as they don't check success.
