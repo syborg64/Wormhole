@@ -12,12 +12,20 @@ use crate::{
     pods::arbo::LOCK_TIMEOUT,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum AccessMode {
     Read,
     Write,
     ReadWrite,
     Execute,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct OpenFlags {
+    pub no_atime: bool,
+    pub direct: bool,
+    pub trunc: bool,
+    pub exec: bool,
 }
 
 pub type UUID = u64;
@@ -53,9 +61,9 @@ impl FileHandleManager {
         self.hasher.finish()
     }
 
-    pub fn insert_new_file_handle(&mut self, flags: i32, perm: AccessMode) -> WhResult<UUID> {
-        let direct = flags & libc::O_DIRECT != 0;
-        let no_atime = flags & libc::O_NOATIME != 0;
+    pub fn insert_new_file_handle(&mut self, flags: OpenFlags, perm: AccessMode) -> WhResult<UUID> {
+        let direct = flags.direct;
+        let no_atime = flags.no_atime;
 
         let uuid = self.new_uuid();
         self.handles.insert(

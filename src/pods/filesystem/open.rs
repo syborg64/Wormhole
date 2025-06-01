@@ -1,6 +1,6 @@
 use crate::pods::{
     arbo::{Arbo, InodeId},
-    filesystem::file_handle::{AccessMode, FileHandleManager},
+    filesystem::file_handle::{AccessMode, FileHandleManager, OpenFlags},
 };
 
 use crate::error::WhError;
@@ -22,47 +22,81 @@ const EXECUTE_BIT_FLAG: u16 = 1u16;
 const WRITE_BIT_FLAG: u16 = 2u16;
 const READ_BIT_FLAG: u16 = 4u16;
 
-pub fn check_permissions(flags: i32, inode_perm: u16) -> Result<AccessMode, OpenError> {
-    match flags & libc::O_ACCMODE {
-        libc::O_RDONLY => {
+impl AccessMode {
+    #[cfg(target_os = "linux")]
+    pub fn from_libc(flags: i32) -> Result<AccessMode, OpenError> {
+        match flags & libc::O_ACCMODE {
+            libc::O_RDONLY => {
+                if flags & FMODE_EXEC != 0 {
+                    Ok(AccessMode::Execute)
+                } else {
+                    Ok(AccessMode::Read)
+                }
+            }
+            libc::O_WRONLY => Ok(AccessMode::Write),
+            libc::O_RDWR => Ok(AccessMode::ReadWrite),
+            //Exactly one access mode flag must be specified
+            _ => Err(OpenError::MultipleAccessFlags),
+        }
+    }
+}
+
+pub fn check_permissions(
+    flags: OpenFlags,
+    access: AccessMode,
+    inode_perm: u16,
+) -> Result<AccessMode, OpenError> {
+    match access {
+        AccessMode::Read => {
             if inode_perm & READ_BIT_FLAG == 0 {
                 Err(OpenError::WrongPermissions)
             //Behavior is undefined, but most filesystems return EACCES
-            } else if flags & libc::O_TRUNC != 0 {
+            } else if flags.trunc {
                 //EACCESS
                 Err(OpenError::TruncReadOnly)
             //Open is from internal exec syscall
-            } else if flags & FMODE_EXEC != 0 {
+            } else {
+                Ok(AccessMode::Read)
+            }
+        }
+        AccessMode::Write if (inode_perm & WRITE_BIT_FLAG == 0) => Err(OpenError::WrongPermissions),
+        AccessMode::Write => Ok(AccessMode::Write),
+        AccessMode::ReadWrite
+            if (inode_perm & WRITE_BIT_FLAG == 0 || inode_perm & READ_BIT_FLAG == 0) =>
+        {
+            Err(OpenError::WrongPermissions)
+        }
+        AccessMode::ReadWrite => Ok(AccessMode::ReadWrite),
+        AccessMode::Execute => {
+            if inode_perm & READ_BIT_FLAG == 0 {
+                Err(OpenError::WrongPermissions)
+            //Behavior is undefined, but most filesystems return EACCES
+            } else {
                 if inode_perm & EXECUTE_BIT_FLAG == 0 {
                     Err(OpenError::WrongPermissions)
                 } else {
                     Ok(AccessMode::Execute)
                 }
-            } else {
-                Ok(AccessMode::Read)
             }
         }
-        libc::O_WRONLY if (inode_perm & WRITE_BIT_FLAG == 0) => Err(OpenError::WrongPermissions),
-        libc::O_WRONLY => Ok(AccessMode::Write),
-        libc::O_RDWR if (inode_perm & WRITE_BIT_FLAG == 0 || inode_perm & READ_BIT_FLAG == 0) => {
-            Err(OpenError::WrongPermissions)
-        }
-        libc::O_RDWR => Ok(AccessMode::ReadWrite),
-        //Exactly one access mode flag must be specified
-        _ => Err(OpenError::MultipleAccessFlags),
     }
 }
 
 impl FsInterface {
-    pub fn open(&self, ino: InodeId, flags: i32) -> Result<u64, OpenError> {
+    pub fn open(
+        &self,
+        ino: InodeId,
+        access: AccessMode,
+        flags: OpenFlags,
+    ) -> Result<u64, OpenError> {
         let inode_perm = Arbo::n_read_lock(&self.arbo, "open")?
             .n_get_inode(ino)?
             .meta
             .perm;
 
-        let perm = check_permissions(flags, inode_perm)?;
+        let perm = check_permissions(flags, access, inode_perm)?;
 
-        if flags & libc::O_TRUNC != 0 {
+        if flags.trunc {
             //TODO: Trunc over the network
         }
 
