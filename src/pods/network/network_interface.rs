@@ -2,6 +2,7 @@ use std::{
     collections::HashMap,
     io::{self, ErrorKind},
     sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 use parking_lot::{Mutex, RwLock};
@@ -10,8 +11,10 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use crate::{
     error::WhError,
     pods::{
-        arbo::{FsEntry, Metadata},
-        filesystem::{make_inode::MakeInodeError, remove_inode::RemoveInode},
+        arbo::{FsEntry, Metadata, BLOCK_SIZE},
+        filesystem::{
+            make_inode::MakeInodeError, remove_inode::RemoveInodeError, rename::RenameError,
+        },
         network::callbacks::Callback,
         whpath::WhPath,
     },
@@ -124,7 +127,7 @@ impl NetworkInterface {
         let inode_id = inode.id.clone();
         Arbo::n_write_lock(&self.arbo, "register_new_inode")?.n_add_inode(inode.clone())?;
 
-        if inode_id != 3u64 {
+        if !Arbo::is_local_only(inode_id) {
             if matches!(inode.entry, FsEntry::File(_)) {
                 self.apply_redundancy(inode_id)?;
             }
@@ -139,31 +142,47 @@ impl NetworkInterface {
         // TODO - if unable to update for some reason, should be passed to the background worker
     }
 
-    pub fn broadcast_rename_file(
+    pub fn n_rename(
         &self,
         parent: InodeId,
         new_parent: InodeId,
         name: &String,
         new_name: &String,
-    ) -> io::Result<()> {
+        overwrite: bool,
+    ) -> Result<(), RenameError> {
+        let mut arbo = Arbo::n_write_lock(&self.arbo, "arbo_rename_file")?;
+
+        arbo.n_mv_inode(parent, new_parent, name, new_name)?;
+
         self.to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
-                message::MessageContent::Rename(parent, new_parent, name.clone(), new_name.clone()),
+                message::MessageContent::Rename(
+                    parent,
+                    new_parent,
+                    name.clone(),
+                    new_name.clone(),
+                    overwrite,
+                ),
             ))
             .expect("broadcast_rename_file: unable to update modification on the network thread");
         Ok(())
     }
 
-    pub fn arbo_rename_file(
+    pub fn acknowledge_rename(
         &self,
         parent: InodeId,
         new_parent: InodeId,
         name: &String,
         new_name: &String,
-    ) -> io::Result<()> {
-        let mut arbo = Arbo::write_lock(&self.arbo, "arbo_rename_file")?;
+    ) -> Result<(), RenameError> {
+        let mut arbo = Arbo::n_write_lock(&self.arbo, "arbo_rename_file")?;
 
-        arbo.mv_inode(parent, new_parent, name, new_name)
+        arbo.n_mv_inode(parent, new_parent, name, new_name)
+            .map_err(|err| match err {
+                WhError::InodeNotFound => RenameError::DestinationParentNotFound,
+                WhError::InodeIsNotADirectory => RenameError::DestinationParentNotFolder,
+                source => RenameError::WhError { source },
+            })
     }
 
     #[must_use]
@@ -174,10 +193,10 @@ impl NetworkInterface {
     }
 
     /// Remove [Inode] from the [Arbo] and inform the network of the removal
-    pub fn unregister_inode(&self, id: InodeId) -> Result<(), RemoveInode> {
+    pub fn unregister_inode(&self, id: InodeId) -> Result<(), RemoveInodeError> {
         Arbo::n_write_lock(&self.arbo, "unregister_inode")?.n_remove_inode(id)?;
 
-        if id != 3u64 {
+        if !Arbo::is_local_only(id) {
             self.to_network_message_tx
                 .send(ToNetworkMessage::BroadcastMessage(
                     message::MessageContent::Remove(id),
@@ -189,7 +208,7 @@ impl NetworkInterface {
     }
 
     /// Remove [Inode] from the [Arbo]
-    pub fn acknowledge_unregister_inode(&self, id: InodeId) -> Result<Inode, RemoveInode> {
+    pub fn acknowledge_unregister_inode(&self, id: InodeId) -> Result<Inode, RemoveInodeError> {
         Arbo::n_write_lock(&self.arbo, "acknowledge_unregister_inode")?.n_remove_inode(id)
     }
 
@@ -209,45 +228,48 @@ impl NetworkInterface {
         Ok(())
     }
 
-    fn affect_write_locally(&self, id: InodeId, new_size: u64, blocks: u64) -> WhResult<()> {
+    fn affect_write_locally(&self, id: InodeId, new_size: usize) -> WhResult<Metadata> {
         let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface.affect_write_locally")?;
-        //REVIEW: By setting this n_get_inode_mut to pub I could reduce the arbo hashmap lookup from 3 to 1
         let inode = arbo.n_get_inode_mut(id)?;
 
-        inode.meta.size = new_size;
-        inode.meta.blocks = blocks;
+        let new_size = (new_size as u64).max(inode.meta.size);
+        inode.meta.size = new_size as u64;
+        inode.meta.blocks = ((new_size + BLOCK_SIZE - 1) / BLOCK_SIZE) as u64;
+
+        inode.meta.mtime = SystemTime::now();
 
         inode.entry = match &inode.entry {
             FsEntry::File(_) => FsEntry::File(vec![self.self_addr.clone()]),
             _ => panic!("Can't edit hosts on folder"),
         };
-        Ok(())
+        Ok(inode.meta.clone())
     }
 
-    pub fn write_file(
-        &self,
-        id: InodeId,
-        new_size: u64,
-        blocks: u64,
-        meta: Metadata,
-    ) -> WhResult<()> {
-        self.affect_write_locally(id, new_size, blocks)?;
+    pub fn write_file(&self, id: InodeId, new_size: usize) -> WhResult<()> {
+        let meta = self.affect_write_locally(id, new_size)?;
 
-        self.to_network_message_tx
-            .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::RevokeFile(id, self.self_addr.clone(), meta),
-            ))
-            .expect("revoke_remote_hosts: unable to update modification on the network thread");
-        self.apply_redundancy(id)
+        if !Arbo::is_local_only(id) {
+            self.to_network_message_tx
+                .send(ToNetworkMessage::BroadcastMessage(
+                    MessageContent::RevokeFile(id, self.self_addr.clone(), meta),
+                ))
+                .expect("revoke_remote_hosts: unable to update modification on the network thread");
+            self.apply_redundancy(id)?;
+        }
+        Ok(())
     }
 
     pub fn update_remote_hosts(&self, inode: &Inode) -> io::Result<()> {
         if let FsEntry::File(hosts) = &inode.entry {
-            self.to_network_message_tx
-                .send(ToNetworkMessage::BroadcastMessage(
-                    MessageContent::EditHosts(inode.id, hosts.clone()),
-                ))
-                .expect("update_remote_hosts: unable to update modification on the network thread");
+            if !Arbo::is_local_only(inode.id) {
+                self.to_network_message_tx
+                    .send(ToNetworkMessage::BroadcastMessage(
+                        MessageContent::EditHosts(inode.id, hosts.clone()),
+                    ))
+                    .expect(
+                        "update_remote_hosts: unable to update modification on the network thread",
+                    );
+            }
             Ok(())
         } else {
             Err(io::ErrorKind::InvalidInput.into())
@@ -262,12 +284,41 @@ impl NetworkInterface {
         Arbo::write_lock(&self.arbo, "aknowledge_hosts_removal")?.remove_inode_hosts(id, new_hosts)
     }
 
-    pub fn send_metadata(&self, id: InodeId, meta: Metadata) {
-        self.to_network_message_tx
-            .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::EditMetadata(id, meta),
-            ))
-            .expect("send_metadata: unable to update modification on the network thread");
+    pub fn update_metadata(&self, id: InodeId, meta: Metadata) -> WhResult<()> {
+        let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface::update_metadata")?;
+        let mut fixed_meta = meta;
+        let ref_meta = arbo.n_get_inode(id)?.meta.clone();
+
+        // meta's SystemTime is fragile: it can be silently corrupted such that
+        // serialization leads to a failure we can't deal with
+        if fixed_meta.atime.duration_since(UNIX_EPOCH).is_err() {
+            fixed_meta.atime = ref_meta.atime;
+        }
+
+        if fixed_meta.ctime.duration_since(UNIX_EPOCH).is_err() {
+            fixed_meta.ctime = ref_meta.ctime;
+        }
+
+        if fixed_meta.crtime.duration_since(UNIX_EPOCH).is_err() {
+            fixed_meta.crtime = ref_meta.crtime;
+        }
+
+        if fixed_meta.mtime.duration_since(UNIX_EPOCH).is_err() {
+            fixed_meta.mtime = ref_meta.mtime;
+        }
+
+        arbo.n_set_inode_meta(id, fixed_meta.clone())?;
+        drop(arbo);
+
+        if !Arbo::is_local_only(id) {
+            self.to_network_message_tx
+                .send(ToNetworkMessage::BroadcastMessage(
+                    MessageContent::EditMetadata(id, fixed_meta),
+                ))
+                .expect("update_metadata: unable to update modification on the network thread");
+        }
+
+        Ok(())
         /* REVIEW
          * This system (and others broadcasts systems) should be reviewed as they don't check success.
          * In this case, if another host misses this order, it will not update it's file.
@@ -383,10 +434,10 @@ impl NetworkInterface {
         let mut entries = arbo.get_raw_entries();
 
         //Remove ignored entries
-        entries.remove(&3u64);
+        entries.retain(|ino, _| !Arbo::is_local_only(*ino));
         entries.entry(1u64).and_modify(|inode| {
             if let FsEntry::Directory(childrens) = &mut inode.entry {
-                childrens.retain(|x| *x != 3u64);
+                childrens.retain(|x| !Arbo::is_local_only(*x));
             }
         });
 
@@ -473,9 +524,15 @@ impl NetworkInterface {
                 MessageContent::RequestFile(inode, peer) => fs_interface.send_file(inode, peer),
                 MessageContent::RequestFs => fs_interface.send_filesystem(origin),
                 MessageContent::Register(addr) => Ok(fs_interface.register_new_node(origin, addr)),
-                MessageContent::Rename(parent, new_parent, name, new_name) => {
-                    fs_interface.accept_rename(parent, new_parent, &name, &new_name)
-                }
+                MessageContent::Rename(parent, new_parent, name, new_name, overwrite) =>
+                    fs_interface
+                    .recept_rename(parent, new_parent, &name, &new_name, overwrite)
+                    .map_err(|err| {
+                        std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            format!("WhError: {err}"),
+                        )
+                    }),
                 MessageContent::RequestPull(id) => fs_interface.pull_file_async(id).await,
                 MessageContent::SetXAttr(ino, key, data) => fs_interface
                     .network_interface

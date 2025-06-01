@@ -15,21 +15,26 @@ custom_error! {
 }
 
 impl FsInterface {
-    pub fn read_file(&self, file: InodeId, offset: u64, len: u64) -> Result<Vec<u8>, ReadError> {
-        let status = match self.network_interface.pull_file_sync(file)? {
+    pub fn read_file(
+        &self,
+        file: InodeId,
+        offset: usize,
+        buf: &mut [u8],
+    ) -> Result<usize, ReadError> {
+        let ok = match self.network_interface.pull_file_sync(file)? {
             None => true,
             Some(call) => self.network_interface.callbacks.n_wait_for(call)?,
         };
 
-        if !status {
+        if !ok {
             return Err(ReadError::CantPull);
         }
 
         self.disk
             .read_file(
-                Arbo::n_read_lock(&self.arbo, "read_file")?.n_get_path_from_inode_id(file)?,
+                &Arbo::n_read_lock(&self.arbo, "read_file")?.n_get_path_from_inode_id(file)?,
                 offset,
-                len,
+                buf,
             )
             .map_err(|io| ReadError::LocalReadFailed { io })
     }

@@ -4,7 +4,8 @@ use crate::pods::filesystem::fs_interface::{FsInterface, SimpleFileType};
 use crate::pods::filesystem::make_inode::{CreateError, MakeInodeError};
 use crate::pods::filesystem::open::OpenError;
 use crate::pods::filesystem::read::ReadError;
-use crate::pods::filesystem::remove_inode::RemoveFile;
+use crate::pods::filesystem::remove_inode::RemoveFileError;
+use crate::pods::filesystem::rename::RenameError;
 use crate::pods::filesystem::write::WriteError;
 use crate::pods::filesystem::xattrs::GetXAttrError;
 use crate::pods::network::pull_file::PullError;
@@ -84,7 +85,7 @@ impl Filesystem for FuseController {
         match attrs {
             Ok(attrs) => reply.attr(&TTL, &attrs.into()),
             Err(err) => {
-                log::error!("fuse_impl error: {:?}", err);
+                log::error!("getattr error: {:?}", err);
                 reply.error(err.raw_os_error().unwrap_or(EIO))
             }
         }
@@ -265,14 +266,17 @@ impl Filesystem for FuseController {
         _lock: Option<u64>,
         reply: ReplyData,
     ) {
-        let content = self.fs_interface.read_file(
+        let mut buf = vec![];
+        buf.resize(size as usize, 0);
+        match self.fs_interface.read_file(
             ino,
-            offset.try_into().expect("fuse_impl::read offset negative"),
-            size.try_into().expect("fuse_impl::read size too large"),
-        );
-
-        match content {
-            Ok(content) => reply.data(&content),
+            offset.try_into().expect("read::read offset negative"),
+            &mut buf,
+        ) {
+            Ok(size) => {
+                buf.resize(size, 0);
+                reply.data(&buf)
+            }
             Err(ReadError::WhError { source }) => reply.error(source.to_libc()),
             Err(ReadError::PullError {
                 source: PullError::WhError { source },
@@ -348,6 +352,7 @@ impl Filesystem for FuseController {
             Err(MakeInodeError::AlreadyExist) => reply.error(libc::EEXIST),
             Err(MakeInodeError::ParentNotFound) => reply.error(libc::ENOENT),
             Err(MakeInodeError::ParentNotFolder) => reply.error(libc::ENOTDIR),
+            Err(MakeInodeError::ProtectedNameIsFolder) => reply.error(libc::EISDIR),
         }
         //todo when persmissions are added reply.error(libc::EACCES)
     }
@@ -376,32 +381,33 @@ impl Filesystem for FuseController {
             Err(MakeInodeError::AlreadyExist) => reply.error(libc::EEXIST),
             Err(MakeInodeError::ParentNotFound) => reply.error(libc::ENOENT),
             Err(MakeInodeError::ParentNotFolder) => reply.error(libc::ENOTDIR),
+            Err(MakeInodeError::ProtectedNameIsFolder) => reply.error(libc::EISDIR),
         }
     }
 
     fn unlink(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: fuser::ReplyEmpty) {
         match self.fs_interface.fuse_remove_inode(parent, name) {
             Ok(()) => reply.ok(),
-            Err(RemoveFile::WhError { source }) => reply.error(source.to_libc()),
-            Err(RemoveFile::LocalDeletionFailed { io }) => {
+            Err(RemoveFileError::WhError { source }) => reply.error(source.to_libc()),
+            Err(RemoveFileError::LocalDeletionFailed { io }) => {
                 reply.error(io.raw_os_error().expect(
                     "Local creation error should always be the underling libc::open os error",
                 ))
             }
-            Err(RemoveFile::NonEmpty) => reply.error(libc::ENOTEMPTY),
+            Err(RemoveFileError::NonEmpty) => reply.error(libc::ENOTEMPTY),
         }
     }
 
     fn rmdir(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: fuser::ReplyEmpty) {
         match self.fs_interface.fuse_remove_inode(parent, name) {
             Ok(()) => reply.ok(),
-            Err(RemoveFile::WhError { source }) => reply.error(source.to_libc()),
-            Err(RemoveFile::LocalDeletionFailed { io }) => {
+            Err(RemoveFileError::WhError { source }) => reply.error(source.to_libc()),
+            Err(RemoveFileError::LocalDeletionFailed { io }) => {
                 reply.error(io.raw_os_error().expect(
                     "Local creation error should always be the underling libc::open os error",
                 ))
             }
-            Err(RemoveFile::NonEmpty) => reply.error(libc::ENOTEMPTY),
+            Err(RemoveFileError::NonEmpty) => reply.error(libc::ENOTEMPTY),
         }
     }
 
@@ -412,23 +418,48 @@ impl Filesystem for FuseController {
         name: &OsStr,
         new_parent: u64,
         newname: &OsStr,
-        _flags: u32,
+        flags: u32,
         reply: fuser::ReplyEmpty,
     ) {
-        match self.fs_interface.rename(
-            parent,
-            new_parent,
-            &name //TODO move instead of ref because of the clone down the line
-                .to_owned()
-                .into_string()
-                .expect("Don't support non unicode yet"), //TODO support OsString smartly
-            &newname
-                .to_owned()
-                .into_string()
-                .expect("Don't support non unicode yet"),
-        ) {
+        match self
+            .fs_interface
+            .rename(
+                parent,
+                new_parent,
+                &name //TODO move instead of ref because of the clone down the line
+                    .to_owned()
+                    .into_string()
+                    .expect("Don't support non unicode yet"), //TODO support OsString smartly
+                &newname
+                    .to_owned()
+                    .into_string()
+                    .expect("Don't support non unicode yet"),
+                flags & libc::RENAME_NOREPLACE == 0,
+            )
+            .inspect_err(|err| log::error!("rename: {err}"))
+        {
             Ok(()) => reply.ok(),
-            Err(err) => reply.error(err.raw_os_error().unwrap_or(EIO)),
+            Err(RenameError::WhError { source }) => reply.error(source.to_libc()),
+            Err(RenameError::LocalRenamingFailed { io }) => {
+                reply.error(io.raw_os_error().expect(
+                    "Local renaming error should always be the underling libc::open os error",
+                ))
+            }
+            Err(RenameError::LocalOverwriteFailed { io }) => reply.error(io.raw_os_error().expect(
+                "Local overwrite error should always be the underling libc::open os error",
+            )),
+            Err(RenameError::OverwriteNonEmpty) => reply.error(libc::ENOTEMPTY),
+            Err(RenameError::DestinationExists) => reply.error(libc::EEXIST),
+            Err(RenameError::SourceParentNotFolder) => reply.error(libc::ENOTDIR),
+            Err(RenameError::SourceParentNotFound) => reply.error(libc::ENOENT),
+            Err(RenameError::DestinationParentNotFolder) => reply.error(libc::ENOTDIR),
+            Err(RenameError::DestinationParentNotFound) => reply.error(libc::ENOENT),
+            Err(RenameError::ProtectedNameIsFolder) => reply.error(libc::ENOTDIR),
+            Err(RenameError::ReadFailed { source: _ }) => reply.error(libc::EIO), // TODO
+            Err(RenameError::LocalWriteFailed { io }) => reply.error(
+                io.raw_os_error()
+                    .expect("Local read error should always be the underling os error"),
+            ),
         }
     }
 
@@ -512,6 +543,9 @@ impl Filesystem for FuseController {
             Err(CreateError::MakeInode {
                 source: MakeInodeError::ParentNotFolder,
             }) => reply.error(libc::ENOTDIR),
+            Err(CreateError::MakeInode {
+                source: MakeInodeError::ProtectedNameIsFolder,
+            }) => reply.error(libc::EISDIR),
             Err(CreateError::WhError { source }) => reply.error(source.to_libc()),
             Err(CreateError::OpenError {
                 source: OpenError::WhError { source },

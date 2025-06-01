@@ -97,7 +97,7 @@ impl FsInterface {
                         let path = arbo.n_get_path_from_inode_id(ino)?;
 
                         self.disk
-                            .set_file_size(path, meta.size)
+                            .set_file_size(&path, meta.size as usize)
                             .map_err(|io| AcknoledgeSetAttrError::SetFileSizeIoError { io })?;
                     }
                 }
@@ -125,9 +125,11 @@ impl FsInterface {
         file_handle: Option<UUID>,
         flags: Option<u32>,
     ) -> Result<Metadata, SetAttrError> {
-        let mut arbo = Arbo::n_write_lock(&self.arbo, "fs_interface::get_inode_attributes")?;
+        let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface::get_inode_attributes")?;
         let path = arbo.n_get_path_from_inode_id(ino)?;
-        let inode = arbo.n_get_inode_mut(ino)?;
+        let mut meta = arbo.n_get_inode(ino)?.meta.clone();
+        drop(arbo);
+
         //Except for size, No permissions are required on the file itself, but permission is required on all of the directories in pathname that lead to the file.
 
         // Extract specific informations from the file handle if it's defined
@@ -147,35 +149,35 @@ impl FsInterface {
                 Some(perm) if perm != AccessMode::Write && perm != AccessMode::ReadWrite => {
                     return Err(SetAttrError::SizeNoPerm)
                 }
-                None if !has_write_perm(inode.meta.perm) => return Err(SetAttrError::SizeNoPerm),
+                None if !has_write_perm(meta.perm) => return Err(SetAttrError::SizeNoPerm),
                 _ => {
                     // In theory if size > meta.size, the file doesn't change in the memory but in case of read, the read should zero fill the rest of the file
                     // But for now we don't support sparse file
                     self.disk
-                        .set_file_size(path, inode.meta.size)
+                        .set_file_size(&path, meta.size as usize)
                         .map_err(|io| SetAttrError::SetFileSizeIoError { io })?;
-                    inode.meta.size = size;
-                    inode.meta.blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+                    meta.size = size;
+                    meta.blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
                 }
             };
         }
 
         if !no_atime {
             if let Some(atime) = atime {
-                inode.meta.atime = time_or_now_to_system_time(atime);
+                meta.atime = time_or_now_to_system_time(atime);
             } else {
-                inode.meta.atime = SystemTime::now();
+                meta.atime = SystemTime::now();
             }
         }
 
         if let Some(mtime) = mtime {
-            inode.meta.mtime = time_or_now_to_system_time(mtime);
+            meta.mtime = time_or_now_to_system_time(mtime);
         // Only size change represent a modification
         } else if size.is_some() {
-            inode.meta.mtime = SystemTime::now();
+            meta.mtime = SystemTime::now();
         }
 
-        inode.meta.ctime = ctime.unwrap_or(SystemTime::now());
+        meta.ctime = ctime.unwrap_or(SystemTime::now());
 
         //crtime is ignored because crtime is macos only and should'nt be updated after file creation anyway
         //
@@ -189,17 +191,15 @@ impl FsInterface {
         // }
 
         if let Some(uid) = uid {
-            inode.meta.uid = uid;
+            meta.uid = uid;
         }
         if let Some(gid) = gid {
-            inode.meta.gid = gid;
+            meta.gid = gid;
         }
         if let Some(flags) = flags {
-            inode.meta.flags = flags;
+            meta.flags = flags;
         }
-        let meta = inode.meta.clone();
-        drop(arbo);
-        self.network_interface.send_metadata(ino, meta.clone());
+        self.network_interface.update_metadata(ino, meta.clone())?;
         return Ok(meta);
     }
 }

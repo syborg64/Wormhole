@@ -4,16 +4,18 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     fs, io,
-    os::unix::fs::{MetadataExt, PermissionsExt},
     sync::Arc,
     time::{Duration, SystemTime},
 };
+
+#[cfg(target_os = "linux")]
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
 
 use crate::error::WhError;
 use crate::pods::filesystem::fs_interface::SimpleFileType;
 use crate::pods::whpath::WhPath;
 
-use super::filesystem::{make_inode::MakeInodeError, remove_inode::RemoveInode};
+use super::filesystem::{make_inode::MakeInodeError, remove_inode::RemoveInodeError};
 
 // SECTION consts
 
@@ -174,6 +176,22 @@ impl Arbo {
 
     pub fn get_raw_entries(&self) -> ArboIndex {
         self.entries.clone()
+    }
+
+    pub fn get_special(name: &str, parent_ino: u64) -> Option<u64> {
+        match (name, parent_ino) {
+            (".global_config.toml", 1) => Some(2u64),
+            (".local_config.toml", 1) => Some(3u64),
+            _ => None,
+        }
+    }
+
+    pub fn is_special(ino: u64) -> bool {
+        ino <= 10u64
+    }
+
+    pub fn is_local_only(ino: u64) -> bool {
+        ino == 3u64 // ".local_config.toml"
     }
 
     #[must_use]
@@ -340,7 +358,7 @@ impl Arbo {
         Ok(())
     }
 
-    #[must_use]
+    #[deprecated]
     pub fn add_children(&mut self, parent: InodeId, child: InodeId) -> io::Result<()> {
         let parent = self.get_inode_mut(parent)?;
 
@@ -349,6 +367,18 @@ impl Arbo {
                 io::ErrorKind::InvalidInput,
                 "add_children: specified parent is not a folder",
             )),
+            FsEntry::Directory(children) => Ok(children),
+        }?;
+
+        children.push(child);
+        Ok(())
+    }
+
+    pub fn n_add_child(&mut self, parent: InodeId, child: InodeId) -> WhResult<()> {
+        let parent = self.n_get_inode_mut(parent)?;
+
+        let children = match &mut parent.entry {
+            FsEntry::File(_) => Err(WhError::InodeIsNotADirectory),
             FsEntry::Directory(children) => Ok(children),
         }?;
 
@@ -373,17 +403,17 @@ impl Arbo {
 
     #[must_use]
     /// Remove inode from the [Arbo]
-    pub fn n_remove_inode(&mut self, id: InodeId) -> Result<Inode, RemoveInode> {
+    pub fn n_remove_inode(&mut self, id: InodeId) -> Result<Inode, RemoveInodeError> {
         let inode = self.n_get_inode(id)?;
         match &inode.entry {
             FsEntry::File(_) => {}
             FsEntry::Directory(children) if children.len() == 0 => {}
-            FsEntry::Directory(_) => return Err(RemoveInode::NonEmpty),
+            FsEntry::Directory(_) => return Err(RemoveInodeError::NonEmpty),
         }
 
         self.n_remove_child(inode.parent, inode.id)?;
 
-        self.entries.remove(&id).ok_or(RemoveInode::WhError {
+        self.entries.remove(&id).ok_or(RemoveInodeError::WhError {
             source: WhError::InodeNotFound,
         })
     }
@@ -401,7 +431,7 @@ impl Arbo {
         self.entries.get(&ino).ok_or(WhError::InodeNotFound)
     }
 
-    #[must_use]
+    #[deprecated]
     pub fn mv_inode(
         &mut self,
         parent: InodeId,
@@ -425,6 +455,25 @@ impl Arbo {
         item.parent = new_parent;
 
         self.add_children(new_parent, item_id)
+    }
+
+    pub fn n_mv_inode(
+        &mut self,
+        parent: InodeId,
+        new_parent: InodeId,
+        name: &String,
+        new_name: &String,
+    ) -> WhResult<()> {
+        let parent_inode = self.entries.get(&parent).ok_or(WhError::InodeNotFound)?;
+        let item_id = self.n_get_inode_child_by_name(parent_inode, name)?.id;
+
+        self.n_remove_child(parent, item_id)?;
+
+        let item = self.n_get_inode_mut(item_id)?;
+        item.name = new_name.clone();
+        item.parent = new_parent;
+
+        self.n_add_child(new_parent, item_id)
     }
 
     // not public as the modifications are not automaticly propagated on other related inodes
@@ -634,6 +683,7 @@ impl Arbo {
 /// 1 - "/"
 /// 2 - ".global_config.toml"
 /// 3 - ".local_config.toml"
+#[cfg(target_os = "linux")]
 fn index_folder_recursive(
     arbo: &mut Arbo,
     parent: InodeId,
@@ -724,6 +774,7 @@ pub struct Metadata {
     pub flags: u32,
 }
 
+#[cfg(target_os = "linux")]
 impl TryInto<Metadata> for fs::Metadata {
     type Error = std::io::Error;
     fn try_into(self) -> Result<Metadata, std::io::Error> {
