@@ -1,8 +1,7 @@
 use nt_time::FileTime;
 use windows::Win32::{
     Foundation::{
-        NTSTATUS, STATUS_DEVICE_NOT_READY, STATUS_NOT_A_DIRECTORY, STATUS_OBJECT_NAME_INVALID,
-        STATUS_OBJECT_NAME_NOT_FOUND, STATUS_PENDING, STATUS_POSSIBLE_DEADLOCK,
+        NTSTATUS, STATUS_ACCESS_DENIED, STATUS_DATA_ERROR, STATUS_DEVICE_NOT_READY, STATUS_DIRECTORY_NOT_EMPTY, STATUS_EXPIRED_HANDLE, STATUS_FILE_IS_A_DIRECTORY, STATUS_INVALID_HANDLE, STATUS_NETWORK_UNREACHABLE, STATUS_NOT_A_DIRECTORY, STATUS_OBJECT_NAME_EXISTS, STATUS_OBJECT_NAME_INVALID, STATUS_OBJECT_NAME_NOT_FOUND, STATUS_OBJECT_PATH_NOT_FOUND, STATUS_PENDING, STATUS_POSSIBLE_DEADLOCK
     },
     Storage::FileSystem::{FILE_ATTRIBUTE_ARCHIVE, FILE_ATTRIBUTE_DIRECTORY},
 };
@@ -10,14 +9,18 @@ use winfsp::{filesystem::FileInfo, FspError};
 
 use crate::{
     error::WhError,
-    pods::{arbo::Metadata, filesystem::fs_interface::SimpleFileType, whpath::WhPath},
+    pods::{
+        arbo::Metadata, filesystem::{
+            fs_interface::SimpleFileType, make_inode::MakeInodeError, read::ReadError, rename::RenameError, write::WriteError
+        }, network::pull_file::PullError, whpath::WhPath
+    },
 };
 
-impl TryInto<WhPath> for &winfsp::U16CStr {
+impl TryFrom<&winfsp::U16CStr> for WhPath {
     type Error = NTSTATUS;
 
-    fn try_into(self) -> Result<WhPath, Self::Error> {
-        match self.to_string() {
+    fn try_from(value: &winfsp::U16CStr) -> Result<WhPath, Self::Error> {
+        match value.to_string() {
             Err(_) => Err(STATUS_OBJECT_NAME_INVALID),
             Ok(string) => Ok(WhPath::from(&string.replace("\\", "/"))),
         }
@@ -30,15 +33,15 @@ impl WhPath {
     }
 }
 
-impl Into<FileInfo> for Metadata {
-    fn into(self) -> FileInfo {
-        (&self).into()
+impl From<Metadata> for FileInfo {
+    fn from(value: Metadata) -> Self {
+        (&value).into()
     }
 }
 
-impl Into<FileInfo> for &Metadata {
-    fn into(self) -> FileInfo {
-        let attributes = match self.kind {
+impl From<&Metadata> for FileInfo {
+    fn from(value: &Metadata) -> Self {
+        let attributes = match value.kind {
             SimpleFileType::File => FILE_ATTRIBUTE_ARCHIVE,
             SimpleFileType::Directory => FILE_ATTRIBUTE_DIRECTORY,
         };
@@ -46,34 +49,34 @@ impl Into<FileInfo> for &Metadata {
         FileInfo {
             file_attributes: attributes.0,
             reparse_tag: 0,
-            allocation_size: self.size as u64,
-            file_size: self.size as u64,
-            creation_time: FileTime::try_from(self.crtime).unwrap_or(now).to_raw(),
-            last_access_time: FileTime::try_from(self.atime).unwrap_or(now).to_raw(),
-            last_write_time: FileTime::try_from(self.mtime).unwrap_or(now).to_raw(),
-            change_time: FileTime::try_from(self.ctime).unwrap_or(now).to_raw(),
-            index_number: self.ino,
+            allocation_size: value.size as u64,
+            file_size: value.size as u64,
+            creation_time: FileTime::try_from(value.crtime).unwrap_or(now).to_raw(),
+            last_access_time: FileTime::try_from(value.atime).unwrap_or(now).to_raw(),
+            last_write_time: FileTime::try_from(value.mtime).unwrap_or(now).to_raw(),
+            change_time: FileTime::try_from(value.ctime).unwrap_or(now).to_raw(),
+            index_number: value.ino,
             hard_links: 0,
             ea_size: 0,
         }
     }
 }
 
-impl Into<FspError> for &WhError {
-    fn into(self) -> FspError {
-        Into::<NTSTATUS>::into(self).into()
+impl From<&WhError> for FspError {
+    fn from(value: &WhError) -> Self {
+        Into::<NTSTATUS>::into(value).into()
     }
 }
 
-impl Into<FspError> for WhError {
-    fn into(self) -> FspError {
-        (&self).into()
+impl From<WhError> for FspError {
+    fn from(value: WhError) -> Self {
+        (&value).into()
     }
 }
 
-impl Into<NTSTATUS> for &WhError {
-    fn into(self) -> NTSTATUS {
-        match self {
+impl From<&WhError> for NTSTATUS {
+    fn from(value: &WhError) -> Self {
+        match value {
             WhError::InodeNotFound => STATUS_OBJECT_NAME_NOT_FOUND,
             WhError::InodeIsNotADirectory => STATUS_NOT_A_DIRECTORY,
             WhError::DeadLock => STATUS_POSSIBLE_DEADLOCK,
@@ -83,8 +86,84 @@ impl Into<NTSTATUS> for &WhError {
     }
 }
 
-impl Into<NTSTATUS> for WhError {
-    fn into(self) -> NTSTATUS {
-        (&self).into()
+impl From<WhError> for NTSTATUS {
+    fn from(value: WhError) -> Self {
+        (&value).into()
+    }
+}
+
+impl From<MakeInodeError> for FspError {
+    fn from(value: MakeInodeError) -> Self {
+        match value {
+            MakeInodeError::AlreadyExist => STATUS_OBJECT_NAME_EXISTS.into(),
+            MakeInodeError::LocalCreationFailed { io } => io.into(),
+            MakeInodeError::ParentNotFolder => STATUS_NOT_A_DIRECTORY.into(),
+            MakeInodeError::ParentNotFound => STATUS_OBJECT_NAME_NOT_FOUND.into(),
+            MakeInodeError::WhError { source } => source.into(),
+            MakeInodeError::ProtectedNameIsFolder => STATUS_NOT_A_DIRECTORY.into(),
+        }
+    }
+}
+
+impl From<PullError> for FspError {
+    fn from(value: PullError) -> Self {
+        match value {
+            PullError::WhError { source } => source.into(),
+            PullError::NoHostAvailable => STATUS_DATA_ERROR.into(),
+        }
+    }
+}
+
+impl From<ReadError> for FspError {
+    fn from(value: ReadError) -> Self {
+        match value {
+            ReadError::WhError { source } => source.into(),
+            ReadError::PullError { source } => source.into(),
+            ReadError::LocalReadFailed { io } => io.into(),
+            ReadError::CantPull => STATUS_NETWORK_UNREACHABLE.into(),
+        }
+    }
+}
+
+impl From<WriteError> for FspError {
+    fn from(value: WriteError) -> Self {
+        match value {
+            WriteError::WhError { source } => source.into(),
+            WriteError::LocalWriteFailed { io } => io.into(),
+            WriteError::NoFileHandle => STATUS_INVALID_HANDLE.into(),
+            WriteError::NoWritePermission => STATUS_ACCESS_DENIED.into(),
+            WriteError::BadFd => STATUS_INVALID_HANDLE.into(),
+        }
+    }
+}
+
+// impl From<WriteError> for FspError {
+//     fn from(value: WriteError) -> Self {
+//         match value {
+//             WriteError::WhError { source } => source.into(),
+//             WriteError::LocalWriteFailed { io } => io.into(),
+//             WriteError::NoFileHandle => STATUS_INVALID_HANDLE.into(),
+//             WriteError::NoWritePermission => STATUS_ACCESS_DENIED.into(),
+//             WriteError::BadFd => STATUS_INVALID_HANDLE.into(),
+//         }
+//     }
+// }
+
+impl From<RenameError> for FspError {
+    fn from(value: RenameError) -> Self {
+        match value {
+            RenameError::WhError { source } => source.into(),
+            RenameError::OverwriteNonEmpty => STATUS_DIRECTORY_NOT_EMPTY.into(),
+            RenameError::LocalOverwriteFailed { io } => io.into(),
+            RenameError::SourceParentNotFound => STATUS_OBJECT_PATH_NOT_FOUND.into(),
+            RenameError::SourceParentNotFolder => STATUS_NOT_A_DIRECTORY.into(),
+            RenameError::DestinationParentNotFound => STATUS_OBJECT_PATH_NOT_FOUND.into(),
+            RenameError::DestinationParentNotFolder => STATUS_NOT_A_DIRECTORY.into(),
+            RenameError::DestinationExists => STATUS_OBJECT_NAME_EXISTS.into(),
+            RenameError::LocalRenamingFailed { io } => io.into(),
+            RenameError::ProtectedNameIsFolder => STATUS_FILE_IS_A_DIRECTORY.into(),
+            RenameError::ReadFailed { source } => source.into(),
+            RenameError::LocalWriteFailed { io } => io.into(),
+        }
     }
 }
