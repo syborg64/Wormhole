@@ -174,7 +174,7 @@ impl FsInterface {
                     // In theory if size > meta.size, the file doesn't change in the memory but in case of read, the read should zero fill the rest of the file
                     // But for now we don't support sparse file
                     self.disk
-                        .set_file_size(&path, meta.size as usize)
+                        .set_file_size(&path, size as usize)
                         .map_err(|io| SetAttrError::SetFileSizeIoError { io })?;
                     meta.size = size;
                     meta.blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;

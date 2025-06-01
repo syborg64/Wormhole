@@ -1,7 +1,7 @@
 use std::{
     ffi::CString,
     fs::Permissions,
-    io::{Read, Seek},
+    io::Read,
     os::unix::fs::{FileExt, PermissionsExt},
 };
 
