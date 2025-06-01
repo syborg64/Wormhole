@@ -126,7 +126,9 @@ impl DiskManager for DummyDiskManager {
             let mut lock = self.files.write().expect("VirtDisk::remove_file rwLock");
 
             match lock.get_mut(&f_old_path) {
-                Some(VirtualFile::Folder(vec)) => Ok::<(), io::Error>(vec.retain(|v| v != &old_path)),
+                Some(VirtualFile::Folder(vec)) => {
+                    Ok::<(), io::Error>(vec.retain(|v| v != &old_path))
+                }
                 Some(VirtualFile::File(_)) => Err(io::ErrorKind::InvalidData.into()),
                 None => Err(io::ErrorKind::NotFound.into()),
             }?;

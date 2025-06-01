@@ -97,6 +97,10 @@ impl FsInterface {
                         let path = arbo.n_get_path_from_inode_id(ino)?;
 
                         self.disk
+                            .set_permisions(&path, meta.perm as u16)
+                            .map_err(|io| AcknoledgeSetAttrError::SetFileSizeIoError { io })?;
+
+                        self.disk
                             .set_file_size(&path, meta.size as usize)
                             .map_err(|io| AcknoledgeSetAttrError::SetFileSizeIoError { io })?;
                     }
@@ -116,6 +120,7 @@ impl FsInterface {
     pub fn setattr(
         &self,
         ino: InodeId,
+        mode: Option<u32>,
         uid: Option<u32>,
         gid: Option<u32>,
         size: Option<u64>,
@@ -125,7 +130,7 @@ impl FsInterface {
         file_handle: Option<UUID>,
         flags: Option<u32>,
     ) -> Result<Metadata, SetAttrError> {
-        let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface::get_inode_attributes")?;
+        let arbo = Arbo::n_read_lock(&self.arbo, "setattr")?;
         let path = arbo.n_get_path_from_inode_id(ino)?;
         let mut meta = arbo.n_get_inode(ino)?.meta.clone();
         drop(arbo);
@@ -143,6 +148,13 @@ impl FsInterface {
             (None, false)
         };
 
+        if let Some(mode) = mode {
+            self.disk
+                .set_permisions(&path, mode as u16)
+                .map_err(|io| SetAttrError::SetFileSizeIoError { io })?;
+
+            meta.perm = mode as u16;
+        }
         // Set size if size it's defined, take permission from the file handle if the
         if let Some(size) = size {
             match fh_perm {

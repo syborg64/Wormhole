@@ -95,7 +95,7 @@ impl Filesystem for FuseController {
         &mut self,
         _req: &Request<'_>,
         ino: u64,
-        _mode: Option<u32>,
+        mode: Option<u32>,
         uid: Option<u32>,
         gid: Option<u32>,
         size: Option<u64>,
@@ -111,6 +111,7 @@ impl Filesystem for FuseController {
     ) {
         match self.fs_interface.setattr(
             ino,
+            mode,
             uid,
             gid,
             size,

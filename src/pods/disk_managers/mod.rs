@@ -2,18 +2,18 @@ use std::io;
 
 use super::whpath::WhPath;
 
+pub mod dummy_disk_manager;
 #[cfg(target_os = "linux")]
 pub mod unix_disk_manager;
 #[cfg(target_os = "windows")]
 pub mod windows_disk_manager;
-pub mod dummy_disk_manager;
 
 pub struct DiskSizeInfo {
     pub free_size: usize,
     pub total_size: usize,
 }
 
-pub trait DiskManager : Send + Sync {
+pub trait DiskManager: Send + Sync {
     fn log_arbo(&self, path: &WhPath) -> io::Result<()>;
 
     fn new_file(&self, path: &WhPath, permissions: u16) -> io::Result<()>;
@@ -34,5 +34,5 @@ pub trait DiskManager : Send + Sync {
 
     fn new_dir(&self, path: &WhPath, permissions: u16) -> io::Result<()>;
 
-    fn size_info(&self) ->io::Result<DiskSizeInfo>;
+    fn size_info(&self) -> io::Result<DiskSizeInfo>;
 }
