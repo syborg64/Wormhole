@@ -1,20 +1,33 @@
-use nt_time::FileTime;
-use windows::Win32::{
-    Foundation::{
-        NTSTATUS, STATUS_ACCESS_DENIED, STATUS_DATA_ERROR, STATUS_DEVICE_NOT_READY, STATUS_DIRECTORY_NOT_EMPTY, STATUS_EXPIRED_HANDLE, STATUS_FILE_IS_A_DIRECTORY, STATUS_INVALID_HANDLE, STATUS_NETWORK_UNREACHABLE, STATUS_NOT_A_DIRECTORY, STATUS_OBJECT_NAME_EXISTS, STATUS_OBJECT_NAME_INVALID, STATUS_OBJECT_NAME_NOT_FOUND, STATUS_OBJECT_PATH_NOT_FOUND, STATUS_PENDING, STATUS_POSSIBLE_DEADLOCK
-    },
-    Storage::FileSystem::{FILE_ATTRIBUTE_ARCHIVE, FILE_ATTRIBUTE_DIRECTORY},
-};
-use winfsp::{filesystem::FileInfo, FspError};
-
 use crate::{
     error::WhError,
     pods::{
-        arbo::Metadata, filesystem::{
-            fs_interface::SimpleFileType, make_inode::MakeInodeError, read::ReadError, rename::RenameError, write::WriteError
-        }, network::pull_file::PullError, whpath::WhPath
+        arbo::Metadata,
+        filesystem::{
+            file_handle::{AccessMode, OpenFlags},
+            fs_interface::SimpleFileType,
+            make_inode::{CreateError, MakeInodeError},
+            open::OpenError,
+            read::ReadError,
+            rename::RenameError,
+            write::WriteError,
+        },
+        network::pull_file::PullError,
+        whpath::WhPath,
     },
 };
+use nt_time::FileTime;
+use windows::Win32::{
+    Foundation::{
+        GENERIC_EXECUTE, GENERIC_READ, GENERIC_WRITE, NTSTATUS, STATUS_ACCESS_DENIED,
+        STATUS_DATA_ERROR, STATUS_DEVICE_NOT_READY, STATUS_DIRECTORY_NOT_EMPTY,
+        STATUS_FILE_IS_A_DIRECTORY, STATUS_INVALID_HANDLE, STATUS_INVALID_PARAMETER,
+        STATUS_NETWORK_UNREACHABLE, STATUS_NOT_A_DIRECTORY, STATUS_OBJECT_NAME_EXISTS,
+        STATUS_OBJECT_NAME_INVALID, STATUS_OBJECT_NAME_NOT_FOUND, STATUS_OBJECT_PATH_NOT_FOUND,
+        STATUS_PENDING, STATUS_POSSIBLE_DEADLOCK,
+    },
+    Storage::FileSystem::{FILE_ATTRIBUTE_ARCHIVE, FILE_ATTRIBUTE_DIRECTORY, SYNCHRONIZE},
+};
+use winfsp::{filesystem::FileInfo, FspError};
 
 impl TryFrom<&winfsp::U16CStr> for WhPath {
     type Error = NTSTATUS;
@@ -137,18 +150,6 @@ impl From<WriteError> for FspError {
     }
 }
 
-// impl From<WriteError> for FspError {
-//     fn from(value: WriteError) -> Self {
-//         match value {
-//             WriteError::WhError { source } => source.into(),
-//             WriteError::LocalWriteFailed { io } => io.into(),
-//             WriteError::NoFileHandle => STATUS_INVALID_HANDLE.into(),
-//             WriteError::NoWritePermission => STATUS_ACCESS_DENIED.into(),
-//             WriteError::BadFd => STATUS_INVALID_HANDLE.into(),
-//         }
-//     }
-// }
-
 impl From<RenameError> for FspError {
     fn from(value: RenameError) -> Self {
         match value {
@@ -164,6 +165,58 @@ impl From<RenameError> for FspError {
             RenameError::ProtectedNameIsFolder => STATUS_FILE_IS_A_DIRECTORY.into(),
             RenameError::ReadFailed { source } => source.into(),
             RenameError::LocalWriteFailed { io } => io.into(),
+        }
+    }
+}
+
+impl From<OpenError> for FspError {
+    fn from(value: OpenError) -> Self {
+        match value {
+            OpenError::WhError { source } => source.into(),
+            OpenError::TruncReadOnly => STATUS_ACCESS_DENIED.into(),
+            OpenError::WrongPermissions => STATUS_ACCESS_DENIED.into(),
+            OpenError::MultipleAccessFlags => STATUS_INVALID_PARAMETER.into(),
+        }
+    }
+}
+
+impl From<CreateError> for FspError {
+    fn from(value: CreateError) -> Self {
+        match value {
+            CreateError::WhError { source } => source.into(),
+            CreateError::MakeInode { source } => source.into(),
+            CreateError::OpenError { source } => source.into(),
+        }
+    }
+}
+
+impl AccessMode {
+    pub fn from_win_u32(access: u32) -> AccessMode {
+        if access & (GENERIC_READ.0 & !SYNCHRONIZE.0) != 0
+            && access & (GENERIC_WRITE.0 & !SYNCHRONIZE.0) != 0
+        {
+            return AccessMode::ReadWrite;
+        }
+        if access & (GENERIC_WRITE.0 & !SYNCHRONIZE.0) != 0 {
+            return AccessMode::Write;
+        }
+        if access & (GENERIC_EXECUTE.0 & !SYNCHRONIZE.0) != 0 {
+            return AccessMode::Execute;
+        }
+        if access & (GENERIC_READ.0 & !SYNCHRONIZE.0) != 0 {
+            return AccessMode::Read;
+        }
+        return AccessMode::Void;
+    }
+}
+
+impl OpenFlags {
+    pub fn from_win_u32(access: u32) -> OpenFlags {
+        OpenFlags {
+            no_atime: false,
+            direct: false,
+            trunc: false,
+            exec: access & (GENERIC_EXECUTE.0 & !SYNCHRONIZE.0) != 0,
         }
     }
 }
