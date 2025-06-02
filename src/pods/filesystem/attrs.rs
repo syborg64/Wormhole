@@ -1,7 +1,6 @@
 use std::time::SystemTime;
 
 use custom_error::custom_error;
-use fuser::{FileAttr, TimeOrNow};
 
 use crate::{
     error::WhError,
@@ -15,13 +14,6 @@ use crate::{
     },
 };
 
-fn time_or_now_to_system_time(time: TimeOrNow) -> SystemTime {
-    match time {
-        TimeOrNow::Now => SystemTime::now(),
-        TimeOrNow::SpecificTime(time) => time,
-    }
-}
-
 custom_error! {pub SetAttrError
     WhError{source: WhError} = "{source}",
     SizeNoPerm = "Edit size require to have the write permission on the file",
@@ -32,50 +24,6 @@ custom_error! {pub SetAttrError
 custom_error! {pub AcknoledgeSetAttrError
     WhError{source: WhError} = "{source}",
     SetFileSizeIoError {io: std::io::Error } = "Set file size disk side failed"
-}
-
-impl Into<FileAttr> for Metadata {
-    fn into(self) -> FileAttr {
-        FileAttr {
-            ino: self.ino,
-            size: self.size,
-            blocks: self.size,
-            atime: self.atime,
-            mtime: self.mtime,
-            ctime: self.ctime,
-            crtime: self.crtime,
-            kind: self.kind.into(),
-            perm: self.perm,
-            nlink: self.nlink,
-            uid: self.uid,
-            gid: self.gid,
-            rdev: self.rdev,
-            flags: self.flags,
-            blksize: self.blksize,
-        }
-    }
-}
-
-impl Into<Metadata> for FileAttr {
-    fn into(self) -> Metadata {
-        Metadata {
-            ino: self.ino,
-            size: self.size,
-            blocks: self.blocks,
-            atime: self.atime,
-            mtime: self.mtime,
-            ctime: self.ctime,
-            crtime: self.crtime,
-            kind: self.kind.into(),
-            perm: self.perm,
-            nlink: self.nlink,
-            uid: self.uid,
-            gid: self.gid,
-            rdev: self.rdev,
-            flags: self.flags,
-            blksize: self.blksize,
-        }
-    }
 }
 
 impl FsInterface {
@@ -132,8 +80,8 @@ impl FsInterface {
         uid: Option<u32>,
         gid: Option<u32>,
         size: Option<u64>,
-        atime: Option<fuser::TimeOrNow>,
-        mtime: Option<fuser::TimeOrNow>,
+        atime: Option<std::time::SystemTime>,
+        mtime: Option<std::time::SystemTime>,
         ctime: Option<std::time::SystemTime>,
         file_handle: Option<UUID>,
         flags: Option<u32>,
@@ -184,14 +132,14 @@ impl FsInterface {
 
         if !no_atime {
             if let Some(atime) = atime {
-                meta.atime = time_or_now_to_system_time(atime);
+                meta.atime = atime;
             } else {
                 meta.atime = SystemTime::now();
             }
         }
 
         if let Some(mtime) = mtime {
-            meta.mtime = time_or_now_to_system_time(mtime);
+            meta.mtime = mtime;
         // Only size change represent a modification
         } else if size.is_some() {
             meta.mtime = SystemTime::now();

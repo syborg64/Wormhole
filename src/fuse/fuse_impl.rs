@@ -1,3 +1,4 @@
+use crate::fuse::linux_attr::time_or_now_to_system_time;
 use crate::pods::arbo::{FsEntry, Inode};
 use crate::pods::filesystem::attrs::SetAttrError;
 use crate::pods::filesystem::fs_interface::{FsInterface, SimpleFileType};
@@ -18,7 +19,7 @@ use libc::{EIO, ENOENT, XATTR_CREATE, XATTR_REPLACE};
 use std::ffi::OsStr;
 use std::io;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 // NOTE - placeholders
 const TTL: Duration = Duration::from_secs(1);
@@ -101,11 +102,11 @@ impl Filesystem for FuseController {
         size: Option<u64>,
         atime: Option<fuser::TimeOrNow>,
         mtime: Option<fuser::TimeOrNow>,
-        ctime: Option<std::time::SystemTime>,
+        ctime: Option<SystemTime>,
         file_handle: Option<u64>,
-        _crtime: Option<std::time::SystemTime>,
-        _chgtime: Option<std::time::SystemTime>,
-        _bkuptime: Option<std::time::SystemTime>,
+        _crtime: Option<SystemTime>,
+        _chgtime: Option<SystemTime>,
+        _bkuptime: Option<SystemTime>,
         flags: Option<u32>,
         reply: ReplyAttr,
     ) {
@@ -115,8 +116,8 @@ impl Filesystem for FuseController {
             uid,
             gid,
             size,
-            atime,
-            mtime,
+            atime.map(|time| time_or_now_to_system_time(time)),
+            mtime.map(|time| time_or_now_to_system_time(time)),
             ctime,
             file_handle,
             flags,
