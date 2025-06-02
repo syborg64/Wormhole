@@ -102,7 +102,7 @@ impl Filesystem for FuseController {
         atime: Option<fuser::TimeOrNow>,
         mtime: Option<fuser::TimeOrNow>,
         ctime: Option<std::time::SystemTime>,
-        file_handle: Option<u64>, // No use for the file handle
+        file_handle: Option<u64>,
         _crtime: Option<std::time::SystemTime>,
         _chgtime: Option<std::time::SystemTime>,
         _bkuptime: Option<std::time::SystemTime>,
