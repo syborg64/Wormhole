@@ -538,7 +538,9 @@ impl Filesystem for FuseController {
     }
 
     fn open(&mut self, _req: &Request<'_>, ino: u64, flags: i32, reply: fuser::ReplyOpen) {
-        match self.fs_interface.open(ino, flags) {
+        match AccessMode::from_libc(flags)
+            .and_then(|access| self.fs_interface.open(ino, flags, access))
+        {
             Ok(file_handle) => reply.opened(file_handle, flags as u32), // TODO - check flags ?,
             Err(OpenError::WhError { source }) => reply.error(source.to_libc()),
             Err(OpenError::MultipleAccessFlags) => reply.error(libc::EINVAL),

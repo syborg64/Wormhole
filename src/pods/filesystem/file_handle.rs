@@ -21,7 +21,7 @@ pub enum AccessMode {
     Execute,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct OpenFlags {
     pub no_atime: bool,
     pub direct: bool,

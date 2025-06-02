@@ -7,7 +7,7 @@ use crate::error::WhError;
 
 use custom_error::custom_error;
 
-use super::fs_interface::FsInterface;
+use super::{file_handle::UUID, fs_interface::FsInterface};
 
 custom_error! {pub OpenError
     WhError{source: WhError} = "{source}",
@@ -87,9 +87,9 @@ impl FsInterface {
     pub fn open(
         &self,
         ino: InodeId,
-        access: AccessMode,
         flags: OpenFlags,
-    ) -> Result<u64, OpenError> {
+        access: AccessMode,
+    ) -> Result<UUID, OpenError> {
         let inode_perm = Arbo::n_read_lock(&self.arbo, "open")?
             .n_get_inode(ino)?
             .meta

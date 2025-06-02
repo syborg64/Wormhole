@@ -31,10 +31,11 @@ impl FsInterface {
         &self,
         parent_ino: u64,
         name: String,
+        kind: SimpleFileType,
         flags: OpenFlags,
         access: AccessMode,
     ) -> Result<(Inode, u64), CreateError> {
-        let inode = self.make_inode(parent_ino, name, SimpleFileType::File)?;
+        let inode = self.make_inode(parent_ino, name, kind)?;
 
         let perm = check_permissions(flags, access, inode.meta.perm)?;
 
