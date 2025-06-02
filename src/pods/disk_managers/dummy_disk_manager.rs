@@ -169,7 +169,10 @@ impl DiskManager for DummyDiskManager {
             .get_mut(&path.clone().set_relative())
         {
             let len = binary.len();
-            let grow = std::cmp::max(0usize, offset + len - file.len());
+            let grow = offset
+                .checked_add(len)
+                .and_then(|x| x.checked_sub(file.len()))
+                .unwrap_or(0);
             *self.size.write().expect("VirtDisk::write_file rwLock") += grow;
             file.splice(
                 (offset)..(std::cmp::min(file.len(), offset + len)),
