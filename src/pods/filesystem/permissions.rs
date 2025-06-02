@@ -1,5 +1,8 @@
+// Inspired by [libc::S_IEXEC]
 const EXECUTE_BIT_FLAG: u16 = 1u16;
+// Inspired by [libc::S_IWRITE]
 const WRITE_BIT_FLAG: u16 = 2u16;
+// Inspired by [libc::S_IREAD]
 const READ_BIT_FLAG: u16 = 4u16;
 
 pub fn has_execute_perm(perm: u16) -> bool {
