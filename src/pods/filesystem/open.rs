@@ -47,6 +47,7 @@ pub fn check_permissions(
     inode_perm: u16,
 ) -> Result<AccessMode, OpenError> {
     match access {
+        AccessMode::Void => Ok(AccessMode::Void),
         AccessMode::Read => {
             if inode_perm & READ_BIT_FLAG == 0 {
                 Err(OpenError::WrongPermissions)

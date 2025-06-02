@@ -14,6 +14,7 @@ use crate::{
 
 #[derive(Debug, Clone, Copy)]
 pub enum AccessMode {
+    Void,
     Read,
     Write,
     ReadWrite,
