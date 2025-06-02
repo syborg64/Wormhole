@@ -595,10 +595,17 @@ impl Filesystem for FuseController {
         flags: i32,
         reply: fuser::ReplyCreate,
     ) {
-        match self
-            .fs_interface
-            .create(parent, name.to_string_lossy().to_string(), flags)
-        {
+        match AccessMode::from_libc(flags)
+            .map_err(|source| CreateError::MakeInode { source })
+            .and_then(|access| {
+                self.fs_interface.create(
+                    parent,
+                    name.to_string_lossy().to_string(),
+                    SimpleFileType::File,
+                    flags,
+                    access,
+                )
+            }) {
             Ok((inode, fh)) => reply.created(&TTL, &inode.meta.into(), 0, fh, flags as u32),
             Err(CreateError::MakeInode {
                 source: MakeInodeError::LocalCreationFailed { io },
