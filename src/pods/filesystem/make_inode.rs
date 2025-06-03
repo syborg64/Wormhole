@@ -1,6 +1,7 @@
 use custom_error::custom_error;
 
 use crate::{
+    config::{types::Config, LocalConfig},
     error::WhError,
     pods::arbo::{Arbo, FsEntry, Inode},
 };
@@ -60,7 +61,13 @@ impl FsInterface {
         kind: SimpleFileType,
     ) -> Result<Inode, MakeInodeError> {
         let new_entry = match kind {
-            SimpleFileType::File => FsEntry::File(vec![self.network_interface.self_addr.clone()]),
+            SimpleFileType::File => FsEntry::File(vec![LocalConfig::read_lock(
+                &self.network_interface.local_config,
+                "remove_inode_locally",
+            )?
+            .general
+            .address
+            .clone()]),
             SimpleFileType::Directory => FsEntry::Directory(Vec::new()),
         };
 
