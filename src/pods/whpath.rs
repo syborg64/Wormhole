@@ -1,7 +1,7 @@
+use serde::{Deserialize, Serialize};
 use std::ffi::{OsStr, OsString};
 use std::str::FromStr;
 use std::{fmt, path::Path};
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Eq, Hash)]
 pub enum PathType {
@@ -24,6 +24,12 @@ pub trait JoinPath {
 impl JoinPath for OsStr {
     fn as_str(&self) -> &str {
         self.to_str().expect("OsStr conversion to str failed")
+    }
+}
+
+impl JoinPath for &str {
+    fn as_str(&self) -> &str {
+        self
     }
 }
 
@@ -88,8 +94,6 @@ impl Into<OsString> for &WhPath {
         OsString::from_str(&self.inner).expect("infaillable")
     }
 }
-
-
 
 impl WhPath {
     pub fn new() -> Self {

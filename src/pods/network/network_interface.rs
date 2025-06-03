@@ -8,29 +8,27 @@ use std::{
 use crate::{
     config::{types::Config, GlobalConfig, LocalConfig},
     error::{WhError, WhResult},
-    network::message::{MessageAndStatus, RedundancyMessage},
+    network::{
+        message::{
+            Address, FileSystemSerialized, FromNetworkMessage, MessageAndStatus, MessageContent,
+            RedundancyMessage, ToNetworkMessage,
+        },
+        peer_ipc::PeerIPC,
+        server::Server,
+    },
     pods::filesystem::make_inode::MakeInodeError,
 };
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::pods::{
-    arbo::{FsEntry, Metadata},
-    filesystem::remove_inode::RemoveInode,
-    whpath::WhPath,
+    arbo::BLOCK_SIZE,
+    filesystem::{remove_inode::RemoveInodeError, rename::RenameError},
+    network::callbacks::Callback,
 };
-use crate::{
-    error::WhError,
-    peer_ipc::PeerIPC,
-    pods::{
-        arbo::{FsEntry, Metadata, BLOCK_SIZE},
-        filesystem::{
-            make_inode::MakeInodeError, remove_inode::RemoveInodeError, rename::RenameError,
-        },
-        network::callbacks::Callback,
-        whpath::WhPath,
-    },
-    server::Server,
+use crate::pods::{
+    arbo::{FsEntry, Metadata},
+    whpath::WhPath,
 };
 
 use crate::pods::{
@@ -39,8 +37,6 @@ use crate::pods::{
 };
 
 use crate::pods::network::callbacks::Callbacks;
-
-use super::callbacks::Callback;
 
 pub fn get_all_peers_address(peers: &Arc<RwLock<Vec<PeerIPC>>>) -> WhResult<Vec<Address>> {
     Ok(peers
@@ -147,9 +143,9 @@ impl NetworkInterface {
 
         if !Arbo::is_local_only(inode_id) {
             self.to_network_message_tx
-                .send(ToNetworkMessage::BroadcastMessage(
-                    message::MessageContent::Inode(inode),
-                ))
+                .send(ToNetworkMessage::BroadcastMessage(MessageContent::Inode(
+                    inode,
+                )))
                 .expect("register inode: unable to update modification on the network thread");
         }
         Ok(())
@@ -169,15 +165,13 @@ impl NetworkInterface {
         arbo.n_mv_inode(parent, new_parent, name, new_name)?;
 
         self.to_network_message_tx
-            .send(ToNetworkMessage::BroadcastMessage(
-                message::MessageContent::Rename(
-                    parent,
-                    new_parent,
-                    name.clone(),
-                    new_name.clone(),
-                    overwrite,
-                ),
-            ))
+            .send(ToNetworkMessage::BroadcastMessage(MessageContent::Rename(
+                parent,
+                new_parent,
+                name.clone(),
+                new_name.clone(),
+                overwrite,
+            )))
             .expect("broadcast_rename_file: unable to update modification on the network thread");
         Ok(())
     }
@@ -212,9 +206,9 @@ impl NetworkInterface {
 
         if !Arbo::is_local_only(id) {
             self.to_network_message_tx
-                .send(ToNetworkMessage::BroadcastMessage(
-                    message::MessageContent::Remove(id),
-                ))
+                .send(ToNetworkMessage::BroadcastMessage(MessageContent::Remove(
+                    id,
+                )))
                 .expect("unregister_inode: unable to update modification on the network thread");
         }
         // TODO - if unable to update for some reason, should be passed to the background worker
@@ -251,6 +245,10 @@ impl NetworkInterface {
     fn affect_write_locally(&self, id: InodeId, new_size: usize) -> WhResult<Metadata> {
         let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface.affect_write_locally")?;
         let inode = arbo.n_get_inode_mut(id)?;
+        let address = LocalConfig::read_lock(&self.local_config, "affect_write_locally")?
+            .general
+            .address
+            .clone();
 
         let new_size = new_size.max(inode.meta.size as usize);
         inode.meta.size = new_size as u64;
@@ -278,7 +276,7 @@ impl NetworkInterface {
                     MessageContent::RevokeFile(id, address, meta),
                 ))
                 .expect("revoke_remote_hosts: unable to update modification on the network thread");
-            self.apply_redundancy(id)?;
+            self.apply_redundancy(id);
         }
         Ok(())
     }

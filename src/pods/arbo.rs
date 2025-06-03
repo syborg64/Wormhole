@@ -27,6 +27,13 @@ pub const LOCK_TIMEOUT: Duration = Duration::new(5, 0);
 
 // !SECTION
 
+pub const GLOBAL_CONFIG_INO: u64 = 2;
+pub const GLOBAL_CONFIG_FNAME: &str = ".global_config.toml";
+pub const LOCAL_CONFIG_INO: u64 = 3;
+pub const LOCAL_CONFIG_FNAME: &str = ".local_config.toml";
+pub const ARBO_FILE_INO: u64 = 4;
+pub const ARBO_FILE_FNAME: &str = ".arbo";
+
 // SECTION types
 
 /// InodeId is represented by an u64
@@ -186,13 +193,6 @@ impl Arbo {
     pub fn inodes_mut(&mut self) -> std::collections::hash_map::ValuesMut<'_, InodeId, Inode> {
         self.entries.values_mut()
     }
-
-    pub const GLOBAL_CONFIG_INO: u64 = 2;
-    pub const GLOBAL_CONFIG_FNAME: &str = ".global_config.toml";
-    pub const LOCAL_CONFIG_INO: u64 = 3;
-    pub const LOCAL_CONFIG_FNAME: &str = ".local_config.toml";
-    pub const ARBO_FILE_INO: u64 = 4;
-    pub const ARBO_FILE_FNAME: &str = ".arbo";
 
     pub fn get_special(name: &str, parent_ino: u64) -> Option<u64> {
         match (name, parent_ino) {
@@ -756,7 +756,7 @@ fn index_folder_recursive(
         let fname = entry.file_name().to_string_lossy().to_string();
         let meta = entry.metadata()?;
 
-        let special_ino = Arbo::get_special(&name, parent_ino);
+        let special_ino = Arbo::get_special(&fname, parent);
 
         let used_ino = match special_ino {
             Some(_) if !ftype.is_file() => {

@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use crate::{
     commands::{cli_commands::PodArgs, default_global_config, default_local_config},
     config::{types::Config, GlobalConfig, LocalConfig},
@@ -10,6 +9,7 @@ use crate::{
         whpath::WhPath,
     },
 };
+use std::sync::Arc;
 
 pub async fn new(args: PodArgs) -> CliResult<Pod> {
     let (global_config, local_config, server, mount_point) = pod_value(&args).await?;
@@ -47,9 +47,7 @@ fn add_hosts(
     global_config
 }
 
-async fn pod_value(
-    args: &PodArgs,
-) -> CliResult<(GlobalConfig, LocalConfig, Arc<Server>, WhPath)> {
+async fn pod_value(args: &PodArgs) -> CliResult<(GlobalConfig, LocalConfig, Arc<Server>, WhPath)> {
     let local_path = args.path.clone().join(LOCAL_CONFIG_FNAME).inner;
     let mut local_config: LocalConfig =
         LocalConfig::read(&local_path).unwrap_or(default_local_config(&args.name));
@@ -62,7 +60,7 @@ async fn pod_value(
     }
     if let Err(_) = local_config.write(&local_path) {
         return Err(CliError::InvalidConfig { file: local_path });
-    } 
+    }
     let server: Arc<Server> = Arc::new(Server::setup(&local_config.general.address).await?);
 
     let global_path = args.path.clone().join(GLOBAL_CONFIG_FNAME).inner;

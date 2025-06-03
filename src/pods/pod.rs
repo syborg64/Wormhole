@@ -10,6 +10,8 @@ use crate::network::message::{
     FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
 };
 use crate::pods::arbo::{FsEntry, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO, ROOT};
+#[cfg(target_os = "linux")]
+use crate::pods::disk_managers::unix_disk_manager::UnixDiskManager;
 use crate::pods::network::redundancy::redundancy_worker;
 #[cfg(target_os = "windows")]
 use crate::winfsp::winfsp_impl::mount_fsp;
@@ -32,7 +34,6 @@ use crate::network::{message::Address, peer_ipc::PeerIPC, server::Server};
 
 use crate::pods::{
     arbo::{generate_arbo, Arbo},
-    disk_manager::DiskManager,
     filesystem::fs_interface::FsInterface,
     network::network_interface::NetworkInterface,
     whpath::WhPath,
@@ -134,8 +135,8 @@ custom_error! {pub PodStopError
     WhError{source: WhError} = "{source}",
     ArboSavingFailed{error_source: String} = @{format!("PodStopError: could not write arbo to disk: {error_source}")},
     PodNotRunning = "No pod with this name was found running.",
-    FileNotReadable{file: WhPath, reason: String} = @{format!("PodStopError: could not read file from disk: {file} {reason}")},
-    FileNotSent{file: WhPath} = @{format!("PodStopError: no pod was able to receive this file before stopping: {file}")}
+    FileNotReadable{file: InodeId, reason: String} = @{format!("PodStopError: could not read file from disk: ({file}) {reason}")},
+    FileNotSent{file: InodeId} = @{format!("PodStopError: no pod was able to receive this file before stopping: ({file})")}
 }
 
 impl Pod {
@@ -301,17 +302,14 @@ impl Pod {
         &self,
         possible_hosts: &Vec<Address>,
         ino: InodeId,
-        path: WhPath,
-        file_size: u64,
     ) -> Result<(), PodStopError> {
-        let file_content = self
-            .fs_interface
-            .disk
-            .read_file(path.clone(), 0, file_size)
-            .map_err(|e| PodStopError::FileNotReadable {
-                file: path.clone(),
-                reason: e.to_string(),
-            })?;
+        let file_content =
+            self.fs_interface
+                .read_local_file(ino)
+                .map_err(|e| PodStopError::FileNotReadable {
+                    file: ino,
+                    reason: e.to_string(),
+                })?;
 
         for host in possible_hosts {
             let (status_tx, mut status_rx) = tokio::sync::mpsc::unbounded_channel::<WhResult<()>>();
@@ -338,7 +336,7 @@ impl Pod {
                 return Ok(());
             }
         }
-        Err(PodStopError::FileNotSent { file: path })
+        Err(PodStopError::FileNotSent { file: ino })
     }
 
     /// Gets every file hosted by this pod only and sends them to other pods
@@ -361,17 +359,11 @@ impl Pod {
                 {
                     None
                 } else {
-                    Some((
-                        inode.id,
-                        arbo.n_get_path_from_inode_id(inode.id)
-                            .map_err(|e| log::error!("Pod::files_to_send_when_stopping(2): {e}"))
-                            .ok()?,
-                        inode.meta.size,
-                    ))
+                    Some(inode.id)
                 }
             })
-            .for_each(|(id, path, file_size)| {
-                if let Err(e) = self.send_file_to_possible_hosts(&peers, id, path, file_size) {
+            .for_each(|(id)| {
+                if let Err(e) = self.send_file_to_possible_hosts(&peers, id) {
                     log::warn!("{e}");
                 }
             });
@@ -407,11 +399,11 @@ impl Pod {
             ))
             .expect("to_network_message_tx closed.");
 
-        let _ = self.fs_interface.disk.remove_file(ARBO_FILE_FNAME.into());
+        let _ = self.fs_interface.disk.remove_file(&ARBO_FILE_FNAME.into());
         self.fs_interface
             .disk
             .write_file(
-                ARBO_FILE_FNAME.into(),
+                &ARBO_FILE_FNAME.into(),
                 &bincode::serialize(&*arbo).expect("can't serialize arbo to bincode"),
                 0,
             )
