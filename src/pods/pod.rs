@@ -10,10 +10,10 @@ use crate::network::message::{
     FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
 };
 use crate::pods::arbo::{FsEntry, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO, ROOT};
-#[cfg(target_os = "linux")]
-use crate::pods::disk_managers::unix_disk_manager::UnixDiskManager;
 #[cfg(target_os = "windows")]
 use crate::pods::disk_managers::dummy_disk_manager::DummyDiskManager;
+#[cfg(target_os = "linux")]
+use crate::pods::disk_managers::unix_disk_manager::UnixDiskManager;
 use crate::pods::network::redundancy::redundancy_worker;
 #[cfg(target_os = "windows")]
 use crate::winfsp::winfsp_impl::mount_fsp;
@@ -67,12 +67,7 @@ custom_error! {pub PodInfoError
     FileNotFound = @{format!("PodInfoError: file not found")},
 }
 
-pub enum PodInfoRequest {
-    FileHosts(WhPath),
-}
-pub enum PodInfoAnswer {
-    FileHosts(Vec<Address>),
-}
+pub type TreeLine = (u8, InodeId, WhPath, Vec<Address>); // (indentation_level, ino, path, hosts)
 
 pub async fn initiate_connection(
     peers_addrs: Vec<Address>,
@@ -277,25 +272,53 @@ impl Pod {
         })
     }
 
-    /// Get info from the pod (intended for the cli)
-    pub fn get_info(&self, request: PodInfoRequest) -> Result<PodInfoAnswer, PodInfoError> {
-        match request {
-            PodInfoRequest::FileHosts(path) => {
-                let entry = Arbo::n_read_lock(&self.network_interface.arbo, "Pod::get_info")?
-                    .get_inode_from_path(&path)
-                    .map_err(|_| PodInfoError::FileNotFound)?
-                    .entry
-                    .clone();
+    // SECTION getting info from the pod (for the cli)
 
-                match entry {
-                    FsEntry::File(hosts) => Ok(PodInfoAnswer::FileHosts(hosts)),
-                    FsEntry::Directory(_) => Err(PodInfoError::WrongFileType {
-                        detail: "Asked path is a directory (directories have no hosts)".to_owned(),
-                    }),
-                }
-            }
+    pub fn get_file_hosts(&self, path: WhPath) -> Result<Vec<Address>, PodInfoError> {
+        let entry = Arbo::n_read_lock(&self.network_interface.arbo, "Pod::get_info")?
+            .get_inode_from_path(&path)
+            .map_err(|_| PodInfoError::FileNotFound)?
+            .entry
+            .clone();
+
+        match entry {
+            FsEntry::File(hosts) => Ok(hosts),
+            FsEntry::Directory(_) => Err(PodInfoError::WrongFileType {
+                detail: "Asked path is a directory (directories have no hosts)".to_owned(),
+            }),
         }
     }
+
+    pub fn get_file_tree_and_hosts(&self, path: WhPath) -> Result<Vec<TreeLine>, PodInfoError> {
+        let arbo = Arbo::n_read_lock(&self.network_interface.arbo, "Pod::get_info")?;
+        let ino = &arbo
+            .get_inode_from_path(&path)
+            .map_err(|_| PodInfoError::FileNotFound)?
+            .id;
+
+        Ok(Self::recurse_tree(&*arbo, *ino, 0))
+    }
+
+    /// given ino is not checked -> must exist in arbo
+    fn recurse_tree(arbo: &Arbo, ino: InodeId, indentation: u8) -> Vec<TreeLine> {
+        let entry = &arbo
+            .n_get_inode(ino)
+            .expect("recurse_tree: ino not found")
+            .entry;
+        let path = arbo
+            .n_get_path_from_inode_id(ino)
+            .expect("recurse_tree: unable to get path");
+        match entry {
+            FsEntry::File(hosts) => vec![(indentation, ino, path, hosts.clone())],
+            FsEntry::Directory(children) => children
+                .iter()
+                .map(|c| Pod::recurse_tree(arbo, *c, indentation + 1))
+                .flatten()
+                .collect::<Vec<TreeLine>>(),
+        }
+    }
+
+    // !SECTION
 
     /// for a given file, will try to send it to one host, trying each until succes
     fn send_file_to_possible_hosts(
