@@ -4,8 +4,8 @@ use crate::pods::filesystem::make_inode::{CreateError, MakeInodeError};
 use crate::pods::filesystem::open::OpenError;
 use crate::pods::filesystem::read::ReadError;
 use crate::pods::filesystem::remove_inode::RemoveFileError;
-use crate::pods::filesystem::write::WriteError;
 use crate::pods::filesystem::rename::RenameError;
+use crate::pods::filesystem::write::WriteError;
 use crate::pods::filesystem::xattrs::GetXAttrError;
 use crate::pods::network::pull_file::PullError;
 use crate::pods::whpath::WhPath;
@@ -350,7 +350,8 @@ impl Filesystem for FuseController {
         match self.fs_interface.read_file(
             ino,
             offset.try_into().expect("read::read offset negative"),
-            &mut buf) {
+            &mut buf,
+        ) {
             Ok(size) => {
                 buf.resize(size, 0);
                 reply.data(&buf)
@@ -499,19 +500,23 @@ impl Filesystem for FuseController {
         flags: u32,
         reply: fuser::ReplyEmpty,
     ) {
-        match self.fs_interface.rename(
-            parent,
-            new_parent,
-            &name //TODO move instead of ref because of the clone down the line
-                .to_owned()
-                .into_string()
-                .expect("Don't support non unicode yet"), //TODO support OsString smartly
-            &newname
-                .to_owned()
-                .into_string()
-                .expect("Don't support non unicode yet"),
-            flags & libc::RENAME_NOREPLACE == 0,
-        ).inspect_err(|err| log::error!("rename: {err}")) {
+        match self
+            .fs_interface
+            .rename(
+                parent,
+                new_parent,
+                &name //TODO move instead of ref because of the clone down the line
+                    .to_owned()
+                    .into_string()
+                    .expect("Don't support non unicode yet"), //TODO support OsString smartly
+                &newname
+                    .to_owned()
+                    .into_string()
+                    .expect("Don't support non unicode yet"),
+                flags & libc::RENAME_NOREPLACE == 0,
+            )
+            .inspect_err(|err| log::error!("rename: {err}"))
+        {
             Ok(()) => reply.ok(),
             Err(RenameError::WhError { source }) => reply.error(source.to_libc()),
             Err(RenameError::LocalRenamingFailed { io }) => {
@@ -668,7 +673,6 @@ pub fn mount_fuse(
         MountOption::RW,
         // MountOption::DefaultPermissions,
         MountOption::FSName("wormhole".to_string()),
-        MountOption::CUSTOM("nonempty".to_string())
     ];
     let ctrl = FuseController { fs_interface };
 
