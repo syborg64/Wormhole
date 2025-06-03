@@ -20,7 +20,7 @@ pub enum MessageContent {
     RequestFile(InodeId, Address),
     PullAnswer(InodeId, Vec<u8>),
     RedundancyFile(InodeId, Vec<u8>),
-    Rename(InodeId, InodeId, String, String), //Parent, New Parent, Name, New Name
+    Rename(InodeId, InodeId, String, String, bool), /// Parent, New Parent, Name, New Name, overwrite
     EditHosts(InodeId, Vec<Address>),
     RevokeFile(InodeId, Address, Metadata),
     AddHosts(InodeId, Vec<Address>),
@@ -42,7 +42,7 @@ impl fmt::Display for MessageContent {
             MessageContent::Inode(_) => "Inode",
             MessageContent::RequestFile(_, _) => "RequestFile",
             MessageContent::PullAnswer(_, _) => "PullAnswer",
-            MessageContent::Rename(_, _, _, _) => "Rename",
+            MessageContent::Rename(_, _, _, _, _) => "Rename",
             MessageContent::EditHosts(_, _) => "EditHosts",
             MessageContent::RevokeFile(_, _, _) => "RevokeFile",
             MessageContent::AddHosts(_, _) => "AddHosts",

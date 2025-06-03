@@ -1,7 +1,12 @@
 use custom_error::custom_error;
 
 use crate::{
-    config::{types::Config, LocalConfig}, error::WhError, pods::arbo::{Arbo, FsEntry, Inode, ARBO_FILE_FNAME, ARBO_FILE_INO, GLOBAL_CONFIG_FNAME, GLOBAL_CONFIG_INO, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO}
+    config::{types::Config, LocalConfig},
+    error::WhError,
+    pods::arbo::{
+        Arbo, FsEntry, Inode, ARBO_FILE_FNAME, ARBO_FILE_INO, GLOBAL_CONFIG_FNAME,
+        GLOBAL_CONFIG_INO, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO,
+    },
 };
 
 use super::{
@@ -15,7 +20,8 @@ custom_error! {pub MakeInodeError
     AlreadyExist = "File already existing",
     ParentNotFound = "Parent does not exist",
     ParentNotFolder = "Parent isn't a folder",
-    LocalCreationFailed{io: std::io::Error} = "Local creation failed: {io}"
+    LocalCreationFailed{io: std::io::Error} = "Local creation failed: {io}",
+    ProtectedNameIsFolder = "Protected name can't be used for folders",
 }
 
 custom_error! {pub CreateError
@@ -56,16 +62,23 @@ impl FsInterface {
         kind: SimpleFileType,
     ) -> Result<Inode, MakeInodeError> {
         let new_entry = match kind {
-            SimpleFileType::File => FsEntry::File(vec![LocalConfig::read_lock(&self.network_interface.local_config, "remove_inode_locally")?.general.address.clone()]),
+            SimpleFileType::File => FsEntry::File(vec![LocalConfig::read_lock(
+                &self.network_interface.local_config,
+                "remove_inode_locally",
+            )?
+            .general
+            .address
+            .clone()]),
             SimpleFileType::Directory => FsEntry::Directory(Vec::new()),
         };
 
-        let new_inode_id = match (name.as_str(), parent_ino) {
-            (GLOBAL_CONFIG_FNAME, 1) => GLOBAL_CONFIG_INO,
-            (LOCAL_CONFIG_FNAME, 1) => LOCAL_CONFIG_INO,
-            (ARBO_FILE_FNAME, 1) => ARBO_FILE_INO,
-            _ => self.network_interface.n_get_next_inode()?,
-        };
+        let special_ino = Arbo::get_special(&name, parent_ino);
+        if special_ino.is_some() && kind != SimpleFileType::File {
+            return Err(MakeInodeError::ProtectedNameIsFolder);
+        }
+        let new_inode_id = special_ino
+            .ok_or(())
+            .or_else(|_| self.network_interface.n_get_next_inode())?;
 
         let new_inode = Inode::new(name.clone(), parent_ino, new_inode_id, new_entry);
 
@@ -87,12 +100,12 @@ impl FsInterface {
         match kind {
             SimpleFileType::File => self
                 .disk
-                .new_file(new_path, new_inode.meta.perm)
+                .new_file(&new_path, new_inode.meta.perm)
                 .map(|_| ())
                 .map_err(|io| MakeInodeError::LocalCreationFailed { io }),
             SimpleFileType::Directory => self
                 .disk
-                .new_dir(new_path, new_inode.meta.perm)
+                .new_dir(&new_path, new_inode.meta.perm)
                 .map_err(|io| MakeInodeError::LocalCreationFailed { io }),
         }?;
 

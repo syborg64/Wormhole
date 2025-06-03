@@ -1,11 +1,5 @@
 pub mod arbo;
-pub mod pod;
-#[cfg(target_os = "linux")]
-#[path = "./disk_manager.rs"]
-pub mod disk_manager;
-#[cfg(target_os = "windows")]
-#[path = "./windows/disk_manager.rs"]
-pub mod disk_manager;
+pub mod disk_managers;
 pub mod filesystem;
 pub mod network;
 pub mod whpath;

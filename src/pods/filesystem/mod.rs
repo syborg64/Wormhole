@@ -5,5 +5,6 @@ pub mod open;
 pub mod read;
 pub mod release;
 pub mod remove_inode;
+pub mod rename;
 pub mod write;
 pub mod xattrs;

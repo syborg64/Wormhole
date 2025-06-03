@@ -218,7 +218,11 @@ impl Pod {
             global.clone(),
         ));
 
-        let disk_manager = DiskManager::new(mount_point.clone())?;
+        #[cfg(target_os = "linux")]
+        let disk_manager = Box::new(UnixDiskManager::new(&mount_point)?);
+        #[cfg(target_os = "windows")]
+        let disk_manager = Box::new(DummyDiskManager::new(&mount_point)?);
+
         let fs_interface = Arc::new(FsInterface::new(
             network_interface.clone(),
             disk_manager,
