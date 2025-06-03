@@ -1,14 +1,16 @@
 use std::{
     ffi::CString,
-    fs::Permissions,
     io::Read,
-    os::unix::fs::{FileExt, PermissionsExt},
+    os::{
+        fd::{AsRawFd, RawFd},
+        unix::fs::FileExt,
+    },
 };
 
 use openat::{AsPath, Dir};
 use tokio::io;
 
-use crate::pods::whpath::WhPath;
+use crate::pods::whpath::{JoinPath, WhPath};
 
 use super::DiskManager;
 
@@ -74,7 +76,7 @@ impl DiskManager for UnixDiskManager {
     fn write_file(&self, path: &WhPath, binary: &[u8], offset: usize) -> io::Result<usize> {
         let file = self
             .handle
-            .append_file(path.clone().set_relative(), 0o600)?;
+            .append_file(path.clone().set_relative(), 0o600)?; //  [openat::update_file]?
         Ok(file.write_at(&binary, offset as u64)?) // NOTE - used "as" because into() is not supported
     }
 
@@ -111,9 +113,17 @@ impl DiskManager for UnixDiskManager {
     }
 
     fn set_permisions(&self, path: &WhPath, permissions: u16) -> std::io::Result<()> {
-        self.handle
-            .open_file(path.clone().set_relative())?
-            .set_permissions(Permissions::from_mode(permissions as u32))?;
+        let raw_fd: RawFd = self.handle.as_raw_fd();
+        let c_string_path = CString::new(path.clone().set_relative().as_str())
+            .expect("panics if there are internal null bytes");
+
+        let ptr: *const i8 = c_string_path.as_ptr();
+        unsafe {
+            // If we just self.handle.open_file...set_permission, the open flags
+            // don't allow to modify the permission on a file where we don't have the permission like a 000
+            // This is the only convincing way we found
+            libc::fchmodat(raw_fd, ptr, permissions.into(), 0);
+        }
         Ok(())
     }
 
