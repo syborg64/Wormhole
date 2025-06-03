@@ -1,6 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -20,6 +20,8 @@
             pkgs.rustfmt
             pkgs.pkg-config
             pkgs.fuse3
+            pkgs.docker
+            pkgs.docker-compose
           ];
           RUST_SRC_PATH =
             "${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";

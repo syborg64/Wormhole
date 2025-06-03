@@ -3,6 +3,7 @@ use std::time::SystemTime;
 use custom_error::custom_error;
 
 use crate::{
+    config::{types::Config, LocalConfig},
     error::WhError,
     pods::{
         arbo::{Arbo, FsEntry, InodeId, Metadata, BLOCK_SIZE},
@@ -38,11 +39,20 @@ impl FsInterface {
         let path = arbo.n_get_path_from_inode_id(ino)?;
         let inode = arbo.n_get_inode_mut(ino)?;
 
+        let self_addr =
+            LocalConfig::read_lock(&self.network_interface.local_config, "pull_file_sync")
+                .expect("pull_fyle_sync: can't get self_addr")
+                .general
+                .address
+                .clone();
+
         if meta.size != inode.meta.size || meta.perm != inode.meta.perm {
             match &inode.entry {
                 FsEntry::Directory(_) if meta.size != inode.meta.size => {
                     return Err(AcknoledgeSetAttrError::WhError {
-                        source: WhError::InodeIsADirectory,
+                        source: WhError::InodeIsADirectory {
+                            detail: "acknowledge_metadata".to_string(),
+                        },
                     });
                 }
                 FsEntry::Directory(_) => {
@@ -53,7 +63,7 @@ impl FsInterface {
                     }
                 }
                 FsEntry::File(hosts) => {
-                    if hosts.contains(&self.network_interface.self_addr) {
+                    if hosts.contains(&self_addr) {
                         if meta.size != inode.meta.size {
                             self.disk
                                 .set_file_size(&path, meta.size as usize)

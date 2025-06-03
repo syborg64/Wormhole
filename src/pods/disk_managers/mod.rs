@@ -1,7 +1,7 @@
 use std::io;
 
 use super::whpath::WhPath;
-
+use std::fmt::Debug;
 pub mod dummy_disk_manager;
 #[cfg(target_os = "linux")]
 pub mod unix_disk_manager;
@@ -13,7 +13,7 @@ pub struct DiskSizeInfo {
     pub total_size: usize,
 }
 
-pub trait DiskManager: Send + Sync {
+pub trait DiskManager: Send + Sync + Debug {
     fn log_arbo(&self, path: &WhPath) -> io::Result<()>;
 
     fn new_file(&self, path: &WhPath, permissions: u16) -> io::Result<()>;

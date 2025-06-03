@@ -23,6 +23,7 @@ impl Into<SimpleFileType> for &VirtualFile {
     }
 }
 
+#[derive(Debug)]
 pub struct DummyDiskManager {
     files: Arc<RwLock<HashMap<WhPath, VirtualFile>>>,
     size: Arc<RwLock<usize>>,
