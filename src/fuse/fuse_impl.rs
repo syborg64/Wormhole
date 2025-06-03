@@ -126,10 +126,16 @@ impl Filesystem for FuseController {
             Err(SetAttrError::WhError { source }) => reply.error(source.to_libc()),
             Err(SetAttrError::SizeNoPerm) => reply.error(libc::EPERM),
             Err(SetAttrError::InvalidFileHandle) => reply.error(libc::EBADFD),
-            Err(SetAttrError::SetFileSizeIoError { io }) => reply.error(
-                io.raw_os_error()
-                    .expect("Local read error should always be the underling libc::open os error"),
-            ),
+            Err(SetAttrError::SetFileSizeIoError { io }) => {
+                reply.error(io.raw_os_error().expect(
+                    "Local setattr error should always be the underling libc::open os error",
+                ))
+            }
+            Err(SetAttrError::SetPermIoError { io }) => {
+                reply.error(io.raw_os_error().expect(
+                    "Local setattr error should always be the underling libc::open os error",
+                ))
+            }
         }
     }
 

@@ -19,7 +19,8 @@ custom_error! {pub SetAttrError
     WhError{source: WhError} = "{source}",
     SizeNoPerm = "Edit size require to have the write permission on the file",
     InvalidFileHandle = "File handle not found in the open file handles",
-    SetFileSizeIoError { io: std::io::Error } = "Set file size disk side failed"
+    SetFileSizeIoError { io: std::io::Error } = "Set file size disk side failed",
+    SetPermIoError { io: std::io::Error } = "Set file size disk side failed"
 }
 
 custom_error! {pub AcknoledgeSetAttrError
@@ -117,8 +118,7 @@ impl FsInterface {
         if let Some(mode) = mode {
             self.disk
                 .set_permisions(&path, mode as u16)
-                .map_err(|io| SetAttrError::SetFileSizeIoError { io })?;
-
+                .map_err(|io| SetAttrError::SetPermIoError { io })?;
             meta.perm = mode as u16;
         }
         // Set size if size it's defined, take permission from the file handle if the
