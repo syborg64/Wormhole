@@ -2,12 +2,22 @@ use std::{ffi::OsString, mem::MaybeUninit, os::windows::prelude::FileExt, path::
 
 use tokio::io;
 
-use windows::{core::HSTRING, Wdk::Storage::FileSystem::{FileFsSizeInformation, NtQueryVolumeInformationFile}, Win32::{Foundation::{GetLastError, INVALID_HANDLE_VALUE}, Storage::FileSystem::{CreateFileW, FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OVERLAPPED, FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING}}};
+use windows::{
+    core::HSTRING,
+    Wdk::Storage::FileSystem::{FileFsSizeInformation, NtQueryVolumeInformationFile},
+    Win32::{
+        Foundation::{GetLastError, INVALID_HANDLE_VALUE},
+        Storage::FileSystem::{
+            CreateFileW, FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OVERLAPPED, FILE_READ_ATTRIBUTES,
+            FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
+        },
+    },
+};
 use winfsp::util::Win32SafeHandle;
 
 use crate::pods::whpath::WhPath;
-use windows::Win32::System::IO::IO_STATUS_BLOCK;
 use windows::Wdk::System::SystemServices::FILE_FS_SIZE_INFORMATION;
+use windows::Win32::System::IO::IO_STATUS_BLOCK;
 
 use super::{DiskManager, DiskSizeInfo};
 pub struct WindowsDiskManager {
@@ -19,10 +29,9 @@ impl WindowsDiskManager {
     pub fn new(mount_point: WhPath) -> io::Result<Self> {
         let (parent, name) = mount_point.split_folder_file();
         let mut mount_point = WhPath::from(&parent);
-            mount_point.push(&format!(".{name}"));
+        mount_point.push(&format!(".{name}"));
 
         let path = HSTRING::from(OsString::from(&mount_point.inner));
-
 
         let handle = unsafe {
             CreateFileW(
@@ -90,7 +99,8 @@ impl DiskManager for WindowsDiskManager {
     }
 
     fn write_file(&self, path: &WhPath, binary: &[u8], offset: usize) -> io::Result<usize> {
-        return std::fs::File::open(&self.mount_point.join(path).inner)?.seek_write(binary, offset as u64);
+        return std::fs::File::open(&self.mount_point.join(path).inner)?
+            .seek_write(binary, offset as u64);
     }
 
     fn set_file_size(&self, path: &WhPath, size: usize) -> io::Result<()> {
@@ -100,7 +110,10 @@ impl DiskManager for WindowsDiskManager {
     fn mv_file(&self, path: &WhPath, new_path: &WhPath) -> io::Result<()> {
         // let mut original_path = path.clone(); // NOTE - Would be better if rename was non mutable
         // original_path.rename(new_name);
-        std::fs::rename(&self.mount_point.join(path).inner, &self.mount_point.join(new_path).inner)
+        std::fs::rename(
+            &self.mount_point.join(path).inner,
+            &self.mount_point.join(new_path).inner,
+        )
     }
 
     fn read_file(&self, path: &WhPath, offset: usize, buf: &mut [u8]) -> io::Result<usize> {
@@ -111,7 +124,7 @@ impl DiskManager for WindowsDiskManager {
         std::fs::create_dir(&self.mount_point.join(path).inner)
     }
 
-    fn size_info(&self) ->std::io::Result<super::DiskSizeInfo> {
+    fn size_info(&self) -> std::io::Result<super::DiskSizeInfo> {
         self.get_volume_info_inner()
     }
 
@@ -122,5 +135,4 @@ impl DiskManager for WindowsDiskManager {
     fn set_permisions(&self, path: &WhPath, permissions: u16) -> io::Result<()> {
         Ok(())
     }
-
 }
