@@ -12,6 +12,8 @@ use crate::network::message::{
 use crate::pods::arbo::{FsEntry, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO, ROOT};
 #[cfg(target_os = "linux")]
 use crate::pods::disk_managers::unix_disk_manager::UnixDiskManager;
+#[cfg(target_os = "windows")]
+use crate::pods::disk_managers::dummy_disk_manager::DummyDiskManager;
 use crate::pods::network::redundancy::redundancy_worker;
 #[cfg(target_os = "windows")]
 use crate::winfsp::winfsp_impl::mount_fsp;
@@ -27,8 +29,6 @@ use winfsp::host::FileSystemHost;
 
 #[cfg(target_os = "linux")]
 use crate::pods::arbo::GLOBAL_CONFIG_FNAME;
-#[cfg(target_os = "windows")]
-use crate::winfsp::winfsp_impl::mount_fsp;
 
 use crate::network::{message::Address, peer_ipc::PeerIPC, server::Server};
 
