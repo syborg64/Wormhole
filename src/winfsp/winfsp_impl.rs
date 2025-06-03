@@ -27,10 +27,18 @@ use crate::pods::{
     whpath::WhPath,
 };
 
+pub struct WinfspHost<'a>(FileSystemHost<'a>);
+
 #[derive(PartialEq, Debug)]
 pub struct WormholeHandle {
     pub ino: InodeId,
     pub handle: u64,
+}
+
+impl<'a> std::fmt::Debug for WinfspHost<'a> {
+    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Ok(())
+    }
 }
 
 pub struct FSPController {
@@ -68,7 +76,7 @@ impl FSPController {
 pub fn mount_fsp(
     path: &WhPath,
     fs_interface: Arc<FsInterface>,
-) -> Result<FileSystemHost<'static>, std::io::Error> {
+) -> Result<WinfspHost<'static>, std::io::Error> {
     let volume_params = VolumeParams::default();
 
     log::debug!("created volume params...");
@@ -92,7 +100,7 @@ pub fn mount_fsp(
     log::debug!("mounted host...");
     host.start_with_threads(1)?;
     log::debug!("started host...");
-    Ok(host)
+    Ok(WinfspHost(host))
 }
 
 impl FileSystemContext for FSPController {

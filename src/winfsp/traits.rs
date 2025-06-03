@@ -75,33 +75,17 @@ impl From<&Metadata> for FileInfo {
     }
 }
 
-impl From<&WhError> for FspError {
-    fn from(value: &WhError) -> Self {
-        Into::<NTSTATUS>::into(value).into()
-    }
-}
-
 impl From<WhError> for FspError {
     fn from(value: WhError) -> Self {
-        (&value).into()
-    }
-}
-
-impl From<&WhError> for NTSTATUS {
-    fn from(value: &WhError) -> Self {
         match value {
-            WhError::InodeNotFound => STATUS_OBJECT_NAME_NOT_FOUND,
-            WhError::InodeIsNotADirectory => STATUS_NOT_A_DIRECTORY,
-            WhError::DeadLock => STATUS_POSSIBLE_DEADLOCK,
-            WhError::NetworkDied { called_from: _ } => STATUS_DEVICE_NOT_READY,
-            WhError::WouldBlock { called_from: _ } => STATUS_PENDING,
+            WhError::InodeNotFound => STATUS_OBJECT_NAME_NOT_FOUND.into(),
+            WhError::InodeIsNotADirectory => STATUS_NOT_A_DIRECTORY.into(),
+            WhError::DeadLock => STATUS_POSSIBLE_DEADLOCK.into(),
+            WhError::NetworkDied { called_from: _ } => STATUS_DEVICE_NOT_READY.into(),
+            WhError::WouldBlock { called_from: _ } => STATUS_PENDING.into(),
+            WhError::InodeIsADirectory { detail: _ } => STATUS_FILE_IS_A_DIRECTORY.into(),
+            WhError::DiskError { detail: _, err } => err.into(),
         }
-    }
-}
-
-impl From<WhError> for NTSTATUS {
-    fn from(value: WhError) -> Self {
-        (&value).into()
     }
 }
 

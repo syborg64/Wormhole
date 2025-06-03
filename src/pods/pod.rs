@@ -9,14 +9,14 @@ use crate::fuse::fuse_impl::mount_fuse;
 use crate::network::message::{
     FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
 };
-use crate::pods::arbo::{FsEntry, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO, ROOT};
-#[cfg(target_os = "linux")]
-use crate::pods::disk_managers::unix_disk_manager::UnixDiskManager;
+use crate::pods::arbo::{FsEntry, GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO, ROOT};
 #[cfg(target_os = "windows")]
 use crate::pods::disk_managers::dummy_disk_manager::DummyDiskManager;
+#[cfg(target_os = "linux")]
+use crate::pods::disk_managers::unix_disk_manager::UnixDiskManager;
 use crate::pods::network::redundancy::redundancy_worker;
 #[cfg(target_os = "windows")]
-use crate::winfsp::winfsp_impl::mount_fsp;
+use crate::winfsp::winfsp_impl::{mount_fsp, WinfspHost};
 use custom_error::custom_error;
 #[cfg(target_os = "linux")]
 use fuser;
@@ -24,11 +24,6 @@ use log::info;
 use parking_lot::RwLock;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::task::JoinHandle;
-#[cfg(target_os = "windows")]
-use winfsp::host::FileSystemHost;
-
-#[cfg(target_os = "linux")]
-use crate::pods::arbo::GLOBAL_CONFIG_FNAME;
 
 use crate::network::{message::Address, peer_ipc::PeerIPC, server::Server};
 
@@ -52,7 +47,7 @@ pub struct Pod {
     #[cfg(target_os = "linux")]
     fuse_handle: fuser::BackgroundSession,
     #[cfg(target_os = "windows")]
-    fsp_host: FileSystemHost<'static>,
+    fsp_host: WinfspHost<'static>,
     network_airport_handle: JoinHandle<()>,
     peer_broadcast_handle: JoinHandle<()>,
     new_peer_handle: JoinHandle<()>,
