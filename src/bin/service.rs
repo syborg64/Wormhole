@@ -28,6 +28,7 @@ use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{accept_async, WebSocketStream};
 #[cfg(target_os = "windows")]
 use winfsp::winfsp_init;
+use wormhole::commands::service::display_tree;
 use wormhole::commands::{self, cli_commands::Cli};
 use wormhole::config::types::Config;
 use wormhole::config::LocalConfig;
@@ -177,15 +178,25 @@ async fn handle_cli_command(
         }
         Cli::GetHosts(args) => {
             if let Some(pod) = pods.get(&args.name) {
-                match pod.get_info(PodInfoRequest::FileHosts(args.path)) {
-                    Ok(PodInfoAnswer::FileHosts(hosts)) => Ok(CliSuccess::WithData {
+                match pod.get_file_hosts(args.path) {
+                    Ok(hosts) => Ok(CliSuccess::WithData {
                         message: "Hosts:".to_owned(),
                         data: format!("{:?}", hosts),
                     }),
                     Err(error) => Err(CliError::PodInfoError { source: error }),
-                    // _ => Ok(CliSuccess::Message(
-                    //     "ERROR: GetHosts -> wrong answer type received.".to_owned(),
-                    // )),
+                }
+            } else {
+                Err(CliError::PodNotFound)
+            }
+        }
+        Cli::Tree(args) => {
+            if let Some(pod) = pods.get(&args.name) {
+                match pod.get_file_tree_and_hosts(args.path) {
+                    Ok(tree) => Ok(CliSuccess::WithData {
+                        message: "File tree and hosts per file:".to_owned(),
+                        data: format!("{}", display_tree(tree)),
+                    }),
+                    Err(error) => Err(CliError::PodInfoError { source: error }),
                 }
             } else {
                 Err(CliError::PodNotFound)
