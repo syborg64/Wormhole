@@ -62,6 +62,7 @@ pub struct TreeArgs {
     /// Name of the pod
     pub name: String,
     /// Root of the tree
+    #[arg(default_value = "/")]
     pub path: WhPath,
 }
 
