@@ -69,7 +69,9 @@ impl LocalConfig {
         self.general.name = local.general.name;
         if local.general.address != self.general.address {
             log::warn!("Local Config: Impossible to modify an ip address");
-            return Err(CliError::Unimplemented { arg: "Local Config: Impossible to modify an ip address".to_owned() });
+            return Err(CliError::Unimplemented {
+                arg: "Local Config: Impossible to modify an ip address".to_owned(),
+            });
         }
         Ok(())
     }
@@ -99,7 +101,9 @@ impl GlobalConfig {
         self.general.pods_names = global.general.pods_names;
         if global.general.peers != self.general.peers {
             log::warn!("Global Config: Impossible to modify peers' ip address");
-            return Err(CliError::Unimplemented { arg: "Global Config: Impossible to modify peers' ip address".to_owned() });
+            return Err(CliError::Unimplemented {
+                arg: "Global Config: Impossible to modify peers' ip address".to_owned(),
+            });
         }
         self.redundancy.number = global.redundancy.number;
 

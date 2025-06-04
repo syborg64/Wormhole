@@ -190,6 +190,7 @@ impl Pod {
                         LOCAL_CONFIG_INO,
                         ROOT,
                         FsEntry::File(vec![server_address.clone()]),
+                        0o777,
                     );
                 }
                 let next_inode = arbo.iter().fold(0, |acc, (ino, _)| u64::max(acc, *ino)) + 1;
@@ -385,7 +386,7 @@ impl Pod {
                     Some(inode.id)
                 }
             })
-            .for_each(|(id)| {
+            .for_each(|id| {
                 if let Err(e) = self.send_file_to_possible_hosts(&peers, id) {
                     log::warn!("{e}");
                 }

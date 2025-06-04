@@ -1,9 +1,16 @@
-use std::{ffi::CString, io::Read, os::unix::fs::FileExt};
+use std::{
+    ffi::CString,
+    io::Read,
+    os::{
+        fd::{AsRawFd, RawFd},
+        unix::fs::FileExt,
+    },
+};
 
 use openat::{AsPath, Dir};
 use tokio::io;
 
-use crate::pods::whpath::WhPath;
+use crate::pods::whpath::{JoinPath, WhPath};
 
 use super::DiskManager;
 
@@ -38,6 +45,12 @@ impl UnixDiskManager {
     }
 }
 
+impl UnixDiskManager {
+    fn exist(&self, path: &WhPath) -> bool {
+        self.handle.metadata(path.clone().set_relative()).is_ok()
+    }
+}
+
 /// always takes a WhPath and infers the real disk path
 impl DiskManager for UnixDiskManager {
     // Very simple util to log the content of a folder locally
@@ -53,6 +66,9 @@ impl DiskManager for UnixDiskManager {
     }
 
     fn new_file(&self, path: &WhPath, mode: u16) -> io::Result<()> {
+        if self.exist(path) {
+            self.handle.remove_file(path.clone().set_relative())?;
+        }
         self.handle
             .new_file(path.clone().set_relative(), mode.into())?; // TODO look more in c mode_t value
         Ok(())
@@ -69,12 +85,14 @@ impl DiskManager for UnixDiskManager {
     fn write_file(&self, path: &WhPath, binary: &[u8], offset: usize) -> io::Result<usize> {
         let file = self
             .handle
-            .append_file(path.clone().set_relative(), 0o600)?;
+            .append_file(path.clone().set_relative(), 0o600)?; //  [openat::update_file]?
         Ok(file.write_at(&binary, offset as u64)?) // NOTE - used "as" because into() is not supported
     }
 
     fn set_file_size(&self, path: &WhPath, size: usize) -> io::Result<()> {
-        let file = self.handle.write_file(path.clone().set_relative(), 0o600)?;
+        let file = self
+            .handle
+            .append_file(path.clone().set_relative(), 0o600)?;
         file.set_len(size as u64)
     }
 
@@ -103,8 +121,19 @@ impl DiskManager for UnixDiskManager {
             .create_dir(path.clone().set_relative(), permissions.into()) // TODO look more in c mode_t value
     }
 
-    fn set_permisions(&self, _path: &WhPath, _permissions: u16) -> std::io::Result<()> {
-        todo!()
+    fn set_permisions(&self, path: &WhPath, permissions: u16) -> std::io::Result<()> {
+        let raw_fd: RawFd = self.handle.as_raw_fd();
+        let c_string_path = CString::new(path.clone().set_relative().as_str())
+            .expect("panics if there are internal null bytes");
+
+        let ptr: *const i8 = c_string_path.as_ptr();
+        unsafe {
+            // If we just self.handle.open_file...set_permission, the open flags
+            // don't allow to modify the permission on a file where we don't have the permission like a 000
+            // This is the only convincing way we found
+            libc::fchmodat(raw_fd, ptr, permissions.into(), 0);
+        }
+        Ok(())
     }
 
     fn size_info(&self) -> std::io::Result<super::DiskSizeInfo> {
