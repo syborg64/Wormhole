@@ -1,4 +1,6 @@
-use crate::pods::arbo::{FsEntry, Inode, Metadata};
+use crate::fuse::linux_attrs::time_or_now_to_system_time;
+use crate::pods::arbo::{FsEntry, Inode};
+use crate::pods::filesystem::attrs::SetAttrError;
 use crate::pods::filesystem::fs_interface::{FsInterface, SimpleFileType};
 use crate::pods::filesystem::make_inode::{CreateError, MakeInodeError};
 use crate::pods::filesystem::open::OpenError;
@@ -11,7 +13,7 @@ use crate::pods::network::pull_file::PullError;
 use crate::pods::whpath::WhPath;
 use fuser::{
     BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData,
-    ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyXattr, Request, TimeOrNow,
+    ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyXattr, Request,
 };
 use libc::{EIO, ENOENT, XATTR_CREATE, XATTR_REPLACE};
 use std::ffi::OsStr;
@@ -41,50 +43,6 @@ impl Into<SimpleFileType> for FileType {
             FileType::BlockDevice => todo!("file type not supported"),
             FileType::Symlink => todo!("file type not supported"),
             FileType::Socket => todo!("file type not supported"),
-        }
-    }
-}
-
-impl Into<FileAttr> for Metadata {
-    fn into(self) -> FileAttr {
-        FileAttr {
-            ino: self.ino,
-            size: self.size,
-            blocks: self.size,
-            atime: self.atime,
-            mtime: self.mtime,
-            ctime: self.ctime,
-            crtime: self.crtime,
-            kind: self.kind.into(),
-            perm: self.perm,
-            nlink: self.nlink,
-            uid: self.uid,
-            gid: self.gid,
-            rdev: self.rdev,
-            flags: self.flags,
-            blksize: self.blksize,
-        }
-    }
-}
-
-impl Into<Metadata> for FileAttr {
-    fn into(self) -> Metadata {
-        Metadata {
-            ino: self.ino,
-            size: self.size,
-            blocks: self.blocks,
-            atime: self.atime,
-            mtime: self.mtime,
-            ctime: self.ctime,
-            crtime: self.crtime,
-            kind: self.kind.into(),
-            perm: self.perm,
-            nlink: self.nlink,
-            uid: self.uid,
-            gid: self.gid,
-            rdev: self.rdev,
-            flags: self.flags,
-            blksize: self.blksize,
         }
     }
 }
@@ -122,7 +80,7 @@ impl Filesystem for FuseController {
         };
     }
 
-    fn getattr(&mut self, _req: &Request, ino: u64, _: Option<u64>, reply: ReplyAttr) {
+    fn getattr(&mut self, _req: &Request, ino: u64, _fh: Option<u64>, reply: ReplyAttr) {
         let attrs = self.fs_interface.get_inode_attributes(ino);
 
         match attrs {
@@ -138,74 +96,45 @@ impl Filesystem for FuseController {
         &mut self,
         _req: &Request<'_>,
         ino: u64,
-        _mode: Option<u32>,
+        mode: Option<u32>,
         uid: Option<u32>,
         gid: Option<u32>,
         size: Option<u64>,
         atime: Option<fuser::TimeOrNow>,
         mtime: Option<fuser::TimeOrNow>,
-        ctime: Option<std::time::SystemTime>,
-        _fh: Option<u64>,
-        crtime: Option<std::time::SystemTime>,
-        _chgtime: Option<std::time::SystemTime>,
-        _bkuptime: Option<std::time::SystemTime>,
+        ctime: Option<SystemTime>,
+        file_handle: Option<u64>,
+        _crtime: Option<SystemTime>,
+        _chgtime: Option<SystemTime>,
+        _bkuptime: Option<SystemTime>,
         flags: Option<u32>,
         reply: ReplyAttr,
     ) {
-        let attrs = match self.fs_interface.get_inode_attributes(ino) {
-            Ok(attrs) => Metadata {
-                ino: attrs.ino,
-                size: if let Some(size) = size {
-                    size
-                } else {
-                    attrs.size
-                },
-                blocks: attrs.blocks,
-                atime: if let Some(atime) = atime {
-                    time_or_now_to_system_time(atime)
-                } else {
-                    attrs.atime
-                },
-                mtime: if let Some(mtime) = mtime {
-                    time_or_now_to_system_time(mtime)
-                } else {
-                    attrs.mtime
-                },
-                ctime: if let Some(ctime) = ctime {
-                    ctime
-                } else {
-                    attrs.ctime
-                },
-                crtime: if let Some(crtime) = crtime {
-                    crtime
-                } else {
-                    attrs.crtime
-                },
-                kind: attrs.kind,
-                perm: attrs.perm,
-                nlink: attrs.nlink,
-                uid: if let Some(uid) = uid { uid } else { attrs.uid },
-                gid: if let Some(gid) = gid { gid } else { attrs.gid },
-                rdev: attrs.rdev,
-                blksize: attrs.blksize,
-                flags: if let Some(flags) = flags {
-                    flags
-                } else {
-                    attrs.flags
-                },
-            },
-            Err(err) => {
-                log::error!("setattr: {:?}", err);
-                reply.error(err.raw_os_error().unwrap_or(EIO));
-                return;
+        match self.fs_interface.setattr(
+            ino,
+            mode,
+            uid,
+            gid,
+            size,
+            atime.map(|time| time_or_now_to_system_time(time)),
+            mtime.map(|time| time_or_now_to_system_time(time)),
+            ctime,
+            file_handle,
+            flags,
+        ) {
+            Ok(meta) => reply.attr(&TTL, &meta.into()),
+            Err(SetAttrError::WhError { source }) => reply.error(source.to_libc()),
+            Err(SetAttrError::SizeNoPerm) => reply.error(libc::EPERM),
+            Err(SetAttrError::InvalidFileHandle) => reply.error(libc::EBADFD),
+            Err(SetAttrError::SetFileSizeIoError { io }) => {
+                reply.error(io.raw_os_error().expect(
+                    "Local setattr error should always be the underling libc::open os error",
+                ))
             }
-        };
-
-        match self.fs_interface.set_inode_meta(ino, attrs.clone()) {
-            Ok(_) => reply.attr(&TTL, &attrs.into()),
-            Err(err) => {
-                log::error!("setattr: {:?}", err);
-                reply.error(err.raw_os_error().unwrap_or(EIO))
+            Err(SetAttrError::SetPermIoError { io }) => {
+                reply.error(io.raw_os_error().expect(
+                    "Local setattr error should always be the underling libc::open os error",
+                ))
             }
         }
     }
@@ -655,13 +584,6 @@ impl Filesystem for FuseController {
             Ok(()) => reply.ok(),
             Err(err) => reply.error(err.to_libc()),
         }
-    }
-}
-
-fn time_or_now_to_system_time(time: TimeOrNow) -> SystemTime {
-    match time {
-        TimeOrNow::Now => SystemTime::now(),
-        TimeOrNow::SpecificTime(time) => time,
     }
 }
 

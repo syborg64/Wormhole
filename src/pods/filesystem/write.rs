@@ -69,8 +69,7 @@ impl FsInterface {
             .write_file(&path, data, offset)
             .map_err(|io| WriteError::LocalWriteFailed { io })?;
 
-        self.network_interface
-            .write_file(id, new_size)?;
+        self.network_interface.write_file(id, new_size)?;
         Ok(written)
     }
 }

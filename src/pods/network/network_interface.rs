@@ -226,12 +226,6 @@ impl NetworkInterface {
         arbo.n_set_inode_hosts(id, hosts) // TODO - if unable to update for some reason, should be passed to the background worker
     }
 
-    pub fn acknowledge_metadata(&self, id: InodeId, meta: Metadata) -> WhResult<()> {
-        let mut arbo = Arbo::n_write_lock(&self.arbo, "acknowledge_metadata")?;
-
-        arbo.n_set_inode_meta(id, meta) // TODO - if unable to update for some reason, should be passed to the background worker
-    }
-
     pub fn send_file(&self, inode: InodeId, data: Vec<u8>, to: Address) -> io::Result<()> {
         self.to_network_message_tx
             .send(ToNetworkMessage::SpecificMessage(
@@ -250,7 +244,7 @@ impl NetworkInterface {
             .address
             .clone();
 
-        let new_size = new_size.max(inode.meta.size as usize);
+        let new_size = (new_size as u64).max(inode.meta.size);
         inode.meta.size = new_size as u64;
         inode.meta.blocks = ((new_size + BLOCK_SIZE - 1) / BLOCK_SIZE) as u64;
 
@@ -334,51 +328,10 @@ impl NetworkInterface {
         Arbo::write_lock(&self.arbo, "aknowledge_hosts_removal")?.remove_inode_hosts(id, new_hosts)
     }
 
-    pub fn update_metadata(&self, id: InodeId, meta: Metadata) -> io::Result<()> {
-        let mut arbo = Arbo::write_lock(&self.arbo, "network_interface::update_metadata")?;
-        let mut fixed_meta = meta;
-        let ref_meta = arbo.get_inode(id)?.meta.clone();
-
-        // meta's SystemTime is fragile: it can be silently corrupted such that
-        // serialization leads to a failure we can't deal with
-        if fixed_meta.atime.duration_since(UNIX_EPOCH).is_err() {
-            fixed_meta.atime = ref_meta.atime;
-        }
-
-        if fixed_meta.ctime.duration_since(UNIX_EPOCH).is_err() {
-            fixed_meta.ctime = ref_meta.ctime;
-        }
-
-        if fixed_meta.crtime.duration_since(UNIX_EPOCH).is_err() {
-            fixed_meta.crtime = ref_meta.crtime;
-        }
-
-        if fixed_meta.mtime.duration_since(UNIX_EPOCH).is_err() {
-            fixed_meta.mtime = ref_meta.mtime;
-        }
-
-        arbo.set_inode_meta(id, fixed_meta.clone())?;
-        drop(arbo);
-
-        self.to_network_message_tx
-            .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::EditMetadata(id, fixed_meta),
-            ))
-            .expect("update_metadata: unable to update modification on the network thread");
-        Ok(())
-        /* REVIEW
-         * This system (and others broadcasts systems) should be reviewed as they don't check success.
-         * In this case, if another host misses this order, it will not update it's file.
-         * We could create a "broadcast" callback with the number of awaited confirmations and a timeout
-         * before resend or fail declaration.
-         * Or send a bunch of Specific messages
-         */
-    }
-
-    pub fn n_update_metadata(&self, id: InodeId, meta: Metadata) -> WhResult<()> {
+    pub fn update_metadata(&self, id: InodeId, meta: Metadata) -> WhResult<()> {
         let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface::update_metadata")?;
         let mut fixed_meta = meta;
-        let ref_meta = arbo.n_get_inode(id)?.meta.clone();
+        let ref_meta = &arbo.n_get_inode(id)?.meta;
 
         // meta's SystemTime is fragile: it can be silently corrupted such that
         // serialization leads to a failure we can't deal with
@@ -408,7 +361,6 @@ impl NetworkInterface {
                 ))
                 .expect("update_metadata: unable to update modification on the network thread");
         }
-
         Ok(())
         /* REVIEW
          * This system (and others broadcasts systems) should be reviewed as they don't check success.
@@ -586,7 +538,7 @@ impl NetworkInterface {
                     fs_interface.recept_remove_hosts(id, hosts)
                 }
                 MessageContent::EditMetadata(id, meta) =>
-                    fs_interface.network_interface.acknowledge_metadata(id, meta).or_else(|err| {
+                    fs_interface.acknowledge_metadata(id, meta).or_else(|err| {
                         Err(std::io::Error::new(
                             std::io::ErrorKind::Other,
                             format!("WhError: {err}"),

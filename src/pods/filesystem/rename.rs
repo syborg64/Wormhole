@@ -3,7 +3,7 @@ use custom_error::custom_error;
 use crate::{
     error::{WhError, WhResult},
     pods::{
-        arbo::{Arbo, InodeId},
+        arbo::{Arbo, InodeId, Metadata},
         whpath::WhPath,
     },
 };
@@ -53,6 +53,17 @@ impl FsInterface {
             .map_err(|io| RenameError::LocalRenamingFailed { io })
     }
 
+    pub fn set_meta_size(&self, ino: InodeId, meta: Metadata) -> Result<(), RenameError> {
+        let path = Arbo::n_read_lock(&self.arbo, "rename")?.n_get_path_from_inode_id(ino)?;
+
+        self.disk
+            .set_file_size(&path, meta.size as usize)
+            .map_err(|io| RenameError::LocalOverwriteFailed { io })?;
+
+        self.network_interface.update_metadata(ino, meta)?;
+        Ok(())
+    }
+
     ///
     /// handle rename with special files
     /// special files have a special inode, so can't be naively renamed
@@ -80,12 +91,10 @@ impl FsInterface {
 
         let dest_ino = if let Some(dest_ino) = dest_ino {
             let mut meta = self
-                .get_inode_attributes(dest_ino)
-                .ok()
-                .ok_or(WhError::InodeNotFound)?;
+                .n_get_inode_attributes(dest_ino)
+                .map_err(|_| WhError::InodeNotFound)?;
             meta.size = 0;
-            self.set_inode_meta(dest_ino, meta)
-                .map_err(|err| RenameError::LocalOverwriteFailed { io: err })?;
+            self.set_meta_size(source_ino, meta)?;
             dest_ino
         } else {
             self.make_inode(new_parent, new_name.clone(), meta.kind)

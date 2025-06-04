@@ -10,10 +10,10 @@ use crate::network::message::{
     FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
 };
 use crate::pods::arbo::{FsEntry, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO, ROOT};
-#[cfg(target_os = "linux")]
-use crate::pods::disk_managers::unix_disk_manager::UnixDiskManager;
 #[cfg(target_os = "windows")]
 use crate::pods::disk_managers::dummy_disk_manager::DummyDiskManager;
+#[cfg(target_os = "linux")]
+use crate::pods::disk_managers::unix_disk_manager::UnixDiskManager;
 use crate::pods::network::redundancy::redundancy_worker;
 #[cfg(target_os = "windows")]
 use crate::winfsp::winfsp_impl::mount_fsp;
@@ -362,7 +362,7 @@ impl Pod {
                     Some(inode.id)
                 }
             })
-            .for_each(|(id)| {
+            .for_each(|id| {
                 if let Err(e) = self.send_file_to_possible_hosts(&peers, id) {
                     log::warn!("{e}");
                 }
