@@ -139,7 +139,7 @@ impl NetworkInterface {
     /// Add the requested entry to the arbo and inform the network
     pub fn register_new_inode(&self, inode: Inode) -> Result<(), MakeInodeError> {
         let inode_id = inode.id.clone();
-        Arbo::n_write_lock(&self.arbo, "register_new_inode")?.n_add_inode(inode.clone())?;
+        Arbo::n_write_lock(&self.arbo, "register_new_inode")?.add_inode(inode.clone())?;
 
         if !Arbo::is_local_only(inode_id) {
             self.to_network_message_tx
@@ -197,7 +197,7 @@ impl NetworkInterface {
     /// Get a new inode, add the requested entry to the arbo and inform the network
     pub fn acknowledge_new_file(&self, inode: Inode, _id: InodeId) -> Result<(), MakeInodeError> {
         let mut arbo = Arbo::n_write_lock(&self.arbo, "acknowledge_new_file")?;
-        arbo.n_add_inode(inode)
+        arbo.add_inode(inode)
     }
 
     /// Remove [Inode] from the [Arbo] and inform the network of the removal

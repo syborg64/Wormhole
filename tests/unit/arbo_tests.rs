@@ -44,7 +44,7 @@ fn test_inserting_and_retreiving_files() {
     let mut arbo = Arbo::new();
 
     assert!(
-        arbo.n_add_inode_from_parameters(
+        arbo.add_inode_from_parameters(
             "file1".to_owned(),
             10,
             ROOT,
@@ -55,7 +55,7 @@ fn test_inserting_and_retreiving_files() {
         "can't add file1 in / folder"
     );
     assert!(
-        arbo.n_add_inode_from_parameters(
+        arbo.add_inode_from_parameters(
             "file2".to_owned(),
             11,
             ROOT,

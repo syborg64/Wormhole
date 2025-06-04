@@ -190,7 +190,7 @@ impl Pod {
                 arbo.overwrite_self(fs_serialized.fs_index);
 
                 if let Err(_) = arbo.get_inode(LOCAL_CONFIG_INO) {
-                    let _ = arbo.n_add_inode_from_parameters(
+                    let _ = arbo.add_inode_from_parameters(
                         LOCAL_CONFIG_FNAME.to_string(),
                         LOCAL_CONFIG_INO,
                         ROOT,

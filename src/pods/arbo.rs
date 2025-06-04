@@ -279,7 +279,7 @@ impl Arbo {
 
     #[must_use]
     /// Insert a given [Inode] inside the local arbo
-    pub fn n_add_inode(&mut self, inode: Inode) -> Result<(), MakeInodeError> {
+    pub fn add_inode(&mut self, inode: Inode) -> Result<(), MakeInodeError> {
         if self.entries.contains_key(&inode.id) {
             return Err(MakeInodeError::AlreadyExist);
         }
@@ -304,7 +304,7 @@ impl Arbo {
 
     #[must_use]
     /// Create a new [Inode] from the given parameters and insert it inside the local arbo
-    pub fn n_add_inode_from_parameters(
+    pub fn add_inode_from_parameters(
         &mut self,
         name: String,
         id: InodeId, //REVIEW: Renamed id to be more coherent with the Inode struct
@@ -314,7 +314,7 @@ impl Arbo {
     ) -> Result<(), MakeInodeError> {
         let inode = Inode::new(name, parent_ino, id, entry, perm);
 
-        self.n_add_inode(inode)
+        self.add_inode(inode)
     }
 
     #[must_use]
@@ -729,7 +729,7 @@ fn index_folder_recursive(
             }
         };
 
-        arbo.n_add_inode(Inode::new(
+        arbo.add_inode(Inode::new(
             fname.clone(),
             parent,
             used_ino,
