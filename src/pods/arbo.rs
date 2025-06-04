@@ -753,19 +753,20 @@ fn index_folder_recursive(
 
 pub fn generate_arbo(path: &WhPath, host: &String) -> io::Result<(Arbo, InodeId)> {
     if let Some(arbo) = recover_serialized_arbo(path) {
-        let ino: u64 = *arbo
+        let next_ino: u64 = *arbo
             .entries
             .keys()
             .reduce(|acc, i| std::cmp::max(acc, i))
-            .unwrap_or(&11);
-        Ok((arbo, ino))
+            .unwrap_or(&11)
+            + 1;
+        Ok((arbo, next_ino))
     } else {
         let mut arbo = Arbo::new();
-        let mut ino: u64 = 11; // NOTE - will be the first registered inode after root
+        let mut next_ino: u64 = 11; // NOTE - will be the first registered inode after root
 
         #[cfg(target_os = "linux")]
-        index_folder_recursive(&mut arbo, ROOT, &mut ino, path, host)?;
-        Ok((arbo, ino))
+        index_folder_recursive(&mut arbo, ROOT, &mut next_ino, path, host)?;
+        Ok((arbo, next_ino))
     }
 }
 
