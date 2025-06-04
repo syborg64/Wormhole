@@ -97,7 +97,7 @@ impl FsInterface {
             self.set_meta_size(source_ino, meta)?;
             dest_ino
         } else {
-            self.make_inode(new_parent, new_name.clone(), meta.kind)
+            self.make_inode(new_parent, new_name.clone(), meta.perm, meta.kind)
                 .map_err(|err| match err {
                     MakeInodeError::WhError { source } => RenameError::WhError { source },
                     MakeInodeError::AlreadyExist => RenameError::DestinationExists,

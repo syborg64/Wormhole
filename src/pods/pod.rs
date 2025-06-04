@@ -195,6 +195,7 @@ impl Pod {
                         LOCAL_CONFIG_INO,
                         ROOT,
                         FsEntry::File(vec![server_address.clone()]),
+                        0o777,
                     );
                 }
                 let next_inode = arbo.iter().fold(0, |acc, (ino, _)| u64::max(acc, *ino)) + 1;

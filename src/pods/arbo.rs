@@ -106,7 +106,7 @@ impl FsEntry {
 }
 
 impl Inode {
-    pub fn new(name: String, parent_ino: InodeId, id: InodeId, entry: FsEntry) -> Self {
+    pub fn new(name: String, parent_ino: InodeId, id: InodeId, entry: FsEntry, perm: u16) -> Self {
         let meta = Metadata {
             ino: id,
             size: 0,
@@ -119,7 +119,7 @@ impl Inode {
                 FsEntry::Directory(_) => SimpleFileType::Directory,
                 FsEntry::File(_) => SimpleFileType::File,
             },
-            perm: 0o777,
+            perm,
             nlink: 0,
             uid: 0,
             gid: 0,
@@ -278,53 +278,8 @@ impl Arbo {
     }
 
     #[must_use]
-    pub fn add_inode_from_parameters(
-        &mut self,
-        name: String,
-        ino: InodeId,
-        parent_ino: InodeId,
-        entry: FsEntry,
-    ) -> io::Result<()> {
-        if self.entries.contains_key(&ino) {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "add_inode_from_parameters: file already existing",
-            ))
-        } else {
-            match self.entries.get_mut(&parent_ino) {
-                None => Err(io::Error::new(
-                    io::ErrorKind::NotFound,
-                    "add_inode_from_parameters: parent not existing",
-                )),
-                Some(Inode {
-                    parent: _,
-                    id: _,
-                    name: _,
-                    entry: FsEntry::Directory(parent_children),
-                    meta: _,
-                    xattrs: _,
-                }) => {
-                    let new_entry = Inode::new(name, parent_ino, ino, entry);
-                    parent_children.push(ino);
-                    self.entries.insert(ino, new_entry);
-                    Ok(())
-                }
-                Some(_) => Err(io::Error::new(
-                    io::ErrorKind::NotFound,
-                    "parent not a folder",
-                )),
-            }
-        }
-    }
-
-    #[must_use]
-    pub fn add_inode(&mut self, inode: Inode) -> io::Result<()> {
-        self.add_inode_from_parameters(inode.name, inode.id, inode.parent, inode.entry)
-    }
-
-    #[must_use]
     /// Insert a given [Inode] inside the local arbo
-    pub fn n_add_inode(&mut self, inode: Inode) -> Result<(), MakeInodeError> {
+    pub fn add_inode(&mut self, inode: Inode) -> Result<(), MakeInodeError> {
         if self.entries.contains_key(&inode.id) {
             return Err(MakeInodeError::AlreadyExist);
         }
@@ -349,16 +304,17 @@ impl Arbo {
 
     #[must_use]
     /// Create a new [Inode] from the given parameters and insert it inside the local arbo
-    pub fn n_add_inode_from_parameters(
+    pub fn add_inode_from_parameters(
         &mut self,
         name: String,
         id: InodeId, //REVIEW: Renamed id to be more coherent with the Inode struct
         parent_ino: InodeId,
         entry: FsEntry,
+        perm: u16,
     ) -> Result<(), MakeInodeError> {
-        let inode = Inode::new(name, parent_ino, id, entry);
+        let inode = Inode::new(name, parent_ino, id, entry, perm);
 
-        self.n_add_inode(inode)
+        self.add_inode(inode)
     }
 
     #[must_use]
@@ -782,7 +738,9 @@ fn index_folder_recursive(
             } else {
                 FsEntry::Directory(Vec::new())
             },
-        ))?;
+            meta.permissions().mode() as u16,
+        ))
+        .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err.to_string()))?;
         arbo.set_inode_meta(used_ino, meta.try_into()?)?;
 
         if ftype.is_dir() {
@@ -795,19 +753,20 @@ fn index_folder_recursive(
 
 pub fn generate_arbo(path: &WhPath, host: &String) -> io::Result<(Arbo, InodeId)> {
     if let Some(arbo) = recover_serialized_arbo(path) {
-        let ino: u64 = *arbo
+        let next_ino: u64 = *arbo
             .entries
             .keys()
             .reduce(|acc, i| std::cmp::max(acc, i))
-            .unwrap_or(&11);
-        Ok((arbo, ino))
+            .unwrap_or(&11)
+            + 1;
+        Ok((arbo, next_ino))
     } else {
         let mut arbo = Arbo::new();
-        let mut ino: u64 = 11; // NOTE - will be the first registered inode after root
+        let mut next_ino: u64 = 11; // NOTE - will be the first registered inode after root
 
         #[cfg(target_os = "linux")]
-        index_folder_recursive(&mut arbo, ROOT, &mut ino, path, host)?;
-        Ok((arbo, ino))
+        index_folder_recursive(&mut arbo, ROOT, &mut next_ino, path, host)?;
+        Ok((arbo, next_ino))
     }
 }
 
