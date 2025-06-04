@@ -47,7 +47,7 @@ pub struct Pod {
     #[cfg(target_os = "linux")]
     fuse_handle: fuser::BackgroundSession,
     #[cfg(target_os = "windows")]
-    fsp_host: WinfspHost<'static>,
+    fsp_host: WinfspHost,
     network_airport_handle: JoinHandle<()>,
     peer_broadcast_handle: JoinHandle<()>,
     new_peer_handle: JoinHandle<()>,

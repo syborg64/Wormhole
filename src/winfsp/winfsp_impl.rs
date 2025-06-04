@@ -1,5 +1,6 @@
 use std::{
     ffi::OsString,
+    fs,
     io::{Error, ErrorKind},
     sync::{Arc, RwLock},
     time::SystemTime,
@@ -27,7 +28,7 @@ use crate::pods::{
     whpath::WhPath,
 };
 
-pub struct WinfspHost<'a>(FileSystemHost<'a>);
+pub struct WinfspHost(FileSystemHost);
 
 #[derive(PartialEq, Debug)]
 pub struct WormholeHandle {
@@ -35,7 +36,7 @@ pub struct WormholeHandle {
     pub handle: u64,
 }
 
-impl<'a> std::fmt::Debug for WinfspHost<'a> {
+impl std::fmt::Debug for WinfspHost {
     fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Ok(())
     }
@@ -76,7 +77,7 @@ impl FSPController {
 pub fn mount_fsp(
     path: &WhPath,
     fs_interface: Arc<FsInterface>,
-) -> Result<WinfspHost<'static>, std::io::Error> {
+) -> Result<WinfspHost, std::io::Error> {
     let volume_params = VolumeParams::default();
 
     log::debug!("created volume params...");
