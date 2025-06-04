@@ -1,4 +1,5 @@
 use crate::fuse::linux_attrs::time_or_now_to_system_time;
+use crate::fuse::linux_mknod::filetype_from_mode;
 use crate::pods::arbo::{FsEntry, Inode};
 use crate::pods::filesystem::attrs::SetAttrError;
 use crate::pods::filesystem::fs_interface::{FsInterface, SimpleFileType};
@@ -340,15 +341,26 @@ impl Filesystem for FuseController {
         _req: &Request<'_>,
         parent: u64,
         name: &OsStr,
-        _mode: u32,
+        mode: u32,
         _umask: u32,
         _rdev: u32,
         reply: ReplyEntry,
     ) {
+        let permissions = mode as u16;
+        let kind = match filetype_from_mode(mode) {
+            Some(kind) => kind,
+            None => {
+                // If it's not a file or a directory it's not yet supported
+                reply.error(libc::ENOSYS);
+                return;
+            }
+        };
+
         match self.fs_interface.make_inode(
             parent,
             name.to_string_lossy().to_string(),
-            SimpleFileType::File,
+            permissions,
+            kind,
         ) {
             Ok(node) => reply.entry(&TTL, &node.meta.into(), 0),
             Err(MakeInodeError::LocalCreationFailed { io }) => {
@@ -370,13 +382,28 @@ impl Filesystem for FuseController {
         _req: &Request<'_>,
         parent: u64,
         name: &OsStr,
-        _mode: u32,
+        mode: u32,
         _umask: u32,
         reply: ReplyEntry,
     ) {
+        match filetype_from_mode(mode) {
+            Some(SimpleFileType::Directory) => (),
+            Some(SimpleFileType::File) => {
+                // Mkdir only create directories
+                reply.error(libc::EINVAL);
+                return;
+            }
+            None => {
+                // If it's not a file or a directory it's not yet supported
+                reply.error(libc::ENOSYS);
+                return;
+            }
+        };
+
         match self.fs_interface.make_inode(
             parent,
             name.to_string_lossy().to_string(),
+            mode as u16,
             SimpleFileType::Directory,
         ) {
             Ok(node) => reply.entry(&TTL, &node.meta.into(), 0),
@@ -522,15 +549,28 @@ impl Filesystem for FuseController {
         _req: &Request<'_>,
         parent: u64,
         name: &OsStr,
-        _mode: u32,
+        mode: u32,
         _umask: u32,
         flags: i32,
         reply: fuser::ReplyCreate,
     ) {
-        match self
-            .fs_interface
-            .create(parent, name.to_string_lossy().to_string(), flags)
-        {
+        let permissions = mode as u16;
+        let kind = match filetype_from_mode(mode) {
+            Some(kind) => kind,
+            None => {
+                // If it's not a file or a directory it's not yet supported
+                reply.error(libc::ENOSYS);
+                return;
+            }
+        };
+
+        match self.fs_interface.create(
+            parent,
+            name.to_string_lossy().to_string(),
+            flags,
+            permissions,
+            kind,
+        ) {
             Ok((inode, fh)) => reply.created(&TTL, &inode.meta.into(), 0, fh, flags as u32),
             Err(CreateError::MakeInode {
                 source: MakeInodeError::LocalCreationFailed { io },

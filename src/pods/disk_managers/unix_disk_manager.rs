@@ -45,6 +45,12 @@ impl UnixDiskManager {
     }
 }
 
+impl UnixDiskManager {
+    fn exist(&self, path: &WhPath) -> bool {
+        self.handle.metadata(path.clone().set_relative()).is_ok()
+    }
+}
+
 /// always takes a WhPath and infers the real disk path
 impl DiskManager for UnixDiskManager {
     // Very simple util to log the content of a folder locally
@@ -60,6 +66,9 @@ impl DiskManager for UnixDiskManager {
     }
 
     fn new_file(&self, path: &WhPath, mode: u16) -> io::Result<()> {
+        if self.exist(path) {
+            self.handle.remove_file(path.clone().set_relative())?;
+        }
         self.handle
             .new_file(path.clone().set_relative(), mode.into())?; // TODO look more in c mode_t value
         Ok(())
