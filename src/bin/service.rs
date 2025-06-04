@@ -34,7 +34,7 @@ use wormhole::config::types::Config;
 use wormhole::config::LocalConfig;
 use wormhole::error::{CliError, CliSuccess, WhError, WhResult};
 use wormhole::network::ip::IpP;
-use wormhole::pods::pod::{Pod, PodInfoAnswer, PodInfoRequest};
+use wormhole::pods::pod::Pod;
 
 type CliTcpWriter =
     SplitSink<WebSocketStream<tokio::net::TcpStream>, tokio_tungstenite::tungstenite::Message>;
