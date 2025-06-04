@@ -386,20 +386,6 @@ impl Filesystem for FuseController {
         _umask: u32,
         reply: ReplyEntry,
     ) {
-        match filetype_from_mode(mode) {
-            Some(SimpleFileType::Directory) => (),
-            Some(SimpleFileType::File) => {
-                // Mkdir only create directories
-                reply.error(libc::EINVAL);
-                return;
-            }
-            None => {
-                // If it's not a file or a directory it's not yet supported
-                reply.error(libc::ENOSYS);
-                return;
-            }
-        };
-
         match self.fs_interface.make_inode(
             parent,
             name.to_string_lossy().to_string(),
