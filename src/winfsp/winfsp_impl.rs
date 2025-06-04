@@ -46,7 +46,23 @@ pub struct FSPController {
     pub volume_label: Arc<RwLock<String>>,
     pub fs_interface: Arc<FsInterface>,
     pub dummy_file: OsString,
+    pub mount_point: WhPath,
     // pub provider: Arc<RwLock<Provider<WindowsFolderHandle>>>,
+}
+
+impl Drop for FSPController {
+    fn drop(&mut self) {
+        let (p, n) = self.mount_point.split_folder_file();
+        let aliased = WhPath::from(&p).join(&(".".to_string() + &n));
+        if fs::metadata(&aliased.inner).is_ok() {
+            log::debug!(
+                "moving from {} to {} ...",
+                &aliased.inner,
+                &self.mount_point.inner
+            );
+            let _ = fs::rename(&aliased.inner, &self.mount_point.inner);
+        }
+    }
 }
 
 impl FSPController {
@@ -84,13 +100,20 @@ pub fn mount_fsp(
     let wormhole_context = FSPController {
         volume_label: Arc::new(RwLock::new("wormhole_fs".into())),
         fs_interface,
+        mount_point: path.clone(),
         dummy_file: "dummy".into(), // dummy_file: (&path.clone().rename(&("dummy_file").to_string()).inner).into(),
     };
     log::debug!("creating host...");
     let mut host = FileSystemHost::new::<FSPController>(volume_params, wormhole_context)
         .map_err(|_| std::io::Error::new(ErrorKind::Other, "oh no!"))?;
-    // .expect("FSHost::new");
     log::debug!("created host...");
+
+    let (p, n) = path.split_folder_file();
+    let aliased = WhPath::from(&p).join(&(".".to_string() + &n));
+    if fs::metadata(&path.inner).is_ok() {
+        log::debug!("moving from {} to {} ...", &path.inner, &aliased.inner);
+        fs::rename(&path.inner, &aliased.inner)?;
+    }
 
     log::debug!("mounting host @ {} ...", &path.inner);
     let _ = host
