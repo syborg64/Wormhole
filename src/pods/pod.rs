@@ -356,7 +356,7 @@ impl Pod {
             });
     }
 
-    pub fn stop(&self) -> Result<(), PodStopError> {
+    pub fn stop(self) -> Result<(), PodStopError> {
         // TODO
         // in actual state, all operations (request from network other than just pulling the asked files)
         // made after calling this function but before dropping the pod are undefined behavior.
@@ -373,6 +373,8 @@ impl Pod {
             .collect();
 
         self.send_files_when_stopping(&arbo, peers);
+        let arbo_bin = bincode::serialize(&*arbo).expect("can't serialize arbo to bincode");
+        drop(arbo);
 
         self.network_interface
             .to_network_message_tx
@@ -386,23 +388,36 @@ impl Pod {
             ))
             .expect("to_network_message_tx closed.");
 
-        let _ = self.fs_interface.disk.remove_file(&ARBO_FILE_FNAME.into());
-        self.fs_interface
-            .disk
-            .write_file(
-                &ARBO_FILE_FNAME.into(),
-                &bincode::serialize(&*arbo).expect("can't serialize arbo to bincode"),
-                0,
-            )
-            .map(|_| ())
-            .map_err(|e| PodStopError::ArboSavingFailed {
-                error_source: e.to_string(),
-            })?;
+        let Self {
+            name: _,
+            network_interface: _,
+            fs_interface: _,
+            mount_point,
+            peers,
+            #[cfg(target_os = "linux")]
+            fuse_handle,
+            #[cfg(target_os = "windows")]
+            fsp_host,
+            network_airport_handle,
+            peer_broadcast_handle,
+            new_peer_handle,
+            redundancy_worker_handle: _,
+            global_config: _,
+            local_config: _,
+        } = self;
 
-        *self.peers.write() = Vec::new(); // dropping PeerIPCs
-        self.network_airport_handle.abort();
-        self.new_peer_handle.abort();
-        self.peer_broadcast_handle.abort();
+        #[cfg(target_os = "linux")]
+        drop(fuse_handle);
+        #[cfg(target_os = "windows")]
+        drop(fsp_host);
+
+        fs::write(&mount_point.join(&ARBO_FILE_FNAME).inner, arbo_bin)
+            .map_err(|io| PodStopError::ArboSavingFailed { source: io })?;
+
+        *peers.write() = Vec::new(); // dropping PeerIPCs
+        network_airport_handle.abort();
+        new_peer_handle.abort();
+        peer_broadcast_handle.abort();
         Ok(())
     }
 
