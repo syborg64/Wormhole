@@ -136,10 +136,13 @@ impl FsInterface {
     }
 
     pub fn recept_redundancy(&self, id: InodeId, binary: Vec<u8>) -> WhResult<()> {
-        let path = Arbo::read_lock(&self.arbo, "recept_binary")
-            .expect("recept_binary: can't read lock arbo")
-            .n_get_path_from_inode_id(id)?;
+        let mut arbo = Arbo::write_lock(&self.arbo, "recept_binary")
+            .expect("recept_binary: can't read lock arbo");
+        let (path, perms) = arbo
+            .n_get_path_from_inode_id(id)
+            .and_then(|path| arbo.n_get_inode(id).map(|inode| (path, inode.meta.perm)))?;
 
+        let _created = self.disk.new_file(&path, perms);
         self.disk
             .write_file(&path, &binary, 0)
             .map_err(|e| WhError::DiskError {
@@ -154,11 +157,9 @@ impl FsInterface {
                 .general
                 .address
                 .clone();
-        Arbo::n_write_lock(&self.arbo, "recept_redundancy")?
-            .n_add_inode_hosts(id, vec![address])
-            .inspect_err(|e| {
-                log::error!("Can't update (local) hosts for redundancy pulled file ({id}): {e}")
-            })
+        arbo.n_add_inode_hosts(id, vec![address]).inspect_err(|e| {
+            log::error!("Can't update (local) hosts for redundancy pulled file ({id}): {e}")
+        })
     }
 
     pub fn recept_binary(&self, id: InodeId, binary: Vec<u8>) -> io::Result<()> {
@@ -170,8 +171,7 @@ impl FsInterface {
                 .clone();
         let arbo = Arbo::read_lock(&self.arbo, "recept_binary")
             .expect("recept_binary: can't read lock arbo");
-        let (path, perms) = match Arbo::read_lock(&self.arbo, "recept_binary")
-            .expect("recept_binary: can't read lock arbo")
+        let (path, perms) = match arbo
             .n_get_path_from_inode_id(id)
             .and_then(|path| arbo.n_get_inode(id).map(|inode| (path, inode.meta.perm)))
         {
