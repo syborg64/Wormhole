@@ -261,20 +261,31 @@ impl FsInterface {
     // SECTION remote -> read
     pub fn send_filesystem(&self, to: Address) -> io::Result<()> {
         let arbo = Arbo::read_lock(&self.arbo, "fs_interface::send_filesystem")?;
-        let global_config_file_size = arbo.get_inode(GLOBAL_CONFIG_INO)?.meta.size;
-        let global_config_path = arbo
-            .get_path_from_inode_id(GLOBAL_CONFIG_INO)?
-            .set_relative();
+        let global_config_file_size = arbo
+            .get_inode(GLOBAL_CONFIG_INO)
+            .map(|inode| inode.meta.size)
+            .ok();
+        let global_config_path = if global_config_file_size.is_some() {
+            Some(
+                arbo.get_path_from_inode_id(GLOBAL_CONFIG_INO)?
+                    .set_relative(),
+            )
+        } else {
+            None
+        };
         drop(arbo);
-        log::info!("reading global config at {global_config_path}");
+        log::info!("reading global config at {global_config_path:?}");
 
         let mut global_config_bytes = Vec::new();
-        global_config_bytes.resize(global_config_file_size as usize, 0);
+        if let Some(global_config_file_size) = global_config_file_size {
+            global_config_bytes.resize(global_config_file_size as usize, 0);
 
-        self.disk
-            .read_file(&global_config_path, 0, &mut global_config_bytes)
-            .expect("disk can't read file (global condfig)");
-
+            if let Some(global_config_path) = global_config_path {
+                self.disk
+                    .read_file(&global_config_path, 0, &mut global_config_bytes)
+                    .expect("disk can't read file (global condfig)");
+            }
+        }
         self.network_interface.send_arbo(to, global_config_bytes)
     }
 
