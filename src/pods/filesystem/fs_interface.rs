@@ -314,9 +314,12 @@ impl FsInterface {
 
         let mut buff = Vec::new();
         buff.resize(size as usize, 0);
-        self.disk
-            .read_file(&path, 0, &mut buff)
-            .map_err(|_| crate::error::WhError::InodeNotFound);
+        self.disk.read_file(&path, 0, &mut buff).map_err(|io| {
+            crate::error::WhError::DiskError {
+                detail: "read_local_file".to_owned(),
+                err: io,
+            }
+        })?;
         Ok(buff)
     }
 }
