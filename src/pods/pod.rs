@@ -14,6 +14,7 @@ use crate::pods::arbo::{FsEntry, GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME, LOCAL_
 use crate::pods::disk_managers::dummy_disk_manager::DummyDiskManager;
 #[cfg(target_os = "linux")]
 use crate::pods::disk_managers::unix_disk_manager::UnixDiskManager;
+use crate::pods::disk_managers::DiskManager;
 use crate::pods::network::redundancy::redundancy_worker;
 #[cfg(target_os = "windows")]
 use crate::winfsp::winfsp_impl::{mount_fsp, WinfspHost};
@@ -128,7 +129,7 @@ fn register_to_others(peers: &Vec<PeerIPC>, self_address: &Address) -> std::io::
 
 custom_error! {pub PodStopError
     WhError{source: WhError} = "{source}",
-    ArboSavingFailed{error_source: String} = @{format!("PodStopError: could not write arbo to disk: {error_source}")},
+    ArboSavingFailed{source: io::Error} = @{format!("PodStopError: could not write arbo to disk: {source}")},
     PodNotRunning = "No pod with this name was found running.",
     FileNotReadable{file: InodeId, reason: String} = @{format!("PodStopError: could not read file from disk: ({file}) {reason}")},
     FileNotSent{file: InodeId} = @{format!("PodStopError: no pod was able to receive this file before stopping: ({file})")}
@@ -154,7 +155,7 @@ impl Pod {
 
         let mut peers = vec![];
 
-        let (arbo, next_inode) =
+        let (arbo, next_inode, global_config_bytes) =
             if let Some((fs_serialized, peers_addrs, ipc, global_config_bytes)) =
                 initiate_connection(
                     global_config.general.peers.clone(),
@@ -164,17 +165,6 @@ impl Pod {
                 )
                 .await
             {
-                if !global_config_bytes.is_empty() {
-                    info!(
-                        "mount point service: {}",
-                        mount_point.join(GLOBAL_CONFIG_FNAME).to_string()
-                    );
-                    fs::write(
-                        mount_point.join(GLOBAL_CONFIG_FNAME).to_string(),
-                        global_config_bytes,
-                    )
-                    .expect("can't write global_config file");
-                }
                 // TODO use global_config ?
 
                 peers = PeerIPC::peer_startup(peers_addrs, from_network_message_tx.clone()).await;
@@ -183,19 +173,12 @@ impl Pod {
 
                 let mut arbo = Arbo::new();
                 arbo.overwrite_self(fs_serialized.fs_index);
-
-                if let Err(_) = arbo.get_inode(LOCAL_CONFIG_INO) {
-                    let _ = arbo.add_inode_from_parameters(
-                        LOCAL_CONFIG_FNAME.to_string(),
-                        LOCAL_CONFIG_INO,
-                        ROOT,
-                        FsEntry::File(vec![server_address.clone()]),
-                    );
-                }
                 let next_inode = arbo.iter().fold(0, |acc, (ino, _)| u64::max(acc, *ino)) + 1;
-                (arbo, next_inode)
+                (arbo, next_inode, Some(global_config_bytes))
             } else {
-                generate_arbo(&mount_point, &server_address).expect("unable to index folder")
+                let (arbo, next_inode) =
+                    generate_arbo(&mount_point, &server_address).expect("unable to index folder");
+                (arbo, next_inode, None)
             };
 
         let redundancy_target = global_config.redundancy.number;
@@ -219,6 +202,15 @@ impl Pod {
         #[cfg(target_os = "windows")]
         let disk_manager = Box::new(DummyDiskManager::new(&mount_point)?);
 
+        if let Some(global_config_bytes) = global_config_bytes {
+            if let Ok(perms) = Arbo::write_lock(&arbo, "Pod::new")?
+                .get_inode(GLOBAL_CONFIG_INO)
+                .map(|inode| inode.meta.perm)
+            {
+                let _ = disk_manager.new_file(&GLOBAL_CONFIG_FNAME.into(), perms);
+                disk_manager.write_file(&GLOBAL_CONFIG_FNAME.into(), &global_config_bytes, 0)?;
+            }
+        }
         let fs_interface = Arc::new(FsInterface::new(
             network_interface.clone(),
             disk_manager,
