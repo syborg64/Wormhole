@@ -90,7 +90,8 @@ pub async fn initiate_connection(
                 }
 
                 loop {
-                    match rx.recv().await {
+                    info!("Awaiting response from {first_contact}");
+                    match rx.recv().await { // TODO: timeout here in case of peer malfunction
                         Some(FromNetworkMessage {
                             origin: _,
                             content: MessageContent::FsAnswer(fs, mut peers_address, global_config),
@@ -108,7 +109,10 @@ pub async fn initiate_connection(
                             );
                             break;
                         }
-                        None => continue,
+                        None => {
+                            info!("Empty response from {first_contact}...");
+                            continue;
+                        }
                     };
                 }
             }
