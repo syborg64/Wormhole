@@ -138,7 +138,6 @@ impl FsInterface {
             FsEntry::Directory(_) => self
                 .disk
                 .new_dir(&new_path, inode.meta.perm)
-                .map(|_| ())
                 .map_err(|io| MakeInodeError::LocalCreationFailed { io }),
             // TODO - remove when merge is handled because new file should create folder
             // FsEntry::Directory(_) => {}
