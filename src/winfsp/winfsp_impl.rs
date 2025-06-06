@@ -197,13 +197,15 @@ impl FileSystemContext for FSPController {
         file_info: &mut winfsp::filesystem::OpenFileInfo,
     ) -> winfsp::Result<Self::FileContext> {
         // thread::sleep(std::time::Duration::from_secs(2));
-        log::trace!("open({})", file_name.display());
+        let display_name = file_name.display();
+        log::trace!("open({display_name})");
 
         let path: WhPath = file_name
             .try_into()
-            .inspect_err(|e| log::warn!("open::{:?}", e))?;
+            .inspect_err(|e| log::warn!("open({display_name})::{:?}", e))?;
         let inode = Arbo::read_lock(&self.fs_interface.arbo, "winfsp::open")?
             .get_inode_from_path(&path)
+            .inspect_err(|e| log::warn!("open({display_name})::{e};"))
             .cloned();
         match inode {
             Ok(inode) => {
@@ -216,7 +218,7 @@ impl FileSystemContext for FSPController {
                         OpenFlags::from_win_u32(granted_access),
                         AccessMode::from_win_u32(granted_access),
                     )
-                    .inspect_err(|e| log::warn!("open::{e}"))?;
+                    .inspect_err(|e| log::warn!("open({display_name})::{e}"))?;
                 log::trace!("ok:{};", inode.id);
                 Ok(WormholeHandle {
                     ino: inode.id,
@@ -224,7 +226,7 @@ impl FileSystemContext for FSPController {
                 })
             }
             Err(err) => {
-                log::error!("{:?}", err);
+                log::warn!("open({display_name})::{:?}", err);
                 if err.kind() == ErrorKind::NotFound {
                     Err(STATUS_OBJECT_NAME_NOT_FOUND.into())
                 } else {
@@ -232,7 +234,6 @@ impl FileSystemContext for FSPController {
                 }
             }
         }
-        .inspect_err(|e| log::warn!("open::{e};"))
     }
 
     fn close(&self, context: Self::FileContext) {
@@ -257,7 +258,7 @@ impl FileSystemContext for FSPController {
             false => SimpleFileType::File,
         };
         // thread::sleep(std::time::Duration::from_secs(2));
-        log::info!("create({:?}, type: {:?})", file_name, kind);
+        log::info!("create({}, type: {:?})", file_name.display(), kind);
 
         let path: WhPath = file_name.try_into()?;
         let (folder, name) = path.split_folder_file();
@@ -314,6 +315,7 @@ impl FileSystemContext for FSPController {
                 .inspect_err(|e| log::warn!("cleanup::{e};"));
             // cannot bubble out errors here
         }
+        log::trace!("ok();");
     }
 
     fn flush(
