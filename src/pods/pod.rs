@@ -172,7 +172,7 @@ impl Pod {
 
                 let mut arbo = Arbo::new();
                 arbo.overwrite_self(fs_serialized.fs_index);
-                let next_inode = arbo.iter().fold(0, |acc, (ino, _)| u64::max(acc, *ino)) + 1;
+                let next_inode = arbo.iter().fold(Arbo::first_ino(), |acc, (ino, _)| u64::max(acc, *ino)) + 1;
                 (arbo, next_inode, Some(global_config_bytes))
             } else {
                 let (arbo, next_inode) =

@@ -142,6 +142,10 @@ impl Inode {
 }
 
 impl Arbo {
+    pub fn first_ino() -> InodeId {
+        return 11;
+    }
+
     pub fn new() -> Self {
         let mut arbo: Self = Self {
             entries: HashMap::new(),
@@ -763,7 +767,7 @@ pub fn generate_arbo(path: &WhPath, host: &String) -> io::Result<(Arbo, InodeId)
         Ok((arbo, next_ino))
     } else {
         let mut arbo = Arbo::new();
-        let mut next_ino: u64 = 11; // NOTE - will be the first registered inode after root
+        let mut next_ino = Arbo::first_ino(); // NOTE - will be the first registered inode after root
 
         #[cfg(target_os = "linux")]
         index_folder_recursive(&mut arbo, ROOT, &mut next_ino, path, host)?;
