@@ -10,6 +10,6 @@ pub async fn stop(pod: Pod) -> Result<CliSuccess, CliError> {
         .map(|()| "Pod was stopped.".to_string());
     match res {
         Ok(success) => Ok(CliSuccess::Message(success)),
-        Err(e) => Err(CliError::PodStopError { source: e })
+        Err(e) => Err(CliError::PodStopError { source: e }),
     }
 }

@@ -5,13 +5,13 @@
 use tokio::runtime::Runtime;
 
 use crate::{
-    commands::cli_commands::{Cli, GetHostsArgs},
+    commands::cli_commands::{Cli, TreeArgs},
     error::CliResult,
 };
 
 use super::cli_messager;
 
-pub fn get_hosts(ip: &str, args: GetHostsArgs) -> CliResult<()> {
+pub fn tree(ip: &str, args: TreeArgs) -> CliResult<()> {
     let rt = Runtime::new().unwrap();
-    rt.block_on(cli_messager(ip, Cli::GetHosts(args)))
+    rt.block_on(cli_messager(ip, Cli::Tree(args)))
 }

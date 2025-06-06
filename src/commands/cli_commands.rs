@@ -1,4 +1,7 @@
-use crate::pods::{arbo::{GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME}, whpath::WhPath};
+use crate::pods::{
+    arbo::{GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME},
+    whpath::WhPath,
+};
 use clap::{Args, Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
 
@@ -18,6 +21,8 @@ pub enum Cli {
     Inspect,
     /// Get hosts for a specific file
     GetHosts(GetHostsArgs),
+    /// Tree the folder structure from the given path and show hosts for each file
+    Tree(TreeArgs),
     /// Remove a pod from its network
     Remove(RemoveArgs),
     /// Apply a new configuration to a pod
@@ -48,6 +53,16 @@ pub struct GetHostsArgs {
     /// Name of the pod
     pub name: String,
     /// File path from the root of the wh folder
+    pub path: WhPath,
+}
+
+#[derive(Debug, clap::Args, Serialize, Deserialize)]
+#[command(version, about, long_about = None)]
+pub struct TreeArgs {
+    /// Name of the pod
+    pub name: String,
+    /// Root of the tree
+    #[arg(default_value = "/")]
     pub path: WhPath,
 }
 
@@ -116,7 +131,12 @@ pub struct RemoveArgs {
     #[arg(long, short, required_unless_present = "path", conflicts_with = "path")]
     pub name: String,
     /// Change to DIRECTORY before doing anything
-    #[arg(long, short = 'C', required_unless_present = "name", conflicts_with = "name")]
+    #[arg(
+        long,
+        short = 'C',
+        required_unless_present = "name",
+        conflicts_with = "name"
+    )]
     pub path: WhPath,
     /// Mode for pod removal
     #[arg(long, default_value = "simple")]

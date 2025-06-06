@@ -68,7 +68,9 @@ impl fmt::Display for CliSuccess {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             CliSuccess::Message(msg) => write!(f, "{}", msg),
-            CliSuccess::WithData { message, data } => write!(f, "{} - Données: {}", message, data),
+            CliSuccess::WithData { message, data } => {
+                write!(f, "{} - Data:\n{}\n", message, data)
+            }
         }
     }
 }

@@ -8,6 +8,7 @@ mod restore;
 mod start;
 mod stop;
 mod templates;
+mod tree;
 
 pub use apply::apply;
 pub use get_hosts::get_hosts;
@@ -19,3 +20,4 @@ pub use restore::restore;
 pub use start::start;
 pub use stop::stop;
 pub use templates::templates;
+pub use tree::tree;
