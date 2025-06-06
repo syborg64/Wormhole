@@ -263,7 +263,7 @@ impl Arbo {
     pub fn files_hosted_only_by<'a>(
         &'a self,
         host: &'a Address,
-    ) -> impl Iterator<Item = &Inode> + use<'a> {
+    ) -> impl Iterator<Item = &'a Inode> + use<'a> {
         self.iter()
             .filter_map(move |(_, inode)| match &inode.entry {
                 FsEntry::Directory(_) => None,
