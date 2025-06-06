@@ -59,9 +59,6 @@ pub fn new(ip: &str, mut args: PodArgs) -> CliResult<()> {
         args.path = WhPath::from(&env::current_dir()?.display().to_string());
     }
 
-    if args.url == None {
-        is_new_wh_file_config(&args.path)?;
-    }
     mod_file_conf_content(args.path.clone(), args.name.clone(), &args.ip)?;
     let rt = Runtime::new().unwrap();
     rt.block_on(cli_messager(
