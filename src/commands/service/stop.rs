@@ -5,7 +5,7 @@ use crate::{
 
 pub async fn stop(pod: Pod) -> Result<CliSuccess, CliError> {
     match pod.stop() {
-        Ok(()) => Ok(CliSuccess::Message( "Pod was stopped.".to_string())),
-        Err(e) => Err(CliError::PodStopError { source: e })
+        Ok(()) => Ok(CliSuccess::Message("Pod was stopped.".to_string())),
+        Err(e) => Err(CliError::PodStopError { source: e }),
     }
 }
