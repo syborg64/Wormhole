@@ -3,6 +3,7 @@ use crate::error::{WhError, WhResult};
 use crate::network::message::Address;
 use crate::pods::arbo::{Arbo, FsEntry, Inode, InodeId, Metadata, GLOBAL_CONFIG_INO};
 use crate::pods::disk_managers::DiskManager;
+use crate::pods::filesystem::attrs::AcknoledgeSetAttrError;
 use crate::pods::network::callbacks::Callback;
 use crate::pods::network::network_interface::NetworkInterface;
 
@@ -55,12 +56,15 @@ impl FsInterface {
     }
 
     // SECTION - local -> write
+    #[deprecated]
     pub fn set_inode_meta(&self, ino: InodeId, meta: Metadata) -> io::Result<()> {
         let path = Arbo::read_lock(&self.arbo, "fs_interface::set_inode_meta")?
             .get_path_from_inode_id(ino)?;
 
         self.disk.set_file_size(&path, meta.size as usize)?;
-        self.network_interface.update_metadata(ino, meta)
+        self.network_interface
+            .update_metadata(ino, meta)
+            .map_err(|err| std::io::Error::new(ErrorKind::Other, err))
     }
 
     // !SECTION
@@ -77,6 +81,12 @@ impl FsInterface {
         let arbo = Arbo::read_lock(&self.arbo, "fs_interface::get_inode_attributes")?;
 
         Ok(arbo.get_inode(ino)?.meta.clone())
+    }
+
+    pub fn n_get_inode_attributes(&self, ino: InodeId) -> WhResult<Metadata> {
+        let arbo = Arbo::n_read_lock(&self.arbo, "fs_interface::get_inode_attributes")?;
+
+        Ok(arbo.n_get_inode(ino)?.meta.clone())
     }
 
     pub fn read_dir(&self, ino: InodeId) -> io::Result<Vec<Inode>> {
@@ -216,7 +226,12 @@ impl FsInterface {
         self.network_interface.acknowledge_hosts_edition(id, hosts)
     }
 
-    pub fn recept_revoke_hosts(&self, id: InodeId, host: Address, meta: Metadata) -> WhResult<()> {
+    pub fn recept_revoke_hosts(
+        &self,
+        id: InodeId,
+        host: Address,
+        meta: Metadata,
+    ) -> Result<(), AcknoledgeSetAttrError> {
         if host
             != LocalConfig::read_lock(&self.network_interface.local_config, "recept_binary")?
                 .general
@@ -230,9 +245,10 @@ impl FsInterface {
                 log::debug!("recept_revoke_hosts: can't delete file. {}", e);
             }
         }
-        self.network_interface.acknowledge_metadata(id, meta)?;
+        self.acknowledge_metadata(id, meta)?;
         self.network_interface
             .acknowledge_hosts_edition(id, vec![host])
+            .map_err(|source| AcknoledgeSetAttrError::WhError { source })
     }
 
     pub fn recept_add_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {

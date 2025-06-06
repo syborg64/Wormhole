@@ -1,6 +1,9 @@
 use crate::pods::{
     arbo::{Arbo, InodeId},
-    filesystem::file_handle::{AccessMode, FileHandleManager, OpenFlags},
+    filesystem::{
+        file_handle::{AccessMode, FileHandleManager, OpenFlags},
+        permissions::{has_execute_perm, has_read_perm, has_write_perm},
+    },
 };
 
 use crate::error::WhError;
@@ -17,10 +20,6 @@ custom_error! {pub OpenError
 }
 
 const FMODE_EXEC: i32 = 0x20;
-
-const EXECUTE_BIT_FLAG: u16 = 1u16;
-const WRITE_BIT_FLAG: u16 = 2u16;
-const READ_BIT_FLAG: u16 = 4u16;
 
 impl AccessMode {
     #[cfg(target_os = "linux")]
@@ -49,31 +48,35 @@ pub fn check_permissions(
     match access {
         AccessMode::Void => Ok(AccessMode::Void),
         AccessMode::Read => {
-            if inode_perm & READ_BIT_FLAG == 0 {
+            if !has_read_perm(inode_perm) {
                 Err(OpenError::WrongPermissions)
             //Behavior is undefined, but most filesystems return EACCES
             } else if flags.trunc {
                 //EACCESS
                 Err(OpenError::TruncReadOnly)
             //Open is from internal exec syscall
+            } else if flags.exec {
+                if !has_execute_perm(inode_perm) {
+                    Err(OpenError::WrongPermissions)
+                } else {
+                    Ok(AccessMode::Execute)
+                }
             } else {
                 Ok(AccessMode::Read)
             }
         }
-        AccessMode::Write if (inode_perm & WRITE_BIT_FLAG == 0) => Err(OpenError::WrongPermissions),
+        AccessMode::Write if !has_write_perm(inode_perm) => Err(OpenError::WrongPermissions),
         AccessMode::Write => Ok(AccessMode::Write),
-        AccessMode::ReadWrite
-            if (inode_perm & WRITE_BIT_FLAG == 0 || inode_perm & READ_BIT_FLAG == 0) =>
-        {
+        AccessMode::ReadWrite if !has_read_perm(inode_perm) || !has_write_perm(inode_perm) => {
             Err(OpenError::WrongPermissions)
         }
         AccessMode::ReadWrite => Ok(AccessMode::ReadWrite),
         AccessMode::Execute => {
-            if inode_perm & READ_BIT_FLAG == 0 {
+            if has_read_perm(inode_perm) {
                 Err(OpenError::WrongPermissions)
             //Behavior is undefined, but most filesystems return EACCES
             } else {
-                if inode_perm & EXECUTE_BIT_FLAG == 0 {
+                if !has_execute_perm(inode_perm) {
                     Err(OpenError::WrongPermissions)
                 } else {
                     Ok(AccessMode::Execute)

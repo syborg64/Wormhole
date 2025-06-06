@@ -1,13 +1,13 @@
+mod apply;
 mod new;
 mod remove;
+mod restore;
 mod start;
 mod stop;
-mod restore;
-mod apply;
 
-pub use restore::restore;
+pub use apply::apply;
 pub use new::new;
 pub use remove::remove;
+pub use restore::restore;
 pub use start::start;
 pub use stop::stop;
-pub use apply::apply;

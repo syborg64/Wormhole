@@ -65,6 +65,7 @@ fn main() -> CliResult<()> {
             todo!("inspect");
         }
         Cli::GetHosts(args) => commands::cli::get_hosts(ip, args),
+        Cli::Tree(args) => commands::cli::tree(ip, args),
         Cli::Apply(args) => {
             log::warn!("reloading pod");
             commands::cli::apply(ip, args)

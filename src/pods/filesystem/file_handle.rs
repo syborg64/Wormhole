@@ -12,7 +12,7 @@ use crate::{
     pods::arbo::LOCK_TIMEOUT,
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum AccessMode {
     Void,
     Read,

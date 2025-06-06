@@ -42,10 +42,10 @@ custom_error! {pub CliError
     PodStopError{source: PodStopError} = "{source}",
     WhError{source: WhError} = "{source}",
 
-    FileConfigName{name: String} = "This isn't a configuration's file: {name}",
+    FileConfigName{name: String} = "This isn't a valid configuration's file: {name}",
 
     PodCreationFailed{reason: io::Error} = "Pod creation failed: {reason}",
-    PodRemovalFailed{name: String} = "Pod removal failed, a pod with this name {name} doens't existe",
+    PodRemovalFailed{name: String} = "Pod removal failed, a pod with this name {name} doens't exist",
 
     InvalidConfig{file: String} = "Configuration file {file} is missing or invalid",
     InvalidCommand = "Unrecognized command",
@@ -68,7 +68,9 @@ impl fmt::Display for CliSuccess {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             CliSuccess::Message(msg) => write!(f, "{}", msg),
-            CliSuccess::WithData { message, data } => write!(f, "{} - Données: {}", message, data),
+            CliSuccess::WithData { message, data } => {
+                write!(f, "{} - Data:\n{}\n", message, data)
+            }
         }
     }
 }

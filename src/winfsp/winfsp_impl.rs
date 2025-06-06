@@ -281,6 +281,7 @@ impl FileSystemContext for FSPController {
                 kind,
                 OpenFlags::from_win_u32(granted_access),
                 AccessMode::from_win_u32(granted_access),
+                0o777, // TODO
             )
             .inspect_err(|e| log::warn!("create::{e}"))?;
         *file_info.as_mut() = (&inode.meta).into();
