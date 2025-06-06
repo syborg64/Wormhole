@@ -157,10 +157,7 @@ impl DiskManager for DummyDiskManager {
             Some(VirtualFile::File(_)) => Err(io::ErrorKind::InvalidData.into()),
             None => Err(io::ErrorKind::NotFound.into()),
         }?;
-        self.files
-            .write()
-            .expect("VirtDisk::remove_dir rwLock")
-            .remove(&path);
+        lock.remove(&path);
         Ok(())
     }
 
