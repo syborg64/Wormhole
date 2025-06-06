@@ -351,7 +351,7 @@ impl Filesystem for FuseController {
             Some(kind) => kind,
             None => {
                 // If it's not a file or a directory it's not yet supported
-                reply.error(libc::ENOSYS);
+                reply.error(libc::EPERM);
                 return;
             }
         };
@@ -547,7 +547,7 @@ impl Filesystem for FuseController {
             Some(kind) => kind,
             None => {
                 // If it's not a file or a directory it's not yet supported
-                reply.error(libc::ENOSYS);
+                reply.error(libc::EPERM);
                 return;
             }
         };
