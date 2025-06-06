@@ -28,7 +28,6 @@ use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{accept_async, WebSocketStream};
 #[cfg(target_os = "windows")]
 use winfsp::winfsp_init;
-use wormhole::commands::service::display_tree;
 use wormhole::commands::{self, cli_commands::Cli};
 use wormhole::config::types::Config;
 use wormhole::config::LocalConfig;
@@ -194,7 +193,7 @@ async fn handle_cli_command(
                 match pod.get_file_tree_and_hosts(args.path) {
                     Ok(tree) => Ok(CliSuccess::WithData {
                         message: "File tree and hosts per file:".to_owned(),
-                        data: format!("{}", display_tree(tree)),
+                        data: tree.to_string(),
                     }),
                     Err(error) => Err(CliError::PodInfoError { source: error }),
                 }

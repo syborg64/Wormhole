@@ -3,6 +3,7 @@ use std::{io, sync::Arc};
 
 use crate::config::types::Config;
 use crate::config::{GlobalConfig, LocalConfig};
+use crate::data::tree_hosts::{CliHostTree, TreeLine};
 use crate::error::{WhError, WhResult};
 #[cfg(target_os = "linux")]
 use crate::fuse::fuse_impl::mount_fuse;
@@ -66,8 +67,6 @@ custom_error! {pub PodInfoError
     WrongFileType{detail: String} = @{format!("PodInfoError: wrong file type: {detail}")},
     FileNotFound = @{format!("PodInfoError: file not found")},
 }
-
-pub type TreeLine = (u8, InodeId, WhPath, Vec<Address>); // (indentation_level, ino, path, hosts)
 
 pub async fn initiate_connection(
     peers_addrs: Vec<Address>,
@@ -290,14 +289,16 @@ impl Pod {
         }
     }
 
-    pub fn get_file_tree_and_hosts(&self, path: WhPath) -> Result<Vec<TreeLine>, PodInfoError> {
+    pub fn get_file_tree_and_hosts(&self, path: WhPath) -> Result<CliHostTree, PodInfoError> {
         let arbo = Arbo::n_read_lock(&self.network_interface.arbo, "Pod::get_info")?;
         let ino = &arbo
             .get_inode_from_path(&path)
             .map_err(|_| PodInfoError::FileNotFound)?
             .id;
 
-        Ok(Self::recurse_tree(&*arbo, *ino, 0))
+        Ok(CliHostTree {
+            lines: Self::recurse_tree(&*arbo, *ino, 0),
+        })
     }
 
     /// given ino is not checked -> must exist in arbo
