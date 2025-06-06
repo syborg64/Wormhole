@@ -6,6 +6,8 @@ use crate::pods::filesystem::fs_interface::{FsInterface, SimpleFileType};
 use crate::pods::filesystem::make_inode::{CreateError, MakeInodeError};
 use crate::pods::filesystem::open::OpenError;
 use crate::pods::filesystem::read::ReadError;
+use crate::pods::filesystem::file_handle::{OpenFlags, AccessMode};
+
 use crate::pods::filesystem::remove_inode::RemoveFileError;
 use crate::pods::filesystem::rename::RenameError;
 use crate::pods::filesystem::write::WriteError;
@@ -485,7 +487,8 @@ impl Filesystem for FuseController {
     }
 
     fn open(&mut self, _req: &Request<'_>, ino: u64, flags: i32, reply: fuser::ReplyOpen) {
-        match AccessMode::from_libc(flags).and_then(|access|OpenFlags::from_libc(flags).map(|flags| (access, flags)))
+        match AccessMode::from_libc(flags)
+            .and_then(|access| OpenFlags::from_libc(flags).map(|flags| (access, flags)))
             .and_then(|(access, flags)| self.fs_interface.open(ino, flags, access))
         {
             Ok(file_handle) => reply.opened(file_handle, flags as u32), // TODO - check flags ?,
