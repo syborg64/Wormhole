@@ -21,7 +21,8 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-25.05
       
-      - uses: cachix/cachix-action@v14
+      - name: Cachix connexion
+        uses: cachix/cachix-action@v14
         with:
           name: agartha-software
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
