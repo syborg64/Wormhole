@@ -299,7 +299,6 @@ impl Filesystem for FuseController {
             Err(ReadError::PullError {
                 source: PullError::NoHostAvailable,
             }) => reply.error(libc::ENETUNREACH),
-            Err(ReadError::BadFd) => reply.error(libc::EBADFD),
             Err(ReadError::NoFileHandle) => reply.error(libc::EBADFD), // Shouldn't happend
             Err(ReadError::NoReadPermission) => reply.error(libc::EPERM),
         }
@@ -526,7 +525,6 @@ impl Filesystem for FuseController {
                     "Local creation error should always be the underling libc::open os error",
                 ))
             }
-            Err(WriteError::BadFd) => reply.error(libc::EBADFD),
             Err(WriteError::NoFileHandle) => reply.error(libc::EBADFD), // Shouldn't happend
             Err(WriteError::NoWritePermission) => reply.error(libc::EPERM), // Shouldn't happend, write not call with wrong perms, already stopped
         }

@@ -16,7 +16,6 @@ custom_error! {
     CantPull = "Unable to pull file",
     NoReadPermission = "The permissions doesn't allow to read",
     NoFileHandle = "The file doesn't have a file handle",
-    BadFd = "The file handle and the file handle uuid doesn't match",
 }
 
 fn check_file_handle<'a>(
@@ -27,21 +26,13 @@ fn check_file_handle<'a>(
         Some(&FileHandle {
             perm: AccessMode::Write,
             direct: _,
-            uuid: _,
             no_atime: _,
         }) => return Err(ReadError::NoReadPermission),
         Some(&FileHandle {
             perm: AccessMode::Execute,
             direct: _,
-            uuid: _,
             no_atime: _,
         }) => return Err(ReadError::NoReadPermission),
-        Some(&FileHandle {
-            perm: _,
-            direct: _,
-            uuid,
-            no_atime: _,
-        }) if uuid != file_handle_id => return Err(ReadError::BadFd),
         None => return Err(ReadError::NoFileHandle),
         Some(file_handle) => Ok(file_handle),
     }
