@@ -8,7 +8,7 @@ use bincode;
 custom_error! {pub WhError
     InodeNotFound = "Entry not found",
     InodeIsNotADirectory = "Entry is not a directory",
-    InodeIsADirectory{detail: String} = "Can't operate this action on a directory: {detail}",
+    InodeIsADirectory = "Entry is a directory",
     DiskError{detail: String, err: std::io::Error} = "DiskError: {detail}\nCaused by: {err}",
     DeadLock = "A DeadLock occured",
     NetworkDied{called_from: String} = "{called_from}: Unable to update modification on the network",
@@ -20,7 +20,7 @@ impl WhError {
         match self {
             WhError::InodeNotFound => libc::ENOENT,
             WhError::InodeIsNotADirectory => libc::ENOTDIR,
-            WhError::InodeIsADirectory { detail: _ } => libc::EISDIR,
+            WhError::InodeIsADirectory => libc::EISDIR,
             WhError::DiskError { detail: _, err: _ } => libc::EIO, // could also be ENOSPC (no space left)
             WhError::DeadLock => libc::EDEADLOCK,
             WhError::NetworkDied { called_from: _ } => libc::ENETDOWN,
