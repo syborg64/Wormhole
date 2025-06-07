@@ -33,9 +33,9 @@ jobs:
         uses: cachix/install-nix-action@v27
         with:
           nix_path: ${{ env.NIX_PATH }}
-        extra_nix_config: |
-            experimental-features = nix-command flakes
-            build-users-group = nixbld
+          extra_nix_config: |
+              experimental-features = nix-command flakes
+              build-users-group = nixbld
 
 
       - name: Enter Nix devShell and build
