@@ -17,7 +17,7 @@ custom_error! {
     LocalWriteFailed{io: std::io::Error} = "Local write failed: {io}",
     NoFileHandle = "The file doesn't have a file handle",
     NoWritePermission = "The permissions doesn't allow to write",
-    BadFd = "The file handle and the inode id doesn't match",
+    BadFd = "The file handle and the file handle uuid doesn't match", // Shouldn't happen
 }
 
 fn check_file_handle<'a>(

@@ -268,7 +268,7 @@ impl Filesystem for FuseController {
         &mut self,
         _req: &Request,
         ino: u64,
-        _fh: u64,
+        file_handle: u64,
         offset: i64,
         size: u32,
         _flags: i32,
@@ -281,6 +281,7 @@ impl Filesystem for FuseController {
             ino,
             offset.try_into().expect("read::read offset negative"),
             &mut buf,
+            file_handle,
         ) {
             Ok(size) => {
                 buf.resize(size, 0);
@@ -298,6 +299,9 @@ impl Filesystem for FuseController {
             Err(ReadError::PullError {
                 source: PullError::NoHostAvailable,
             }) => reply.error(libc::ENETUNREACH),
+            Err(ReadError::BadFd) => reply.error(libc::EBADFD),
+            Err(ReadError::NoFileHandle) => reply.error(libc::EBADFD), // Shouldn't happend
+            Err(ReadError::NoReadPermission) => reply.error(libc::EPERM),
         }
     }
 
