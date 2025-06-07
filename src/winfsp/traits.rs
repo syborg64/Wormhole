@@ -19,7 +19,7 @@ use nt_time::FileTime;
 use windows::Win32::{
     Foundation::{
         GENERIC_EXECUTE, GENERIC_READ, GENERIC_WRITE, NTSTATUS, STATUS_ACCESS_DENIED,
-        STATUS_DATA_ERROR, STATUS_DEVICE_NOT_READY, STATUS_DIRECTORY_NOT_EMPTY,
+        STATUS_DATA_ERROR, STATUS_DIRECTORY_NOT_EMPTY,
         STATUS_FILE_IS_A_DIRECTORY, STATUS_INVALID_HANDLE, STATUS_INVALID_PARAMETER,
         STATUS_NETWORK_UNREACHABLE, STATUS_NOT_A_DIRECTORY, STATUS_OBJECT_NAME_EXISTS,
         STATUS_OBJECT_NAME_INVALID, STATUS_OBJECT_NAME_NOT_FOUND, STATUS_OBJECT_PATH_NOT_FOUND,
@@ -81,7 +81,7 @@ impl From<WhError> for FspError {
             WhError::InodeNotFound => STATUS_OBJECT_NAME_NOT_FOUND.into(),
             WhError::InodeIsNotADirectory => STATUS_NOT_A_DIRECTORY.into(),
             WhError::DeadLock => STATUS_POSSIBLE_DEADLOCK.into(),
-            WhError::NetworkDied { called_from: _ } => STATUS_DEVICE_NOT_READY.into(),
+            WhError::NetworkDied { called_from: _ } => STATUS_NETWORK_UNREACHABLE.into(),
             WhError::WouldBlock { called_from: _ } => STATUS_PENDING.into(),
             WhError::InodeIsADirectory { detail: _ } => STATUS_FILE_IS_A_DIRECTORY.into(),
             WhError::DiskError { detail: _, err } => err.into(),
