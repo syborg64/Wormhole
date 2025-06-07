@@ -8,11 +8,11 @@ use bincode;
 custom_error! {pub WhError
     InodeNotFound = "Entry not found",
     InodeIsNotADirectory = "Entry is not a directory",
-    InodeIsADirectory{detail: String} = @{format!("Can't operate this action on a directory: {detail}")},
-    DiskError{detail: String, err: std::io::Error} = @{format!("DiskError: {detail}\nCaused by: {err}")},
+    InodeIsADirectory{detail: String} = "Can't operate this action on a directory: {detail}",
+    DiskError{detail: String, err: std::io::Error} = "DiskError: {detail}\nCaused by: {err}",
     DeadLock = "A DeadLock occured",
-    NetworkDied{called_from: String} = @{format!("{called_from}: Unable to update modification on the network")},
-    WouldBlock{called_from: String} = @{format!("{called_from}: Unable to lock arbo")},
+    NetworkDied{called_from: String} = "{called_from}: Unable to update modification on the network",
+    WouldBlock{called_from: String} = "{called_from}: Unable to lock arbo",
 }
 
 impl WhError {
