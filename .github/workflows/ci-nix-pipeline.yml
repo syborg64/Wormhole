@@ -29,7 +29,7 @@ jobs:
           restore-keys: |
             nix-store-${{ runner.os }}-${{ env.NIX_PATH }}-
 
-      - name: Set up Nix
+      - name: Set up Nix and extra_nix_config
         uses: cachix/install-nix-action@v27
         with:
           nix_path: ${{ env.NIX_PATH }}
