@@ -18,7 +18,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Cache Nix store²
+      - name: Cache Nix store
         uses: actions/cache@v4
         id: nix-cache
         with:
