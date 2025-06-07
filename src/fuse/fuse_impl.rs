@@ -300,7 +300,8 @@ impl Filesystem for FuseController {
                 source: PullError::NoHostAvailable,
             }) => reply.error(libc::ENETUNREACH),
             Err(ReadError::NoFileHandle) => reply.error(libc::EBADFD), // Shouldn't happend
-            Err(ReadError::NoReadPermission) => reply.error(libc::EPERM),
+            //According to the man EBADF if the fd is not a valid file descriptor or is not open for reading.
+            Err(ReadError::NoReadPermission) => reply.error(libc::EBADFD),
         }
     }
 
@@ -526,7 +527,8 @@ impl Filesystem for FuseController {
                 ))
             }
             Err(WriteError::NoFileHandle) => reply.error(libc::EBADFD), // Shouldn't happend
-            Err(WriteError::NoWritePermission) => reply.error(libc::EPERM), // Shouldn't happend, write not call with wrong perms, already stopped
+            //According to the man EBADF if the fd is not a valid file descriptor or is not open for writing.
+            Err(WriteError::NoWritePermission) => reply.error(libc::EBADF), // Shouldn't happend, write not call with wrong perms, already stopped
         }
     }
 
