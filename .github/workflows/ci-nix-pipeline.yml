@@ -18,22 +18,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Cache Nix store
+       - name: Cache Nix store
         uses: actions/cache@v4
         id: nix-cache
         with:
           path: |
             /nix/store
-            /nix/var/nix/db
             /nix/var/nix/profiles
           key: nix-store-${{ runner.os }}-${{ env.NIX_PATH }}-${{ hashFiles('flake.lock') }}-${{ hashFiles('flake.nix') }}
           restore-keys: |
             nix-store-${{ runner.os }}-${{ env.NIX_PATH }}-
 
-      - name: Set up Nix
+      - name: Set up Nix with extra paths
         uses: cachix/install-nix-action@v27
         with:
           nix_path: ${{ env.NIX_PATH }}
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            build-users-group = nixbld
+
 
 
       - name: Enter Nix devShell and build
