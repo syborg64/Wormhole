@@ -145,7 +145,7 @@ impl FsInterface {
         }
     }
 
-    pub fn recept_redundancy(&self, id: InodeId, binary: Vec<u8>) -> WhResult<()> {
+    pub fn recept_redundancy(&self, id: InodeId, binary: Arc<Vec<u8>>) -> WhResult<()> {
         let path = Arbo::read_lock(&self.arbo, "recept_binary")
             .expect("recept_binary: can't read lock arbo")
             .n_get_path_from_inode_id(id)?;

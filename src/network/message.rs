@@ -1,4 +1,7 @@
-use std::fmt::{self, Debug};
+use std::{
+    fmt::{self, Debug},
+    sync::Arc,
+};
 
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -19,8 +22,9 @@ pub enum MessageContent {
     Inode(Inode),
     RequestFile(InodeId, Address),
     PullAnswer(InodeId, Vec<u8>),
-    RedundancyFile(InodeId, Vec<u8>),
-    Rename(InodeId, InodeId, String, String, bool), /// Parent, New Parent, Name, New Name, overwrite
+    RedundancyFile(InodeId, Arc<Vec<u8>>),
+    /// Parent, New Parent, Name, New Name, overwrite
+    Rename(InodeId, InodeId, String, String, bool),
     EditHosts(InodeId, Vec<Address>),
     RevokeFile(InodeId, Address, Metadata),
     AddHosts(InodeId, Vec<Address>),

@@ -35,6 +35,7 @@ pub async fn redundancy_worker(
                             continue;
                         }
                     };
+                    let file_binary = Arc::new(file_binary);
 
                     let target_redundancy = if (redundancy - 1) as usize > all_peers.len() {
                         log::warn!("Redundancy: Not enough nodes to satisfies the target redundancies number.");
@@ -73,7 +74,7 @@ async fn push_redundancy(
     nw_interface: &Arc<NetworkInterface>,
     all_peers: Vec<String>,
     ino: InodeId,
-    file_binary: Vec<u8>,
+    file_binary: Arc<Vec<u8>>,
     target_redundancy: usize,
     self_addr: Address,
 ) -> Vec<Address> {
@@ -128,7 +129,7 @@ impl NetworkInterface {
     pub async fn send_file_redundancy(
         &self,
         inode: InodeId,
-        data: Vec<u8>,
+        data: Arc<Vec<u8>>,
         to: Address,
     ) -> WhResult<Address> {
         let (status_tx, mut status_rx) = unbounded_channel();
