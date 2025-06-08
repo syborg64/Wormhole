@@ -488,9 +488,7 @@ impl Filesystem for FuseController {
 
     fn open(&mut self, _req: &Request<'_>, ino: u64, flags: i32, reply: fuser::ReplyOpen) {
         match AccessMode::from_libc(flags)
-            .map(|access| (access, OpenFlags::from_libc(flags)))
-            .and_then(|(access, flags)| self.fs_interface.open(ino, flags, access))
-        {
+            .and_then(|access| self.fs_interface.open(ino, OpenFlags::from_libc(flags), access)) {
             Ok(file_handle) => reply.opened(file_handle, flags as u32), // TODO - check flags ?,
             Err(OpenError::WhError { source }) => reply.error(source.to_libc()),
             Err(OpenError::MultipleAccessFlags) => reply.error(libc::EINVAL),
@@ -556,14 +554,13 @@ impl Filesystem for FuseController {
         };
 
         match AccessMode::from_libc(flags)
-            .map(|access| (access, OpenFlags::from_libc(flags)))
             .map_err(|source| CreateError::OpenError { source })
-            .and_then(|(access, flags)| {
+            .and_then(|access| {
                 self.fs_interface.create(
                     parent,
                     name.to_string_lossy().to_string(),
                     kind,
-                    flags,
+                    OpenFlags::from_libc(flags),
                     access,
                     permissions,
                 )
@@ -632,7 +629,10 @@ impl Filesystem for FuseController {
             }
         };
 
-        match check_permissions(mask, meta.perm) {
+
+
+        match AccessMode::from_libc(flags)
+            .and_then(|access| check_permissions(OpenFlags::from_libc(mask), access, meta.perm)) {
             Ok(_) => reply.ok(),
             Err(OpenError::MultipleAccessFlags) => reply.error(libc::EINVAL),
             Err(OpenError::TruncReadOnly) => reply.error(libc::EACCES),
