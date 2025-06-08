@@ -79,6 +79,7 @@ pub struct FromNetworkMessage {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum RedundancyMessage {
     ApplyTo(InodeId),
+    CheckIntegrity,
 }
 
 /// Message Going To Network

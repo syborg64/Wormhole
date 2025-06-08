@@ -476,6 +476,8 @@ impl NetworkInterface {
 
     pub fn register_new_node(&self, socket: Address, addr: Address) {
         self.edit_peer_ip(socket, addr);
+        self.to_redundancy_tx
+            .send(RedundancyMessage::CheckIntegrity);
     }
 
     pub fn disconnect_peer(&self, addr: Address) -> io::Result<()> {

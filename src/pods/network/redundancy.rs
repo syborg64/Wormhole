@@ -10,6 +10,10 @@ use tokio::{
     task::JoinSet,
 };
 
+custom_error::custom_error! {pub RedundancyError
+    WhError{source: WhError} = "{source}",
+}
+
 /// Redundancy Worker
 /// Worker that applies the redundancy to files
 pub async fn redundancy_worker(
@@ -24,49 +28,82 @@ pub async fn redundancy_worker(
             Some(message) => message,
             None => continue,
         };
+        let peers = match get_all_peers_address(&nw_interface.peers) {
+            Ok(peers) => peers,
+            Err(e) => {
+                log::error!(
+                    "Redundancy: can't get peers: (ignoring order {:?}) because of: {e}",
+                    message
+                );
+                continue;
+            }
+        };
 
-        match message {
-            RedundancyMessage::ApplyTo(ino) => match get_all_peers_address(&nw_interface.peers) {
-                Ok(all_peers) => {
-                    let file_binary = match fs_interface.read_local_file(ino) {
-                        Ok(bin) => bin,
-                        Err(e) => {
-                            log::error!("Redundancy: can't read file {ino} {e}");
-                            continue;
-                        }
-                    };
-                    let file_binary = Arc::new(file_binary);
-
-                    let target_redundancy = if (redundancy - 1) as usize > all_peers.len() {
-                        log::warn!("Redundancy: Not enough nodes to satisfies the target redundancies number.");
-                        all_peers.len()
-                    } else {
-                        (redundancy - 1) as usize
-                    };
-
-                    let new_hosts = push_redundancy(
-                        &nw_interface,
-                        all_peers,
-                        ino,
-                        file_binary,
-                        target_redundancy,
-                        self_addr.clone(),
-                    )
-                    .await;
-
-                    log::debug!("REDUNDANCY: updating hosts to {:?}", new_hosts);
-                    let _ = nw_interface.update_hosts(ino, new_hosts).inspect_err(|e| {
-                        log::error!(
-                            "redundancy_worker: Can't push redundancy hosts for ({ino}): {e}"
-                        )
-                    });
-                }
-                Err(e) => {
-                    log::error!("Redundancy: can't add job for {}. Error: {}", ino, e);
-                }
-            },
+        let _ = match message {
+            RedundancyMessage::ApplyTo(ino) => {
+                apply_to(
+                    &nw_interface,
+                    &fs_interface,
+                    redundancy,
+                    peers,
+                    &self_addr,
+                    ino,
+                )
+                .await
+            }
+            RedundancyMessage::CheckIntegrity => {
+                todo!()
+            }
         }
+        .inspect_err(|e| log::error!("Redundancy error: {e}"));
     }
+}
+
+async fn check_integrity(
+    nw_interface: &Arc<NetworkInterface>,
+    fs_interface: &Arc<FsInterface>,
+    redundancy: u64,
+    peers: Vec<Address>,
+    self_addr: &String,
+    ino: u64,
+) -> Result<(), RedundancyError> {
+    todo!()
+}
+
+async fn apply_to(
+    nw_interface: &Arc<NetworkInterface>,
+    fs_interface: &Arc<FsInterface>,
+    redundancy: u64,
+    peers: Vec<Address>,
+    self_addr: &String,
+    ino: u64,
+) -> Result<(), RedundancyError> {
+    let file_binary = match fs_interface.read_local_file(ino) {
+        Ok(bin) => bin,
+        Err(e) => {
+            return Err(RedundancyError::WhError { source: e });
+        }
+    };
+    let file_binary = Arc::new(file_binary);
+
+    let target_redundancy = if (redundancy - 1) as usize > peers.len() {
+        log::warn!("Redundancy: Not enough nodes to satisfies the target redundancies number.");
+        peers.len()
+    } else {
+        (redundancy - 1) as usize
+    };
+
+    let new_hosts = push_redundancy(
+        nw_interface,
+        peers,
+        ino,
+        file_binary,
+        target_redundancy,
+        self_addr.clone(),
+    )
+    .await;
+
+    Ok(nw_interface.update_hosts(ino, new_hosts)?)
 }
 
 /// start download to others concurrently
