@@ -70,8 +70,10 @@ impl FsInterface {
         buf: &mut [u8],
         file_handle: UUID,
     ) -> Result<usize, ReadError> {
-        let file_handles = FileHandleManager::read_lock(&self.file_handles, "write")?;
-        let _file_handle = check_file_handle(&file_handles, file_handle)?;
+        {
+            let file_handles = FileHandleManager::read_lock(&self.file_handles, "read")?;
+            let _file_handle = check_file_handle(&file_handles, file_handle)?;
+        }
 
         self.get_file_data(file, offset, buf)
     }
