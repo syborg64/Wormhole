@@ -386,7 +386,11 @@ impl Pod {
         )
         .await
         .iter()
-        .for_each(|e| log::warn!("{e:?}"));
+        .for_each(|e| {
+            if let Err(e) = e {
+                log::warn!("{e:?}")
+            }
+        });
     }
 
     pub async fn stop(self) -> Result<(), PodStopError> {
