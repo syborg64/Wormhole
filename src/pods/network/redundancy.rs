@@ -2,16 +2,24 @@ use super::network_interface::{get_all_peers_address, NetworkInterface};
 use crate::{
     error::{WhError, WhResult},
     network::message::{Address, MessageContent, RedundancyMessage, ToNetworkMessage},
-    pods::{arbo::InodeId, filesystem::fs_interface::FsInterface},
+    pods::{
+        arbo::{Arbo, FsEntry, InodeId},
+        filesystem::fs_interface::FsInterface,
+    },
 };
-use std::sync::Arc;
+use futures_util::future::join_all;
+use std::{error, future::Future, sync::Arc};
 use tokio::{
-    sync::mpsc::{unbounded_channel, UnboundedReceiver},
+    sync::{
+        futures,
+        mpsc::{unbounded_channel, UnboundedReceiver},
+    },
     task::JoinSet,
 };
 
 custom_error::custom_error! {pub RedundancyError
     WhError{source: WhError} = "{source}",
+    InsufficientHosts = "Redundancy: Not enough nodes to satisfies the target redundancies number.", // warning only
 }
 
 /// Redundancy Worker
@@ -65,9 +73,39 @@ async fn check_integrity(
     redundancy: u64,
     peers: Vec<Address>,
     self_addr: &String,
-    ino: u64,
 ) -> Result<(), RedundancyError> {
-    todo!()
+    let available_peers = peers.len() + 1;
+    let arbo = Arbo::n_read_lock(&nw_interface.arbo, "redundancy: check_integrity")?;
+    let futures = arbo.iter()
+        .filter(|(_, inode)| matches!(&inode.entry, FsEntry::File(hosts) if hosts.len() < redundancy as usize && available_peers > hosts.len()))
+        .map(|(ino, _)| apply_to(nw_interface, fs_interface, redundancy, peers.clone(), self_addr, *ino))
+        .collect::<Vec<_>>();
+    drop(arbo);
+
+    let mut errors: Vec<RedundancyError> = Vec::new();
+    // (ok: enough redundancies, er: errors, ih: still not enough hosts)
+    let (ok, er, ih) =
+        join_all(futures)
+            .await
+            .into_iter()
+            .fold((0, 0, 0), |(ok, er, ih), status| match status {
+                Ok(_) => (ok + 1, er, ih),
+                Err(RedundancyError::InsufficientHosts) => (ok, er, ih + 1),
+                Err(e) => {
+                    errors.push(e);
+                    (ok, er + 1, ih)
+                }
+            });
+
+    log::info!("Redundancy integrity checked for all files. {ok} files updated.");
+    if ih > 0 {
+        log::warn!("Still {ih} files can't have enough redundancies.");
+    }
+    if er > 0 {
+        log::error!("{er} errors reported !");
+        errors.iter().for_each(|e| log::error!("{e}"));
+    }
+    Ok(())
 }
 
 async fn apply_to(
@@ -78,18 +116,14 @@ async fn apply_to(
     self_addr: &String,
     ino: u64,
 ) -> Result<(), RedundancyError> {
-    let file_binary = match fs_interface.read_local_file(ino) {
-        Ok(bin) => bin,
-        Err(e) => {
-            return Err(RedundancyError::WhError { source: e });
-        }
-    };
-    let file_binary = Arc::new(file_binary);
+    let file_binary = Arc::new(fs_interface.read_local_file(ino)?);
 
+    let not_enough_hosts: bool;
     let target_redundancy = if (redundancy - 1) as usize > peers.len() {
-        log::warn!("Redundancy: Not enough nodes to satisfies the target redundancies number.");
+        not_enough_hosts = true;
         peers.len()
     } else {
+        not_enough_hosts = false;
         (redundancy - 1) as usize
     };
 
@@ -103,7 +137,12 @@ async fn apply_to(
     )
     .await;
 
-    Ok(nw_interface.update_hosts(ino, new_hosts)?)
+    nw_interface.update_hosts(ino, new_hosts)?;
+    if not_enough_hosts {
+        Err(RedundancyError::InsufficientHosts)
+    } else {
+        Ok(())
+    }
 }
 
 /// start download to others concurrently
