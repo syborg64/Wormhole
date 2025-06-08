@@ -53,37 +53,59 @@ pub async fn redundancy_worker(
                     &nw_interface,
                     &fs_interface,
                     redundancy,
-                    peers,
+                    &peers,
                     &self_addr,
                     ino,
                 )
                 .await
             }
             RedundancyMessage::CheckIntegrity => {
-                todo!()
+                check_integrity(&nw_interface, &fs_interface, redundancy, &peers, &self_addr).await
             }
         }
         .inspect_err(|e| log::error!("Redundancy error: {e}"));
     }
 }
 
+/// Checks if an inode can have it's redundancy applied :
+/// - needs more hosts
+/// - the network contains more hosts
+/// - this node possesses the file
+/// - this node is first on the sorted hosts list (naive approach to avoid many hosts applying the same file)
+///
+/// Intended for use in the check_intergrity function
+fn eligible_to_apply(
+    target_redundancy: u64,
+    available_peers: usize,
+    hosts: &Vec<Address>,
+    self_addr: &Address,
+) -> bool {
+    hosts.clone().sort();
+    hosts.len() < target_redundancy as usize
+        && available_peers > hosts.len()
+        && hosts[0] == *self_addr
+}
+
 async fn check_integrity(
     nw_interface: &Arc<NetworkInterface>,
     fs_interface: &Arc<FsInterface>,
     redundancy: u64,
-    peers: Vec<Address>,
+    peers: &Vec<Address>,
     self_addr: &String,
 ) -> Result<(), RedundancyError> {
     let available_peers = peers.len() + 1;
     let arbo = Arbo::n_read_lock(&nw_interface.arbo, "redundancy: check_integrity")?;
+
+    // Applies redundancy to needed files
     let futures = arbo.iter()
-        .filter(|(_, inode)| matches!(&inode.entry, FsEntry::File(hosts) if hosts.len() < redundancy as usize && available_peers > hosts.len()))
-        .map(|(ino, _)| apply_to(nw_interface, fs_interface, redundancy, peers.clone(), self_addr, *ino))
+        .filter(|(_, inode)| matches!(&inode.entry, FsEntry::File(hosts) if eligible_to_apply(redundancy, available_peers, hosts, self_addr)))
+        .map(|(ino, _)| apply_to(nw_interface, fs_interface, redundancy, peers, self_addr, *ino))
         .collect::<Vec<_>>();
+
     drop(arbo);
 
     let mut errors: Vec<RedundancyError> = Vec::new();
-    // (ok: enough redundancies, er: errors, ih: still not enough hosts)
+    // couting for: (ok: enough redundancies, er: errors, ih: still not enough hosts)
     let (ok, er, ih) =
         join_all(futures)
             .await
@@ -112,7 +134,7 @@ async fn apply_to(
     nw_interface: &Arc<NetworkInterface>,
     fs_interface: &Arc<FsInterface>,
     redundancy: u64,
-    peers: Vec<Address>,
+    peers: &Vec<Address>,
     self_addr: &String,
     ino: u64,
 ) -> Result<(), RedundancyError> {
@@ -148,7 +170,7 @@ async fn apply_to(
 /// start download to others concurrently
 async fn push_redundancy(
     nw_interface: &Arc<NetworkInterface>,
-    all_peers: Vec<String>,
+    all_peers: &Vec<String>,
     ino: InodeId,
     file_binary: Arc<Vec<u8>>,
     target_redundancy: usize,
