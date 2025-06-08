@@ -6,7 +6,7 @@ use crate::{commands::cli_commands::Cli, error::CliResult};
 
 pub async fn cli_messager(ip: &str, cli: Cli) -> CliResult<()> {
     let (mut ws_stream, _) = connect_async(format!("ws://{}", ip)).await?;
-    log::info!("Connection service on ws://{ip}");
+    log::info!("Service connected on on ws://{ip}");
 
     let bytes = bincode::serialize(&cli)?;
     ws_stream.send(Message::Binary(bytes)).await?;
@@ -20,6 +20,6 @@ pub async fn cli_messager(ip: &str, cli: Cli) -> CliResult<()> {
     }
 
     ws_stream.close(None).await?;
-    log::info!("Connexion close");
+    log::info!("Connexion closed");
     Ok(())
 }
