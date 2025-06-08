@@ -91,18 +91,18 @@ async fn check_integrity(
     fs_interface: &Arc<FsInterface>,
     redundancy: u64,
     peers: &Vec<Address>,
-    self_addr: &String,
+    self_addr: &Address,
 ) -> Result<(), RedundancyError> {
+    log::debug!("Checking redundancy integrity");
+
     let available_peers = peers.len() + 1;
-    let arbo = Arbo::n_read_lock(&nw_interface.arbo, "redundancy: check_integrity")?;
 
     // Applies redundancy to needed files
-    let futures = arbo.iter()
+    let futures = Arbo::n_read_lock(&nw_interface.arbo, "redundancy: check_integrity")?
+        .iter()
         .filter(|(_, inode)| matches!(&inode.entry, FsEntry::File(hosts) if eligible_to_apply(redundancy, available_peers, hosts, self_addr)))
-        .map(|(ino, _)| apply_to(nw_interface, fs_interface, redundancy, peers, self_addr, *ino))
+        .map(|(ino, _)| apply_to(nw_interface, fs_interface, redundancy, peers, self_addr, ino.clone()))
         .collect::<Vec<_>>();
-
-    drop(arbo);
 
     let mut errors: Vec<RedundancyError> = Vec::new();
     // couting for: (ok: enough redundancies, er: errors, ih: still not enough hosts)
@@ -135,7 +135,7 @@ async fn apply_to(
     fs_interface: &Arc<FsInterface>,
     redundancy: u64,
     peers: &Vec<Address>,
-    self_addr: &String,
+    self_addr: &Address,
     ino: u64,
 ) -> Result<(), RedundancyError> {
     let file_binary = Arc::new(fs_interface.read_local_file(ino)?);
