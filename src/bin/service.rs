@@ -323,8 +323,7 @@ async fn main() {
 
     log::info!("Stopping");
     for (name, pod) in pods.into_iter() {
-        match pod.stop().await
-        {
+        match pod.stop().await {
             Ok(()) => log::info!("Stopped pod {name}"),
             Err(e) => log::error!("Pod {name} can't be stopped: {e}"),
         }
