@@ -322,7 +322,7 @@ impl WhPath {
         return &segment[j..];
     }
 
-    //FIXME - Will I have to modify it for Windows by adding the ‘\’?
+    //FIXME - Should we modify it for Windows by adding the ‘\’?
     fn add_last_slash(&mut self) -> &Self {
         if self.kind != PathType::Empty && self.inner.chars().last() != Some('/') {
             self.inner = format!("{}/", self.inner);
@@ -330,7 +330,7 @@ impl WhPath {
         return self;
     }
 
-    //FIXME - Will I have to modify it for Windows by adding the ‘\’?
+    //FIXME - Should we modify it for Windows by adding the ‘\’?
     fn remove_last_slash(&mut self) -> &Self {
         if let Some(pos) = self.inner.rfind('/') {
             if pos == self.inner.len() - 1 {
@@ -360,7 +360,7 @@ impl WhPath {
         return self;
     }
 
-    //FIXME - Will I have to modify it for Windows by adding the ‘\’?
+    //FIXME - Should we modify it for Windows by adding the ‘\’?
     fn convert_path(&mut self, pathtype: PathType) -> &Self {
         if pathtype == PathType::Empty || self.inner == String::new() {
             self.inner = String::new();
