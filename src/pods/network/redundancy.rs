@@ -119,9 +119,12 @@ async fn check_integrity(
                 }
             });
 
-    log::info!("Redundancy integrity checked for all files. {ok} files updated.");
+    // NOTE - as of now those messages only gives information on files that got an update
+    // they does not mention the files that need an update but couldn't have it
+    // The best thing would probably to add a cli command to have this type of info
+    log::info!("Redundancy integrity checked for all files. {} files updated. {ok} files are now all their redundancies.", ok + er + ih);
     if ih > 0 {
-        log::warn!("Still {ih} files can't have enough redundancies.");
+        log::warn!("Still {ih} of the newly udpated files don't have enough redundancies.");
     }
     if er > 0 {
         log::error!("{er} errors reported !");
