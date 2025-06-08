@@ -172,7 +172,10 @@ impl Pod {
 
                 let mut arbo = Arbo::new();
                 arbo.overwrite_self(fs_serialized.fs_index);
-                let next_inode = arbo.iter().fold(Arbo::first_ino(), |acc, (ino, _)| u64::max(acc, *ino)) + 1;
+                let next_inode = arbo
+                    .iter()
+                    .fold(Arbo::first_ino(), |acc, (ino, _)| u64::max(acc, *ino))
+                    + 1;
                 (arbo, next_inode, Some(global_config_bytes))
             } else {
                 let (arbo, next_inode) =
@@ -314,7 +317,7 @@ impl Pod {
     // !SECTION
 
     /// for a given file, will try to send it to one host, trying each until succes
-    fn send_file_to_possible_hosts(
+    async fn send_file_to_possible_hosts(
         &self,
         possible_hosts: &Vec<Address>,
         ino: InodeId,
@@ -342,7 +345,7 @@ impl Pod {
                 ))
                 .expect("to_network_message_tx closed.");
 
-            if let Ok(()) = status_rx.blocking_recv().unwrap() {
+            if let Some(Ok(())) = status_rx.recv().await {
                 self.network_interface
                     .to_network_message_tx
                     .send(ToNetworkMessage::BroadcastMessage(
@@ -356,7 +359,7 @@ impl Pod {
     }
 
     /// Gets every file hosted by this pod only and sends them to other pods
-    fn send_files_when_stopping(&self, arbo: &Arbo, peers: Vec<Address>) {
+    async fn send_files_when_stopping(&self, arbo: &Arbo, peers: Vec<Address>) {
         let address = if let Ok(local_conf_lock) = LocalConfig::read_lock(
             &self.network_interface.local_config,
             "send_files_when_stopping",
@@ -367,25 +370,26 @@ impl Pod {
             return;
         };
 
-        arbo.files_hosted_only_by(&address)
-            .filter_map(|inode| {
-                if inode.id == GLOBAL_CONFIG_INO
-                    || inode.id == LOCAL_CONFIG_INO
-                    || inode.id == ARBO_FILE_INO
-                {
-                    None
-                } else {
-                    Some(inode.id)
-                }
-            })
-            .for_each(|id| {
-                if let Err(e) = self.send_file_to_possible_hosts(&peers, id) {
-                    log::warn!("{e}");
-                }
-            });
+        futures_util::future::join_all(
+            arbo.files_hosted_only_by(&address)
+                .filter_map(|inode| {
+                    if inode.id == GLOBAL_CONFIG_INO
+                        || inode.id == LOCAL_CONFIG_INO
+                        || inode.id == ARBO_FILE_INO
+                    {
+                        None
+                    } else {
+                        Some(inode.id)
+                    }
+                })
+                .map(|id| self.send_file_to_possible_hosts(&peers, id)),
+        )
+        .await
+        .iter()
+        .for_each(|e| log::warn!("{e:?}"));
     }
 
-    pub fn stop(self) -> Result<(), PodStopError> {
+    pub async fn stop(self) -> Result<(), PodStopError> {
         // TODO
         // in actual state, all operations (request from network other than just pulling the asked files)
         // made after calling this function but before dropping the pod are undefined behavior.
@@ -401,7 +405,7 @@ impl Pod {
             .map(|peer| peer.address.clone())
             .collect();
 
-        self.send_files_when_stopping(&arbo, peers);
+        self.send_files_when_stopping(&arbo, peers).await;
         let arbo_bin = bincode::serialize(&*arbo).expect("can't serialize arbo to bincode");
         drop(arbo);
 
