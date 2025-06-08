@@ -86,7 +86,15 @@ impl DiskManager for DummyDiskManager {
             Some(VirtualFile::File(_)) => Err(io::ErrorKind::InvalidData.into()),
             None => Err(io::ErrorKind::NotFound.into()),
         }?;
-        lock.insert(path, VirtualFile::File(Vec::new()));
+        let old = lock.insert(path, VirtualFile::File(Vec::new()));
+        match old {
+            None => (),
+            Some(VirtualFile::File(data)) => {
+                let mut size = self.size.write().expect("new_file");
+                *size = size.checked_sub(data.len()).unwrap_or(0);
+            }
+            Some(VirtualFile::Folder(_)) => return Err(io::ErrorKind::AlreadyExists.into()),
+        }
         Ok(())
     }
 
