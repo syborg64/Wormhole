@@ -12,7 +12,7 @@ use crate::{
 /// Message Content
 /// Represent the content of the intern message but is also the struct sent
 /// through the network
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone)]
 pub enum MessageContent {
     Register(Address),
     Remove(InodeId),
@@ -20,7 +20,8 @@ pub enum MessageContent {
     RequestFile(InodeId, Address),
     PullAnswer(InodeId, Vec<u8>),
     RedundancyFile(InodeId, Vec<u8>),
-    Rename(InodeId, InodeId, String, String, bool), /// Parent, New Parent, Name, New Name, overwrite
+    Rename(InodeId, InodeId, String, String, bool),
+    /// Parent, New Parent, Name, New Name, overwrite
     EditHosts(InodeId, Vec<Address>),
     RevokeFile(InodeId, Address, Metadata),
     AddHosts(InodeId, Vec<Address>),
@@ -37,12 +38,71 @@ pub enum MessageContent {
 impl fmt::Display for MessageContent {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let name = match self {
-            MessageContent::RedundancyFile(_, _) => "RedundancyFile".into(),
-            MessageContent::FsAnswer(_, _, _) => "FsAnswer".into(),
-            MessageContent::PullAnswer(_, _) => "PullAnswer".into(),
-            other => format!("{:?}", other),
+            MessageContent::Register(_) => "Register",
+            MessageContent::Remove(_) => "Remove",
+            MessageContent::Inode(_) => "Inode",
+            MessageContent::RequestFile(_, _) => "RequestFile",
+            MessageContent::PullAnswer(_, _) => "PullAnswer",
+            MessageContent::Rename(_, _, _, _, _) => "Rename",
+            MessageContent::EditHosts(_, _) => "EditHosts",
+            MessageContent::RevokeFile(_, _, _) => "RevokeFile",
+            MessageContent::AddHosts(_, _) => "AddHosts",
+            MessageContent::RemoveHosts(_, _) => "RemoveHosts",
+            MessageContent::EditMetadata(_, _) => "EditMetadata",
+            MessageContent::SetXAttr(_, _, _) => "SetXAttr",
+            MessageContent::RemoveXAttr(_, _) => "RemoveXAttr",
+            MessageContent::RequestFs => "RequestFs",
+            MessageContent::FsAnswer(_, _, _) => "FsAnswer",
+            MessageContent::RedundancyFile(_, _) => "RedundancyFile",
+            MessageContent::Disconnect(_) => "Disconnect",
         };
         write!(f, "{}", name)
+    }
+}
+
+impl fmt::Debug for MessageContent {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            MessageContent::Inode(inode) => write!(
+                f,
+                "Inode({{{}, name: {}, parent:{}, {}}})",
+                inode.id,
+                inode.name,
+                inode.parent,
+                match inode.entry {
+                    crate::pods::arbo::FsEntry::File(_) => 'f',
+                    crate::pods::arbo::FsEntry::Directory(_) => 'd',
+                }
+            ),
+            MessageContent::RedundancyFile(id, _) => write!(f, "RedundancyFile({id}, <bin>)"),
+            MessageContent::FsAnswer(_, peers, _) => write!(f, "FsAnswer(<bin>, {peers:?}, <bin>"),
+            MessageContent::PullAnswer(id, _) => write!(f, "PullAnswer({id}, <bin>)"),
+            MessageContent::Register(address) => write!(f, "Register({address})"),
+            MessageContent::Remove(id) => write!(f, "Remove({id})"),
+            MessageContent::RequestFile(id, y) => write!(f, "RequestFile({id}, {y})"),
+            MessageContent::Rename(parent, new_parent, name, new_name, overwrite) => write!(
+                f,
+                "Rename(parent: {}, new_parent: {}, name: {}, new_name: {}, overwrite: {})",
+                parent, new_parent, name, new_name, overwrite
+            ),
+            MessageContent::EditHosts(id, hosts) => write!(f, "EditHosts({id}, {hosts:?})"),
+            MessageContent::RevokeFile(id, address, _) => {
+                write!(f, "RevokeFile({id}, {address}, <metadata>)")
+            }
+            MessageContent::AddHosts(id, hosts) => write!(f, "AddHosts({id}, {hosts:?})"),
+            MessageContent::RemoveHosts(id, hosts) => write!(f, "RemoveHosts({id}, {hosts:?})"),
+            MessageContent::EditMetadata(id, metadata) => {
+                write!(f, "EditMetadata({id}, {{ perm: {}}})", metadata.perm)
+            }
+            MessageContent::SetXAttr(id, name, data) => write!(
+                f,
+                "SetXAttr({id}, {name}, {}",
+                String::from_utf8(data.clone()).unwrap_or("<bin>".to_string())
+            ),
+            MessageContent::RemoveXAttr(id, name) => write!(f, "RemoveXAttr({id}, {name})"),
+            MessageContent::RequestFs => write!(f, "RequestFs"),
+            MessageContent::Disconnect(address) => write!(f, "Disconnect({address})"),
+        }
     }
 }
 
