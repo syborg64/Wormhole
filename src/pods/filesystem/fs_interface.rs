@@ -220,7 +220,7 @@ impl FsInterface {
             let path =
                 Arbo::n_read_lock(&self.arbo, "recept_edit_hosts")?.n_get_path_from_inode_id(id)?;
             if let Err(e) = self.disk.remove_file(&path) {
-                log::error!("recept_edit_hosts: can't delete file. {}", e);
+                log::debug!("recept_edit_hosts: can't delete file. {}", e);
             }
         }
         self.network_interface.acknowledge_hosts_edition(id, hosts)
