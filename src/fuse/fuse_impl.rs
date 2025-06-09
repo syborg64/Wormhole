@@ -631,7 +631,7 @@ impl Filesystem for FuseController {
 
 
 
-        match AccessMode::from_libc(flags)
+        match AccessMode::from_libc(mask)
             .and_then(|access| check_permissions(OpenFlags::from_libc(mask), access, meta.perm)) {
             Ok(_) => reply.ok(),
             Err(OpenError::MultipleAccessFlags) => reply.error(libc::EINVAL),
