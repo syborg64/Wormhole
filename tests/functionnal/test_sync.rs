@@ -11,9 +11,7 @@ async fn sync_start_state() {
     let mut env = EnvironnementManager::new();
     env.add_service(true).unwrap();
     std::thread::sleep(*SLEEP_TIME);
-    env.create_network("default".to_owned(), true)
-        .await
-        .unwrap();
+    env.create_network("default".to_owned(), true).unwrap();
     std::thread::sleep(*SLEEP_TIME);
 
     let file_path = append_to_path(&env.services[0].pods[0].2.path().to_owned(), "/foo.txt");
@@ -22,9 +20,7 @@ async fn sync_start_state() {
 
     env.add_service(false).unwrap();
     std::thread::sleep(*SLEEP_TIME);
-    env.create_network("default".to_owned(), false)
-        .await
-        .unwrap();
+    env.create_network("default".to_owned(), false).unwrap();
     std::thread::sleep(*SLEEP_TIME);
 
     let check_path = append_to_path(&env.services[1].pods[0].2.path().to_owned(), "/foo.txt");
@@ -40,9 +36,7 @@ async fn sync_start_state() {
     std::fs::write(&file_path, "Goodbye world!").unwrap();
     env.add_service(false).unwrap();
     std::thread::sleep(*SLEEP_TIME);
-    env.create_network("default".to_owned(), false)
-        .await
-        .unwrap();
+    env.create_network("default".to_owned(), false).unwrap();
     std::thread::sleep(*SLEEP_TIME);
 
     for path in [

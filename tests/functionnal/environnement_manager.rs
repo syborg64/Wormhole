@@ -8,7 +8,6 @@ use std::{
 use assert_fs::TempDir;
 use lazy_static::lazy_static;
 use std::process::Stdio;
-use tokio::process::Command;
 use wormhole::network::ip::IpP;
 
 lazy_static! {
@@ -26,12 +25,20 @@ const SERVICE_BIN: &str = "./target/debug/wormhole-service";
 const CLI_BIN: &str = "./target/debug/wormhole-cli"; // REVIEW - don't forget to change after pr #172
 
 pub struct Service {
-    pub instance: tokio::process::Child,
+    pub instance: std::process::Child,
     #[allow(dead_code)]
     #[allow(dead_code)]
     stdin: UnixStream,
     pub ip: IpP,
     pub pods: Vec<(String, IpP, TempDir)>, // (network_name, ip, dir)
+}
+
+impl Drop for Service {
+    fn drop(&mut self) {
+        self.instance.kill().expect("service couldn't be killed");
+        // necessary for some os :
+        let _ = self.instance.wait();
+    }
 }
 
 pub struct EnvironnementManager {
@@ -79,8 +86,8 @@ impl EnvironnementManager {
             );
             let stdio = Stdio::from(read.as_fd().try_clone_to_owned().unwrap());
 
-            let mut command = Command::new(SERVICE_BIN);
-            command.kill_on_drop(true);
+            let mut command = std::process::Command::new(SERVICE_BIN);
+            // command.kill_on_drop(true);
             let mut instance = command
                 .args(&[ip.to_string()])
                 .stdout(Self::generate_pipe(pipe_output))
@@ -108,6 +115,25 @@ impl EnvironnementManager {
 
         Ok(())
     }
+
+    // fn cli_command<I, S>(ip: IpP, args: I)
+    // where
+    //     I: IntoIterator<Item = S>,
+    //     S: AsRef<std::ffi::OsStr>,
+    // {
+    //     let mut command = std::process::Command::new(CLI_BIN);
+    //     log::info!("Cli template command.");
+    //     command
+    //         .args(&[
+    //             "template".to_string(),
+    //             "-C".to_string(),
+    //             dir_path.to_string_lossy().to_string(),
+    //         ])
+    //         .stdout(Self::generate_pipe(pipe_output))
+    //         .stderr(Self::generate_pipe(pipe_output))
+    //         .spawn()?
+    //         .wait()?;
+    // }
 
     /// Cli commands to create a pod
     fn cli_pod_creation_command(
@@ -159,7 +185,7 @@ impl EnvironnementManager {
 
     /// Create pod connected to a network for each service running
     /// except if the service already has a pod on that network
-    pub async fn create_network(
+    pub fn create_network(
         &mut self,
         network_name: String,
         pipe_output: bool,
