@@ -22,10 +22,13 @@ use std::env;
 
 use futures_util::stream::SplitSink;
 use futures_util::{SinkExt, StreamExt};
+use signal_hook::consts::signal::*;
+use signal_hook_tokio::Signals;
 use tokio::net::TcpListener;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{accept_async, WebSocketStream};
+
 #[cfg(target_os = "windows")]
 use winfsp::winfsp_init;
 use wormhole::commands::{self, cli_commands::Cli};
@@ -260,6 +263,7 @@ async fn start_cli_listener(
     mut pods: HashMap<String, Pod>,
     ip: String,
     mut interrupt_rx: UnboundedReceiver<()>,
+    mut signals_rx: UnboundedReceiver<()>,
 ) -> HashMap<String, Pod> {
     let mut ip: IpP = IpP::try_from(&ip).expect("start_cli_listener: invalid ip provided");
     println!("Starting CLI's TcpListener on {}", ip.to_string());
@@ -281,6 +285,7 @@ async fn start_cli_listener(
     while let Some(Ok((stream, _))) = tokio::select! {
         v = listener.accept() => Some(v),
         _ = interrupt_rx.recv() => None,
+        _ = signals_rx.recv() => None,
     } {
         let (command, writer) = match get_cli_command(stream).await {
             Ok(cmd) => cmd,
@@ -297,6 +302,10 @@ async fn start_cli_listener(
 #[tokio::main]
 async fn main() {
     let (interrupt_tx, interrupt_rx) = mpsc::unbounded_channel::<()>();
+    let (signals_tx, signals_rx) = mpsc::unbounded_channel::<()>();
+    let signals = Signals::new(&[SIGTERM, SIGINT, SIGQUIT]).unwrap();
+    let handle = signals.handle();
+
     let mut pods: HashMap<String, Pod> = HashMap::new();
 
     env_logger::init();
@@ -317,12 +326,15 @@ async fn main() {
     println!("Starting service on {}", ip);
 
     let terminal_handle = tokio::spawn(terminal_watchdog(interrupt_tx));
-    let cli_airport = tokio::spawn(start_cli_listener(pods, ip, interrupt_rx));
+    let signals_task = tokio::spawn(handle_signals(signals, signals_tx));
+    let cli_airport = tokio::spawn(start_cli_listener(pods, ip, interrupt_rx, signals_rx));
     log::info!("Started");
 
     pods = cli_airport
         .await
         .expect("main: cli_airport didn't join properly");
+    handle.close();
+    signals_task.await.unwrap();
     terminal_handle.abort();
 
     log::info!("Stopping");
@@ -347,11 +359,24 @@ pub async fn terminal_watchdog(tx: UnboundedSender<()>) {
         // NOTE -  on ctrl-D -> quit
         match read {
             0 => {
-                log::info!("Quiting!");
+                log::info!("Quiting by Ctrl+D!");
                 let _ = tx.send(());
                 return;
             }
             _ => (),
         };
+    }
+}
+
+async fn handle_signals(mut signals: Signals, tx: UnboundedSender<()>) {
+    while let Some(signal) = signals.next().await {
+        match signal {
+            SIGTERM | SIGINT | SIGQUIT => {
+                log::info!("Quiting by Signal: {signal}");
+                let _ = tx.send(());
+                return;
+            }
+            _ => log::error!("This signal is not supported: {signal}"),
+        }
     }
 }
