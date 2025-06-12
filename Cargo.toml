@@ -14,7 +14,7 @@ name = "wormhole"
 path = "src/lib.rs"
 
 [[bin]]
-name = "wormhole-cli"
+name = "wormhole"
 path = "src/bin/cli.rs"
 
 [[bin]]
