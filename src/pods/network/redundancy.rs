@@ -138,6 +138,9 @@ async fn apply_to(
     self_addr: &Address,
     ino: u64,
 ) -> WhResult<usize> {
+    if Arbo::is_special(ino) {
+        return Ok(0); // NOTE is a silent error ok ?
+    }
     let file_binary = Arc::new(fs_interface.read_local_file(ino)?);
 
     let missing_hosts_number: usize;
@@ -177,7 +180,6 @@ async fn push_redundancy(
 
     for i in 0..target_redundancy {
         let nwi_clone = Arc::clone(nw_interface);
-        //TODO cloning the whole file content in ram to send it to many hosts is terrible :
         let bin_clone = file_binary.clone();
         let addr = all_peers[i].clone();
 
@@ -202,7 +204,6 @@ async fn push_redundancy(
                 }
                 let nwi_clone = Arc::clone(nw_interface);
                 let bin_clone = file_binary.clone();
-                //TODO cloning the whole file content in ram to send it to many hosts is terrible
                 let addr = all_peers[current_try].clone();
 
                 set.spawn(
