@@ -49,7 +49,7 @@ pub async fn redundancy_worker(
 
         let _ = match message {
             RedundancyMessage::ApplyTo(ino) => {
-                apply_to(
+                let _ = apply_to(
                     &nw_interface,
                     &fs_interface,
                     redundancy,
@@ -58,12 +58,14 @@ pub async fn redundancy_worker(
                     ino,
                 )
                 .await
+                .inspect_err(|e| log::error!("Redundancy error: {e}"));
             }
             RedundancyMessage::CheckIntegrity => {
-                check_integrity(&nw_interface, &fs_interface, redundancy, &peers, &self_addr).await
+                let _ =
+                    check_integrity(&nw_interface, &fs_interface, redundancy, &peers, &self_addr)
+                        .await;
             }
-        }
-        .inspect_err(|e| log::error!("Redundancy error: {e}"));
+        };
     }
 }
 
@@ -75,11 +77,15 @@ pub async fn redundancy_worker(
 ///
 /// Intended for use in the check_intergrity function
 fn eligible_to_apply(
+    ino: InodeId,
     target_redundancy: u64,
     available_peers: usize,
     hosts: &Vec<Address>,
     self_addr: &Address,
 ) -> bool {
+    if Arbo::is_special(ino) {
+        return false;
+    }
     hosts.clone().sort();
     hosts.len() < target_redundancy as usize
         && available_peers > hosts.len()
@@ -92,7 +98,7 @@ async fn check_integrity(
     redundancy: u64,
     peers: &Vec<Address>,
     self_addr: &Address,
-) -> Result<(), RedundancyError> {
+) -> WhResult<()> {
     log::debug!("Checking redundancy integrity");
 
     let available_peers = peers.len() + 1;
@@ -100,34 +106,25 @@ async fn check_integrity(
     // Applies redundancy to needed files
     let futures = Arbo::n_read_lock(&nw_interface.arbo, "redundancy: check_integrity")?
         .iter()
-        .filter(|(_, inode)| matches!(&inode.entry, FsEntry::File(hosts) if eligible_to_apply(redundancy, available_peers, hosts, self_addr)))
+        .filter(|(ino, inode)| matches!(&inode.entry, FsEntry::File(hosts) if eligible_to_apply(**ino, redundancy, available_peers, hosts, self_addr)))
         .map(|(ino, _)| apply_to(nw_interface, fs_interface, redundancy, peers, self_addr, ino.clone()))
         .collect::<Vec<_>>();
 
-    let mut errors: Vec<RedundancyError> = Vec::new();
     // couting for: (ok: enough redundancies, er: errors, ih: still not enough hosts)
-    let (ok, er, ih) =
-        join_all(futures)
-            .await
-            .into_iter()
-            .fold((0, 0, 0), |(ok, er, ih), status| match status {
-                Ok(_) => (ok + 1, er, ih),
-                Err(RedundancyError::InsufficientHosts) => (ok, er, ih + 1),
-                Err(e) => {
-                    errors.push(e);
-                    (ok, er + 1, ih)
-                }
-            });
+    let errors: Vec<WhError> = join_all(futures)
+        .await
+        .into_iter()
+        .filter_map(|status| match status {
+            Err(e) => Some(e),
+            _ => None,
+        })
+        .collect();
 
-    // NOTE - as of now those messages only gives information on files that got an update
-    // they does not mention the files that need an update but couldn't have it
-    // The best thing would probably to add a cli command to have this type of info
-    log::info!("Redundancy integrity checked for all files. {} files updated. {ok} files are now all their redundancies.", ok + er + ih);
-    if ih > 0 {
-        log::warn!("Still {ih} of the newly udpated files don't have enough redundancies.");
-    }
-    if er > 0 {
-        log::error!("{er} errors reported !");
+    if errors.len() > 0 {
+        log::error!(
+            "Redundancy::check_integrity: {} errors reported !",
+            errors.len()
+        );
         errors.iter().for_each(|e| log::error!("{e}"));
     }
     Ok(())
@@ -140,15 +137,15 @@ async fn apply_to(
     peers: &Vec<Address>,
     self_addr: &Address,
     ino: u64,
-) -> Result<(), RedundancyError> {
+) -> WhResult<usize> {
     let file_binary = Arc::new(fs_interface.read_local_file(ino)?);
 
-    let not_enough_hosts: bool;
+    let missing_hosts_number: usize;
     let target_redundancy = if (redundancy - 1) as usize > peers.len() {
-        not_enough_hosts = true;
+        missing_hosts_number = redundancy as usize - peers.len();
         peers.len()
     } else {
-        not_enough_hosts = false;
+        missing_hosts_number = 0;
         (redundancy - 1) as usize
     };
 
@@ -163,11 +160,7 @@ async fn apply_to(
     .await;
 
     nw_interface.update_hosts(ino, new_hosts)?;
-    if not_enough_hosts {
-        Err(RedundancyError::InsufficientHosts)
-    } else {
-        Ok(())
-    }
+    Ok(missing_hosts_number)
 }
 
 /// start download to others concurrently
