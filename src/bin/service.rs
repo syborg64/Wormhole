@@ -39,6 +39,7 @@ type CliTcpWriter =
     SplitSink<WebSocketStream<tokio::net::TcpStream>, tokio_tungstenite::tungstenite::Message>;
 
 async fn handle_cli_command(
+    ip: &IpP,
     mut pods: HashMap<String, Pod>,
     command: Cli,
     mut writer: CliTcpWriter,
@@ -201,7 +202,10 @@ async fn handle_cli_command(
                 Err(CliError::PodNotFound)
             }
         }
-        _ => Err(CliError::InvalidCommand),
+        Cli::Template(_template_arg) => todo!(),
+        Cli::Inspect => todo!(),
+        Cli::Status => Ok(CliSuccess::Message(format!("{}", ip.to_string()))),
+        Cli::Interrupt => todo!(),
     };
     let string_output = response_command.map_or_else(|e| e.to_string(), |a| a.to_string());
     match writer.send(Message::Text(string_output)).await {
@@ -303,7 +307,7 @@ async fn start_cli_listener(
                 continue;
             }
         };
-        pods = handle_cli_command(pods, command, writer).await;
+        pods = handle_cli_command(&ip, pods, command, writer).await;
     }
     pods
 }

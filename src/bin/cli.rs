@@ -70,6 +70,7 @@ fn main() -> CliResult<()> {
             log::warn!("reloading pod");
             commands::cli::apply(ip, args)
         }
+        Cli::Status => commands::cli::status(ip),
         Cli::Restore(args) => {
             log::info!("retore a specific file config");
             commands::cli::restore(ip, args)
@@ -84,5 +85,8 @@ fn main() -> CliResult<()> {
     } else {
         log::info!("CLI: no error reported")
     };
-    status
+    status.map(|s| {
+        println!("{s}");
+        ()
+    })
 }
