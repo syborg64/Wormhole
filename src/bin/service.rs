@@ -37,6 +37,7 @@ use wormhole::config::LocalConfig;
 use wormhole::error::{CliError, CliSuccess, WhError, WhResult};
 use wormhole::network::ip::IpP;
 use wormhole::pods::pod::Pod;
+use wormhole::signals::{get_signal_description, ALL_SIGNALS};
 
 type CliTcpWriter =
     SplitSink<WebSocketStream<tokio::net::TcpStream>, tokio_tungstenite::tungstenite::Message>;
@@ -303,7 +304,7 @@ async fn start_cli_listener(
 async fn main() {
     let (interrupt_tx, interrupt_rx) = mpsc::unbounded_channel::<()>();
     let (signals_tx, signals_rx) = mpsc::unbounded_channel::<()>();
-    let signals = Signals::new(&[SIGTERM, SIGINT, SIGQUIT]).unwrap();
+    let signals = Signals::new(ALL_SIGNALS).expect("main: Error SignalsInfo creation");
     let handle = signals.handle();
 
     let mut pods: HashMap<String, Pod> = HashMap::new();
@@ -333,9 +334,9 @@ async fn main() {
     pods = cli_airport
         .await
         .expect("main: cli_airport didn't join properly");
+    terminal_handle.abort();
     handle.close();
     signals_task.await.unwrap();
-    terminal_handle.abort();
 
     log::info!("Stopping");
     for (name, pod) in pods.into_iter() {
@@ -370,13 +371,14 @@ pub async fn terminal_watchdog(tx: UnboundedSender<()>) {
 
 async fn handle_signals(mut signals: Signals, tx: UnboundedSender<()>) {
     while let Some(signal) = signals.next().await {
+        let description = get_signal_description(signal);
         match signal {
             SIGTERM | SIGINT | SIGQUIT => {
-                log::info!("Quiting by Signal: {signal}");
+                log::info!("Quiting by Signal: {description}");
                 let _ = tx.send(());
                 return;
             }
-            _ => log::error!("This signal is not supported: {signal}"),
+            _ => log::warn!("This signal is not supported: {description}"),
         }
     }
 }
