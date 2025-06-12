@@ -1,15 +1,28 @@
 use std::{
+    env::var,
+    fmt::format,
     os::{fd::AsFd, unix::net::UnixStream},
     path::Path,
     time::Duration,
 };
 
 use assert_fs::TempDir;
+use lazy_static::lazy_static;
 use std::process::Stdio;
 use tokio::process::Command;
 use wormhole::network::ip::IpP;
 
-pub static SLEEP_TIME: Duration = std::time::Duration::from_secs(2);
+lazy_static! {
+    pub static ref SLEEP_TIME: Duration =
+        Duration::from_secs_f32(if let Ok(str_st) = var("SLEEP_TIME") {
+            str_st.parse().unwrap_or(2.0)
+        } else {
+            2.0
+        });
+}
+
+const SERVICE_MAX_PORT: u16 = 9999;
+const SERVICE_MIN_PORT: u16 = 8081;
 
 pub struct Service {
     pub instance: tokio::process::Child,
@@ -26,6 +39,7 @@ pub struct EnvironnementManager {
 
 impl EnvironnementManager {
     pub fn new() -> Self {
+        log::debug!("SLEEP_TIME is {:?}", *SLEEP_TIME);
         return EnvironnementManager {
             services: Vec::new(),
         };
@@ -41,13 +55,13 @@ impl EnvironnementManager {
 
     /// Create a service on the next available ip. No pods are created.
     pub fn add_service(&mut self, pipe_output: bool) -> Result<(), Box<dyn std::error::Error>> {
-        let ip = self
+        let mut ip = self
             .services
             .iter()
             .map(|service| &service.ip)
             .max_by(|ip1, ip2| ip1.port.cmp(&ip2.port))
             .map_or_else(
-                || IpP::try_from(&"127.0.0.1:8081".to_string()).unwrap(),
+                || IpP::try_from(&format!("127.0.0.1:{SERVICE_MIN_PORT}")).unwrap(),
                 |ip| {
                     let mut ip = ip.clone();
                     ip.set_port(ip.port + 1);
@@ -55,25 +69,40 @@ impl EnvironnementManager {
                 },
             );
 
-        let mut command = Command::new("cargo");
-        command.kill_on_drop(true);
-
-        // GHActions does'nt pipe a stdin so we have to make one ourselves from a FD
         let (write, read) = std::os::unix::net::UnixStream::pair()?;
 
-        let stdio = Stdio::from(read.as_fd().try_clone_to_owned().unwrap());
+        let instance = loop {
+            assert!(
+                ip.port < SERVICE_MAX_PORT,
+                "service port upper limit ({SERVICE_MAX_PORT}) exceeded"
+            );
+            let stdio = Stdio::from(read.as_fd().try_clone_to_owned().unwrap());
 
-        let instance = command
-            .args(&[
-                "run".to_string(),
-                "--bin".to_string(),
-                "wormhole-service".to_string(),
-                ip.to_string(),
-            ])
-            .stdout(Self::generate_pipe(pipe_output))
-            .stderr(Self::generate_pipe(pipe_output))
-            .stdin(stdio)
-            .spawn()?;
+            let mut command = Command::new("cargo");
+            command.kill_on_drop(true);
+            let mut instance = command
+                .args(&[
+                    "run".to_string(),
+                    "--bin".to_string(),
+                    "wormhole-service".to_string(),
+                    ip.to_string(),
+                ])
+                .stdout(Self::generate_pipe(pipe_output))
+                .stderr(Self::generate_pipe(pipe_output))
+                .stdin(stdio)
+                .spawn()?;
+
+            std::thread::sleep(*SLEEP_TIME);
+
+            // if the service has exited (should not)
+            if let Some(s) = instance.try_wait().expect("instance error") {
+                ip.set_port(ip.port + 1);
+                log::warn!("Can't start service on port {}. Status: {s}", ip.port);
+            } else {
+                break instance;
+            }
+        };
+
         self.services.push(Service {
             instance,
             stdin: write,
