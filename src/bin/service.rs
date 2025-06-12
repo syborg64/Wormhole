@@ -29,8 +29,6 @@ use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{accept_async, WebSocketStream};
 
-#[cfg(target_os = "windows")]
-use winfsp::winfsp_init;
 use wormhole::commands::{self, cli_commands::Cli};
 use wormhole::config::types::Config;
 use wormhole::config::LocalConfig;
@@ -38,6 +36,10 @@ use wormhole::error::{CliError, CliSuccess, WhError, WhResult};
 use wormhole::network::ip::IpP;
 use wormhole::pods::pod::Pod;
 use wormhole::signals::{get_signal_description, ALL_SIGNALS};
+#[cfg(target_os = "windows")]
+use {
+    futures::future::select, futures::future::Either, tokio::signal::windows, winfsp::winfsp_init,
+};
 
 type CliTcpWriter =
     SplitSink<WebSocketStream<tokio::net::TcpStream>, tokio_tungstenite::tungstenite::Message>;
@@ -369,7 +371,20 @@ pub async fn terminal_watchdog(tx: UnboundedSender<()>) {
     }
 }
 
-async fn handle_signals(mut signals: Signals, tx: UnboundedSender<()>) {
+async fn handle_signals(signals: Signals, tx: UnboundedSender<()>) {
+    #[cfg(unix)]
+    {
+        handle_signals_unix(signals, tx).await;
+    }
+
+    #[cfg(windows)]
+    {
+        handle_signals_windows(tx).await;
+    }
+}
+
+#[cfg(unix)]
+async fn handle_signals_unix(mut signals: Signals, tx: UnboundedSender<()>) {
     while let Some(signal) = signals.next().await {
         let description = get_signal_description(signal);
         match signal {
@@ -381,4 +396,22 @@ async fn handle_signals(mut signals: Signals, tx: UnboundedSender<()>) {
             _ => log::warn!("This signal is not supported: {description}"),
         }
     }
+}
+
+#[cfg(windows)]
+async fn handle_signals_windows(tx: UnboundedSender<()>) {
+    let ctrl_c = tokio::signal::ctrl_c();
+    let ctrl_break = tokio::signal::ctrl_break();
+
+    log::info!("Windows signal handler initialised, wait a Ctrl+C or Ctrl+Break…");
+
+    tokio::select! {
+        _ = windows::ctrl_c() => {
+            log::info!("Quiting by Signal: CTRL+C");
+        }
+        _ = windows::ctrl_break() => {
+            log::info!("Quiting by Signal: CTRL+BREAK");
+        }
+    }
+    tx.send(()).ok();
 }
