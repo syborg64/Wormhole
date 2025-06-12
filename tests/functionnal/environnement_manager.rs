@@ -1,7 +1,9 @@
 use std::{
     env::var,
+    io,
     os::{fd::AsFd, unix::net::UnixStream},
     path::Path,
+    process::ExitStatus,
     time::Duration,
 };
 
@@ -18,6 +20,8 @@ lazy_static! {
             2.0
         });
 }
+
+
 
 const SERVICE_MAX_PORT: u16 = 9999;
 const SERVICE_MIN_PORT: u16 = 8081;
@@ -86,26 +90,35 @@ impl EnvironnementManager {
             );
             let stdio = Stdio::from(read.as_fd().try_clone_to_owned().unwrap());
 
-            let mut command = std::process::Command::new(SERVICE_BIN);
-            // command.kill_on_drop(true);
-            let mut instance = command
+            let mut instance = std::process::Command::new(SERVICE_BIN)
                 .args(&[ip.to_string()])
-                .stdout(Self::generate_pipe(pipe_output))
-                .stderr(Self::generate_pipe(pipe_output))
+                .stdout(Self::generate_pipe(false))
+                .stderr(Self::generate_pipe(false))
                 .stdin(stdio)
                 .spawn()?;
 
             std::thread::sleep(*SLEEP_TIME);
 
-            // if the service has exited (should not)
-            if let Some(s) = instance.try_wait().expect("instance error") {
+            // checks the service viability
+            let (status, out, _) = Self::cli_command(&[&ip.to_string(), "status"]).unwrap();
+            if !out.contains(&ip.to_string()) {
+                log::warn!(
+                    "\nService created on {} isn't answering proper status.\n(code {}).\nCli stdout: \"{}\"\nWill try other ports.\n",
+                    ip.to_string(),
+                    status,
+                    out,
+                );
+
+                instance.kill().unwrap();
+                let _ = instance.wait(); // necessary on some os
+
                 ip.set_port(ip.port + 1);
-                log::warn!("Can't start service on port {}. Status: {s}", ip.port);
             } else {
                 break instance;
             }
         };
 
+        log::info!("Service started on {}", ip.to_string());
         self.services.push(Service {
             instance,
             stdin: write,
@@ -116,24 +129,20 @@ impl EnvironnementManager {
         Ok(())
     }
 
-    // fn cli_command<I, S>(ip: IpP, args: I)
-    // where
-    //     I: IntoIterator<Item = S>,
-    //     S: AsRef<std::ffi::OsStr>,
-    // {
-    //     let mut command = std::process::Command::new(CLI_BIN);
-    //     log::info!("Cli template command.");
-    //     command
-    //         .args(&[
-    //             "template".to_string(),
-    //             "-C".to_string(),
-    //             dir_path.to_string_lossy().to_string(),
-    //         ])
-    //         .stdout(Self::generate_pipe(pipe_output))
-    //         .stderr(Self::generate_pipe(pipe_output))
-    //         .spawn()?
-    //         .wait()?;
-    // }
+    /// Runs a command with the cli and returns it's stdout
+    /// Returns (status, stdio, stderr)
+    fn cli_command<I, S>(args: I) -> io::Result<(ExitStatus, String, String)>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<std::ffi::OsStr>,
+    {
+        let output = std::process::Command::new(CLI_BIN).args(args).output()?;
+        Ok((
+            output.status,
+            std::str::from_utf8(&output.stdout).unwrap().to_string(),
+            std::str::from_utf8(&output.stderr).unwrap().to_string(),
+        ))
+    }
 
     /// Cli commands to create a pod
     fn cli_pod_creation_command(
