@@ -8,7 +8,6 @@ use serial_test::serial;
 #[serial]
 #[tokio::test]
 async fn sync_start_state() {
-    println!("====== STARTING SYNC START STATE========");
     let mut env = EnvironnementManager::new();
     env.add_service(true).unwrap();
     std::thread::sleep(*SLEEP_TIME);

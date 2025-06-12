@@ -265,7 +265,7 @@ async fn start_cli_listener(
 ) -> HashMap<String, Pod> {
     let mut ip: IpP = IpP::try_from(&specific_ip.clone().unwrap_or("127.0.0.1:8081".to_string()))
         .expect("start_cli_listener: invalid ip provided");
-    println!("Starting CLI's TcpListener on {}", ip.to_string());
+    log::debug!("Starting CLI's TcpListener on {}", ip.to_string());
 
     let mut listener = TcpListener::bind(&ip.to_string()).await;
     while let Err(e) = listener {
@@ -317,9 +317,9 @@ async fn main() {
 
     #[cfg(target_os = "windows")]
     match winfsp_init() {
-        Ok(_token) => println!("got fsp token!"),
+        Ok(_token) => log::debug!("got fsp token!"),
         Err(err) => {
-            println!("fsp error: {:?}", err);
+            log::error!("fsp error: {:?}", err);
             std::process::exit(84)
         }
     }

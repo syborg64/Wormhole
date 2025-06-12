@@ -42,22 +42,22 @@ fn main() -> CliResult<()> {
     let args: Vec<String> = env::args().collect();
     let (ip, cli_args) = get_args(args);
     let ip = ip.as_str();
-    println!("Starting cli on {}", ip);
-    println!("cli args: {:?}", cli_args);
+    log::debug!("Starting cli on {}", ip);
+    log::debug!("cli args: {:?}", cli_args);
 
     let status = match Cli::parse_from(cli_args) {
         Cli::Start(args) => commands::cli::start(ip, args),
         Cli::Stop(args) => commands::cli::stop(ip, args),
         Cli::Template(args) => {
-            println!("creating network {:?}", args.name.clone());
+            log::info!("creating network {:?}", args.name.clone());
             commands::cli::templates(&args.path, &args.name)
         }
         Cli::New(args) => {
-            println!("creating pod");
+            log::info!("creating pod");
             commands::cli::new(ip, args)
         }
         Cli::Remove(args) => {
-            println!("removing pod");
+            log::info!("removing pod");
             commands::cli::remove(ip, args)
         }
         Cli::Inspect => {
@@ -71,7 +71,7 @@ fn main() -> CliResult<()> {
             commands::cli::apply(ip, args)
         }
         Cli::Restore(args) => {
-            println!("retore a specific file config");
+            log::info!("retore a specific file config");
             commands::cli::restore(ip, args)
         }
         Cli::Interrupt => {

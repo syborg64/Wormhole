@@ -164,7 +164,6 @@ impl EnvironnementManager {
         network_name: String,
         pipe_output: bool,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        println!("called create_network {network_name}");
         let last_pod_ip = self
             .services
             .iter()
@@ -186,12 +185,6 @@ impl EnvironnementManager {
                         .unwrap_or(IpP::try_from(&"127.0.0.1:8080".to_string()).unwrap());
                     pod_ip.set_ip_last(pod_ip.get_ip_last() + 1);
 
-                    println!(
-                        "creating pod with parameters:\nservice: {}\npod_ip: {}\nconn_to: {:?}",
-                        service.ip.to_string(),
-                        pod_ip.to_string(),
-                        conn_to
-                    );
                     let exit_status = Self::cli_pod_creation_command(
                         network_name.clone(),
                         &service.ip,
