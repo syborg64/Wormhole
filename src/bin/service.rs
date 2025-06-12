@@ -256,16 +256,30 @@ async fn get_cli_command(stream: tokio::net::TcpStream) -> WhResult<(Cli, CliTcp
 }
 
 /// Listens for CLI calls and launch one tcp instance per cli command
+/// if `specific_ip` is not given, will try all ports starting from 8081 to 9999, incrementing until success
+/// if `specific_ip` is given, will try the given ip and fail on error.
 async fn start_cli_listener(
     mut pods: HashMap<String, Pod>,
-    ip: String,
+    specific_ip: Option<String>,
     mut interrupt_rx: UnboundedReceiver<()>,
 ) -> HashMap<String, Pod> {
-    let mut ip: IpP = IpP::try_from(&ip).expect("start_cli_listener: invalid ip provided");
+    let mut ip: IpP = IpP::try_from(&specific_ip.clone().unwrap_or("127.0.0.1:8081".to_string()))
+        .expect("start_cli_listener: invalid ip provided");
     println!("Starting CLI's TcpListener on {}", ip.to_string());
 
     let mut listener = TcpListener::bind(&ip.to_string()).await;
     while let Err(e) = listener {
+        if let Some(_) = specific_ip {
+            log::error!(
+                "The specified address ({}) not available due to {}\nThe service is not starting.",
+                ip.to_string(),
+                e
+            );
+            panic!("Unable to start cli_listener");
+        }
+        if ip.port > 9999 {
+            panic!("Unable to start cli_listener (not testing ports above 9999)");
+        }
         log::error!(
             "Address {} not available due to {}, switching...",
             ip.to_string(),
@@ -310,11 +324,7 @@ async fn main() {
         }
     }
 
-    let ip: String = env::args()
-        .nth(1)
-        .unwrap_or("127.0.0.1:8081".to_string())
-        .into();
-    println!("Starting service on {}", ip);
+    let ip = env::args().nth(1);
 
     let terminal_handle = tokio::spawn(terminal_watchdog(interrupt_tx));
     let cli_airport = tokio::spawn(start_cli_listener(pods, ip, interrupt_rx));
