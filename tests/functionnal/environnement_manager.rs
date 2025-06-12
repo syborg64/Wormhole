@@ -1,6 +1,5 @@
 use std::{
     env::var,
-    fmt::format,
     os::{fd::AsFd, unix::net::UnixStream},
     path::Path,
     time::Duration,
@@ -23,6 +22,8 @@ lazy_static! {
 
 const SERVICE_MAX_PORT: u16 = 9999;
 const SERVICE_MIN_PORT: u16 = 8081;
+const SERVICE_BIN: &str = "./target/debug/wormhole-service";
+const CLI_BIN: &str = "./target/debug/wormhole-cli"; // REVIEW - don't forget to change after pr #172
 
 pub struct Service {
     pub instance: tokio::process::Child,
@@ -78,15 +79,10 @@ impl EnvironnementManager {
             );
             let stdio = Stdio::from(read.as_fd().try_clone_to_owned().unwrap());
 
-            let mut command = Command::new("cargo");
+            let mut command = Command::new(SERVICE_BIN);
             command.kill_on_drop(true);
             let mut instance = command
-                .args(&[
-                    "run".to_string(),
-                    "--bin".to_string(),
-                    "wormhole-service".to_string(),
-                    ip.to_string(),
-                ])
+                .args(&[ip.to_string()])
                 .stdout(Self::generate_pipe(pipe_output))
                 .stderr(Self::generate_pipe(pipe_output))
                 .stdin(stdio)
@@ -122,13 +118,10 @@ impl EnvironnementManager {
         connect_to: Option<&IpP>,
         pipe_output: bool,
     ) -> Result<std::process::ExitStatus, Box<dyn std::error::Error>> {
-        let mut command = std::process::Command::new("cargo");
+        let mut command = std::process::Command::new(CLI_BIN);
         log::info!("Cli template command.");
         command
             .args(&[
-                "run".to_string(),
-                "--bin".to_string(),
-                "wormhole-cli".to_string(),
                 "template".to_string(),
                 "-C".to_string(),
                 dir_path.to_string_lossy().to_string(),
@@ -138,14 +131,11 @@ impl EnvironnementManager {
             .spawn()?
             .wait()?;
 
-        let mut command = std::process::Command::new("cargo");
+        let mut command = std::process::Command::new(CLI_BIN);
         log::info!("Cli new pod command.");
         Ok(command
             .args({
                 let mut args = vec![
-                    "run".to_string(),
-                    "--bin".to_string(),
-                    "wormhole-cli".to_string(),
                     service_ip.to_string(), // service ip
                     "new".to_string(),
                     network_name, // network name
