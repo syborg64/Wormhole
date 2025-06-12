@@ -1,12 +1,15 @@
 use std::{
     os::{fd::AsFd, unix::net::UnixStream},
     path::Path,
+    time::Duration,
 };
 
 use assert_fs::TempDir;
 use std::process::Stdio;
 use tokio::process::Command;
 use wormhole::network::ip::IpP;
+
+pub static SLEEP_TIME: Duration = std::time::Duration::from_secs(2);
 
 pub struct Service {
     pub instance: tokio::process::Child,
@@ -71,7 +74,6 @@ impl EnvironnementManager {
             .stderr(Self::generate_pipe(pipe_output))
             .stdin(stdio)
             .spawn()?;
-
         self.services.push(Service {
             instance,
             stdin: write,

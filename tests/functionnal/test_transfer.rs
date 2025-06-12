@@ -1,4 +1,4 @@
-use crate::functionnal::append_to_path;
+use crate::functionnal::{append_to_path, environnement_manager::SLEEP_TIME};
 
 use super::environnement_manager;
 
@@ -13,15 +13,15 @@ async fn basic_text_file_transfer() {
     env.add_service(false).unwrap();
     env.add_service(false).unwrap();
     env.add_service(false).unwrap();
-    std::thread::sleep(std::time::Duration::from_secs_f32(2.0));
+    std::thread::sleep(SLEEP_TIME);
     env.create_network("default".to_string(), false)
         .await
         .unwrap();
 
-    std::thread::sleep(std::time::Duration::from_secs_f32(2.0));
+    std::thread::sleep(SLEEP_TIME);
     let file_path = append_to_path(&env.services[0].pods[0].2.path().to_owned(), "/foo.txt");
     std::fs::write(&file_path, "Hello world!").unwrap();
-    std::thread::sleep(std::time::Duration::from_secs_f32(2.0));
+    std::thread::sleep(SLEEP_TIME);
 
     for paths in [
         &env.services[0].pods[0].2.path().to_owned(),
@@ -33,7 +33,7 @@ async fn basic_text_file_transfer() {
             Err(_) => assert!(false, "File doesn't exist"),
         }
     }
-    std::thread::sleep(std::time::Duration::from_secs_f32(1.));
+    std::thread::sleep(SLEEP_TIME);
 }
 
 //Does not work yet
