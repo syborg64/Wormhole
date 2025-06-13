@@ -505,14 +505,14 @@ impl NetworkInterface {
                 Some(message) => message,
                 None => continue,
             };
-            if log::log_enabled!(log::Level::Info) {
-                log::info!("From {}: {}", origin, content);
-            } else {
+            if log::log_enabled!(log::Level::Debug) {
                 log::debug!("From {}: {:?}", origin, content);
+            } else {
+                log::info!("From {}: {}", origin, content);
             }
-            let content_name = content.to_string();
+            let content_debug = format!("{content:?}");
 
-            let action_result = match content { // remove scary clone
+            let action_result = match content {
                 MessageContent::PullAnswer(id, binary) => fs_interface.recept_binary(id, binary),
                 MessageContent::RedundancyFile(id, binary) => fs_interface.recept_redundancy(id, binary)
                     .map_err(|e| std::io::Error::new(
@@ -592,7 +592,7 @@ impl NetworkInterface {
             };
             if let Err(error) = action_result {
                 log::error!(
-                    "Network airport couldn't operate operation {content_name:?}, error found: {error}"
+                    "Network airport couldn't operate operation {content_debug}, error found: {error}"
                 );
             }
         }
