@@ -232,11 +232,15 @@ impl FsInterface {
         host: Address,
         meta: Metadata,
     ) -> Result<(), AcknoledgeSetAttrError> {
-        if host
+        let needs_delete = host
             != LocalConfig::read_lock(&self.network_interface.local_config, "recept_binary")?
                 .general
-                .address
-        {
+                .address;
+        self.acknowledge_metadata(id, meta)?;
+        self.network_interface
+            .acknowledge_hosts_edition(id, vec![host])
+            .map_err(|source| AcknoledgeSetAttrError::WhError { source })?;
+        if needs_delete {
             // TODO: recept_revoke_hosts, for the redudancy, should recieve the written text (data from write) instead of deleting and adding it back completely with apply_redudancy
             if let Err(e) = self.disk.remove_file(
                 &Arbo::n_read_lock(&self.arbo, "recept_revoke_hosts")?
@@ -245,10 +249,7 @@ impl FsInterface {
                 log::debug!("recept_revoke_hosts: can't delete file. {}", e);
             }
         }
-        self.acknowledge_metadata(id, meta)?;
-        self.network_interface
-            .acknowledge_hosts_edition(id, vec![host])
-            .map_err(|source| AcknoledgeSetAttrError::WhError { source })
+        Ok(())
     }
 
     pub fn recept_add_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
