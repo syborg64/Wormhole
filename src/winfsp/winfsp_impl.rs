@@ -536,7 +536,7 @@ impl FileSystemContext for FSPController {
         log::info!("read({:?})", context);
         let size = self
             .fs_interface
-            .read_file(context.ino, offset as usize, buffer)
+            .read_file(context.ino, offset as usize, buffer, context.handle)
             .inspect_err(|e| log::warn!("read::{e}"))? as u32;
         log::debug!("ok({size});");
         Ok(size)
