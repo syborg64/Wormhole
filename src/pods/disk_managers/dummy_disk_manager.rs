@@ -221,7 +221,7 @@ impl DiskManager for DummyDiskManager {
             .expect("VirtDisk::read_file rwLock")
             .get(&path.clone().set_relative())
         {
-            let len = file.len().checked_sub(offset).unwrap_or(0);
+            let len = std::cmp::min(buf.len(), file.len() - offset);
             buf[0..len].copy_from_slice(&file[(offset)..(offset + len)]);
             Ok(len)
         } else {
