@@ -458,40 +458,59 @@ impl FileSystemContext for FSPController {
         file_info: &mut winfsp::filesystem::FileInfo,
     ) -> winfsp::Result<()> {
         log::info!("set_basic_info({:?})", context);
-        let mut meta = self
-            .fs_interface
-            .get_inode_attributes(context.ino)
-            .map_err(|err| {
-                if err.kind() == ErrorKind::NotFound {
-                    STATUS_OBJECT_NAME_NOT_FOUND
-                } else {
-                    STATUS_CANCELLED
-                }
-            })?;
         let now = SystemTime::now();
 
-        if last_access_time != 0 {
-            meta.atime = FileTime::new(last_access_time)
-                .try_into()
-                .unwrap_or_else(|_| now.clone());
-        }
-        if creation_time != 0 {
-            meta.crtime = FileTime::new(creation_time)
-                .try_into()
-                .unwrap_or_else(|_| now.clone());
-        }
-        if last_write_time != 0 {
-            meta.mtime = FileTime::new(last_write_time)
-                .try_into()
-                .unwrap_or_else(|_| now.clone());
-        }
-        if change_time != 0 {
-            meta.ctime = FileTime::new(change_time)
-                .try_into()
-                .unwrap_or_else(|_| now.clone());
-        }
+        let atime = if last_access_time != 0 {
+            Some(
+                FileTime::new(last_access_time)
+                    .try_into()
+                    .unwrap_or_else(|_| now.clone()),
+            )
+        } else {
+            None
+        };
+        let crtime = if creation_time != 0 {
+            Some(
+                FileTime::new(creation_time)
+                    .try_into()
+                    .unwrap_or_else(|_| now.clone()),
+            )
+        } else {
+            None
+        };
+        let mtime = if last_write_time != 0 {
+            Some(
+                FileTime::new(last_write_time)
+                    .try_into()
+                    .unwrap_or_else(|_| now.clone()),
+            )
+        } else {
+            None
+        };
+        let ctime = if change_time != 0 {
+            Some(
+                FileTime::new(change_time)
+                    .try_into()
+                    .unwrap_or_else(|_| now.clone()),
+            )
+        } else {
+            None
+        };
 
-        self.fs_interface.set_inode_meta(context.ino, meta)?;
+        self.fs_interface
+            .setattr(
+                context.ino,
+                None,
+                None,
+                None,
+                None,
+                atime,
+                mtime,
+                ctime,
+                Some(context.handle),
+                None,
+            )
+            .inspect_err(|e| log::warn!("set_file_info::{e}"))?;
 
         self.get_file_info_internal(context, file_info)
             .inspect_err(|e| log::warn!("set_file_info::{e}"))?;
@@ -516,13 +535,23 @@ impl FileSystemContext for FSPController {
         _set_allocation_size: bool, // allocation is ignored;
         file_info: &mut winfsp::filesystem::FileInfo,
     ) -> winfsp::Result<()> {
-        log::info!("set_file_size({:?}, {new_size})", context);
-        let mut meta = self.fs_interface.get_inode_attributes(context.ino)
-            .inspect_err(|e| log::error!("set_file_size::{e}"))?;
-        meta.size = new_size;
-        *file_info = (&meta).into();
-        self.fs_interface.set_inode_meta(context.ino, meta)
-            .inspect_err(|e| log::error!("set_file_size::{e}"))?;
+        self.fs_interface
+            .setattr(
+                context.ino,
+                None,
+                None,
+                None,
+                Some(new_size),
+                None,
+                None,
+                None,
+                Some(context.handle),
+                None,
+            )
+            .inspect_err(|e| log::warn!("set_file_size::{e}"))?;
+
+        self.get_file_info_internal(context, file_info)
+            .inspect_err(|e| log::warn!("set_file_size::{e}"))?;
         log::debug!("ok();");
         Ok(())
     }

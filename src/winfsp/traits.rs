@@ -3,6 +3,7 @@ use crate::{
     pods::{
         arbo::Metadata,
         filesystem::{
+            attrs::SetAttrError,
             file_handle::{AccessMode, OpenFlags},
             fs_interface::SimpleFileType,
             make_inode::{CreateError, MakeInodeError},
@@ -170,6 +171,18 @@ impl From<CreateError> for FspError {
             CreateError::WhError { source } => source.into(),
             CreateError::MakeInode { source } => source.into(),
             CreateError::OpenError { source } => source.into(),
+        }
+    }
+}
+
+impl From<SetAttrError> for FspError {
+    fn from(value: SetAttrError) -> Self {
+        match value {
+            SetAttrError::WhError { source } => source.into(),
+            SetAttrError::SizeNoPerm => STATUS_ACCESS_DENIED.into(),
+            SetAttrError::InvalidFileHandle => STATUS_INVALID_HANDLE.into(),
+            SetAttrError::SetFileSizeIoError { io } => io.into(),
+            SetAttrError::SetPermIoError { io } => io.into(),
         }
     }
 }
