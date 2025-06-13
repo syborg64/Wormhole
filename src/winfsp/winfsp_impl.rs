@@ -311,7 +311,9 @@ impl FileSystemContext for FSPController {
                 .fs_interface
                 .remove_inode(context.ino)
                 .inspect_err(|e| log::warn!("cleanup::{e};"));
-            let _ = self.fs_interface.release(context.handle)
+            let _ = self
+                .fs_interface
+                .release(context.handle)
                 .inspect_err(|e| log::warn!("cleanup::{e};"));
             // cannot bubble out errors here
         }
@@ -562,7 +564,7 @@ impl FileSystemContext for FSPController {
         buffer: &mut [u8],
         offset: u64,
     ) -> winfsp::Result<u32> {
-        log::info!("read({:?})", context);
+        log::info!("read({:?}, [{}]@{})", context, buffer.len(), offset);
         let size = self
             .fs_interface
             .read_file(context.ino, offset as usize, buffer, context.handle)
@@ -580,7 +582,7 @@ impl FileSystemContext for FSPController {
         constrained_io: bool,
         file_info: &mut winfsp::filesystem::FileInfo,
     ) -> winfsp::Result<u32> {
-        log::info!("write({:?})", context);
+        log::info!("write({:?}, [{}]@{})", context, buffer.len(), offset);
         let size = Arbo::read_lock(&self.fs_interface.arbo, "winfsp::write")?
             .get_inode(context.ino)?
             .meta
