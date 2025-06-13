@@ -19,11 +19,11 @@ use nt_time::FileTime;
 use windows::Win32::{
     Foundation::{
         GENERIC_EXECUTE, GENERIC_READ, GENERIC_WRITE, NTSTATUS, STATUS_ACCESS_DENIED,
-        STATUS_DATA_ERROR, STATUS_DIRECTORY_NOT_EMPTY,
-        STATUS_FILE_IS_A_DIRECTORY, STATUS_INVALID_HANDLE, STATUS_INVALID_PARAMETER,
-        STATUS_NETWORK_UNREACHABLE, STATUS_NOT_A_DIRECTORY, STATUS_OBJECT_NAME_EXISTS,
-        STATUS_OBJECT_NAME_INVALID, STATUS_OBJECT_NAME_NOT_FOUND, STATUS_OBJECT_PATH_NOT_FOUND,
-        STATUS_PENDING, STATUS_POSSIBLE_DEADLOCK,
+        STATUS_DATA_ERROR, STATUS_DIRECTORY_NOT_EMPTY, STATUS_FILE_IS_A_DIRECTORY,
+        STATUS_INVALID_HANDLE, STATUS_INVALID_PARAMETER, STATUS_NETWORK_UNREACHABLE,
+        STATUS_NOT_A_DIRECTORY, STATUS_OBJECT_NAME_EXISTS, STATUS_OBJECT_NAME_INVALID,
+        STATUS_OBJECT_NAME_NOT_FOUND, STATUS_OBJECT_PATH_NOT_FOUND, STATUS_PENDING,
+        STATUS_POSSIBLE_DEADLOCK,
     },
     Storage::FileSystem::{FILE_ATTRIBUTE_ARCHIVE, FILE_ATTRIBUTE_DIRECTORY, SYNCHRONIZE},
 };
@@ -83,8 +83,7 @@ impl From<WhError> for FspError {
             WhError::DeadLock => STATUS_POSSIBLE_DEADLOCK.into(),
             WhError::NetworkDied { called_from: _ } => STATUS_NETWORK_UNREACHABLE.into(),
             WhError::WouldBlock { called_from: _ } => STATUS_PENDING.into(),
-            WhError::InodeIsADirectory { detail: _ } => STATUS_FILE_IS_A_DIRECTORY.into(),
-            WhError::DiskError { detail: _, err } => err.into(),
+            WhError::InodeIsADirectory => STATUS_FILE_IS_A_DIRECTORY.into(),
         }
     }
 }
@@ -118,6 +117,8 @@ impl From<ReadError> for FspError {
             ReadError::PullError { source } => source.into(),
             ReadError::LocalReadFailed { io } => io.into(),
             ReadError::CantPull => STATUS_NETWORK_UNREACHABLE.into(),
+            ReadError::NoReadPermission => STATUS_ACCESS_DENIED.into(),
+            ReadError::NoFileHandle => STATUS_INVALID_HANDLE.into(),
         }
     }
 }
@@ -129,7 +130,6 @@ impl From<WriteError> for FspError {
             WriteError::LocalWriteFailed { io } => io.into(),
             WriteError::NoFileHandle => STATUS_INVALID_HANDLE.into(),
             WriteError::NoWritePermission => STATUS_ACCESS_DENIED.into(),
-            WriteError::BadFd => STATUS_INVALID_HANDLE.into(),
         }
     }
 }
