@@ -270,7 +270,7 @@ impl Filesystem for FuseController {
         &mut self,
         _req: &Request,
         ino: u64,
-        _fh: u64,
+        file_handle: u64,
         offset: i64,
         size: u32,
         _flags: i32,
@@ -283,6 +283,7 @@ impl Filesystem for FuseController {
             ino,
             offset.try_into().expect("read::read offset negative"),
             &mut buf,
+            file_handle,
         ) {
             Ok(size) => {
                 buf.resize(size, 0);
@@ -300,6 +301,9 @@ impl Filesystem for FuseController {
             Err(ReadError::PullError {
                 source: PullError::NoHostAvailable,
             }) => reply.error(libc::ENETUNREACH),
+            Err(ReadError::NoFileHandle) => reply.error(libc::EBADFD), // Shouldn't happend
+            //According to the man EBADF if the fd is not a valid file descriptor or is not open for reading.
+            Err(ReadError::NoReadPermission) => reply.error(libc::EBADFD),
         }
     }
 
@@ -525,9 +529,9 @@ impl Filesystem for FuseController {
                     "Local creation error should always be the underling libc::open os error",
                 ))
             }
-            Err(WriteError::BadFd) => reply.error(libc::EBADFD),
             Err(WriteError::NoFileHandle) => reply.error(libc::EBADFD), // Shouldn't happend
-            Err(WriteError::NoWritePermission) => reply.error(libc::EPERM), // Shouldn't happend, write not call with wrong perms, already stopped
+            //According to the man EBADF if the fd is not a valid file descriptor or is not open for writing.
+            Err(WriteError::NoWritePermission) => reply.error(libc::EBADF), // Shouldn't happend, write not call with wrong perms, already stopped
         }
     }
 

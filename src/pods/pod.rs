@@ -60,8 +60,8 @@ pub struct Pod {
 
 custom_error! {pub PodInfoError
     WhError{source: WhError} = "{source}",
-    WrongFileType{detail: String} = @{format!("PodInfoError: wrong file type: {detail}")},
-    FileNotFound = @{format!("PodInfoError: file not found")},
+    WrongFileType{detail: String} = "PodInfoError: wrong file type: {detail}",
+    FileNotFound = "PodInfoError: file not found",
 }
 
 pub async fn initiate_connection(
@@ -130,8 +130,8 @@ custom_error! {pub PodStopError
     WhError{source: WhError} = "{source}",
     ArboSavingFailed{source: io::Error} = @{format!("PodStopError: could not write arbo to disk: {source}")},
     PodNotRunning = "No pod with this name was found running.",
-    FileNotReadable{file: InodeId, reason: String} = @{format!("PodStopError: could not read file from disk: ({file}) {reason}")},
-    FileNotSent{file: InodeId} = @{format!("PodStopError: no pod was able to receive this file before stopping: ({file})")}
+    FileNotReadable{file: InodeId, reason: String} = "PodStopError: could not read file from disk: ({file}) {reason}",
+    FileNotSent{file: InodeId} = "PodStopError: no pod was able to receive this file before stopping: ({file})"
 }
 
 impl Pod {
