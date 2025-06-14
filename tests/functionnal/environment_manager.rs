@@ -59,16 +59,8 @@ impl EnvironmentManager {
         };
     }
 
-    fn generate_pipe(pipe_output: bool) -> Stdio {
-        if pipe_output {
-            Stdio::inherit()
-        } else {
-            Stdio::null()
-        }
-    }
-
     /// Create a service on the next available ip. No pods are created.
-    pub fn add_service(&mut self, pipe_output: bool) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn add_service(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let mut ip = self
             .services
             .iter()

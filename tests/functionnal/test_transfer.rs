@@ -11,9 +11,9 @@ fn basic_text_file_transfer() {
     start_log();
     log::info!("vvvvvv basic_text_file_transfer vvvvvv");
     let mut env = EnvironmentManager::new();
-    env.add_service(false).unwrap();
-    env.add_service(false).unwrap();
-    env.add_service(false).unwrap();
+    env.add_service().unwrap();
+    env.add_service().unwrap();
+    env.add_service().unwrap();
     std::thread::sleep(*SLEEP_TIME);
     env.create_network("default".to_string()).unwrap();
 
