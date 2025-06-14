@@ -227,33 +227,33 @@ impl EnvironmentManager {
                     let mut pod_ip = max_pod_ip.clone();
                     pod_ip.set_ip_last(pod_ip.get_ip_last() + 1);
 
-                    log::debug!("\n\n\ncreating pod for service {}", service.ip);
-                    let mut buf = Vec::new();
-                    service
-                        .instance
-                        .stdout
-                        .as_mut()
-                        .unwrap()
-                        .take(1000)
-                        .read(&mut buf)
-                        .unwrap();
-                    log::debug!(
-                        "Service stdout at this time :\n{}",
-                        String::from_utf8_lossy(&buf)
-                    );
-                    let mut buf = Vec::new();
-                    service
-                        .instance
-                        .stderr
-                        .as_mut()
-                        .unwrap()
-                        .take(1000)
-                        .read(&mut buf)
-                        .unwrap();
-                    log::debug!(
-                        "Service stderr at this time :\n{}",
-                        String::from_utf8_lossy(&buf)
-                    );
+                    // log::debug!("\n\n\ncreating pod for service {}", service.ip);
+                    // let mut buf = Vec::new();
+                    // service
+                    //     .instance
+                    //     .stdout
+                    //     .as_mut()
+                    //     .unwrap()
+                    //     .take(1000)
+                    //     .read(&mut buf)
+                    //     .unwrap();
+                    // log::debug!(
+                    //     "Service stdout at this time :\n{}",
+                    //     String::from_utf8_lossy(&buf)
+                    // );
+                    // let mut buf = Vec::new();
+                    // service
+                    //     .instance
+                    //     .stderr
+                    //     .as_mut()
+                    //     .unwrap()
+                    //     .take(1000)
+                    //     .read(&mut buf)
+                    //     .unwrap();
+                    // log::debug!(
+                    //     "Service stderr at this time :\n{}",
+                    //     String::from_utf8_lossy(&buf)
+                    // );
 
                     Self::cli_pod_creation_command(
                         network_name.clone(),
@@ -262,7 +262,10 @@ impl EnvironmentManager {
                         &pod_ip,
                         conn_to.as_ref(),
                     );
-                    (pod_ip.clone(), Some(pod_ip.clone()))
+                    service
+                        .pods
+                        .push((network_name.clone(), pod_ip.clone(), temp_dir));
+                    (pod_ip.clone(), Some(pod_ip))
                 }
             });
         Ok(())
