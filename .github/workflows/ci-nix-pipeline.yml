@@ -47,4 +47,4 @@ jobs:
 
       - name: Test & cache with Cachix
         run: |
-          cachix watch-exec agartha-software -- nix develop --command RUST_LOG=tests=info cargo test -- --nocapture
+          cachix watch-exec agartha-software -- RUST_LOG=tests=info nix develop --command cargo test -- --nocapture
