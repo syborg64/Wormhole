@@ -40,7 +40,7 @@ pub async fn redundancy_worker(
             Ok(peers) => peers,
             Err(e) => {
                 log::error!(
-                    "Redundancy: can't get peers: (ignoring order {:?}) because of: {e}",
+                    "Redundancy: can't get peers: (ignoring request \"{:?}\") because of: {e}",
                     message
                 );
                 continue;
@@ -63,7 +63,8 @@ pub async fn redundancy_worker(
             RedundancyMessage::CheckIntegrity => {
                 let _ =
                     check_integrity(&nw_interface, &fs_interface, redundancy, &peers, &self_addr)
-                        .await;
+                        .await
+                        .inspect_err(|e| log::error!("Redundancy error: {e}"));
             }
         };
     }
@@ -99,8 +100,6 @@ async fn check_integrity(
     peers: &Vec<Address>,
     self_addr: &Address,
 ) -> WhResult<()> {
-    log::debug!("Checking redundancy integrity");
-
     let available_peers = peers.len() + 1;
 
     // Applies redundancy to needed files
@@ -110,7 +109,6 @@ async fn check_integrity(
         .map(|(ino, _)| apply_to(nw_interface, fs_interface, redundancy, peers, self_addr, ino.clone()))
         .collect::<Vec<_>>();
 
-    // couting for: (ok: enough redundancies, er: errors, ih: still not enough hosts)
     let errors: Vec<WhError> = join_all(futures)
         .await
         .into_iter()
@@ -122,7 +120,7 @@ async fn check_integrity(
 
     if errors.len() > 0 {
         log::error!(
-            "Redundancy::check_integrity: {} errors reported !",
+            "Redundancy::check_integrity: {} errors reported ! See below:",
             errors.len()
         );
         errors.iter().for_each(|e| log::error!("{e}"));
