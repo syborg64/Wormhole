@@ -17,7 +17,7 @@ For users and other softwares, the files behaves like any normal files, while th
 The connection between the cli and the service is made by default on the address 127.0.0.1:8081 but can be modified by adding the new address in the command just after the binary (to be done for both)
 
 ```
-cargo run --bin wormhole-service
+cargo run --bin wormholed
 ^---------------------
 Build and run
 ```

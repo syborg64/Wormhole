@@ -64,7 +64,7 @@ impl EnvironnementManager {
             .args(&[
                 "run".to_string(),
                 "--bin".to_string(),
-                "wormhole-service".to_string(),
+                "wormholed".to_string(),
                 ip.to_string(),
             ])
             .stdout(Self::generate_pipe(pipe_output))
