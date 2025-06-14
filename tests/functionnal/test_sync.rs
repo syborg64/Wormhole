@@ -2,13 +2,13 @@ use crate::functionnal::{append_to_path, environnement_manager::SLEEP_TIME};
 
 use super::environnement_manager;
 
-pub use environnement_manager::EnvironnementManager;
+pub use environnement_manager::EnvironmentManager;
 use serial_test::serial;
 
 #[serial]
 #[tokio::test]
 async fn sync_start_state() {
-    let mut env = EnvironnementManager::new();
+    let mut env = EnvironmentManager::new();
     env.add_service(true).unwrap();
     std::thread::sleep(*SLEEP_TIME);
     env.create_network("default".to_owned(), true).unwrap();

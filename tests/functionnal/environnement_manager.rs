@@ -21,8 +21,6 @@ lazy_static! {
         });
 }
 
-
-
 const SERVICE_MAX_PORT: u16 = 9999;
 const SERVICE_MIN_PORT: u16 = 8081;
 const SERVICE_BIN: &str = "./target/debug/wormhole-service";
@@ -45,14 +43,14 @@ impl Drop for Service {
     }
 }
 
-pub struct EnvironnementManager {
+pub struct EnvironmentManager {
     pub services: Vec<Service>,
 }
 
-impl EnvironnementManager {
+impl EnvironmentManager {
     pub fn new() -> Self {
         log::debug!("SLEEP_TIME is {:?}", *SLEEP_TIME);
-        return EnvironnementManager {
+        return EnvironmentManager {
             services: Vec::new(),
         };
     }

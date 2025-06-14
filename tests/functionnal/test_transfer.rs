@@ -2,13 +2,13 @@ use crate::functionnal::{append_to_path, environnement_manager::SLEEP_TIME};
 
 use super::environnement_manager;
 
-pub use environnement_manager::EnvironnementManager;
+pub use environnement_manager::EnvironmentManager;
 use serial_test::serial;
 
 #[serial]
 #[tokio::test]
 async fn basic_text_file_transfer() {
-    let mut env = EnvironnementManager::new();
+    let mut env = EnvironmentManager::new();
     env.add_service(false).unwrap();
     env.add_service(false).unwrap();
     env.add_service(false).unwrap();

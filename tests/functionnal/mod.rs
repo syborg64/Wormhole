@@ -4,7 +4,7 @@ pub mod test_transfer;
 
 use std::path::PathBuf;
 
-pub use environnement_manager::EnvironnementManager;
+pub use environnement_manager::EnvironmentManager;
 
 #[tokio::test]
 async fn start_log() {
