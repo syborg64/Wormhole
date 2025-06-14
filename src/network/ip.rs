@@ -1,3 +1,4 @@
+use std::fmt::{Debug, Display};
 use std::net::Ipv4Addr;
 
 // stands for ip and port
@@ -49,8 +50,8 @@ impl Clone for IpP {
     }
 }
 
-impl ToString for IpP {
-    fn to_string(&self) -> String {
-        format!("{}:{}", self.addr, self.port)
+impl Display for IpP {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}", self.addr, self.port)
     }
 }
