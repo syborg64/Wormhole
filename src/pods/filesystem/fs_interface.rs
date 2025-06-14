@@ -146,7 +146,7 @@ impl FsInterface {
     }
 
     pub fn recept_redundancy(&self, id: InodeId, binary: Arc<Vec<u8>>) -> WhResult<()> {
-        let path = Arbo::read_lock(&self.arbo, "recept_binary")
+        let path = Arbo::read_lock(&self.arbo, "recept_redundancy")
             .expect("recept_binary: can't read lock arbo")
             .n_get_path_from_inode_id(id)?;
 
@@ -157,7 +157,7 @@ impl FsInterface {
         // TODO -> in case of failure, other hosts still think this one is valid. Should send error report to the redundancy manager
 
         let address =
-            LocalConfig::read_lock(&self.network_interface.local_config, "revoke_remote_hosts")?
+            LocalConfig::read_lock(&self.network_interface.local_config, "recept_redundancy")?
                 .general
                 .address
                 .clone();
