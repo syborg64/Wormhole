@@ -6,9 +6,8 @@ use std::path::PathBuf;
 
 pub use environment_manager::EnvironmentManager;
 
-#[tokio::test]
-async fn start_log() {
-    env_logger::init();
+fn start_log() {
+    let _ = env_logger::builder().is_test(true).try_init();
 }
 
 fn append_to_path(p: &PathBuf, s: &str) -> PathBuf {

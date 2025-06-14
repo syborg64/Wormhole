@@ -12,6 +12,8 @@ use lazy_static::lazy_static;
 use std::process::Stdio;
 use wormhole::network::ip::IpP;
 
+use crate::functionnal::start_log;
+
 lazy_static! {
     pub static ref SLEEP_TIME: Duration =
         Duration::from_secs_f32(if let Ok(str_st) = var("SLEEP_TIME") {
@@ -49,7 +51,8 @@ pub struct EnvironmentManager {
 
 impl EnvironmentManager {
     pub fn new() -> Self {
-        log::debug!("SLEEP_TIME is {:?}", *SLEEP_TIME);
+        start_log();
+        log::info!("SLEEP_TIME for this test is {:?}", *SLEEP_TIME);
         return EnvironmentManager {
             services: Vec::new(),
         };
@@ -116,7 +119,7 @@ impl EnvironmentManager {
             }
         };
 
-        log::info!("Service started on {}", ip.to_string());
+        log::trace!("Service started on {}", ip.to_string());
         self.services.push(Service {
             instance,
             stdin: write,
@@ -152,7 +155,7 @@ impl EnvironmentManager {
         pipe_output: bool,
     ) -> Result<std::process::ExitStatus, Box<dyn std::error::Error>> {
         let mut command = std::process::Command::new(CLI_BIN);
-        log::info!("Cli template command.");
+        log::trace!("Cli template command.");
         command
             .args(&[
                 "template".to_string(),
@@ -165,7 +168,7 @@ impl EnvironmentManager {
             .wait()?;
 
         let mut command = std::process::Command::new(CLI_BIN);
-        log::info!("Cli new pod command.");
+        log::trace!("Cli new pod command.");
         Ok(command
             .args({
                 let mut args = vec![
@@ -232,7 +235,7 @@ impl EnvironmentManager {
                             service
                                 .pods
                                 .push((network_name.clone(), pod_ip.clone(), temp_dir));
-                            log::info!("pod created successfully");
+                            log::trace!("pod created successfully");
                             Some(pod_ip)
                         }
                         Ok(status) => panic!("Error code from the cli: {status}"),
