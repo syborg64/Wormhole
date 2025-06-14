@@ -5,27 +5,23 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 use crate::{commands::cli_commands::Cli, error::CliResult};
 
 pub async fn cli_messager(ip: &str, cli: Cli) -> CliResult<String> {
-    // Se connecter au service sur le port dédié pour la CLI (par exemple, 8081)
     let (mut ws_stream, _) = connect_async(format!("ws://{}", ip)).await?;
-    log::info!("Connecté au service sur {}", format!("ws://{}", ip));
+    log::info!("Service connected at ws://{ip}");
 
-    // Envoyer la commande au service
     let bytes = bincode::serialize(&cli)?;
     ws_stream.send(Message::Binary(bytes)).await?;
-    log::info!("Commande envoyée : {:?}", cli);
 
     let mut output = "".to_string();
-    // Attendre la réponse du service
     while let Ok(Some(msg)) = ws_stream.try_next().await {
         if msg.is_text() {
             let response = msg.to_text()?;
-            log::info!("Réponse du service : {}", response);
+            log::info!("Service answer: {}", response);
             output = response.to_string();
             break;
         }
     }
 
     ws_stream.close(None).await?;
-    log::info!("Connexion fermée");
+    log::info!("Connection closed");
     Ok(output)
 }

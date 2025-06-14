@@ -23,8 +23,8 @@ lazy_static! {
 
 const SERVICE_MAX_PORT: u16 = 9999;
 const SERVICE_MIN_PORT: u16 = 8081;
-const SERVICE_BIN: &str = "./target/debug/wormhole-service";
-const CLI_BIN: &str = "./target/debug/wormhole-cli"; // REVIEW - don't forget to change after pr #172
+const SERVICE_BIN: &str = "./target/debug/wormholed";
+const CLI_BIN: &str = "./target/debug/wormhole";
 
 pub struct Service {
     pub instance: std::process::Child,

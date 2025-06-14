@@ -146,21 +146,18 @@ impl FsInterface {
     }
 
     pub fn recept_redundancy(&self, id: InodeId, binary: Arc<Vec<u8>>) -> WhResult<()> {
-        let path = Arbo::read_lock(&self.arbo, "recept_binary")
+        let path = Arbo::read_lock(&self.arbo, "recept_redundancy")
             .expect("recept_binary: can't read lock arbo")
             .n_get_path_from_inode_id(id)?;
 
         self.disk
             .write_file(&path, &binary, 0)
-            .map_err(|e| WhError::DiskError {
-                detail: format!("recept_redundancy: can't write file ({id})"),
-                err: e,
-            })
-            .inspect_err(|e| log::error!("{e}"))?;
+            .inspect_err(|e| log::error!("{e}"))
+            .expect("disk error");
         // TODO -> in case of failure, other hosts still think this one is valid. Should send error report to the redundancy manager
 
         let address =
-            LocalConfig::read_lock(&self.network_interface.local_config, "revoke_remote_hosts")?
+            LocalConfig::read_lock(&self.network_interface.local_config, "recept_redundancy")?
                 .general
                 .address
                 .clone();
@@ -180,8 +177,7 @@ impl FsInterface {
                 .clone();
         let arbo = Arbo::read_lock(&self.arbo, "recept_binary")
             .expect("recept_binary: can't read lock arbo");
-        let (path, perms) = match Arbo::read_lock(&self.arbo, "recept_binary")
-            .expect("recept_binary: can't read lock arbo")
+        let (path, perms) = match arbo
             .n_get_path_from_inode_id(id)
             .and_then(|path| arbo.n_get_inode(id).map(|inode| (path, inode.meta.perm)))
         {
@@ -194,7 +190,6 @@ impl FsInterface {
             }
         };
         drop(arbo);
-
         let _created = self.disk.new_file(&path, perms);
         let status = self
             .disk
