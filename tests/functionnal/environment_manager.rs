@@ -52,7 +52,7 @@ pub struct EnvironmentManager {
 impl EnvironmentManager {
     pub fn new() -> Self {
         start_log();
-        log::info!("SLEEP_TIME for this test is {:?}", *SLEEP_TIME);
+        log::trace!("SLEEP_TIME for this test is {:?}", *SLEEP_TIME);
         return EnvironmentManager {
             services: Vec::new(),
         };

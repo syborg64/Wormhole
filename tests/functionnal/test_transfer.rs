@@ -8,6 +8,8 @@ use serial_test::serial;
 #[serial]
 #[test]
 fn basic_text_file_transfer() {
+    start_log();
+    log::info!("vvvvvv basic_text_file_transfer vvvvvv");
     let mut env = EnvironmentManager::new();
     env.add_service(false).unwrap();
     env.add_service(false).unwrap();
@@ -31,4 +33,5 @@ fn basic_text_file_transfer() {
         }
     }
     std::thread::sleep(*SLEEP_TIME);
+    log::info!("^^^^^^ basic_text_file_transfer ^^^^^^");
 }
