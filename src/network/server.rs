@@ -41,7 +41,6 @@ impl Server {
             err: e,
         })?;
 
-        log::debug!("made bind on {}", addr);
         Ok(Server {
             listener: listener,
             state: PeerMap::new(Mutex::new(HashMap::new())),

@@ -54,5 +54,6 @@ fn sync_start_state() {
             ),
         }
     }
+    std::thread::sleep(*SLEEP_TIME);
     log::info!("^^^^^^ basic_text_file_transfer ^^^^^^");
 }

@@ -31,9 +31,7 @@ pub async fn cli_messager(ip: &str, cli: Cli) -> CliResult<String> {
     ws_stream.close(None).await?;
     log::info!("Connection closed");
     if has_error {
-        Err(crate::error::CliError::Message {
-            reason: "got an error".to_string(),
-        })
+        Err(crate::error::CliError::Message { reason: output })
     } else {
         Ok(output)
     }

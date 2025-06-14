@@ -1,7 +1,7 @@
 use std::{
     cmp::max,
     env::var,
-    io::{self, Read},
+    io::{self, Read, Write},
     os::{fd::AsFd, unix::net::UnixStream},
     path::Path,
     process::ExitStatus,
@@ -40,9 +40,17 @@ pub struct Service {
 
 impl Drop for Service {
     fn drop(&mut self) {
-        self.instance.kill().expect("service couldn't be killed");
-        // necessary for some os :
+        self.instance.stdin.take().unwrap().write(&[4]).unwrap();
         let _ = self.instance.wait();
+        log::info!(
+            "Stopped service {}\nStopped pods:\n{:?}",
+            self.ip,
+            self.pods
+                .iter()
+                .map(|(_, ip, _)| ip.to_string())
+                .collect::<Vec<String>>()
+                .join("\n")
+        );
     }
 }
 
@@ -92,13 +100,11 @@ impl EnvironmentManager {
             "service port upper limit ({SERVICE_MAX_PORT}) exceeded"
         );
 
-        let stdio = Stdio::from(read.as_fd().try_clone_to_owned().unwrap());
-
         let mut instance = std::process::Command::new(SERVICE_BIN)
             .args(&[ip.to_string()])
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .stdin(stdio)
+            .stdin(Stdio::piped())
             .spawn()?;
 
         std::thread::sleep(*SLEEP_TIME);
@@ -128,7 +134,7 @@ impl EnvironmentManager {
             ip.to_string()
         );
 
-        log::trace!("Service started on {}", ip.to_string());
+        log::info!("Service started on {}", ip.to_string());
         self.services.push(Service {
             instance,
             stdin: write,
@@ -166,7 +172,7 @@ impl EnvironmentManager {
         dir_path: &Path,
         ip: &IpP,
         connect_to: Option<&IpP>,
-    ) {
+    ) -> IpP {
         let (status, _, _) = Self::cli_command(&[
             service_ip.to_string().as_ref(),
             "template",
@@ -175,24 +181,42 @@ impl EnvironmentManager {
         ]);
         assert!(status.success(), "template cli command failed");
 
-        let (status, _, _) = Self::cli_command({
-            let mut args = vec![
-                service_ip.to_string(), // service ip
-                "new".to_string(),
-                network_name, // network name
-                "-C".to_string(),
-                dir_path.to_string_lossy().to_string(),
-                "-i".to_string(),
-                ip.to_string(),
-            ];
+        let mut ip = ip.clone();
 
-            if let Some(peer) = connect_to {
-                args.push("-u".to_string());
-                args.push(peer.to_string());
+        loop {
+            let (status, _, stderr) = Self::cli_command({
+                let mut args = vec![
+                    service_ip.to_string(), // service ip
+                    "new".to_string(),
+                    network_name.clone(), // network name
+                    "-C".to_string(),
+                    dir_path.to_string_lossy().to_string(),
+                    "-i".to_string(),
+                    ip.to_string(),
+                ];
+
+                if let Some(peer) = connect_to {
+                    args.push("-u".to_string());
+                    args.push(peer.to_string());
+                }
+                args
+            });
+            if !status.success() && !stderr.contains("AddrInUse") {
+                log::error!("Cli stderr: {}", stderr);
+                assert!(status.success(), "'new' cli command failed");
+            } else if !status.success() {
+                assert!(
+                    ip.get_ip_last() < 100,
+                    "seems that 100+ pods are already running"
+                );
+                log::warn!("Pod ip {} already in use", ip);
+                ip.set_ip_last(ip.get_ip_last() + 1);
+            } else {
+                log::trace!("Created pod on {}", ip);
+                break;
             }
-            args
-        });
-        assert!(status.success(), "'new' cli command failed");
+        }
+        ip
     }
 
     /// Create pod connected to a network for each service running
@@ -263,7 +287,7 @@ impl EnvironmentManager {
                     //     String::from_utf8_lossy(&buf)
                     // );
 
-                    Self::cli_pod_creation_command(
+                    let pod_ip = Self::cli_pod_creation_command(
                         network_name.clone(),
                         &service.ip,
                         temp_dir.path(),
