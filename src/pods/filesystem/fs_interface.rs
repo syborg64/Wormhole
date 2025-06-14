@@ -177,8 +177,7 @@ impl FsInterface {
                 .clone();
         let arbo = Arbo::read_lock(&self.arbo, "recept_binary")
             .expect("recept_binary: can't read lock arbo");
-        let (path, perms) = match Arbo::read_lock(&self.arbo, "recept_binary")
-            .expect("recept_binary: can't read lock arbo")
+        let (path, perms) = match arbo
             .n_get_path_from_inode_id(id)
             .and_then(|path| arbo.n_get_inode(id).map(|inode| (path, inode.meta.perm)))
         {
