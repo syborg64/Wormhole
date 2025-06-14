@@ -1,10 +1,10 @@
-pub mod environnement_manager;
+pub mod environment_manager;
 pub mod test_sync;
 pub mod test_transfer;
 
 use std::path::PathBuf;
 
-pub use environnement_manager::EnvironmentManager;
+pub use environment_manager::EnvironmentManager;
 
 #[tokio::test]
 async fn start_log() {

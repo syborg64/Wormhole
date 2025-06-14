@@ -1,8 +1,8 @@
-use crate::functionnal::{append_to_path, environnement_manager::SLEEP_TIME};
+use crate::functionnal::{append_to_path, environment_manager::SLEEP_TIME};
 
-use super::environnement_manager;
+use super::environment_manager;
 
-pub use environnement_manager::EnvironmentManager;
+pub use environment_manager::EnvironmentManager;
 use serial_test::serial;
 
 #[serial]
