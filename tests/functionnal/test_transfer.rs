@@ -15,7 +15,7 @@ fn basic_text_file_transfer() {
     env.add_service(false).unwrap();
     env.add_service(false).unwrap();
     std::thread::sleep(*SLEEP_TIME);
-    env.create_network("default".to_string(), false).unwrap();
+    env.create_network("default".to_string()).unwrap();
 
     std::thread::sleep(*SLEEP_TIME);
     let file_path = append_to_path(&env.services[0].pods[0].2.path().to_owned(), "/foo.txt");

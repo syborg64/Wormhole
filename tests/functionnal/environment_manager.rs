@@ -1,6 +1,7 @@
 use std::{
+    cmp::max,
     env::var,
-    io,
+    io::{self, Read},
     os::{fd::AsFd, unix::net::UnixStream},
     path::Path,
     process::ExitStatus,
@@ -10,7 +11,7 @@ use std::{
 use assert_fs::TempDir;
 use lazy_static::lazy_static;
 use std::process::Stdio;
-use wormhole::network::ip::IpP;
+use wormhole::{commands::cli_commands, network::ip::IpP};
 
 use crate::functionnal::start_log;
 
@@ -93,15 +94,15 @@ impl EnvironmentManager {
 
             let mut instance = std::process::Command::new(SERVICE_BIN)
                 .args(&[ip.to_string()])
-                .stdout(Self::generate_pipe(false))
-                .stderr(Self::generate_pipe(false))
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
                 .stdin(stdio)
                 .spawn()?;
 
             std::thread::sleep(*SLEEP_TIME);
 
             // checks the service viability
-            let (status, out, _) = Self::cli_command(&[&ip.to_string(), "status"]).unwrap();
+            let (status, out, _) = Self::cli_command(&[&ip.to_string(), "status"]);
             if !out.contains(&ip.to_string()) {
                 log::warn!(
                     "\nService created on {} isn't answering proper status.\n(code {}).\nCli stdout: \"{}\"\nWill try other ports.\n",
@@ -132,17 +133,22 @@ impl EnvironmentManager {
 
     /// Runs a command with the cli and returns it's stdout
     /// Returns (status, stdio, stderr)
-    fn cli_command<I, S>(args: I) -> io::Result<(ExitStatus, String, String)>
+    fn cli_command<I, S>(args: I) -> (ExitStatus, String, String)
     where
-        I: IntoIterator<Item = S>,
+        I: IntoIterator<Item = S> + std::fmt::Debug,
         S: AsRef<std::ffi::OsStr>,
     {
-        let output = std::process::Command::new(CLI_BIN).args(args).output()?;
-        Ok((
+        log::trace!("Cli command with args {:?}", args);
+
+        let output = std::process::Command::new(CLI_BIN)
+            .args(args)
+            .output()
+            .expect("can't launch cli command");
+        (
             output.status,
             std::str::from_utf8(&output.stdout).unwrap().to_string(),
             std::str::from_utf8(&output.stderr).unwrap().to_string(),
-        ))
+        )
     }
 
     /// Cli commands to create a pod
@@ -152,97 +158,111 @@ impl EnvironmentManager {
         dir_path: &Path,
         ip: &IpP,
         connect_to: Option<&IpP>,
-        pipe_output: bool,
-    ) -> Result<std::process::ExitStatus, Box<dyn std::error::Error>> {
-        let mut command = std::process::Command::new(CLI_BIN);
-        log::trace!("Cli template command.");
-        command
-            .args(&[
-                "template".to_string(),
+    ) {
+        let (status, _, _) = Self::cli_command(&[
+            service_ip.to_string().as_ref(),
+            "template",
+            "-C",
+            dir_path.to_string_lossy().to_string().as_ref(),
+        ]);
+        assert!(status.success(), "template cli command failed");
+
+        let (status, _, _) = Self::cli_command({
+            let mut args = vec![
+                service_ip.to_string(), // service ip
+                "new".to_string(),
+                network_name, // network name
                 "-C".to_string(),
                 dir_path.to_string_lossy().to_string(),
-            ])
-            .stdout(Self::generate_pipe(pipe_output))
-            .stderr(Self::generate_pipe(pipe_output))
-            .spawn()?
-            .wait()?;
+                "-i".to_string(),
+                ip.to_string(),
+            ];
 
-        let mut command = std::process::Command::new(CLI_BIN);
-        log::trace!("Cli new pod command.");
-        Ok(command
-            .args({
-                let mut args = vec![
-                    service_ip.to_string(), // service ip
-                    "new".to_string(),
-                    network_name, // network name
-                    "-C".to_string(),
-                    dir_path.to_string_lossy().to_string(),
-                    "-i".to_string(),
-                    ip.to_string(),
-                ];
-
-                if let Some(peer) = connect_to {
-                    args.push("-u".to_string());
-                    args.push(peer.to_string());
-                }
-                args
-            })
-            .stdout(Self::generate_pipe(pipe_output))
-            .stderr(Self::generate_pipe(pipe_output))
-            .spawn()?
-            .wait()?)
+            if let Some(peer) = connect_to {
+                args.push("-u".to_string());
+                args.push(peer.to_string());
+            }
+            args
+        });
+        assert!(status.success(), "'new' cli command failed");
     }
 
     /// Create pod connected to a network for each service running
     /// except if the service already has a pod on that network
+    ///
+    /// Pods connecting to an existing network have no guarantee on which pod they will connect
     pub fn create_network(
         &mut self,
         network_name: String,
-        pipe_output: bool,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let last_pod_ip = self
+        // find the next available pod ip
+        let max_pod_ip = self
             .services
             .iter()
             .map(|service| &service.pods)
             .flatten()
             .max_by(|(_, ip, _), (_, ip2, _)| ip.get_ip_last().cmp(&ip2.get_ip_last()))
+            .map(|(_, ip, _)| ip.clone())
+            .unwrap_or(IpP::try_from("127.0.0.1:8080").unwrap());
+
+        // find an ip of a pod already on this network (if any)
+        let conn_to = self
+            .services
+            .iter()
+            .map(|s| &s.pods)
+            .flatten()
+            .find(|(nw, _, _)| *nw == network_name)
             .map(|(_, ip, _)| ip.clone());
 
         self.services
             .iter_mut()
-            .fold(last_pod_ip, |conn_to, service| {
+            .fold((max_pod_ip, conn_to), |(max_pod_ip, conn_to), service| {
                 if let Some((_, ip, _)) = service.pods.iter().find(|(nw, _, _)| *nw == network_name)
                 {
-                    Some(ip.clone())
+                    // The service already runs a pod on this network
+                    (max_pod_ip, Some(ip.clone()))
                 } else {
+                    // The service does not runs a pod on this network
                     let temp_dir = assert_fs::TempDir::new().expect("can't create temp dir");
-                    let mut pod_ip = conn_to
-                        .clone()
-                        .unwrap_or(IpP::try_from(&"127.0.0.1:8080".to_string()).unwrap());
+                    let mut pod_ip = max_pod_ip.clone();
                     pod_ip.set_ip_last(pod_ip.get_ip_last() + 1);
 
-                    let exit_status = Self::cli_pod_creation_command(
+                    log::debug!("\n\n\ncreating pod for service {}", service.ip);
+                    let mut buf = Vec::new();
+                    service
+                        .instance
+                        .stdout
+                        .as_mut()
+                        .unwrap()
+                        .take(1000)
+                        .read(&mut buf)
+                        .unwrap();
+                    log::debug!(
+                        "Service stdout at this time :\n{}",
+                        String::from_utf8_lossy(&buf)
+                    );
+                    let mut buf = Vec::new();
+                    service
+                        .instance
+                        .stderr
+                        .as_mut()
+                        .unwrap()
+                        .take(1000)
+                        .read(&mut buf)
+                        .unwrap();
+                    log::debug!(
+                        "Service stderr at this time :\n{}",
+                        String::from_utf8_lossy(&buf)
+                    );
+
+                    Self::cli_pod_creation_command(
                         network_name.clone(),
                         &service.ip,
                         temp_dir.path(),
                         &pod_ip,
                         conn_to.as_ref(),
-                        pipe_output,
                     );
-
-                    match exit_status {
-                        Ok(status) if status.success() => {
-                            service
-                                .pods
-                                .push((network_name.clone(), pod_ip.clone(), temp_dir));
-                            log::trace!("pod created successfully");
-                            Some(pod_ip)
-                        }
-                        Ok(status) => panic!("Error code from the cli: {status}"),
-                        Err(e) => {
-                            panic!("Cli command to create pod failed: {e}");
-                        }
-                    }
+                    (pod_ip.clone(), Some(pod_ip.clone()))
                 }
             });
         Ok(())
