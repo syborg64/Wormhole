@@ -120,6 +120,14 @@ impl EnvironmentManager {
             assert!(false, "Service {} isn't answering properly", ip.to_string());
         }
 
+        let is_exited = instance.try_wait();
+        assert!(is_exited.is_ok());
+        assert!(
+            is_exited.unwrap().is_none(),
+            "Service {} exited unexpectedly",
+            ip.to_string()
+        );
+
         log::trace!("Service started on {}", ip.to_string());
         self.services.push(Service {
             instance,
