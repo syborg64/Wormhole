@@ -77,40 +77,48 @@ impl EnvironmentManager {
 
         let (write, read) = std::os::unix::net::UnixStream::pair()?;
 
-        let instance = loop {
-            assert!(
-                ip.port < SERVICE_MAX_PORT,
-                "service port upper limit ({SERVICE_MAX_PORT}) exceeded"
+        // checks that no service is running on this ip
+        let (mut status, _, _) = Self::cli_command(&[&ip.to_string(), "status"]);
+        while status.success() {
+            log::warn!(
+                "\nA service is already running on {}. Trying next port...",
+                ip.to_string(),
             );
-            let stdio = Stdio::from(read.as_fd().try_clone_to_owned().unwrap());
+            ip.set_port(ip.port + 1);
+            (status, _, _) = Self::cli_command(&[&ip.to_string(), "status"]);
+        }
+        assert!(
+            ip.port < SERVICE_MAX_PORT,
+            "service port upper limit ({SERVICE_MAX_PORT}) exceeded"
+        );
 
-            let mut instance = std::process::Command::new(SERVICE_BIN)
-                .args(&[ip.to_string()])
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .stdin(stdio)
-                .spawn()?;
+        let stdio = Stdio::from(read.as_fd().try_clone_to_owned().unwrap());
 
-            std::thread::sleep(*SLEEP_TIME);
+        let mut instance = std::process::Command::new(SERVICE_BIN)
+            .args(&[ip.to_string()])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .stdin(stdio)
+            .spawn()?;
 
-            // checks the service viability
-            let (status, out, _) = Self::cli_command(&[&ip.to_string(), "status"]);
-            if !out.contains(&ip.to_string()) {
-                log::warn!(
-                    "\nService created on {} isn't answering proper status.\n(code {}).\nCli stdout: \"{}\"\nWill try other ports.\n",
+        std::thread::sleep(*SLEEP_TIME);
+
+        // checks the service viability
+        let (status, out, err) = Self::cli_command(&[&ip.to_string(), "status"]);
+        if !out.contains(&ip.to_string()) {
+            log::error!(
+                    "\nService created on {} isn't answering proper status.\n(code {}).\nCli stdout: \"{}\"\n\nCli stderr: \"{}\"\n",
                     ip.to_string(),
                     status,
                     out,
+                    err,
                 );
 
-                instance.kill().unwrap();
-                let _ = instance.wait(); // necessary on some os
+            instance.kill().unwrap();
+            let _ = instance.wait(); // necessary on some os
 
-                ip.set_port(ip.port + 1);
-            } else {
-                break instance;
-            }
-        };
+            assert!(false, "Service {} isn't answering properly", ip.to_string());
+        }
 
         log::trace!("Service started on {}", ip.to_string());
         self.services.push(Service {
@@ -125,7 +133,7 @@ impl EnvironmentManager {
 
     /// Runs a command with the cli and returns it's stdout
     /// Returns (status, stdio, stderr)
-    fn cli_command<I, S>(args: I) -> (ExitStatus, String, String)
+    pub fn cli_command<I, S>(args: I) -> (ExitStatus, String, String)
     where
         I: IntoIterator<Item = S> + std::fmt::Debug,
         S: AsRef<std::ffi::OsStr>,
