@@ -24,12 +24,12 @@ path = "src/bin/service.rs"
 [target.'cfg(windows)'.dependencies.winfsp]
 default-features = false
 features = ["stable", "system", "windows-rs-error", "handle-util"]
-version = "0.11.4"
+version = "0.11.3"
 
 [target.'cfg(windows)'.build-dependencies.winfsp]
 default-features = false
 features = ["stable", "windows-rs-error", "delayload"]
-version = "0.11.4"
+version = "0.11.3"
 
 [target.'cfg(unix)'.dependencies]
 fuser = "0.15.1"

@@ -28,18 +28,11 @@ use crate::pods::{
     whpath::WhPath,
 };
 
-pub struct WinfspHost(FileSystemHost);
 
 #[derive(PartialEq, Debug)]
 pub struct WormholeHandle {
     pub ino: InodeId,
     pub handle: u64,
-}
-
-impl std::fmt::Debug for WinfspHost {
-    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Ok(())
-    }
 }
 
 pub struct FSPController {
@@ -48,6 +41,14 @@ pub struct FSPController {
     pub dummy_file: OsString,
     pub mount_point: WhPath,
     // pub provider: Arc<RwLock<Provider<WindowsFolderHandle>>>,
+}
+
+pub struct WinfspHost(FileSystemHost<FSPController>);
+
+impl std::fmt::Debug for WinfspHost {
+    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Ok(())
+    }
 }
 
 impl Drop for FSPController {
@@ -104,7 +105,7 @@ pub fn mount_fsp(
         dummy_file: "dummy".into(), // dummy_file: (&path.clone().rename(&("dummy_file").to_string()).inner).into(),
     };
     log::debug!("creating host...");
-    let mut host = FileSystemHost::new::<FSPController>(volume_params, wormhole_context)
+    let mut host = FileSystemHost::<FSPController>::new(volume_params, wormhole_context)
         .map_err(|_| std::io::Error::new(ErrorKind::Other, "oh no!"))?;
     log::debug!("created host...");
 
