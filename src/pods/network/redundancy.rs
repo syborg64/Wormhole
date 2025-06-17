@@ -88,11 +88,12 @@ fn eligible_to_apply(
         return None;
     }
     let hosts = if let FsEntry::File(hosts) = entry {
+        let mut hosts = hosts.clone();
+        hosts.sort();
         hosts
     } else {
         return None;
     };
-    hosts.clone().sort();
     if hosts.len() < target_redundancy as usize
         && available_peers > hosts.len()
         && hosts[0] == *self_addr
