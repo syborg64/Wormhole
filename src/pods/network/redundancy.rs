@@ -79,18 +79,28 @@ pub async fn redundancy_worker(
 /// Intended for use in the check_intergrity function
 fn eligible_to_apply(
     ino: InodeId,
+    entry: &FsEntry,
     target_redundancy: u64,
     available_peers: usize,
-    hosts: &Vec<Address>,
     self_addr: &Address,
-) -> bool {
+) -> Option<InodeId> {
     if Arbo::is_local_only(ino) {
-        return false;
+        return None;
     }
+    let hosts = if let FsEntry::File(hosts) = entry {
+        hosts
+    } else {
+        return None;
+    };
     hosts.clone().sort();
-    hosts.len() < target_redundancy as usize
+    if hosts.len() < target_redundancy as usize
         && available_peers > hosts.len()
         && hosts[0] == *self_addr
+    {
+        Some(ino)
+    } else {
+        None
+    }
 }
 
 async fn check_integrity(
@@ -105,8 +115,19 @@ async fn check_integrity(
     // Applies redundancy to needed files
     let futures = Arbo::n_read_lock(&nw_interface.arbo, "redundancy: check_integrity")?
         .iter()
-        .filter(|(ino, inode)| matches!(&inode.entry, FsEntry::File(hosts) if eligible_to_apply(**ino, redundancy, available_peers, hosts, self_addr)))
-        .map(|(ino, _)| apply_to(nw_interface, fs_interface, redundancy, peers, self_addr, ino.clone()))
+        .filter_map(|(ino, inode)| {
+            eligible_to_apply(*ino, &inode.entry, redundancy, available_peers, self_addr)
+        })
+        .map(|ino| {
+            apply_to(
+                nw_interface,
+                fs_interface,
+                redundancy,
+                peers,
+                self_addr,
+                ino.clone(),
+            )
+        })
         .collect::<Vec<_>>();
 
     let errors: Vec<WhError> = join_all(futures)
