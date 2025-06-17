@@ -142,7 +142,8 @@ async fn apply_to(
     let file_binary = Arc::new(fs_interface.read_local_file(ino)?);
 
     let missing_hosts_count: usize;
-    let target_redundancy = if (redundancy - 1) as usize > peers.len() {
+    let available_hosts = peers.len() + 1; // + myself
+    let target_redundancy = if redundancy as usize > available_hosts {
         missing_hosts_count = redundancy as usize - peers.len();
         peers.len()
     } else {
