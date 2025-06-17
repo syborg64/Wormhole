@@ -141,12 +141,12 @@ async fn apply_to(
     }
     let file_binary = Arc::new(fs_interface.read_local_file(ino)?);
 
-    let missing_hosts_number: usize;
+    let missing_hosts_count: usize;
     let target_redundancy = if (redundancy - 1) as usize > peers.len() {
-        missing_hosts_number = redundancy as usize - peers.len();
+        missing_hosts_count = redundancy as usize - peers.len();
         peers.len()
     } else {
-        missing_hosts_number = 0;
+        missing_hosts_count = 0;
         (redundancy - 1) as usize
     };
 
@@ -161,7 +161,7 @@ async fn apply_to(
     .await;
 
     nw_interface.update_hosts(ino, new_hosts)?;
-    Ok(missing_hosts_number)
+    Ok(missing_hosts_count)
 }
 
 /// start download to others concurrently
