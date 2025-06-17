@@ -84,7 +84,7 @@ fn eligible_to_apply(
     hosts: &Vec<Address>,
     self_addr: &Address,
 ) -> bool {
-    if Arbo::is_special(ino) {
+    if Arbo::is_local_only(ino) {
         return false;
     }
     hosts.clone().sort();
@@ -136,8 +136,8 @@ async fn apply_to(
     self_addr: &Address,
     ino: u64,
 ) -> WhResult<usize> {
-    if Arbo::is_special(ino) {
-        return Ok(0); // NOTE is a silent error ok ?
+    if Arbo::is_local_only(ino) {
+        return Ok(0);
     }
     let file_binary = Arc::new(fs_interface.read_local_file(ino)?);
 
