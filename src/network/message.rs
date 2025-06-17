@@ -20,8 +20,9 @@ pub enum MessageContent {
     RequestFile(InodeId, Address),
     PullAnswer(InodeId, Vec<u8>),
     RedundancyFile(InodeId, Vec<u8>),
+
+    /// (Parent, New Parent, Name, New Name, overwrite)
     Rename(InodeId, InodeId, String, String, bool),
-    /// Parent, New Parent, Name, New Name, overwrite
     EditHosts(InodeId, Vec<Address>),
     RevokeFile(InodeId, Address, Metadata),
     AddHosts(InodeId, Vec<Address>),
@@ -31,7 +32,8 @@ pub enum MessageContent {
     RemoveXAttr(InodeId, String),
     RequestFs,
     Disconnect(Address),
-    // Arbo, peers, .global_config
+
+    // (Arbo, peers, global_config)
     FsAnswer(FileSystemSerialized, Vec<Address>, Vec<u8>),
 }
 
