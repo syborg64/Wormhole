@@ -20,7 +20,7 @@ custom_error! {pub SetAttrError
     SizeNoPerm = "Edit size require to have the write permission on the file",
     InvalidFileHandle = "File handle not found in the open file handles",
     SetFileSizeIoError { io: std::io::Error } = "Set file size disk side failed: {io}",
-    SetPermIoError { io: std::io::Error } = "Set file size disk side failed : {io}"
+    SetPermIoError { io: std::io::Error } = "Set file permissions disk side failed : {io}"
 }
 
 custom_error! {pub AcknoledgeSetAttrError
