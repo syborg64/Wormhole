@@ -28,7 +28,6 @@ use crate::pods::{
     whpath::WhPath,
 };
 
-
 #[derive(PartialEq, Debug)]
 pub struct WormholeHandle {
     pub ino: InodeId,

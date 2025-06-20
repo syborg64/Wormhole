@@ -1,7 +1,4 @@
-use crate::pods::filesystem::{
-    file_handle::OpenFlags,
-    fs_interface::SimpleFileType,
-};
+use crate::pods::filesystem::{file_handle::OpenFlags, fs_interface::SimpleFileType};
 
 const FMODE_EXEC: i32 = 0x20;
 
