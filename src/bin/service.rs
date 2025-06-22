@@ -260,6 +260,8 @@ async fn get_cli_command(stream: tokio::net::TcpStream) -> WhResult<(Cli, CliTcp
     Ok((cmd, writer))
 }
 
+const MAX_TRY_PORTS: u8 = 10;
+const MAX_PORT: u16 = 65535;
 /// Listens for CLI calls and launch one tcp instance per cli command
 /// if `specific_ip` is not given, will try all ports starting from 8081 to 9999, incrementing until success
 /// if `specific_ip` is given, will try the given ip and fail on error.
@@ -272,6 +274,7 @@ async fn start_cli_listener(
         .expect("start_cli_listener: invalid ip provided");
     log::debug!("Starting CLI's TcpListener on {}", ip.to_string());
 
+    let mut port_tries_count = 0;
     let mut listener = TcpListener::bind(&ip.to_string()).await;
     while let Err(e) = listener {
         if let Some(_) = specific_ip {
@@ -282,8 +285,11 @@ async fn start_cli_listener(
             );
             panic!("Unable to start cli_listener");
         }
-        if ip.port > 9999 {
-            panic!("Unable to start cli_listener (not testing ports above 9999)");
+        if ip.port >= MAX_PORT {
+            panic!("Unable to start cli_listener (not testing ports above {MAX_PORT})");
+        }
+        if port_tries_count > MAX_TRY_PORTS {
+            panic!("Unable to start cli_listener (tested {MAX_TRY_PORTS}/{MAX_TRY_PORTS})");
         }
         log::error!(
             "Address {} not available due to {}, switching...",
@@ -291,6 +297,7 @@ async fn start_cli_listener(
             e
         );
         ip.set_port(ip.port + 1);
+        port_tries_count += 1;
         log::debug!("Starting CLI's TcpListener on {}", ip.to_string());
         listener = TcpListener::bind(&ip.to_string()).await;
     }
