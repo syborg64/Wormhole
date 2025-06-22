@@ -1,20 +1,13 @@
-use std::{
-    cmp::max,
-    env::var,
-    io::{self, Read, Write},
-    os::{fd::AsFd, unix::net::UnixStream},
-    path::Path,
-    process::ExitStatus,
-    time::Duration,
-};
+use std::{env::var, path::Path, process::ExitStatus, time::Duration};
 
 use assert_fs::TempDir;
 use lazy_static::lazy_static;
 use std::process::Stdio;
-use wormhole::{commands::cli_commands, network::ip::IpP};
+use wormhole::network::ip::IpP;
 
 use crate::functionnal::start_log;
 
+// Takes the SLEEP_TIME env variable or default to 2sec
 lazy_static! {
     pub static ref SLEEP_TIME: Duration =
         Duration::from_secs_f32(if let Ok(str_st) = var("SLEEP_TIME") {
@@ -33,18 +26,17 @@ pub struct Service {
     pub instance: std::process::Child,
     #[allow(dead_code)]
     #[allow(dead_code)]
-    stdin: UnixStream,
     pub ip: IpP,
     pub pods: Vec<(String, IpP, TempDir)>, // (network_name, ip, dir)
 }
 
 impl Drop for Service {
     fn drop(&mut self) {
-        self.instance.stdin.take().unwrap().write(&[4]).unwrap();
-        let _ = self.instance.wait();
+        let exit_status = self.instance.wait();
         log::info!(
-            "Stopped service {}\nStopped pods:\n{:?}",
+            "Stopped service {}\nExitStatus: {:?}\nStopped pods:\n{:?}",
             self.ip,
+            exit_status,
             self.pods
                 .iter()
                 .map(|(_, ip, _)| ip.to_string())
@@ -82,8 +74,6 @@ impl EnvironmentManager {
                     ip
                 },
             );
-
-        let (write, read) = std::os::unix::net::UnixStream::pair()?;
 
         // checks that no service is running on this ip
         let (mut status, _, _) = Self::cli_command(&[&ip.to_string(), "status"]);
@@ -137,7 +127,6 @@ impl EnvironmentManager {
         log::info!("Service started on {}", ip.to_string());
         self.services.push(Service {
             instance,
-            stdin: write,
             ip: ip,
             pods: Vec::new(),
         });
