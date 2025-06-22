@@ -1,4 +1,4 @@
-use crate::functionnal::{append_to_path, environment_manager::SLEEP_TIME, start_log};
+use crate::functionnal::{append_to_path, environment_manager::types::SLEEP_TIME, start_log};
 
 use super::environment_manager;
 
