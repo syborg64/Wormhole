@@ -17,8 +17,8 @@ RUN apt-get update && \
 WORKDIR /usr/src/wormhole
 COPY --from=builder /usr/src/wormhole/target/debug/wormholed .
 COPY --from=builder /usr/src/wormhole/target/debug/wormhole .
-COPY wormholed.service /etc/systemd/system/
+COPY wormhole.service /etc/systemd/system/
 
-RUN systemctl enable wormholed.service
+RUN systemctl enable wormhole.service
 
 CMD ["/lib/systemd/systemd"]
