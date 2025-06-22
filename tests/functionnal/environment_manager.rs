@@ -33,16 +33,31 @@ pub struct Service {
 impl Drop for Service {
     fn drop(&mut self) {
         let exit_status = self.instance.wait();
-        log::info!(
-            "Stopped service {}\nExitStatus: {:?}\nStopped pods:\n{:?}",
-            self.ip,
-            exit_status,
-            self.pods
-                .iter()
-                .map(|(_, ip, _)| ip.to_string())
-                .collect::<Vec<String>>()
-                .join("\n")
-        );
+        std::thread::sleep(*SLEEP_TIME);
+
+        match &exit_status {
+            Ok(status) => log::info!(
+                "Stopped service {}\nExitStatus: {:?}\nStopped pods:\n{:?}",
+                self.ip,
+                status,
+                self.pods
+                    .iter()
+                    .map(|(_, ip, _)| ip.to_string())
+                    .collect::<Vec<String>>()
+                    .join("\n")
+            ),
+            Err(e) => log::error!(
+                "Error when stopping service {}\nExit error: {:?}\n^ This service pods:\n{:?}",
+                self.ip,
+                e,
+                self.pods
+                    .iter()
+                    .map(|(_, ip, _)| ip.to_string())
+                    .collect::<Vec<String>>()
+                    .join("\n")
+            ),
+        }
+        assert!(exit_status.is_ok())
     }
 }
 
