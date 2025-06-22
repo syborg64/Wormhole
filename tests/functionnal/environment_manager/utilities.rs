@@ -113,3 +113,29 @@ pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<
     }
     Ok(())
 }
+
+/// Assert that all files in `dir1` exist and have the same content in `dir2`
+// taken (but edited) from https://doc.rust-lang.org/stable/nightly-rustc/src/run_make_support/assertion_helpers/mod.rs.html#113-135
+pub fn assert_dirs_are_equal(dir1: impl AsRef<Path>, dir2: impl AsRef<Path>) {
+    let dir2 = dir2.as_ref();
+
+    std::fs::read_dir(dir1).unwrap().for_each(|entry| {
+        let entry = entry.unwrap();
+        let entry_name = entry.file_name();
+
+        if entry.path().is_dir() {
+            assert_dirs_are_equal(&entry.path(), &dir2.join(entry_name));
+        } else {
+            let path2 = dir2.join(entry_name);
+
+            let file1 = std::fs::read(&entry.path()).unwrap();
+            let file2 = std::fs::read(&path2).unwrap();
+            assert!(
+                file1 == file2,
+                "`{}` and `{}` have different content",
+                entry.path().display(),
+                path2.display(),
+            );
+        }
+    });
+}
