@@ -3,7 +3,7 @@ use std::{env::var, path::Path, process::ExitStatus, time::Duration};
 use assert_fs::TempDir;
 use lazy_static::lazy_static;
 use std::process::Stdio;
-use wormhole::network::ip::IpP;
+use wormhole::{commands::service, network::ip::IpP};
 
 use crate::functionnal::start_log;
 
@@ -24,8 +24,6 @@ const CLI_BIN: &str = "./target/debug/wormhole";
 
 pub struct Service {
     pub instance: std::process::Child,
-    #[allow(dead_code)]
-    #[allow(dead_code)]
     pub ip: IpP,
     pub pods: Vec<(String, IpP, TempDir)>, // (network_name, ip, dir)
 }
@@ -61,6 +59,11 @@ impl Drop for Service {
     }
 }
 
+pub enum StopMethod {
+    CtrlD,
+    CliStop,
+    Kill,
+}
 pub struct EnvironmentManager {
     pub services: Vec<Service>,
 }
@@ -147,6 +150,42 @@ impl EnvironmentManager {
         });
 
         Ok(())
+    }
+
+    /// Returns `true` if the given services runs a pod on the given network
+    fn service_has_pod_on_network(service: &Service, network: &String) -> bool {
+        service
+            .pods
+            .iter()
+            .find(|(nw, _, _)| nw == network)
+            .is_some()
+    }
+
+    // Returns `true` if the service is matching the requirements
+    fn service_filter(ip: &Option<IpP>, network: &Option<String>, service: &Service) -> bool {
+        network
+            .as_ref()
+            .map_or_else(|| true, |nw| Self::service_has_pod_on_network(service, &nw))
+            && (ip.as_ref().map_or_else(|| true, |ip| service.ip == *ip))
+    }
+
+    pub fn remove_service(
+        &mut self,
+        stop_type: StopMethod,
+        ip: Option<IpP>,
+        network: Option<String>,
+    ) {
+        match stop_type {
+            StopMethod::Kill => self
+                .services
+                .iter_mut()
+                .filter(|service| Self::service_filter(&ip, &network, *service))
+                .for_each(|s| assert!(s.instance.kill().is_ok())),
+            StopMethod::CtrlD => (), // just dropping will send ctrl-d
+            StopMethod::CliStop => todo!(),
+        }
+        self.services
+            .retain(|service| !Self::service_filter(&ip, &network, service));
     }
 
     /// Runs a command with the cli and returns it's stdout
