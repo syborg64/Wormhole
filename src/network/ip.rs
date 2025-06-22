@@ -72,3 +72,9 @@ impl Display for IpP {
         write!(f, "{}:{}", self.addr, self.port)
     }
 }
+
+impl PartialEq for IpP {
+    fn eq(&self, other: &Self) -> bool {
+        self.addr == other.addr && self.port == other.port
+    }
+}
