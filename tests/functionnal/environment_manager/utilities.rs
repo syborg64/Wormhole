@@ -128,8 +128,9 @@ pub fn assert_dirs_are_equal(dir1: impl AsRef<Path>, dir2: impl AsRef<Path>) {
         } else {
             let path2 = dir2.join(entry_name);
 
-            let file1 = std::fs::read(&entry.path()).unwrap();
-            let file2 = std::fs::read(&path2).unwrap();
+            let file1 =
+                std::fs::read(&entry.path()).expect(&format!("{}", entry.path().to_string_lossy()));
+            let file2 = std::fs::read(&path2).expect(&format!("{}", path2.to_string_lossy()));
             assert!(
                 file1 == file2,
                 "`{}` and `{}` have different content",
