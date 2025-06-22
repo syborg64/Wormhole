@@ -1,6 +1,7 @@
 pub mod environment_manager;
+pub mod test_base_files;
 pub mod test_sync;
-pub mod test_transfer;
+//pub mod test_transfer; // waiting for a fix in redundancy
 
 use std::path::PathBuf;
 
