@@ -190,9 +190,9 @@ impl EnvironmentManager {
         loop {
             let (status, _, stderr) = Self::cli_command({
                 let mut args = vec![
-                    service_ip.to_string(), // service ip
+                    service_ip.to_string(),
                     "new".to_string(),
-                    network_name.clone(), // network name
+                    network_name.clone(),
                     "-C".to_string(),
                     dir_path.to_string_lossy().to_string(),
                     "-i".to_string(),
@@ -231,6 +231,8 @@ impl EnvironmentManager {
         &mut self,
         network_name: String,
     ) -> Result<(), Box<dyn std::error::Error>> {
+        log::trace!("Creating network {network_name}");
+
         // find the next available pod ip
         let max_pod_ip = self
             .services
@@ -262,34 +264,6 @@ impl EnvironmentManager {
                     let temp_dir = assert_fs::TempDir::new().expect("can't create temp dir");
                     let mut pod_ip = max_pod_ip.clone();
                     pod_ip.set_ip_last(pod_ip.get_ip_last() + 1);
-
-                    // log::debug!("\n\n\ncreating pod for service {}", service.ip);
-                    // let mut buf = Vec::new();
-                    // service
-                    //     .instance
-                    //     .stdout
-                    //     .as_mut()
-                    //     .unwrap()
-                    //     .take(1000)
-                    //     .read(&mut buf)
-                    //     .unwrap();
-                    // log::debug!(
-                    //     "Service stdout at this time :\n{}",
-                    //     String::from_utf8_lossy(&buf)
-                    // );
-                    // let mut buf = Vec::new();
-                    // service
-                    //     .instance
-                    //     .stderr
-                    //     .as_mut()
-                    //     .unwrap()
-                    //     .take(1000)
-                    //     .read(&mut buf)
-                    //     .unwrap();
-                    // log::debug!(
-                    //     "Service stderr at this time :\n{}",
-                    //     String::from_utf8_lossy(&buf)
-                    // );
 
                     let pod_ip = Self::cli_pod_creation_command(
                         network_name.clone(),
