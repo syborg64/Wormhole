@@ -1,4 +1,4 @@
-use std::{env::var, time::Duration};
+use std::{env::var, path::PathBuf, time::Duration};
 
 use assert_fs::TempDir;
 // Takes the SLEEP_TIME env variable or default to 2sec
@@ -60,4 +60,24 @@ pub enum StopMethod {
     CtrlD,
     CliStop,
     Kill,
+}
+
+/// Whether or not giving new pods files before mounting
+pub enum StartupFiles {
+    /// All pods gets a copy
+    ForAll(PathBuf),
+    /// Only the first pod of the network gets a copy
+    VeryFirstOnly(PathBuf),
+    /// The first pod of this batch gets a copy (even if older pods are already in the network)
+    CurrentFirst(PathBuf),
+}
+
+impl From<StartupFiles> for PathBuf {
+    fn from(startup_files: StartupFiles) -> Self {
+        match startup_files {
+            StartupFiles::ForAll(path)
+            | StartupFiles::VeryFirstOnly(path)
+            | StartupFiles::CurrentFirst(path) => path,
+        }
+    }
 }

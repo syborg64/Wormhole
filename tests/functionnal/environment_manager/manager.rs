@@ -1,11 +1,9 @@
-use std::{path::Path, process::ExitStatus};
-
 use std::process::Stdio;
 use wormhole::network::ip::IpP;
 
-use crate::functionnal::environment_manager::types::{StopMethod, CLI_BIN};
+use crate::functionnal::environment_manager::types::{StartupFiles, StopMethod};
 use crate::functionnal::environment_manager::utilities::{
-    cli_command, cli_pod_creation_command, service_filter,
+    cli_command, cli_pod_creation_command, copy_dir_all, service_filter,
 };
 use crate::functionnal::{
     environment_manager::types::{
@@ -128,8 +126,11 @@ impl EnvironmentManager {
     pub fn create_network(
         &mut self,
         network_name: String,
+        startup_files: Option<StartupFiles>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         log::trace!("Creating network {network_name}");
+
+        let mut startup_files = startup_files;
 
         // find the next available pod ip
         let max_pod_ip = self
@@ -163,6 +164,20 @@ impl EnvironmentManager {
                     let mut pod_ip = max_pod_ip.clone();
                     pod_ip.set_ip_last(pod_ip.get_ip_last() + 1);
 
+                    match &startup_files {
+                        None => (),
+                        Some(StartupFiles::ForAll(path)) => {
+                            copy_dir_all(path, temp_dir.path()).unwrap()
+                        }
+                        Some(StartupFiles::VeryFirstOnly(path)) if conn_to.is_none() => {
+                            copy_dir_all(path, temp_dir.path()).unwrap()
+                        }
+                        Some(StartupFiles::VeryFirstOnly(_)) => startup_files = None,
+                        Some(StartupFiles::CurrentFirst(path)) => {
+                            copy_dir_all(path, temp_dir.path()).unwrap();
+                            startup_files = None;
+                        }
+                    };
                     let pod_ip = cli_pod_creation_command(
                         network_name.clone(),
                         &service.ip,

@@ -1,5 +1,9 @@
-use std::{path::Path, process::ExitStatus};
+use std::{
+    path::{Path, PathBuf},
+    process::ExitStatus,
+};
 
+use futures_util::io;
 use wormhole::network::ip::IpP;
 
 use crate::functionnal::environment_manager::types::{Service, CLI_BIN};
@@ -93,4 +97,19 @@ pub fn cli_pod_creation_command(
         }
     }
     ip
+}
+
+/// Recursively copies a directory from -> to
+pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
+    std::fs::create_dir_all(&dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        if ty.is_dir() {
+            copy_dir_all(entry.path(), dst.as_ref().join(entry.file_name()))?;
+        } else {
+            std::fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
+        }
+    }
+    Ok(())
 }
