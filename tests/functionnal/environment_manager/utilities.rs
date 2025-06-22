@@ -140,3 +140,16 @@ pub fn assert_dirs_are_equal(dir1: impl AsRef<Path>, dir2: impl AsRef<Path>) {
         }
     });
 }
+
+pub fn tree_command<I, S>(args: I) -> String
+where
+    I: IntoIterator<Item = S> + std::fmt::Debug,
+    S: AsRef<std::ffi::OsStr>,
+{
+    let output = std::process::Command::new(CLI_BIN)
+        .args(args)
+        .output()
+        .expect("can't launch tree command");
+
+    std::str::from_utf8(&output.stdout).unwrap().to_string()
+}
