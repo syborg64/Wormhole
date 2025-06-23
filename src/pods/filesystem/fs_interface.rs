@@ -39,11 +39,6 @@ impl Into<SimpleFileType> for &FsEntry {
     }
 }
 
-custom_error::custom_error! {pub ReceptRedundancy
-    WhError{source: WhError} = "{source}",
-    LocalRedundandcyFailed { io: std::io::Error } = "Local redundandcy failed: {io}",
-}
-
 /// Provides functions to allow primitive handlers like Fuse & WinFSP to
 /// interract with wormhole
 impl FsInterface {
@@ -149,27 +144,31 @@ impl FsInterface {
         }
     }
 
-    pub fn recept_redundancy(&self, id: InodeId, binary: Vec<u8>) -> Result<(), ReceptRedundancy> {
-        let mut arbo = Arbo::write_lock(&self.arbo, "recept_binary")
+    pub fn recept_redundancy(&self, id: InodeId, binary: Arc<Vec<u8>>) -> WhResult<()> {
+        let arbo = Arbo::write_lock(&self.arbo, "recept_binary")
             .expect("recept_binary: can't read lock arbo");
         let (path, perms) = arbo
             .n_get_path_from_inode_id(id)
             .and_then(|path| arbo.n_get_inode(id).map(|inode| (path, inode.meta.perm)))?;
+        drop(arbo);
 
         let _created = self.disk.new_file(&path, perms);
         self.disk
             .write_file(&path, &binary, 0)
-            .map_err(|e| ReceptRedundancy::LocalRedundandcyFailed { io: e })
-            .inspect_err(|e| log::error!("{e}"))?;
+            .inspect_err(|e| log::error!("{e}"))
+            .expect("disk error");
         // TODO -> in case of failure, other hosts still think this one is valid. Should send error report to the redundancy manager
 
         let address =
-            LocalConfig::read_lock(&self.network_interface.local_config, "revoke_remote_hosts")?
+            LocalConfig::read_lock(&self.network_interface.local_config, "recept_redundancy")?
                 .general
                 .address
                 .clone();
-        arbo.n_add_inode_hosts(id, vec![address])
-            .map_err(|err| ReceptRedundancy::WhError { source: err })
+        Arbo::n_write_lock(&self.arbo, "recept_redundancy")?
+            .n_add_inode_hosts(id, vec![address])
+            .inspect_err(|e| {
+                log::error!("Can't update (local) hosts for redundancy pulled file ({id}): {e}")
+            })
     }
 
     pub fn recept_binary(&self, id: InodeId, binary: Vec<u8>) -> io::Result<()> {
@@ -220,7 +219,7 @@ impl FsInterface {
             let path =
                 Arbo::n_read_lock(&self.arbo, "recept_edit_hosts")?.n_get_path_from_inode_id(id)?;
             if let Err(e) = self.disk.remove_file(&path) {
-                log::error!("recept_edit_hosts: can't delete file. {}", e);
+                log::debug!("recept_edit_hosts: can't delete file. {}", e);
             }
         }
         self.network_interface.acknowledge_hosts_edition(id, hosts)
