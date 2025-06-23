@@ -696,7 +696,7 @@ fn recover_serialized_arbo(parent_folder: &WhPath) -> Option<Arbo> {
     bincode::deserialize(&fs::read(parent_folder.join(ARBO_FILE_FNAME).to_string()).ok()?).ok()
 }
 
-#[cfg(target_os="linux")]
+#[cfg(target_os = "linux")]
 fn index_folder_recursive(
     arbo: &mut Arbo,
     parent: InodeId,

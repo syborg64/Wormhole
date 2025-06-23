@@ -2,11 +2,11 @@ use crate::fuse::linux_attrs::time_or_now_to_system_time;
 use crate::fuse::linux_mknod::filetype_from_mode;
 use crate::pods::arbo::{FsEntry, Inode};
 use crate::pods::filesystem::attrs::SetAttrError;
+use crate::pods::filesystem::file_handle::{AccessMode, OpenFlags};
 use crate::pods::filesystem::fs_interface::{FsInterface, SimpleFileType};
 use crate::pods::filesystem::make_inode::{CreateError, MakeInodeError};
 use crate::pods::filesystem::open::{check_permissions, OpenError};
 use crate::pods::filesystem::read::ReadError;
-use crate::pods::filesystem::file_handle::{OpenFlags, AccessMode};
 
 use crate::pods::filesystem::remove_inode::RemoveFileError;
 use crate::pods::filesystem::rename::RenameError;
@@ -491,8 +491,10 @@ impl Filesystem for FuseController {
     }
 
     fn open(&mut self, _req: &Request<'_>, ino: u64, flags: i32, reply: fuser::ReplyOpen) {
-        match AccessMode::from_libc(flags)
-            .and_then(|access| self.fs_interface.open(ino, OpenFlags::from_libc(flags), access)) {
+        match AccessMode::from_libc(flags).and_then(|access| {
+            self.fs_interface
+                .open(ino, OpenFlags::from_libc(flags), access)
+        }) {
             Ok(file_handle) => reply.opened(file_handle, flags as u32), // TODO - check flags ?,
             Err(OpenError::WhError { source }) => reply.error(source.to_libc()),
             Err(OpenError::MultipleAccessFlags) => reply.error(libc::EINVAL),
@@ -633,10 +635,9 @@ impl Filesystem for FuseController {
             }
         };
 
-
-
         match AccessMode::from_libc(mask)
-            .and_then(|access| check_permissions(OpenFlags::from_libc(mask), access, meta.perm)) {
+            .and_then(|access| check_permissions(OpenFlags::from_libc(mask), access, meta.perm))
+        {
             Ok(_) => reply.ok(),
             Err(OpenError::MultipleAccessFlags) => reply.error(libc::EINVAL),
             Err(OpenError::TruncReadOnly) => reply.error(libc::EACCES),
