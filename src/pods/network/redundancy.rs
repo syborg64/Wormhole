@@ -114,11 +114,15 @@ async fn check_integrity(
     let available_peers = peers.len() + 1;
 
     // Applies redundancy to needed files
-    let futures = Arbo::n_read_lock(&nw_interface.arbo, "redundancy: check_integrity")?
+    let selected_files: Vec<InodeId> =
+        Arbo::n_read_lock(&nw_interface.arbo, "redundancy: check_integrity")?
+            .iter()
+            .filter_map(|(ino, inode)| {
+                eligible_to_apply(*ino, &inode.entry, redundancy, available_peers, self_addr)
+            })
+            .collect();
+    let futures = selected_files
         .iter()
-        .filter_map(|(ino, inode)| {
-            eligible_to_apply(*ino, &inode.entry, redundancy, available_peers, self_addr)
-        })
         .map(|ino| {
             apply_to(
                 nw_interface,
