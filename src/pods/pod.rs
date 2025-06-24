@@ -1,4 +1,5 @@
 use std::fs;
+use std::os::unix::fs::PermissionsExt;
 use std::{io, sync::Arc};
 
 use crate::config::types::Config;
@@ -10,7 +11,9 @@ use crate::fuse::fuse_impl::mount_fuse;
 use crate::network::message::{
     FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
 };
-use crate::pods::arbo::{FsEntry, GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO, ROOT};
+use crate::pods::arbo::{
+    FsEntry, Inode, GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO, ROOT,
+};
 #[cfg(target_os = "windows")]
 use crate::pods::disk_managers::dummy_disk_manager::DummyDiskManager;
 #[cfg(target_os = "linux")]
@@ -134,6 +137,57 @@ custom_error! {pub PodStopError
     FileNotSent{file: InodeId} = "PodStopError: no pod was able to receive this file before stopping: ({file})"
 }
 
+/// Create all the directories present in Arbo. (not the files)
+///
+/// Required at setup to resolve issue #179
+/// (files pulling need the parent folder to be already present)
+fn create_all_dirs(arbo: &Arbo, from: InodeId) -> io::Result<()> {
+    let to_io_error = |_| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Arbo seems corrupted. Creation of the directory tree failed.",
+        )
+    };
+
+    let from = arbo.n_get_inode(from).map_err(to_io_error)?;
+
+    // (path, perms, children)
+    let directories = if let FsEntry::Directory(children) = &from.entry {
+        children
+            .into_iter()
+            .map(|c| arbo.n_get_inode(*c).map_err(to_io_error))
+            .collect::<io::Result<Vec<&Inode>>>()?
+            .into_iter()
+            .filter_map(|inode| match &inode.entry {
+                FsEntry::Directory(children) => Some((
+                    arbo.n_get_path_from_inode_id(inode.id).unwrap(),
+                    inode.meta.perm,
+                    children.to_owned(),
+                )),
+                FsEntry::File(_) => None,
+            })
+            .collect::<Vec<(WhPath, u16, Vec<InodeId>)>>()
+    } else {
+        return Ok(());
+    };
+
+    // TODO create current dir
+    // TODO catch errors if it's just that the dir is already made
+
+    for (path, perms, children) in directories {
+        fs::create_dir(&path)?;
+        // REVIEW permissions are just reconverted from u16 to u32, as I've seen them
+        // be converted from u32 to u16 in fs_interface::setattr
+        // I'm not 100% sure that this is correct.
+        fs::set_permissions(&path, fs::Permissions::from_mode(perms as u32))?;
+        for child in children {
+            create_all_dirs(arbo, child)?
+        }
+    }
+
+    Ok(())
+}
+
 impl Pod {
     pub async fn new(
         name: String,
@@ -145,7 +199,7 @@ impl Pod {
     ) -> io::Result<Self> {
         let mut global_config = global_config;
 
-        log::info!("mount point {}", mount_point);
+        log::trace!("mount point {}", mount_point);
         let (to_network_message_tx, to_network_message_rx) = mpsc::unbounded_channel();
         let (from_network_message_tx, mut from_network_message_rx) = mpsc::unbounded_channel();
         let (to_redundancy_tx, to_redundancy_rx) = mpsc::unbounded_channel();
@@ -183,8 +237,10 @@ impl Pod {
                 (arbo, next_inode, None)
             };
 
-        let redundancy_target = global_config.redundancy.number;
+        create_all_dirs(&arbo, ROOT)?;
+
         let arbo: Arc<RwLock<Arbo>> = Arc::new(RwLock::new(arbo));
+        let redundancy_target = global_config.redundancy.number;
         let local = Arc::new(RwLock::new(local_config));
         let global = Arc::new(RwLock::new(global_config));
 
