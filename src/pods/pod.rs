@@ -141,47 +141,56 @@ custom_error! {pub PodStopError
 ///
 /// Required at setup to resolve issue #179
 /// (files pulling need the parent folder to be already present)
-fn create_all_dirs(arbo: &Arbo, from: InodeId) -> io::Result<()> {
+fn create_all_dirs(arbo: &Arbo, from: InodeId, mount_point: &WhPath) -> io::Result<()> {
     let to_io_error = |_| {
         io::Error::new(
             io::ErrorKind::InvalidData,
             "Arbo seems corrupted. Creation of the directory tree failed.",
         )
     };
+    let ignore_exists = |case: io::Result<()>| match case {
+        Ok(()) => Ok(()),
+        Err(e) if matches!(e.kind(), io::ErrorKind::AlreadyExists) => Ok(()),
+        Err(e) => Err(e),
+    };
 
     let from = arbo.n_get_inode(from).map_err(to_io_error)?;
 
     // (path, perms, children)
-    let directories = if let FsEntry::Directory(children) = &from.entry {
-        children
-            .into_iter()
-            .map(|c| arbo.n_get_inode(*c).map_err(to_io_error))
-            .collect::<io::Result<Vec<&Inode>>>()?
-            .into_iter()
-            .filter_map(|inode| match &inode.entry {
-                FsEntry::Directory(children) => Some((
-                    arbo.n_get_path_from_inode_id(inode.id).unwrap(),
-                    inode.meta.perm,
-                    children.to_owned(),
-                )),
-                FsEntry::File(_) => None,
-            })
-            .collect::<Vec<(WhPath, u16, Vec<InodeId>)>>()
-    } else {
-        return Ok(());
-    };
+    let directories: Vec<(WhPath, u16, Vec<u64>)> =
+        if let FsEntry::Directory(children) = &from.entry {
+            children
+                .into_iter()
+                .map(|c| arbo.n_get_inode(*c).map_err(to_io_error))
+                .collect::<io::Result<Vec<&Inode>>>()?
+                .into_iter()
+                .filter_map(|inode| match &inode.entry {
+                    FsEntry::Directory(children) => Some((
+                        arbo.n_get_path_from_inode_id(inode.id).unwrap(),
+                        inode.meta.perm,
+                        children.to_owned(),
+                    )),
+                    FsEntry::File(_) => None,
+                })
+                .collect::<Vec<(WhPath, u16, Vec<InodeId>)>>()
+        } else {
+            return Ok(());
+        };
 
-    // TODO create current dir
-    // TODO catch errors if it's just that the dir is already made
+    let current_path = arbo
+        .n_get_path_from_inode_id(from.id)
+        .map_err(to_io_error)?;
+    ignore_exists(fs::create_dir(&mount_point.join(&current_path)))?;
 
     for (path, perms, children) in directories {
-        fs::create_dir(&path)?;
+        let path = mount_point.join(&path);
+        ignore_exists(fs::create_dir(&path))?;
         // REVIEW permissions are just reconverted from u16 to u32, as I've seen them
         // be converted from u32 to u16 in fs_interface::setattr
         // I'm not 100% sure that this is correct.
         fs::set_permissions(&path, fs::Permissions::from_mode(perms as u32))?;
         for child in children {
-            create_all_dirs(arbo, child)?
+            create_all_dirs(arbo, child, mount_point)?
         }
     }
 
@@ -230,14 +239,16 @@ impl Pod {
                     .iter()
                     .fold(Arbo::first_ino(), |acc, (ino, _)| u64::max(acc, *ino))
                     + 1;
+
+                create_all_dirs(&arbo, ROOT, &mount_point)
+                    .inspect_err(|e| log::error!("unable to create_all_dirs: {e}"))?;
+
                 (arbo, next_inode, Some(global_config_bytes))
             } else {
                 let (arbo, next_inode) =
                     generate_arbo(&mount_point, &server_address).expect("unable to index folder");
                 (arbo, next_inode, None)
             };
-
-        create_all_dirs(&arbo, ROOT)?;
 
         let arbo: Arc<RwLock<Arbo>> = Arc::new(RwLock::new(arbo));
         let redundancy_target = global_config.redundancy.number;
