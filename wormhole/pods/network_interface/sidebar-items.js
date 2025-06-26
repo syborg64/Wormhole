@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Callback"],"struct":["Callbacks","NetworkInterface"]};

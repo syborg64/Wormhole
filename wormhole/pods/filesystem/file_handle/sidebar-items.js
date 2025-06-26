@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["AccessMode"],"struct":["FileHandle","FileHandleManager","OpenFlags"],"type":["UUID"]};

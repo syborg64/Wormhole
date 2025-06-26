@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["local_cli_watchdog","main"]};

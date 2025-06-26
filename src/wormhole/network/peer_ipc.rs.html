@@ -2,30 +2,30 @@
 <a href=#2 id=2 data-nosnippet>2</a>    stream::{SplitSink, SplitStream},
 <a href=#3 id=3 data-nosnippet>3</a>    StreamExt,
 <a href=#4 id=4 data-nosnippet>4</a>};
-<a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>log::warn;
-<a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>tokio::{
-<a href=#7 id=7 data-nosnippet>7</a>    net::TcpStream,
-<a href=#8 id=8 data-nosnippet>8</a>    sync::mpsc::{<span class="self">self</span>, UnboundedSender},
-<a href=#9 id=9 data-nosnippet>9</a>};
-<a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>tokio_tungstenite::tungstenite::Message;
-<a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
-<a href=#12 id=12 data-nosnippet>12</a>
-<a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span><span class="kw">crate</span>::network::forward::{forward_read_to_sender, forward_receiver_to_write};
-<a href=#14 id=14 data-nosnippet>14</a>
-<a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span><span class="kw">super</span>::message::{Address, FromNetworkMessage, MessageContent};
-<a href=#16 id=16 data-nosnippet>16</a>
-<a href=#17 id=17 data-nosnippet>17</a><span class="kw">pub struct </span>PeerIPC {
+<a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>tokio::{
+<a href=#6 id=6 data-nosnippet>6</a>    net::TcpStream,
+<a href=#7 id=7 data-nosnippet>7</a>    sync::mpsc::{<span class="self">self</span>, UnboundedSender},
+<a href=#8 id=8 data-nosnippet>8</a>};
+<a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>tokio_tungstenite::tungstenite::Message;
+<a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
+<a href=#11 id=11 data-nosnippet>11</a>
+<a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span><span class="kw">crate</span>::network::forward::{forward_read_to_sender, forward_receiver_to_write};
+<a href=#13 id=13 data-nosnippet>13</a>
+<a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span><span class="kw">super</span>::message::{Address, FromNetworkMessage, MessageAndStatus};
+<a href=#15 id=15 data-nosnippet>15</a>
+<a href=#16 id=16 data-nosnippet>16</a><span class="attr">#[derive(Debug)]
+<a href=#17 id=17 data-nosnippet>17</a></span><span class="kw">pub struct </span>PeerIPC {
 <a href=#18 id=18 data-nosnippet>18</a>    <span class="kw">pub </span>address: Address,
 <a href=#19 id=19 data-nosnippet>19</a>    <span class="kw">pub </span>thread: tokio::task::JoinHandle&lt;()&gt;,
-<a href=#20 id=20 data-nosnippet>20</a>    <span class="kw">pub </span>sender: mpsc::UnboundedSender&lt;MessageContent&gt;, <span class="comment">// send a message to the peer
-<a href=#21 id=21 data-nosnippet>21</a>                                                       // pub receiver: mpsc::Receiver&lt;NetworkMessage&gt;, // receive a message from the peer
+<a href=#20 id=20 data-nosnippet>20</a>    <span class="kw">pub </span>sender: mpsc::UnboundedSender&lt;MessageAndStatus&gt;, <span class="comment">// send a message to the peer
+<a href=#21 id=21 data-nosnippet>21</a>                                                         // pub receiver: mpsc::Receiver&lt;NetworkMessage&gt;, // receive a message from the peer
 <a href=#22 id=22 data-nosnippet>22</a></span>}
 <a href=#23 id=23 data-nosnippet>23</a>
 <a href=#24 id=24 data-nosnippet>24</a><span class="kw">impl </span>PeerIPC {
 <a href=#25 id=25 data-nosnippet>25</a>    <span class="kw">async fn </span>work(
 <a href=#26 id=26 data-nosnippet>26</a>        stream: WebSocketStream&lt;MaybeTlsStream&lt;TcpStream&gt;&gt;,
 <a href=#27 id=27 data-nosnippet>27</a>        sender: mpsc::UnboundedSender&lt;FromNetworkMessage&gt;,
-<a href=#28 id=28 data-nosnippet>28</a>        <span class="kw-2">mut </span>receiver: mpsc::UnboundedReceiver&lt;MessageContent&gt;,
+<a href=#28 id=28 data-nosnippet>28</a>        <span class="kw-2">mut </span>receiver: mpsc::UnboundedReceiver&lt;MessageAndStatus&gt;,
 <a href=#29 id=29 data-nosnippet>29</a>        address: Address,
 <a href=#30 id=30 data-nosnippet>30</a>    ) {
 <a href=#31 id=31 data-nosnippet>31</a>        <span class="kw">let </span>(write, read) = stream.split();
@@ -39,7 +39,7 @@
 <a href=#39 id=39 data-nosnippet>39</a>        write: SplitSink&lt;WebSocketStream&lt;TcpStream&gt;, Message&gt;,
 <a href=#40 id=40 data-nosnippet>40</a>        read: SplitStream&lt;WebSocketStream&lt;TcpStream&gt;&gt;,
 <a href=#41 id=41 data-nosnippet>41</a>        sender: mpsc::UnboundedSender&lt;FromNetworkMessage&gt;,
-<a href=#42 id=42 data-nosnippet>42</a>        <span class="kw-2">mut </span>receiver: mpsc::UnboundedReceiver&lt;MessageContent&gt;,
+<a href=#42 id=42 data-nosnippet>42</a>        <span class="kw-2">mut </span>receiver: mpsc::UnboundedReceiver&lt;MessageAndStatus&gt;,
 <a href=#43 id=43 data-nosnippet>43</a>        address: Address,
 <a href=#44 id=44 data-nosnippet>44</a>    ) {
 <a href=#45 id=45 data-nosnippet>45</a>        <span class="macro">tokio::join!</span>(
@@ -77,7 +77,7 @@
 <a href=#77 id=77 data-nosnippet>77</a>        <span class="kw">let </span>thread = <span class="kw">match </span>tokio_tungstenite::connect_async(<span class="string">"ws://"</span>.to_string() + <span class="kw-2">&amp;</span>address).<span class="kw">await </span>{
 <a href=#78 id=78 data-nosnippet>78</a>            <span class="prelude-val">Ok</span>((stream, <span class="kw">_</span>)) =&gt; tokio::spawn(<span class="self">Self</span>::work(stream, nfa_tx, peer_recv, address.clone())),
 <a href=#79 id=79 data-nosnippet>79</a>            <span class="prelude-val">Err</span>(e) =&gt; {
-<a href=#80 id=80 data-nosnippet>80</a>                <span class="macro">warn!</span>(<span class="string">"failed to connect to {}. Error: {}"</span>, address, e);
+<a href=#80 id=80 data-nosnippet>80</a>                <span class="macro">log::warn!</span>(<span class="string">"failed to connect to {}. Error: {}"</span>, address, e);
 <a href=#81 id=81 data-nosnippet>81</a>                <span class="kw">return </span><span class="prelude-val">None</span>;
 <a href=#82 id=82 data-nosnippet>82</a>            }
 <a href=#83 id=83 data-nosnippet>83</a>        };
@@ -104,4 +104,11 @@
 <a href=#104 id=104 data-nosnippet>104</a>        .flatten()
 <a href=#105 id=105 data-nosnippet>105</a>        .collect()
 <a href=#106 id=106 data-nosnippet>106</a>    }
-<a href=#107 id=107 data-nosnippet>107</a>}</code></pre></div></section></main></body></html>
+<a href=#107 id=107 data-nosnippet>107</a>}
+<a href=#108 id=108 data-nosnippet>108</a>
+<a href=#109 id=109 data-nosnippet>109</a><span class="kw">impl </span>Drop <span class="kw">for </span>PeerIPC {
+<a href=#110 id=110 data-nosnippet>110</a>    <span class="kw">fn </span>drop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+<a href=#111 id=111 data-nosnippet>111</a>        <span class="macro">log::debug!</span>(<span class="string">"Dropping PeerIPC {}"</span>, <span class="self">self</span>.address);
+<a href=#112 id=112 data-nosnippet>112</a>        <span class="self">self</span>.thread.abort();
+<a href=#113 id=113 data-nosnippet>113</a>    }
+<a href=#114 id=114 data-nosnippet>114</a>}</code></pre></div></section></main></body></html>

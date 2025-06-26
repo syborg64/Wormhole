@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Cli"],"fn":["main"],"struct":["JoinArgs","PodArgs","RemoveArgs","TemplateArg"]};

@@ -4,34 +4,43 @@
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>tokio_tungstenite::tungstenite::Message;
 <a href=#6 id=6 data-nosnippet>6</a>
-<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span><span class="kw">crate</span>::network::message::MessageContent;
-<a href=#8 id=8 data-nosnippet>8</a>
-<a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span><span class="kw">super</span>::message::FromNetworkMessage;
-<a href=#10 id=10 data-nosnippet>10</a>
-<a href=#11 id=11 data-nosnippet>11</a><span class="kw">pub async fn </span>forward_receiver_to_write&lt;T&gt;(<span class="kw-2">mut </span>write: T, rx: <span class="kw-2">&amp;mut </span>UnboundedReceiver&lt;MessageContent&gt;)
-<a href=#12 id=12 data-nosnippet>12</a><span class="kw">where
-<a href=#13 id=13 data-nosnippet>13</a>    </span>T: Sink&lt;Message&gt; + Unpin,
-<a href=#14 id=14 data-nosnippet>14</a>    &lt;T <span class="kw">as </span>Sink&lt;Message&gt;&gt;::Error: Debug,
-<a href=#15 id=15 data-nosnippet>15</a>{
-<a href=#16 id=16 data-nosnippet>16</a>    <span class="kw">while let </span><span class="prelude-val">Some</span>(message) = rx.recv().<span class="kw">await </span>{
-<a href=#17 id=17 data-nosnippet>17</a>        <span class="kw">let </span>serialized = bincode::serialize(<span class="kw-2">&amp;</span>message).unwrap();
-<a href=#18 id=18 data-nosnippet>18</a>        write.send(Message::binary(serialized)).<span class="kw">await</span>.unwrap();
-<a href=#19 id=19 data-nosnippet>19</a>    }
-<a href=#20 id=20 data-nosnippet>20</a>}
-<a href=#21 id=21 data-nosnippet>21</a>
-<a href=#22 id=22 data-nosnippet>22</a><span class="kw">pub async fn </span>forward_read_to_sender&lt;
-<a href=#23 id=23 data-nosnippet>23</a>    T: StreamExt&lt;Item = <span class="prelude-ty">Result</span>&lt;Message, tokio_tungstenite::tungstenite::Error&gt;&gt;,
-<a href=#24 id=24 data-nosnippet>24</a>&gt;(
-<a href=#25 id=25 data-nosnippet>25</a>    <span class="kw-2">mut </span>read: SplitStream&lt;T&gt;,
-<a href=#26 id=26 data-nosnippet>26</a>    tx: UnboundedSender&lt;FromNetworkMessage&gt;,
-<a href=#27 id=27 data-nosnippet>27</a>    address: String,
-<a href=#28 id=28 data-nosnippet>28</a>) {
-<a href=#29 id=29 data-nosnippet>29</a>    <span class="kw">while let </span><span class="prelude-val">Ok</span>(Message::Binary(message)) = read.next().<span class="kw">await</span>.unwrap() {
-<a href=#30 id=30 data-nosnippet>30</a>        <span class="kw">let </span>deserialized: MessageContent = bincode::deserialize(<span class="kw-2">&amp;</span>message).unwrap();
-<a href=#31 id=31 data-nosnippet>31</a>        tx.send(FromNetworkMessage {
-<a href=#32 id=32 data-nosnippet>32</a>            origin: address.clone(),
-<a href=#33 id=33 data-nosnippet>33</a>            content: deserialized,
-<a href=#34 id=34 data-nosnippet>34</a>        })
-<a href=#35 id=35 data-nosnippet>35</a>        .unwrap();
-<a href=#36 id=36 data-nosnippet>36</a>    }
-<a href=#37 id=37 data-nosnippet>37</a>}</code></pre></div></section></main></body></html>
+<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span><span class="kw">crate</span>::error::WhError;
+<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span><span class="kw">crate</span>::network::message::MessageContent;
+<a href=#9 id=9 data-nosnippet>9</a>
+<a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span><span class="kw">super</span>::message::{FromNetworkMessage, MessageAndStatus};
+<a href=#11 id=11 data-nosnippet>11</a>
+<a href=#12 id=12 data-nosnippet>12</a><span class="kw">pub async fn </span>forward_receiver_to_write&lt;T&gt;(
+<a href=#13 id=13 data-nosnippet>13</a>    <span class="kw-2">mut </span>write: T,
+<a href=#14 id=14 data-nosnippet>14</a>    rx: <span class="kw-2">&amp;mut </span>UnboundedReceiver&lt;MessageAndStatus&gt;,
+<a href=#15 id=15 data-nosnippet>15</a>) <span class="kw">where
+<a href=#16 id=16 data-nosnippet>16</a>    </span>T: Sink&lt;Message&gt; + Unpin,
+<a href=#17 id=17 data-nosnippet>17</a>    &lt;T <span class="kw">as </span>Sink&lt;Message&gt;&gt;::Error: Debug,
+<a href=#18 id=18 data-nosnippet>18</a>{
+<a href=#19 id=19 data-nosnippet>19</a>    <span class="kw">while let </span><span class="prelude-val">Some</span>((message, status_tx)) = rx.recv().<span class="kw">await </span>{
+<a href=#20 id=20 data-nosnippet>20</a>        <span class="kw">let </span>serialized = bincode::serialize(<span class="kw-2">&amp;</span>message).unwrap();
+<a href=#21 id=21 data-nosnippet>21</a>        <span class="kw">let </span>sent = write.send(Message::binary(serialized)).<span class="kw">await</span>;
+<a href=#22 id=22 data-nosnippet>22</a>
+<a href=#23 id=23 data-nosnippet>23</a>        status_tx.inspect(|tx| {
+<a href=#24 id=24 data-nosnippet>24</a>            <span class="kw">let _ </span>= tx.send(sent.map_err(|<span class="kw">_</span>| WhError::NetworkDied {
+<a href=#25 id=25 data-nosnippet>25</a>                called_from: <span class="string">"forward_receiver_to_write"</span>.to_string(),
+<a href=#26 id=26 data-nosnippet>26</a>            }));
+<a href=#27 id=27 data-nosnippet>27</a>        });
+<a href=#28 id=28 data-nosnippet>28</a>    }
+<a href=#29 id=29 data-nosnippet>29</a>}
+<a href=#30 id=30 data-nosnippet>30</a>
+<a href=#31 id=31 data-nosnippet>31</a><span class="kw">pub async fn </span>forward_read_to_sender&lt;
+<a href=#32 id=32 data-nosnippet>32</a>    T: StreamExt&lt;Item = <span class="prelude-ty">Result</span>&lt;Message, tokio_tungstenite::tungstenite::Error&gt;&gt;,
+<a href=#33 id=33 data-nosnippet>33</a>&gt;(
+<a href=#34 id=34 data-nosnippet>34</a>    <span class="kw-2">mut </span>read: SplitStream&lt;T&gt;,
+<a href=#35 id=35 data-nosnippet>35</a>    tx: UnboundedSender&lt;FromNetworkMessage&gt;,
+<a href=#36 id=36 data-nosnippet>36</a>    address: String,
+<a href=#37 id=37 data-nosnippet>37</a>) {
+<a href=#38 id=38 data-nosnippet>38</a>    <span class="kw">while let </span><span class="prelude-val">Ok</span>(Message::Binary(message)) = read.next().<span class="kw">await</span>.unwrap() {
+<a href=#39 id=39 data-nosnippet>39</a>        <span class="kw">let </span>deserialized: MessageContent = bincode::deserialize(<span class="kw-2">&amp;</span>message).unwrap();
+<a href=#40 id=40 data-nosnippet>40</a>        tx.send(FromNetworkMessage {
+<a href=#41 id=41 data-nosnippet>41</a>            origin: address.clone(),
+<a href=#42 id=42 data-nosnippet>42</a>            content: deserialized,
+<a href=#43 id=43 data-nosnippet>43</a>        })
+<a href=#44 id=44 data-nosnippet>44</a>        .unwrap();
+<a href=#45 id=45 data-nosnippet>45</a>    }
+<a href=#46 id=46 data-nosnippet>46</a>}</code></pre></div></section></main></body></html>

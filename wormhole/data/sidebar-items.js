@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["metadata"]};
+window.SIDEBAR_ITEMS = {"mod":["metadata","tree_hosts"]};

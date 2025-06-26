@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["TEMPLATE_FILE_ATTR"],"fn":["mount_fuse"],"struct":["FuseController"]};
+window.SIDEBAR_ITEMS = {"fn":["mount_fuse"],"struct":["FuseController"]};

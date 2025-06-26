@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["has_execute_perm","has_read_perm","has_write_perm"]};

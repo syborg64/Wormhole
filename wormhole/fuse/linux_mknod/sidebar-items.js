@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["filetype_from_mode"]};

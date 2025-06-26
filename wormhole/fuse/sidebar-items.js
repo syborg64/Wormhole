@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["fuse_impl"]};
+window.SIDEBAR_ITEMS = {"mod":["fuse_impl","linux_attrs","linux_mknod"]};
