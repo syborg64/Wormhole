@@ -42,7 +42,7 @@ pub fn get_all_peers_address(peers: &Arc<RwLock<Vec<PeerIPC>>>) -> WhResult<Vec<
     Ok(peers
         .try_read_for(LOCK_TIMEOUT)
         .ok_or(WhError::WouldBlock {
-            called_from: "apply_redundancy: can't lock peers mutex".to_string(),
+            called_from: "get_all_peers_address: can't lock peers mutex".to_string(),
         })?
         .iter()
         .map(|peer| peer.address.clone())
@@ -474,6 +474,9 @@ impl NetworkInterface {
 
     pub fn register_new_node(&self, socket: Address, addr: Address) {
         self.edit_peer_ip(socket, addr);
+        self.to_redundancy_tx
+            .send(RedundancyMessage::CheckIntegrity)
+            .unwrap();
     }
 
     pub fn disconnect_peer(&self, addr: Address) -> io::Result<()> {
@@ -491,6 +494,9 @@ impl NetworkInterface {
                 hosts.retain(|h| *h != addr);
             }
         }
+        self.to_redundancy_tx
+            .send(RedundancyMessage::CheckIntegrity)
+            .unwrap();
         Ok(())
     }
 
@@ -503,10 +509,14 @@ impl NetworkInterface {
                 Some(message) => message,
                 None => continue,
             };
-            log::debug!("From {}: {:?}", origin, content);
-            let content_name = content.to_string();
+            if log::log_enabled!(log::Level::Debug) {
+                log::debug!("From {}: {:?}", origin, content);
+            } else {
+                log::info!("From {}: {}", origin, content);
+            }
+            let content_debug = format!("{content:?}");
 
-            let action_result = match content { // remove scary clone
+            let action_result = match content {
                 MessageContent::PullAnswer(id, binary) => fs_interface.recept_binary(id, binary),
                 MessageContent::RedundancyFile(id, binary) => fs_interface.recept_redundancy(id, binary)
                     .map_err(|e| std::io::Error::new(
@@ -586,7 +596,7 @@ impl NetworkInterface {
             };
             if let Err(error) = action_result {
                 log::error!(
-                    "Network airport couldn't operate operation {content_name:?}, error found: {error}"
+                    "Network airport couldn't operate operation {content_debug}, error found: {error}"
                 );
             }
         }

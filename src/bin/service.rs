@@ -45,10 +45,10 @@ type CliTcpWriter =
     SplitSink<WebSocketStream<tokio::net::TcpStream>, tokio_tungstenite::tungstenite::Message>;
 
 async fn handle_cli_command(
-    mut pods: HashMap<String, Pod>,
+    pods: &mut HashMap<String, Pod>,
     command: Cli,
     mut writer: CliTcpWriter,
-) -> HashMap<String, Pod> {
+) {
     let response_command = match command {
         Cli::New(pod_args) => match commands::service::new(pod_args).await {
             Ok(pod) => {
@@ -214,7 +214,6 @@ async fn handle_cli_command(
         Ok(()) => log::debug!("Sent answer to cli"),
         Err(err) => log::error!("Message can't send to cli: {}", err),
     }
-    pods
 }
 
 async fn get_cli_command(stream: tokio::net::TcpStream) -> WhResult<(Cli, CliTcpWriter)> {
@@ -263,7 +262,7 @@ async fn get_cli_command(stream: tokio::net::TcpStream) -> WhResult<(Cli, CliTcp
 
 /// Listens for CLI calls and launch one tcp instance per cli command
 async fn start_cli_listener(
-    mut pods: HashMap<String, Pod>,
+    pods: &mut HashMap<String, Pod>,
     ip: String,
     mut interrupt_rx: UnboundedReceiver<()>,
     mut signals_rx: UnboundedReceiver<()>,
@@ -297,9 +296,8 @@ async fn start_cli_listener(
                 continue;
             }
         };
-        pods = handle_cli_command(pods, command, writer).await;
+        handle_cli_command(pods, command, writer).await;
     }
-    pods
 }
 
 #[tokio::main]
@@ -333,19 +331,14 @@ async fn main() {
     let cli_airport = tokio::spawn(start_cli_listener(pods, ip, interrupt_rx, signals_rx));
     log::info!("Started");
 
-    pods = cli_airport
-        .await
-        .expect("main: cli_airport didn't join properly");
+    cli_airport.await;
     terminal_handle.abort();
     handle.close();
     signals_task.await.unwrap();
 
     log::info!("Stopping");
     for (name, pod) in pods.into_iter() {
-        match tokio::task::spawn_blocking(move || pod.stop())
-            .await
-            .expect("main: pod stop: can't spawn blocking task")
-        {
+        match pod.stop().await {
             Ok(()) => log::info!("Stopped pod {name}"),
             Err(e) => log::error!("Pod {name} can't be stopped: {e}"),
         }
