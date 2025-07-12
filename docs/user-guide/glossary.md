@@ -65,5 +65,5 @@ There is two types of **pods** :
 > A **passive pod** join/leave is weightless as it's only interracting with the network, not participating to the global strategy.
 >
 
-![alt text](images/wormhole_graph_2.png)
-![alt text](images/wormhole_graph.png)
+![alt text](../images/wormhole_graph_2.png)
+![alt text](../images/wormhole_graph.png)
