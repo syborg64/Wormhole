@@ -8,11 +8,11 @@ Written by Axel Denis, Julian Scott, Ludovic de Chavagnac and Arthur Aillet
 | ----------------------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------- | --------------------------------------------------------------------- |
 | Basic Local Interactions      | Read, Write, Move, Rename, Delete files and Folders. All common user interactions must be implemented | **<span style="color: red">High</span>**      | Improved and expanded                                                 |
 | Docker Image                  | Replicable environment                                                                                | **<span style="color: orange">Medium</span>** | Added                                                                 |
-| Configuration Files           | Wormhole is configurable by configuration file.                                                       | **<span style="color: orange">Medium</span>** | Added                                                                 |
+| Configuration Files           | Wormhole is configurable by configuration file.                                                       | **<span style="color: orange">Medium</span>** | Not Fixed                                                                 |
 | Stability (Almost)            | Does not generate spontaneous errors. Can handle invalid input with safe failures                     | **<span style="color: red">High</span>**      | Improved                                                              |
 | Linux Support                 | Complete support for all majors Linux systems (Debian, Arch, etc.).                                   | **<span style="color: red">High</span>**      | Validated                                                             |
-| Mac Support (lack testing)    | Functional on mac systems.                                                                            | **<span style="color: yellow">Low</span>**    | Theorhetically added                                                  |
 | Windows Support               | Support of the windows system post windows 10                                                         | **<span style="color: red">High</span>**      | Added                                                                 |
+| Mac Support (lack testing)    | Functional on mac systems.                                                                            | **<span style="color: yellow">Low</span>**    | Theorhetically added                                                  |
 | Complete User Documentation   | The user and developper documentation is clear and easy to use.                                       | **<span style="color: red">High</span>**      | Expanded                                                              |
 | Redudancy                     | Basic redundancy with a minimum of 3 pods.                                                            | **<span style="color: red">High</span>**      | Update redudancy (2 pods to a theoretically unlimited number of pods) |
 | Compliant Error Handling      | Software interacting with Wormhole may respond accordingly                                            | **<span style="color: orange">Medium</span>** | Fixed                                                                 |
@@ -38,7 +38,7 @@ Written by Axel Denis, Julian Scott, Ludovic de Chavagnac and Arthur Aillet
 ### **2.2 Test Scenarios**
 For each core functionality, provide detailed test scenarios.
 
-#### **Scenario 1: First Installation**
+#### **Scenario 0: First Installation**
 - **Role Involved:** For every role
 - **Objective:** Verify that the new user onboarding process is simple and clear.
 - **Prerequisites:** None
@@ -50,7 +50,7 @@ For each core functionality, provide detailed test scenarios.
   5. Test that all instances are properly connected by adding a blank file to the network
 - **Expected Outcome:** The user doesn't need to consult any external resources for installation, and has a functional network
 
-#### **Scenario 2: Basic Local Interactions**
+#### **Scenario 1: Basic Local Interactions**
 - **Role Involved:** For every role
 - **Objective:** Interact with the filesystem (read, write, move, rename, delete, ...) a file or folder.
 - **Prerequisites:** Installing Wormhole With a single instance
