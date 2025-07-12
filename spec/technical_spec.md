@@ -1,335 +1,338 @@
-# Spécification Technique
-Comme expliqué dans le contexte du projet, Wormhole est une solution de **stockage décentralisé de données**.   
-Cette partie du document propose une rapide explication de ce qu'est la décentralisation, et de comment cette méthode se compare aux autres.   
-Le détail technique des fonctions proposées par le projet ainsi que sa stack technique sera ensuite abordé.
+# Technical Specification
+As explained in the project context, Wormhole is a **decentralized data storage** solution.  
+This section of the document provides a brief explanation of what decentralization is and how this approach compares to others.  
+The technical details of the features offered by the project and its technical stack will then be discussed.
 
-## La décentralisation (contexte - définition - utilité)
-Aujoud'hui, petites comme grandes entreprises ont de grands besoins en terme de stockage de données :
-- **Données internes**
-  - Documents de l'entreprise (cloud interne pour les employés)
-  - Données de travail   
-    > Assets pour un studio de jeu vidéo   
-    > Datasets scientifiques pour un laboratoire   
-    > Training sets pour studios d'intelligence artificielle   
-    > Big Data   
-    > ... toute donnée servant directement l'entreprise   
-  - Données sensibles
-    > Comptes, devis et factures de l'entreprise (données légales)   
-    > Données en rapport avec un client   
-- **Données utilisés par un service logiciel proposé par l'entreprise**
-  > Musiques pour une application comme Spotify/Deezer   
-  > Vidéos pour une application comme Youtube/TikTok   
-  > Diverses données stockées pour un service comme OneDrive/Google Drive   
+## Decentralization (context - definition - utility)
+Today, both small and large companies have significant data storage needs:
+- **Internal data**
+  - Company documents (internal cloud for employees)
+  - Work-related data  
+    > Assets for a video game studio  
+    > Scientific datasets for a laboratory  
+    > Training sets for artificial intelligence studios  
+    > Big Data  
+    > ... any data directly serving the company  
+  - Sensitive data  
+    > Accounts, quotes, and invoices (legal data)  
+    > Customer-related data  
+- **Data used by a software service offered by the company**  
+  > Music for applications like Spotify/Deezer  
+  > Videos for applications like YouTube/TikTok  
+  > Various data stored for services like OneDrive/Google Drive  
 
-Tous ces usages ne sont que des exemples mais représentent bien les besoins qu'ont les entreprises correctement implantés dans l'ère informatique.   
-**Cependant, ce besoin est vite limité par une limite physique.**   
-En effet, on ne peut pas concentrer une infinité de ressources dans un seul serveur.   
-Centraliser la donnée sur une seule machine poserait aussi un problème d'intégrité des données en cas de panne.   
+These use cases are just examples but represent the needs of companies well-established in the digital era.  
+**However, this need quickly encounters a physical limitation.**  
+Indeed, it is impossible to concentrate infinite resources on a single server.  
+Centralizing data on a single machine would also pose a data integrity issue in case of failure.  
 
-**Très vite arrive la nécéssité d'augmenter le nombre de machines pour répondre au moins à certaines des exigences suivantes :**
-- Besoin de capacité massive de stockage (plus de place)
-- Besoin de plus de puissance (servir les données plus vite)
-- Fiabilité / Gestion de crise
-  - Résister sans effort aux pannes mineures
-  - Suivre sa politique de PCA/PCI ([Plan de Continuité d'activité Informatique](https://fr.wikipedia.org/wiki/Plan_de_continuit%C3%A9_d%27activit%C3%A9_(informatique))) en cas d'incidant majeur
-- Faciliter l'accès pour tous les sites géographiques de l'entreprise
+**The need to increase the number of machines quickly arises to meet at least some of the following requirements:**  
+- Need for massive storage capacity (more space)  
+- Need for more power (faster data delivery)  
+- Reliability / Crisis management  
+  - Effortlessly withstand minor failures  
+  - Follow its Business Continuity Plan (BCP) in case of a major incident  
+- Facilitate access for all the company’s geographical sites  
 
-> [!TIP] Plan de Continuité d'Activité / Informatique
-> La **PCA/PCI** est une pratique courante pour les entreprises dépendantes de services informatique.   
-> Généralement mise en place par la direction informatique ainsi que les coeurs de métiers concernés, elle prend la forme d'une procédure claire de réaction aux incidents graves les plus probables.   
-> Wormhole n'écrit pas ce plan pour l'entreprise, mais dispose des paramètres nécéssaire pour respecter des procédures définies à l'avance.   
-> Plus d'informations : [Wikipédia - Plan de continuité d'activité (informatique)](https://fr.wikipedia.org/wiki/Plan_de_continuit%C3%A9_d%27activit%C3%A9_(informatique))
+> [!TIP] Business Continuity Plan  
+> The **BCP** is a common practice for companies dependent on IT services.  
+> Typically established by the IT department and relevant business units, it takes the form of a clear procedure for responding to the most likely serious incidents.  
+> Wormhole does not create this plan for the company but provides the necessary parameters to comply with predefined procedures.  
+> More information: [Wikipedia - Business Continuity Plan](https://en.wikipedia.org/wiki/Business_continuity)  
 
-Multiplier le nombre de machines pour un même service s'appelle de la décentralisation, par opposition à la centralisation, restreinte à une entité.   
-Face à ce besoin incontournable, les entreprises ont peu de solutions :
-- **Utiliser un fournisseur cloud externe**   
-  > C'est la solution la plus simple.   
-  > Elle est cependant couteuse et l'entreprise n'est plus souveraine de ses données.   
-  > Cela la rend impossible dans certains cas (données sensibles, données utilisées par un service logiciel ou besoin spécifique)   
-  > *A noter que les services cloud utilisent justement la décentralisation pour sécuriser les données*
-- **Semi-centralisation (manuelle)**   
-  > Solution consistant à garder le plus possible une entitée centralisée (serveur / salle serveur) principale, et d'en prévoir une seconde hors ligne sur laquelle on sauvegarde régulièrement.   
-  > En cas de panne, on connecte la seconde entité en remplacement. On l'utilisera aussi pour remettre les données sur l'entité principale une fois celle ci en état de marche.   
-  > Cette stratégie est plus utilisée sur les infrastructures à échelle datacenter. Peu accessible par les entreprises moyennes.   
-  > Elle induit aussi une possible interruption de service.
-- **Décentralisation (manuelle)**   
-  > **La solution ultime**, répondant à tous les besoins dont nous avons parlé.   
-  > **Cependant il n'existe pas de moyen universel pour mettre en place cette solution. C'est à cela que Wormhole répond,** en proposant un outil simple, ouvert et universel.
+Increasing the number of machines for the same service is called decentralization, as opposed to centralization, which is limited to a single entity.  
+Faced with this unavoidable need, companies have few solutions:  
+- **Use an external cloud provider**  
+  > This is the simplest solution.  
+  > However, it is costly, and the company loses sovereignty over its data.  
+  > This makes it impossible in some cases (sensitive data, data used by a software service, or specific needs).  
+  > *Note that cloud services themselves use decentralization to secure data.*  
+- **Semi-centralization (manual)**  
+  > A solution that involves maintaining a primary centralized entity (server/server room) as much as possible, with a secondary offline entity for regular backups.  
+  > In case of failure, the secondary entity is brought online as a replacement. It is also used to restore data to the primary entity once it is operational again.  
+  > This strategy is more common in datacenter-scale infrastructures and is less accessible to medium-sized companies.  
+  > It may also lead to service interruptions.  
+- **Decentralization (manual)**  
+  > **The ultimate solution**, addressing all the needs discussed.  
+  > **However, there is no universal way to implement this solution. This is where Wormhole steps in,** offering a simple, open, and universal tool.  
 
-> [!TIP] Wormhole se veut être le Kubernetes de l'espace disque.
+> [!TIP] Wormhole aims to be the Kubernetes of disk space.  
 
-## Notre solution : Wormhole
-**Wormhole offre une solution simple et déclarative pour la création d'infrastructures décentralisées simples comme avancées.**   
-Wormhole créé un système de fichiers décentralisé entre toutes les machines ajoutés au réseau.   
-Une fois monté, ce système de fichier, intégré nativement, ne diffère pas des autres fichiers de la machine.
-> [!NOTE] Pour un utilisateur, il n'y a aucune différence entre un dossier de fichiers locaux et un dossier Wormhole.   
-> Il en va de même les logiciels et les applications, les fichiers se comportant comme des fichiers locaux normaux, aucune adaptation n'est nécéssaire.
+## Our Solution: Wormhole
+**Wormhole provides a simple and declarative solution for creating both simple and advanced decentralized infrastructures.**  
+Wormhole creates a decentralized file system across all machines added to the network.  
+Once mounted, this file system, natively integrated, is indistinguishable from other files on the machine.  
+> [!NOTE] For a user, there is no difference between a local file folder and a Wormhole folder.  
+> The same applies to software and applications; the files behave like normal local files, requiring no adaptation.  
 
-### Pour les entreprises :
-Adapté aux besoins de grande échelle, Wormhole permet de monter en un claquement de doigt une infrastructure puissante :
-- **Massive**, libérée de la centralisation sur un serveur, la croissance n'a pas de limite.
-- **Performante**, tirant parti de toute la puissance mise à disposition de manière optimisée, évitant la consomation inutile.
-- **Sécurisée** contre les pertes de données (même en cas de panne).
-- **Sans interruption de service**, même en cas de panne, même lors de modification du réseau.
-- **Flexible**, avec modification facile de l'infrastructure sans interruption de service.
-- **Native**, sans besoin d'adapter les applications et services déjà présents.
-- **Adaptée** à toutes les échelles, du petit réseau local d'une startup jusqu'aux grandes infrastructures internationales.
+### For Companies:
+Tailored to large-scale needs, Wormhole enables the rapid creation of a powerful infrastructure:  
+- **Massive**, free from the constraints of server centralization, with no growth limits.  
+- **High-performing**, leveraging all available power optimally, avoiding unnecessary consumption.  
+- **Secure** against data loss (even in case of failure).  
+- **Uninterrupted**, even during failures or network modifications.  
+- **Flexible**, allowing easy infrastructure changes without service interruption.  
+- **Native**, requiring no adaptation of existing applications and services.  
+- **Scalable**, suitable for all scales, from a startup’s local network to large international infrastructures.  
 
-> [!IMPORTANT] La configuration simple, claire et déclarative permet d'éviter l'erreur humaine.   
-> Une fois lancé, l'expérience sera fluide et fiable pour tous les services.
-> Le réseau peut être modifié, des machines ajoutées ou retirées sans interrompre le service.   
-> L'entreprise peut facilement définir sa gestion de sécurité pour la concervation des données, ainsi que ses [plans de continuité d'activité informatique](https://fr.wikipedia.org/wiki/Plan_de_continuit%C3%A9_d%27activit%C3%A9_(informatique)) pour résister aux incidents mineurs comme majeurs.
-<br>
+> [!IMPORTANT] The simple, clear, and declarative configuration minimizes human error.  
+> Once launched, the experience is smooth and reliable for all services.  
+> The network can be modified, with machines added or removed, without interrupting the service.  
+> The company can easily define its data retention security policies and its [Business Continuity Plans](https://en.wikipedia.org/wiki/Business_continuity) to withstand minor and major incidents.  
 
-> [!TIP] Evolutif / Scalable
-> La nature adaptive de Wormhole le rend ouvert à des utilisations variées.   
-> **Léger**, ne demande pas de configuration minimale puissante.   
-> **Optimisé**, il tirera parti des serveurs les plus capables.   
+> [!TIP] Scalable  
+> Wormhole’s adaptive nature makes it suitable for a variety of use cases.  
+> **Lightweight**, it does not require a powerful minimum configuration.  
+> **Optimized**, it takes full advantage of the most capable servers.  
 
-#### Exemples d'utilisations (User Stories) :
+#### Example Use Cases (User Stories):  
 
-> ➕**Startup / PME dans la cybersécurité**   
-> Petite équipe, n'a pas de pôle DSI pour gérer de l'infrastructure.   
-> N'utilise pas de cloud externe afin de garder la souveraineté de ses données.   
-> Héberge ses données sur ses quelques (ex. 3) petits serveurs NAS.
-> - Souhaite simplifier l'organisation de ses données (actuellement éparpillées sur les différents NAS)
-> - Souhaite assurer l'intégrité de ses données en cas de panne
-> - N'a pas de temps ni d'équipe à consacrer à cette gestion des données (organisation, sauvegarde, accès...)
-> - Aimerait une solution qui pourra croitre avec l'entreprise
->
-> **Solution Wormhole :**
-> - Les machines d'un réseau sont "fusionnées". Pour l'utilisateur final, il n'y a qu'une racine (/) peu importe le nombre de machines individuelles. Libre à lui de créer les dossiers et l'organisation qu'il souhaite.
-> - La configuration d'intégrité est très complète, elle permet d'anticiper et de réagir aux imprévus. Voici quelques exemples :
->   - L'option de redondance stocke la quantité demandée de copies d'un même fichier sur plusieurs machines. Plus il y a de copies, moins le risque de perte est important.
->   - Les options gestion de crise ([PCI](https://fr.wikipedia.org/wiki/Plan_de_continuit%C3%A9_d%27activit%C3%A9_(informatique))) permettent prévoir la posture à adopter si trop de machines tombent pour continuer le fonctionnement normal.
-> - La création d'un réseau est faisable rapidement même par un débutant, et ne demande pas de gestion une fois en place.
-> - La modification d'un réseau ne nécéssite pas sa suppression, il s'équilibre automatiquement lors de l'ajout ou du retrait d'une machine.
->   Il est donc facilement portable sur une infrastructure croissante.
-<br>
-___
-
-> ➕**Laboratoire**   
-> Equipe spécialisée, a des serveurs et machine puissantes, mais ce n'est pas le coeur de métier.   
-> Procède à des simulations et analyses, générant des flux très importants de données.   
-> N'utilise pas de cloud externe, incompatible avec ses besoins de performance.   
-> Détient des machines puissantes mais spécialisées (Ordinateurs pour simulation GPU, Ordinateurs pour analyse CPU, serveurs de stockage massifs).
-> - A de grands besoins de performances.
-> - Souhaiterait que plusieurs machines distinctes puissent analyser un même set de données.
-> - Les données sont générées, analysées et supprimées au jour le jour, la perte en cas de panne n'est pas un problème.
-> - A des besoins très changeants (oscille régulièrement entre quelques Go et quelques dixaines de To) et aimerait pouvoir allouer ses ressources au jour le jour.
->
-> **Solution Wormhole :**
-> - Stocke intelligemment les données là où elles sont le plus demandées. Propose un système de cache pour accélérer le système.
-> - Chaque machine du réseau a en effet le même set de données.
-> - La configuration permet totalement d'optimiser le réseau pour la vitesse et non pour l'intégrité au long terme.
-> - La rapidité et simplicité de mise en place d'un réseau permet totalement de monter, utiliser et supprimer un réseau pour une seule utilisation.
->   De plus, il suffit de garder le fichier de configuration sous la main pour recréer le réseau en une commande.
+> ➕**Cybersecurity Startup / SME**  
+> Small team, no dedicated IT department to manage infrastructure.  
+> Avoids external cloud providers to maintain data sovereignty.  
+> Hosts data on a few (e.g., 3) small NAS servers.  
+> - Wants to simplify data organization (currently scattered across different NAS servers).  
+> - Wants to ensure data integrity in case of failure.  
+> - Lacks time or a team to dedicate to data management (organization, backup, access, etc.).  
+> - Desires a solution that can grow with the company.  
+>  
+> **Wormhole Solution:**  
+> - Machines in a network are “merged.” For the end user, there is only one root (/) regardless of the number of individual machines. The user is free to create folders and organize as desired.  
+> - The integrity configuration is comprehensive, allowing anticipation and reaction to unexpected events. Examples include:  
+>   - The redundancy option stores the requested number of file copies across multiple machines. The more copies, the lower the risk of loss.  
+>   - Crisis management options ([BCP](https://en.wikipedia.org/wiki/Business_continuity)) allow planning the approach if too many machines fail to maintain normal operation.  
+> - Creating a network is quick, even for a beginner, and requires no maintenance once set up.  
+> - Modifying a network does not require its deletion; it automatically rebalances when a machine is added or removed.  
+>   This makes it easily adaptable to a growing infrastructure.  
 <br>
 ___
 
-> ➕**Service web**   
-> Entreprise récente venant d'exploser ! Ce nouveau réseau social permet de partager non pas des photos mais des scans 3D !
-> Le réseau est atypique mais possède déjà 10.000 utilisateurs réguliers ! Stocker tous ces posts pèse lourd !
-> - A un besoin grandissant de place.
-> - A un besoin contrasté de performance. Les ressources devraient êtres priorisées pour les posts en tendances plutôt que les posts anciens et rarement vus.
-> - A besoin d'un service ininterrompu même en cas de panne.
-> - A des exigences d'intégrité autour du minimum légal (autour de 3 copies)
->
-> **Solution Wormhole :**
-> - Utilise toutes les ressources qui lui sont offertes, et en permet un ajout facile.
-> - La configuration des systèmes de cache et d'affinités permet de distinguer les serveurs rapides (SSD) et massifs (HDD) et d'utiliser au mieux leur potentiel.
-> - Le réseau maintenant installé sur une telle quantité de serveurs, la redondance et l'équilibrage automatique rendent une interruption de service ou une perte de données virtuellement impossibles.
+> ➕**Laboratory**  
+> Specialized team with powerful servers and machines, but IT is not their core business.  
+> Conducts simulations and analyses, generating significant data flows.  
+> Avoids external cloud providers due to performance requirements.  
+> Owns powerful but specialized machines (GPU simulation computers, CPU analysis computers, massive storage servers).  
+> - Has high performance needs.  
+> - Wants multiple distinct machines to analyze the same dataset.  
+> - Data is generated, analyzed, and deleted daily; loss in case of failure is not a concern.  
+> - Has highly variable needs (ranging from a few GB to tens of TB) and wants to allocate resources daily.  
+>  
+> **Wormhole Solution:**  
+> - Intelligently stores data where it is most in demand. Provides a caching system to speed up operations.  
+> - Every machine in the network has access to the same dataset.  
+> - The configuration allows complete optimization of the network for speed rather than long-term integrity.  
+> - The speed and simplicity of setting up a network allow for creating, using, and deleting a network for a single use case.  
+>   Additionally, keeping the configuration file allows recreating the network with a single command.  
+<br>
+___
+
+> ➕**Web Service**  
+> A rapidly growing company! This new social network allows sharing 3D scans instead of photos!  
+> The network is unconventional but already has 10,000 regular users! Storing all these posts is resource-intensive!  
+> - Has a growing need for storage space.  
+> - Has contrasting performance needs. Resources should prioritize trending posts over older, rarely viewed ones.  
+> - Requires uninterrupted service, even in case of failure.  
+> - Has integrity requirements around the legal minimum (about 3 copies).  
+>  
+> **Wormhole Solution:**  
+> - Utilizes all available resources and allows easy addition of new ones.  
+> - Cache and affinity configuration distinguishes between fast (SSD) and massive (HDD) servers to optimize their potential.  
+> - With the network installed across such a large number of servers, redundancy and automatic balancing make service interruptions or data loss virtually impossible.  
 
 <br>
-Une fois le système mis en place, tout fonctionne automatiquement, garantissant une utilisation simple et sans accroc.   
-La configuration par fichier est réutilisable et partageable. Sa clareté la rend facile à comprendre et maintenir même des années après sa mise en place.
-La plasticité du réseau le rend fiable, adaptable et modifiable sans mesures compliquées.
+Once the system is set up, everything operates automatically, ensuring simple and seamless use.  
+The file-based configuration is reusable and shareable. Its clarity makes it easy to understand and maintain, even years after implementation.  
+The network’s flexibility makes it reliable, adaptable, and modifiable without complex measures.  
 
-### Pour les particuliers
-La nature **flexible** de Wormhole lui permet un usage pratique même chez les particuliers.   
-Marre de chercher vos documents, photos et projets entre votre NAS, votre ordinateur fixe et votre ordinateur portable?   
-Montez en quelques minutes un réseau Wormhole, et vos différents appareils ne font plus qu'un. Vos données sont disponibles sur tous comme si elles y étaient !   
-> [!IMPORTANT] Une fois installé, on oublie très vite la présence de Wormhole.   
-> Et pourtant, l'enfer de chercher ses données sur différents appareils, les synchroniser ou les sauvegarder est maintenant de l'histoire ancienne.   
-> Wormhole fait tout pour vous 😎   
-> On vous a volé votre pc portable ? **Vous n'avez pas perdu vos données.**   
-> Votre NAS déraille ? **Vous n'avez pas perdu vos données.**   
-> Votre ordinateur fixe brule ?! **Vous n'avez pas perdu vos données !**   
-> Vous avez un nouvel appareil ? **Une commande, et tout est géré.**
+### For Individuals  
+Wormhole’s **Flexible** nature makes it practical for individual use as well.  
+Tired of searching for documents, photos, and projects across your NAS, desktop, and laptop?  
+Set up a Wormhole network in minutes, and your devices become one. Your data is available on all as if it were local!  
+> [!IMPORTANT] Once installed, you quickly forget Wormhole is even there.  
+> Yet, the nightmare of searching for, syncing, or backing up data across devices is a thing of the past.  
+> Wormhole does it all for you 😎  
+> Laptop stolen? **You haven’t lost your data.**  
+> NAS fails? **You haven’t lost your data.**  
+> Desktop burns out?! **You haven’t lost your data!**  
+> Got a new device? **One command, and it’s all handled.**  
 
 ___
 
-## specification
+## Specification  
 
-### Interface native
+### Native Interface  
 
-Pour une interaction avec le réseau de manière instinctive, l’accès aux données se fait par l’interface d’un dossier virtuel monté par wormhole. Cela permet de garder les mêmes moyens d’interaction avec les données que avec tout autre système de fichier. Ces dossiers virtuels sont permis par les technologies natives telles que FUSE (Linux) ou WinFSP (Windows).
+For intuitive interaction with the network, data access is provided through a virtual folder mounted by Wormhole. This allows the same interaction methods as with any other file system. These virtual folders are enabled by native technologies such as FUSE (Linux) or WinFSP (Windows).  
 
-### Intégration Universelle
+### Universal Integration  
 
-Une des priorités de Wormhole est de rendre le réseau accessible par le plus d’appareils possible afin que le disque virtuel puisse être compatible avec un maximum de méthodes de travail. 
-Nos objectifs prioritaires pour l’EIP sont une intégration sur les plateformes suivantes :
-- Linux
-- Windows
-- Mac
-Fuse supportant aussi Android fait d’android une plateforme secondaire intéressante à implémenter.
+One of Wormhole’s priorities is to make the network accessible to as many devices as possible, ensuring the virtual disk is compatible with a wide range of workflows.  
+Our primary objectives for the EIP are integration with the following platforms:  
+- Linux  
+- Windows  
+- Mac  
 
-Pour simplifier l’accès aux plateformes non supportées nativement, une image Docker sera développée.
-Cette image sera proposée avec une configuration Kubernetes pour faciliter notre entrée dans le monde existant de l’informatique distribuée.
+> FUSE’s support for Android makes it an interesting secondary platform to implement.  
 
+To simplify access for platforms not natively supported, a Docker image will be developed.  
+This image will be provided with a Kubernetes configuration to facilitate integration into the existing world of distributed computing.  
 
-### Configuration
+### Configuration  
 
-Notre projet veut allier rapidité de mise en place et extensibilité de configuration.
-Pour répondre à ces objectifs, nous optons pour la configuration par fichiers. Cette méthode a déjà fait ses preuves pour des services comme Docker et Kubernetes, en permettant le partage, la réutilisation et le versionning. 
-Nous pensons utiliser le format TOML, alliant clarté et modernité, et bien intégré dans l'environnement Rust.
+Our project aims to combine rapid setup with extensible configuration.  
+To meet these goals, we opt for file-based configuration. This method has proven effective for services like Docker and Kubernetes, enabling sharing, reuse, and versioning.  
+We plan to use the TOML format, which combines clarity and modernity and is well-integrated into the Rust ecosystem.  
 
-La configuration se veut la plus complète possible pour moduler tous les aspects du réseau. Elle serait donc à plusieurs niveaux :
-Niveau du réseau pour le comportement général.
-Niveau Pod avec les informations locales et les affinités propres au pod
-Niveau par fichier pour spécifier des exceptions dans leur comportement.
+The configuration is designed to be as comprehensive as possible to modulate all aspects of the network. It operates on multiple levels:  
+- Network level for general behavior.  
+- Pod level with local information and pod-specific affinities.  
+- File level to specify exceptions in their behavior.  
 
-Voici une liste d’exemples de champs de configurations qui seraient mis à disposition de l’utilisateur.
-Cette liste n’est pas exhaustive ou définitive. Notre objectif est de permettre de configurer tout ce qui peut l’être, ce qui explique que la majorité des champs de configuration spécifiques seront définis au cours du projet.
+Below is a list of example configuration fields available to the user.  
+This list is neither exhaustive nor definitive. Our goal is to allow configuration of everything possible, which is why most specific configuration fields will be defined during the project.  
 
-Configuration générale :
-Nom unique du réseau
-Nombre de redondances par fichier
-Stratégie d’ajout (accepter les nouvelles nodes)
-Taille maximale du stockage proposé
-Administration (qui peut modifier la configuration générale)
-Stratégie de panne
-Si elle n’entrave pas le fonctionnement ou l’intégrité
-Si elle entrave l’intégrité (manque de redondances, mais aucun fichier perdu)
-Si elle entrave le fonctionnement (fichiers manquants)
+> **General Configuration:**  
+> - Unique network name  
+> - Number of redundancies per file  
+> - Node addition strategy (accepting new nodes)  
+> - Maximum storage size offered  
+> - Administration (who can modify the general configuration)  
+> - Failure strategy  
+> - If it does not affect operation or integrity  
+> - If it affects integrity (lack of redundancies, but no files lost)  
+> - If it affects operation (missing files)  
 
-Configuration par Pod :
-Limite d’espace de stockage
-Cache local (propension à garder des copies locales pour accélérer l’usage)
-Affinités (prioriser ou éviter un pod pour une tâche)
-Stockage des redondances
-Stockage des nouveaux fichiers
-Stockage des fichiers les plus demandés
-Stockage des fichiers les moins demandés
-Stratégie de panne locale (réaction si déconnecté du réseau)
+> **Pod Configuration:**  
+> - Storage space limit  
+> - Local cache (propensity to keep local copies for faster access)  
+> - Affinities (prioritize or avoid a pod for a task)  
+> - Storage of redundancies  
+> - Storage of new files  
+> - Storage of most-requested files  
+> - Storage of least-requested files  
+> - Local failure strategy (reaction if disconnected from the network)  
 
-Configuration par fichier :
-Conserver (force ce Pod à conserver une version locale)
-Ne pas mettre en cache
-Lecture seule
-Nombre de redondances
+> **File Configuration:**  
+> - Keep (force this pod to retain a local version)  
+> - Do not cache  
+> - Read-only  
+> - Number of redundancies  
 
+Many configuration options are available to the user. To simplify their definition, we have chosen to follow the same approach as Docker and Kubernetes with file-based configurations, specifically in the TOML format for its modernity and integration with the Rust ecosystem.  
 
-Beaucoup d’options de configuration sont ouvertes à l’utilisateur . Pour simplifier leurs définition on a choisi de suivre la même méthode que docker et kubernetes avec des configurations par fichiers. Plus précisément sous le format TOML pour sa modernité et son intégration dans l'écosystème rust.
+The configuration operates on multiple levels: at the network level for general settings, at the machine level for local information and pod-specific affinities, and at the file level to specify exceptions in their behavior.  
 
-La configuration serait à plusieurs niveaux, au niveau du réseau pour les configuration générale. Au niveau de chaque machine avec les informations locales et les affinités propres au pod et enfin des configuration par fichier pour spécifier des exceptions dans leur comportement.
+### Data Distribution  
 
-Distribution de données
+With Wormhole, when reading a file that is not locally present on the machine, the data is downloaded from the host machine on the fly.  
+This offers several possibilities:  
+- Act remotely on the file during the entire process (streaming).  
+- Create a local copy of the file during use before exporting updates to the network.  
+- Remote action is slower (latency) and uses bandwidth but has the benefit of not consuming disk space.  
+- Using a local copy consumes disk space but provides enhanced performance.  
+- The extensible configuration allows the user to customize this behavior (and other similar behaviors).  
 
-Avec Wormhole, lors de la lecture d’un fichier qui n’est pas présent localement sur la machine, les données seront téléchargées de la machine hôte à la volée. Cela offre plusieurs possibilitées :
-Agir à distance sur le fichier pendant tout le processus (streaming).
-Créer une copie locale du fichier pendant son usage, avant d’exporter les mises à jour sur le réseau.
-Agir à distance est plus lent (latence) et utilise de la bande passante, mais possède le bénéfice de ne pas utiliser d’espace disque.
-Utiliser une copie locale utilise le bénéfice, mais permet une performance accrue.
-L’extensibilité de la configuration permet à l’utilisateur de paramétrer ce comportement (et d’autres comportements similaires).
-Il est aussi important de noter que de manière automatique, Wormhole stockera les fichiers sur les nodes le demandant souvent, optimisant ainsi le système entier.
+> It is also important to note that, automatically, Wormhole stores files on the nodes requesting them most frequently, optimizing the entire system.  
 
-Avec wormhole, à la lecture d’un fichier qui n’est pas présent sur la machine, les données seront téléchargées de la machine hôte. Ici vient une possibilité soit directement stream le contenu du fichier, soit de l'enregistrer avant de transmettre le contenu. L’une des options consomme plus en network et l’autre en espace disque. Cet équilibre peut être choisi par l’utilisateur, entre tout stream, tout enregistrer ou bien définir un entre deux en fonction de la fréquence de lecture et/ou de la taille du fichier.
+With Wormhole, when reading a file not present on the machine, the data is downloaded from the host machine. This presents the option to either stream the file content directly or save it before transmitting the content. One option consumes more network bandwidth, while the other uses more disk space. This balance can be chosen by the user, ranging from full streaming, full saving, or a middle ground based on read frequency and/or file size.  
 
-Stratégies de gestion (tolérance de panne, redondance et intégrité, performance…)
+### Management Strategies (fault tolerance, redundancy and integrity, performance…)  
 
-La gestion des données est une question complexe, et elle l’est encore plus de grandes infrastructures telles que celles que Wormhole peut opérer. Ce n’est pas pour rien que les entreprises ont des équipes entières consacrées au sujet.
+Data management is a complex issue, especially for large infrastructures like those Wormhole can operate. It’s no surprise that companies dedicate entire teams to this topic.  
 
-Les exigences pouvant changer du tout au tout selon le cas d’usage, Wormhole permet de configurer des stratégies à adopter face à différents sujets.
+As requirements can vary greatly depending on the use case, Wormhole allows configuring strategies to address different issues.  
 
-Conflits de données :
+#### Data Conflicts:  
 
-La modification simultanée d’un même fichier par plusieurs nodes peut causer des conflits. Il n’existe pas de méthode de résolution de conflits parfaite et universelle. 
-L’utilisateur pourra alors choisir parmi une liste de stratégies qui contiendra (sans s’y limiter) :
-Ecraser (garder la version écrite en dernier)
-Garder deux copies
+Simultaneous modification of the same file by multiple nodes can cause conflicts. There is no perfect, universal conflict resolution method.  
+The user can choose from a list of strategies, including (but not limited to):  
+- Overwrite (keep the last written version)  
+- Keep two copies  
 
+Multiple copies of a file can lead to conflicts during simultaneous modifications, so conflict resolution is configurable. Either the most recent version of the file is kept, or a copy with the older modifications is retained alongside the original file, allowing the user to resolve conflicts manually.  
 
-Plusieurs copies d’un fichiers peut mener à des conflits lors de modifications simultanées donc la résolution de conflits sera donc configurable, soit la version la plus récente du fichier sera gardée soit une copie avec les anciennes modifications sera gardée à côté du fichier original pour permettre à l’utilisateur de résoudre les conflits sois même.
+##### Data Integrity and Uninterrupted Service (general case):  
 
-Intégrité des données et service ininterrompu (cas général) :
+Ensuring data integrity during failures is generally critical. Distributing file copies across different network machines guarantees their integrity in case of failure.  
+Not only that, but this replication allows the network to continue operating without interruption or file loss, even temporarily.  
 
-Il est généralement important d’assurer l’intégrité de ses données en cas de panne. Répartir des copies des fichiers sur des machines différentes du réseau permet de garantir leur intégrité en cas de défaillance.
-Non seulement cela, mais cette réplication permet au réseau de continuer son service sans interruption ou disparition de fichiers, même temporaire.
+This process, called redundancy, has the drawback of consuming significant disk space.  
+Depending on their use case, the user can enable or disable this process and choose the number of replicas per file.  
+Generating a large number of copies can be resource-intensive for the cluster. The user can therefore adjust the frequency of copy updates.  
 
-Ce procédé porte le nom de redondance a tout de même le défaut de consommer un espace disque important.
-Selon son usage, l’utilisateur pourra activer ou non ce procédé et choisir le nombre de réplicas par fichier.
-Générer un nombre important de copies peut être une opération lourde pour le cluster. L’utilisateur pourra donc moduler la fréquence de mise à jour des copies.
+##### Integrity and Business Continuity (crisis case):  
 
-Intégrité et plan de continuité (cas de crise) :
+Decentralization and the use of redundancy greatly reduce the likelihood of major incidents.  
+However, Wormhole allows defining strategies to adopt in case of widespread failure.  
 
-La décentralisation et l’usage de la redondance réduisent grandement la probabilité d’incident majeur.
-Cependant, Wormhole permet de définir les stratégies à adopter en cas de malfonction généralisée.
+##### Situations are divided into three categories:  
 
-Les situations sont divisées en trois catégories : 
-Situation favorable :
-Pas de pertes de fichiers, le cluster dispose de l’espace nécessaire pour se rééquilibrer et recréer les redondances manquantes.
-Abordé dans la section intégrité des données et service ininterrompu (cas général)
-Situation mitigée :
-Pas de pertes de fichiers, mais le cluster manque d’espace pour s’équilibrer et recréer la redondance nécessaire.
-Situation grave :
-Fichiers manquants sur le réseau, fonctionnement habituel entravé.
+- **Favorable situation:**  
+No file loss, the cluster has enough space to rebalance and recreate missing redundancies.  
+Covered in the data integrity and uninterrupted service (general case) section.  
 
-Pour chaque situation, l’utilisateur peut configurer une réaction appropriée.
-Exemples de réactions (non exhaustif) : 
-Ralentir / limiter le trafic
-Geler le réseau (lecture seule) jusqu’à résolution du problème ou action de l’administrateur
-Baisser le nombre de redondances pour augmenter l’espace libre et poursuivre le service autant que possible
-Stopper tout
+- **Mixed situation:**  
+No file loss, but the cluster lacks space to rebalance and recreate necessary redundancies.  
 
+- **Critical situation:**  
+Missing files on the network, normal operation disrupted.  
 
-Un élément important dans la sauvegarde de données est la redondance. Répartir des copies données sauvegardées sur le réseau permet de garantir leur sécurité en cas de problème sur l’un des disques.
-Dans la configuration on pourra l’activer et définir le nombre de réplications des fichiers, soit au niveau du global soit par dossier/fichiers. 
+For each situation, the user can configure an appropriate response.  
 
-Plusieurs copies d’un fichiers peut mener à des conflits lors de modifications simultanées donc la résolution de conflits sera donc configurable, soit la version la plus récente du fichier sera gardée soit une copie avec les anciennes modifications sera gardée à côté du fichier original pour permettre à l’utilisateur de résoudre les conflits sois même.
+**Examples of responses (non-exhaustive):**  
+- Slow down/limit traffic  
+- Freeze the network (read-only) until the issue is resolved or administrator action is taken  
+- Reduce the number of redundancies to increase free space and continue service as much as possible  
+- Stop everything  
 
-Optimisation et répartition des charges
+A key element in data backup is redundancy. Distributing copies of backed-up data across the network ensures their safety in case of an issue with one of the disks.  
+In the configuration, the user can enable this and define the number of file replications, either globally or per folder/file.  
 
-La structure décentralisée en maillage mutualise les capacités et offre de belles perspectives d’optimisation de la performance.
-Le système sera capable de gérer “intelligemment” son infrastructure, par exemple :
-Placer les fichiers et leur redondances sur les nodes les utilisant le plus
-Transferts parallèles (télécharger différentes parties d’un même fichier depuis deux nodes ou plus, doublant la vitesse de transfert. Il en va de même pour l’upload).
-Répartition des opérations lourdes. Exemple : si le nombre de redondances est élevé, chaque node fera le transfert à seulement deux autres, qui feront de même, etc, évitant ainsi à une seule node de faire tous les transferts.
+Multiple copies of a file can lead to conflicts during simultaneous modifications, so conflict resolution is configurable. Either the most recent version of the file is kept, or a copy with the older modifications is retained alongside the original file, allowing the user to resolve conflicts manually.  
 
-L’utilisateur pourra aussi moduler ses besoins pour soulager le réseau.
-Exemple :
-Réduire la fréquence de réplication des fichiers, pour éviter de propager une opération lourde sur le cluster à chaque édition.
+### Optimization and Load Balancing  
 
-La répartition en maillage permet de mutualiser les capacités network ce qui ouvre de nombreuses possibilités d’optimisation. Par exemple afin d’optimiser les transferts de données. 
-Plaçant les réplications des fichiers les plus utilisés sur les nodes avec la meilleure vitesse réseau. 
-Si un fichier que l’on télécharge est présent sur plusieurs machines, chaque machine peut envoyer une partie du fichier ainsi multipliant largement la vitesse d’upload. 
-Avec un nombre de réplication supérieur à 2, le pod de l’utilisateur upload une fois sur un pod “serveur” et les pods “serveurs” gèrent entre eux le reste des réplications. Ainsi l’utilisateur a rapidement sa charge network libérée.
+The decentralized mesh structure pools capacities and offers great prospects for performance optimization.  
+The system can “intelligently” manage its infrastructure, for example:  
+- Place files and their redundancies on the nodes using them most frequently.  
+- Parallel transfers (downloading different parts of the same file from two or more nodes, doubling the transfer speed. The same applies to uploads).  
+- Distribute heavy operations. For example, if the number of redundancies is high, each node transfers to only two others, which do the same, and so on, preventing a single node from handling all transfers.  
 
-Gestion de pod absent 
+The user can also adjust their needs to reduce network strain.  
 
-La connexion au réseau étant un facteur incertain, il est important de pouvoir réagir en cas de déconnection d’un pod. D’un côté au niveau du cluster:
-Rééquilibrer la charge de la réplication entre les pods restants
-Désactiver la lecture des fichiers absent
-Et niveau du pod déconnecté:
-Informer l’utilisateur
-Réaction simple (exemple: freeze)
+**Example:**  
+Reduce the frequency of file replication to avoid propagating resource-intensive operations across the cluster for each edit.  
 
+The mesh distribution pools network capacities, opening up many optimization possibilities. For example, to optimize data transfers:  
+- Place file replicas on nodes with the best network speed.  
+- If a file being downloaded is present on multiple machines, each machine can send a portion of the file, significantly increasing upload speed.  
+- With a replication number greater than 2, the user’s pod uploads once to a “server” pod, and the “server” pods handle the remaining replications among themselves. This quickly frees up the user’s network load.  
 
+### Handling Absent Pods  
 
+Network connectivity is an uncertain factor, so it’s critical to handle pod disconnections.  
 
-o - ajout / retrait seamless de nodes (quand ne brise pas l'intégrité des données)
-> wh veut exploiter au maximum la flexibilité que permet la décentralisation, bla bla
+At the cluster level:  
+- Rebalance the replication load among the remaining pods.  
+- Disable reading of absent files.  
 
-o - pods passifs (portals / clients)
+At the disconnected pod level:  
+- Inform the user.  
+- Simple reaction (e.g., freeze).  
 
-Flexibilité et fonctions additionnelles
-Le cluster peut être modifié sans être interrompu. Cela facilite les évolutions et permet
-L’ajout de nouvelles nodes
-Le retrait de nodes
-La modification de la configuration
+- **Seamless node addition/removal** (when it does not compromise data integrity)  
+> Wormhole aims to fully exploit the flexibility offered by decentralization.  
 
-Le cluster s'équilibre automatiquement selon le nouveau contexte, sans perturber les services pouvant dépendre des données.
+- **Passive pods (portals/clients)**  
 
-Il est aussi possible de créer des Pods dit “Clients”. Ceux-ci peuvent accéder aux fichiers du cluster sans pour autant devenir une maille du réseau.
-Ils peuvent alors se connecter ou déconnecter à la volée sans perturber le système, ce qui les rend adaptés à un déploiement à grande échelle.
-(Par exemple, les ordinateurs portables des collaborateurs de l’entreprise.)
+- **Flexibility and additional features**  
+- The cluster can be modified without interruption, facilitating evolution and enabling:  
+- Adding new nodes  
+- Removing nodes  
+- Modifying the configuration  
+
+The cluster automatically rebalances based on the new context without disrupting services that may depend on the data.  
+
+It is also possible to create so-called “Client” pods. These can access cluster files without becoming part of the network mesh.  
+They can connect or disconnect on the fly without disrupting the system, making them suitable for large-scale deployment.  
+(For example, employee laptops in a company.)
