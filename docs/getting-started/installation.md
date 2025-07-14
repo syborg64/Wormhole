@@ -4,8 +4,8 @@ This guide explains how to set up a new Wormhole network with multiple pods usin
 
 ## Prerequisites
 
-- Rust and Cargo must be installed on your machine.
-- Access to the Wormhole documentation and installation page is optional, as this guide provides all necessary instructions.
+- [Rust](https://www.rust-lang.org/tools/install) installed.
+- Optional: [Docker](https://docs.docker.com/get-docker/) for containerized deployment.
 
 ## Step 1: Create virtual folders
 
