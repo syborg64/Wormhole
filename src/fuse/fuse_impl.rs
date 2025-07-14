@@ -1,6 +1,5 @@
 use crate::fuse::linux_attrs::time_or_now_to_system_time;
 use crate::fuse::linux_mknod::filetype_from_mode;
-use crate::pods::arbo::{FsEntry, Inode};
 use crate::pods::filesystem::attrs::SetAttrError;
 use crate::pods::filesystem::file_handle::{AccessMode, OpenFlags};
 use crate::pods::filesystem::fs_interface::{FsInterface, SimpleFileType};
@@ -15,7 +14,7 @@ use crate::pods::filesystem::xattrs::GetXAttrError;
 use crate::pods::network::pull_file::PullError;
 use crate::pods::whpath::WhPath;
 use fuser::{
-    BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData,
+    BackgroundSession, Filesystem, MountOption, ReplyAttr, ReplyData,
     ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyXattr, Request,
 };
 use libc::{EIO, ENOENT, XATTR_CREATE, XATTR_REPLACE};
@@ -27,55 +26,21 @@ use std::time::{Duration, SystemTime};
 // NOTE - placeholders
 const TTL: Duration = Duration::from_secs(1);
 
-impl Into<FileType> for SimpleFileType {
-    fn into(self) -> FileType {
-        match self {
-            SimpleFileType::File => FileType::RegularFile,
-            SimpleFileType::Directory => FileType::Directory,
-        }
-    }
-}
-
-impl Into<SimpleFileType> for FileType {
-    fn into(self) -> SimpleFileType {
-        match self {
-            FileType::RegularFile => SimpleFileType::File,
-            FileType::Directory => SimpleFileType::Directory,
-            FileType::NamedPipe => todo!("file type not supported"),
-            FileType::CharDevice => todo!("file type not supported"),
-            FileType::BlockDevice => todo!("file type not supported"),
-            FileType::Symlink => todo!("file type not supported"),
-            FileType::Socket => todo!("file type not supported"),
-        }
-    }
-}
-
 pub struct FuseController {
     pub fs_interface: Arc<FsInterface>,
-}
-
-// NOTE for dev purpose while all metadata is not supported
-fn inode_to_fuse_fileattr(inode: Inode) -> FileAttr {
-    let mut attr: FileAttr = inode.meta.into();
-    attr.ino = inode.id;
-    attr.kind = match inode.entry {
-        FsEntry::Directory(_) => fuser::FileType::Directory,
-        FsEntry::File(_) => fuser::FileType::RegularFile,
-    };
-    attr
 }
 
 // REVIEW - should later invest in proper error handling
 impl Filesystem for FuseController {
     // READING
 
-    fn lookup(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEntry) {
+    fn lookup(&mut self, req: &Request, parent: u64, name: &OsStr, reply: ReplyEntry) {
         match self
             .fs_interface
             .get_entry_from_name(parent, name.to_string_lossy().to_string())
         {
             Ok(inode) => {
-                reply.entry(&TTL, &inode_to_fuse_fileattr(inode), 0);
+                reply.entry(&TTL, &inode.meta.with_ids(req.uid(), req.gid()), 0);
             }
             Err(_) => {
                 reply.error(ENOENT);
@@ -83,11 +48,11 @@ impl Filesystem for FuseController {
         };
     }
 
-    fn getattr(&mut self, _req: &Request, ino: u64, _fh: Option<u64>, reply: ReplyAttr) {
+    fn getattr(&mut self, req: &Request, ino: u64, _fh: Option<u64>, reply: ReplyAttr) {
         let attrs = self.fs_interface.get_inode_attributes(ino);
 
         match attrs {
-            Ok(attrs) => reply.attr(&TTL, &attrs.into()),
+            Ok(attrs) => reply.attr(&TTL, &attrs.with_ids(req.uid(), req.gid())),
             Err(err) => {
                 log::error!("getattr error: {:?}", err);
                 reply.error(err.raw_os_error().unwrap_or(EIO))
@@ -97,7 +62,7 @@ impl Filesystem for FuseController {
 
     fn setattr(
         &mut self,
-        _req: &Request<'_>,
+        req: &Request<'_>,
         ino: u64,
         mode: Option<u32>,
         uid: Option<u32>,
@@ -125,7 +90,7 @@ impl Filesystem for FuseController {
             file_handle,
             flags,
         ) {
-            Ok(meta) => reply.attr(&TTL, &meta.into()),
+            Ok(meta) => reply.attr(&TTL, &meta.with_ids(req.uid(), req.gid())),
             Err(SetAttrError::WhError { source }) => reply.error(source.to_libc()),
             Err(SetAttrError::SizeNoPerm) => reply.error(libc::EPERM),
             Err(SetAttrError::InvalidFileHandle) => reply.error(libc::EBADFD),
@@ -344,7 +309,7 @@ impl Filesystem for FuseController {
 
     fn mknod(
         &mut self,
-        _req: &Request<'_>,
+        req: &Request<'_>,
         parent: u64,
         name: &OsStr,
         mode: u32,
@@ -368,7 +333,7 @@ impl Filesystem for FuseController {
             permissions,
             kind,
         ) {
-            Ok(node) => reply.entry(&TTL, &node.meta.into(), 0),
+            Ok(node) => reply.entry(&TTL, &node.meta.with_ids(req.uid(), req.gid()), 0),
             Err(MakeInodeError::LocalCreationFailed { io }) => {
                 reply.error(io.raw_os_error().expect(
                     "Local creation error should always be the underling libc::open os error",
@@ -385,7 +350,7 @@ impl Filesystem for FuseController {
 
     fn mkdir(
         &mut self,
-        _req: &Request<'_>,
+        req: &Request<'_>,
         parent: u64,
         name: &OsStr,
         mode: u32,
@@ -398,7 +363,7 @@ impl Filesystem for FuseController {
             mode as u16,
             SimpleFileType::Directory,
         ) {
-            Ok(node) => reply.entry(&TTL, &node.meta.into(), 0),
+            Ok(node) => reply.entry(&TTL, &node.meta.with_ids(req.uid(), req.gid()), 0),
             Err(MakeInodeError::LocalCreationFailed { io }) => {
                 reply.error(io.raw_os_error().expect(
                     "Local creation error should always be the underling libc::open os error",
@@ -541,7 +506,7 @@ impl Filesystem for FuseController {
 
     fn create(
         &mut self,
-        _req: &Request<'_>,
+        req: &Request<'_>,
         parent: u64,
         name: &OsStr,
         mode: u32,
@@ -571,7 +536,7 @@ impl Filesystem for FuseController {
                     permissions,
                 )
             }) {
-            Ok((inode, fh)) => reply.created(&TTL, &inode.meta.into(), 0, fh, flags as u32),
+            Ok((inode, fh)) => reply.created(&TTL, &inode.meta.with_ids(req.uid(), req.gid()), 0, fh, flags as u32),
             Err(CreateError::MakeInode {
                 source: MakeInodeError::LocalCreationFailed { io },
             }) => {

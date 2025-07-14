@@ -1,10 +1,53 @@
-use std::time::SystemTime;
+use std::{ops::Deref, time::SystemTime};
 
-use fuser::{FileAttr, TimeOrNow};
+use fuser::{FileAttr, FileType, TimeOrNow};
 
-use crate::pods::arbo::Metadata;
+use crate::pods::{arbo::Metadata, filesystem::fs_interface::SimpleFileType};
 
-impl Into<FileAttr> for Metadata {
+
+impl Into<FileType> for SimpleFileType {
+    fn into(self) -> FileType {
+        match self {
+            SimpleFileType::File => FileType::RegularFile,
+            SimpleFileType::Directory => FileType::Directory,
+        }
+    }
+}
+
+impl Into<FileType> for &SimpleFileType {
+    fn into(self) -> FileType {
+        match self {
+            SimpleFileType::File => FileType::RegularFile,
+            SimpleFileType::Directory => FileType::Directory,
+        }
+    }
+}
+
+impl Into<SimpleFileType> for FileType {
+    fn into(self) -> SimpleFileType {
+        match self {
+            FileType::RegularFile => SimpleFileType::File,
+            FileType::Directory => SimpleFileType::Directory,
+            FileType::NamedPipe => todo!("file type not supported"),
+            FileType::CharDevice => todo!("file type not supported"),
+            FileType::BlockDevice => todo!("file type not supported"),
+            FileType::Symlink => todo!("file type not supported"),
+            FileType::Socket => todo!("file type not supported"),
+        }
+    }
+}
+
+struct MetadataFileAttr<'a>(&'a Metadata);
+
+impl <'a> Deref for MetadataFileAttr<'a> {
+    type Target = Metadata;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl <'a> Into<FileAttr> for &MetadataFileAttr<'a> {
     fn into(self) -> FileAttr {
         FileAttr {
             ino: self.ino,
@@ -14,7 +57,7 @@ impl Into<FileAttr> for Metadata {
             mtime: self.mtime,
             ctime: self.ctime,
             crtime: self.crtime,
-            kind: self.kind.into(),
+            kind: (&self.kind).into(),
             perm: self.perm,
             nlink: self.nlink,
             uid: self.uid,
@@ -45,6 +88,15 @@ impl Into<Metadata> for FileAttr {
             flags: self.flags,
             blksize: self.blksize,
         }
+    }
+}
+
+impl Metadata {
+    pub fn with_ids(&self, uid: u32, gid: u32) -> FileAttr {
+        let mut attr: FileAttr = (&MetadataFileAttr(self)).into();
+        attr.uid = uid;
+        attr.gid = gid;
+        attr
     }
 }
 
