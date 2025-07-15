@@ -257,10 +257,9 @@ async fn get_cli_command(stream: tokio::net::TcpStream) -> WhResult<(Cli, CliTcp
 /// Listens for CLI calls and launch one tcp instance per cli command
 async fn start_cli_listener(
     pods: &mut HashMap<String, Pod>,
-    ip: String,
+    mut ip: IpP,
     mut interrupt_rx: UnboundedReceiver<()>,
 ) {
-    let mut ip: IpP = IpP::try_from(&ip).expect("start_cli_listener: invalid ip provided");
     println!("Starting CLI's TcpListener on {}", ip.to_string());
 
     let mut listener = TcpListener::bind(&ip.to_string()).await;
@@ -292,10 +291,17 @@ async fn start_cli_listener(
     }
 }
 
+const DEFAULT_ADDRESS: &str = "127.0.0.1:8081";
+
 #[tokio::main]
 async fn main() {
     let (interrupt_tx, interrupt_rx) = mpsc::unbounded_channel::<()>();
     let mut pods: HashMap<String, Pod> = HashMap::new();
+
+    if env::args().any(|arg| arg == "-h" || arg == "--help") {
+        println!("Usage: wormholed <IP>\n\nIP is the node address, default at {DEFAULT_ADDRESS}");
+        return;
+    }
 
     env_logger::init();
 
@@ -308,14 +314,18 @@ async fn main() {
         }
     }
 
-    let ip: String = env::args()
-        .nth(1)
-        .unwrap_or("127.0.0.1:8081".to_string())
-        .into();
-    println!("Starting service on {}", ip);
+    let ip_string = env::args().nth(1).unwrap_or(DEFAULT_ADDRESS.into());
 
+    let ip = match IpP::try_from(&ip_string) {
+        Ok(ip) => ip,
+        Err(_) => {
+            println!("Address IP '{ip_string}' is invalid");
+            return;
+        }
+    };
     let terminal_handle = tokio::spawn(terminal_watchdog(interrupt_tx));
     let cli_airport = start_cli_listener(&mut pods, ip, interrupt_rx);
+    println!("Starting service on {}", ip_string);
     log::info!("Started");
 
     cli_airport.await;
