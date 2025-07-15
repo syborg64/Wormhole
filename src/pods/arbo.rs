@@ -740,7 +740,7 @@ fn index_folder_recursive(
             meta.permissions().mode() as u16,
         ))
         .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err.to_string()))?;
-        let mut meta : Metadata = meta.try_into()?;
+        let mut meta: Metadata = meta.try_into()?;
         meta.ino = used_ino;
         arbo.set_inode_meta(used_ino, meta)?;
 

@@ -14,8 +14,8 @@ use crate::pods::filesystem::xattrs::GetXAttrError;
 use crate::pods::network::pull_file::PullError;
 use crate::pods::whpath::WhPath;
 use fuser::{
-    BackgroundSession, Filesystem, MountOption, ReplyAttr, ReplyData,
-    ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyXattr, Request,
+    BackgroundSession, Filesystem, MountOption, ReplyAttr, ReplyData, ReplyDirectory, ReplyEmpty,
+    ReplyEntry, ReplyXattr, Request,
 };
 use libc::{EIO, ENOENT, XATTR_CREATE, XATTR_REPLACE};
 use std::ffi::OsStr;
@@ -536,7 +536,13 @@ impl Filesystem for FuseController {
                     permissions,
                 )
             }) {
-            Ok((inode, fh)) => reply.created(&TTL, &inode.meta.with_ids(req.uid(), req.gid()), 0, fh, flags as u32),
+            Ok((inode, fh)) => reply.created(
+                &TTL,
+                &inode.meta.with_ids(req.uid(), req.gid()),
+                0,
+                fh,
+                flags as u32,
+            ),
             Err(CreateError::MakeInode {
                 source: MakeInodeError::LocalCreationFailed { io },
             }) => {

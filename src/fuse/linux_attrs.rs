@@ -4,7 +4,6 @@ use fuser::{FileAttr, FileType, TimeOrNow};
 
 use crate::pods::{arbo::Metadata, filesystem::fs_interface::SimpleFileType};
 
-
 impl Into<FileType> for SimpleFileType {
     fn into(self) -> FileType {
         match self {
@@ -39,7 +38,7 @@ impl Into<SimpleFileType> for FileType {
 
 struct MetadataFileAttr<'a>(&'a Metadata);
 
-impl <'a> Deref for MetadataFileAttr<'a> {
+impl<'a> Deref for MetadataFileAttr<'a> {
     type Target = Metadata;
 
     fn deref(&self) -> &Self::Target {
@@ -47,7 +46,7 @@ impl <'a> Deref for MetadataFileAttr<'a> {
     }
 }
 
-impl <'a> Into<FileAttr> for &MetadataFileAttr<'a> {
+impl<'a> Into<FileAttr> for &MetadataFileAttr<'a> {
     fn into(self) -> FileAttr {
         FileAttr {
             ino: self.ino,
