@@ -300,7 +300,7 @@ async fn main() {
 
     if env::args().any(|arg| arg == "-h" || arg == "--help") {
         println!("Usage: wormholed <IP>\n\nIP is the node address, default at {DEFAULT_ADDRESS}");
-        return ();
+        return;
     }
 
     env_logger::init();
@@ -314,10 +314,7 @@ async fn main() {
         }
     }
 
-    let ip_string: String = env::args()
-        .nth(1)
-        .unwrap_or(DEFAULT_ADDRESS.to_string())
-        .into();
+    let ip_string = env::args().nth(1).unwrap_or(DEFAULT_ADDRESS.into());
 
     let ip = match IpP::try_from(&ip_string) {
         Ok(ip) => ip,
