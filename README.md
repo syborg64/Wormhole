@@ -2,13 +2,13 @@
 
 Wormhole is a data decentralisation solution. It aims to create one single virtual storage space between many computers.
 
-You can think if it as the *Kubernetes* of storage space.
+You can think if it as the *[Kubernetes](https://github.com/kubernetes/kubernetes)* of storage space.
 
 ---
 
 ## Overview
 
-Wormhole is an open-source project designed to provide a decentralized, scalable, and user-friendly data storage solution. By creating a virtual file system that spans multiple machines, Wormhole enables seamless data sharing and redundancy without the need for complex infrastructure management. Whether you're a small startup, a large enterprise, or an individual managing personal devices, Wormhole simplifies data storage and access with a native, intuitive interface.
+Wormhole is an open-source project designed to provide a decentralized, scalable, and user-friendly data storage solution. By creating a virtual file system that spans multiple machines, Wormhole enables seamless data sharing and redundancy without the need for complex infrastructure management. Whether you're a small startup, a large enterprise, or an individual managing personal devices, Wormhole simplifies data storage and access with a native, intuitive interface. The storage space is integrated seamlessly in the usual files of your system.
 
 This `README` provides an introduction to Wormhole, setup instructions, and links to detailed documentation. For a comprehensive understanding of the project's goals and technical details, refer to the [Technical Specification](docs/technical/technical_spec.md).
 
@@ -20,7 +20,7 @@ Inspired by great declarative softwares of modern times like Docker, we are aimi
 
 ## Concept
 
-We want Wormhole to be as seamless as possible for final users. The storage space takes the shape of a simple folder. No need to create or mount any partition, the virtual space is mounted in place, where you want in your file tree.
+We want Wormhole to be as seamless as possible for final users. The storage space takes the shape of a simple folder. No need to create or mount any partition, nor use a gui to access it, the virtual space is mounted in place, where you want in your file tree.
 
 For users and other softwares, the files behave like any normal files, while they are in fact shared and moved accross all nodes (differents computers) of the network.
 
@@ -76,16 +76,16 @@ Launch a new service, the service is started automatically
 Create a new Wormhole network
 The new pod being created with any other connection it will automaticaly create a new network
 ```
-./wormhole 127.0.0.1:8081           new      pod_name  --path dir1/ -i 127.0.0.10:8081
-^--------- ^-------------           ^--      ^-----    ^------- ^-----------------
- CLI        Optional service address Command  Pod Name  Directory Pod Address
+./wormhole 127.0.0.1:8081             new      pod_name  --path dir1/ -i 127.0.0.10:8081
+^--------- ^-------------             ^--      ^-----    ^-------        ^-----------------
+ CLI        Optional service address  Command  Pod Name  Directory       Pod Address
 ```
 
 Join an existing Wormhole network
 ```
-./wormhole 127.0.0.2:8081 new pod_name2  --path dir2/ -i 127.0.0.11:8081 -u 127.0.0.10:8081
-                                                                         ^-----------------
-                                                                          Existing pod address
+./wormhole 127.0.0.1:8081 new pod_name2  --path dir2/ -i 127.0.0.11:8081 -u 127.0.0.10:8081
+                                                                            ^-----------------
+                                                                            Existing pod address
 ```
 
 For a step-by-step guide to setting up a multi-pod network, see the [CLI Usage Guide](docs/getting-started/memo-cli.md).
@@ -118,14 +118,14 @@ The Wormhole documentation is organized into the following sections:
   - [CLI Usage Guide](docs/getting-started/memo-cli.md): How to use the Wormhole CLI to create and manage networks.
   - [Docker Guide](docs/getting-started/docker-guide.md): Instructions for running Wormhole in Docker containers.
 - **User Guide**:
-  - [Configuration Guide](docs/user-guide/configuration.md): How to configure Wormhole using TOML files.
+  - ~[Configuration Guide](docs/user-guide/configuration.md):~ How to configure Wormhole using TOML files. (need update)
   - [Glossary](docs/user-guide/glossary.md): Definitions of key terms and concepts.
 - **Technical Documentation**:
   - [Technical Specification](docs/technical/technical_spec.md): Detailed explanation of Wormhole’s architecture and features.
   - [Technical Specification (French)](docs/technical/technical_spec_fr.md): French version of the technical specification.
   - [Configuration Details](docs/technical/configuration/): In-depth configuration options (main, pod, and file-level).
 - **Beta Testing**:
-  - [Beta Test Plan](docs/beta-testing/beta-test-plan.md): Scenarios and criteria for testing the beta version.
+  - [Beta Test Plan](docs/beta-testing/beta_test_plan.md): Scenarios and criteria for testing the beta version.
 - **UML Diagrams**:
   - Located in [docs/uml/](docs/uml/): Visual representations of Wormhole’s architecture.
 
@@ -135,10 +135,10 @@ The Wormhole documentation is organized into the following sections:
 
 Wormhole is an open-source project, and we welcome contributions from the community! To get involved:
 
-1. Read the [Technical Specification](docs/technical/technical-spec.md) to understand the project’s goals and architecture.
-2. Check the [Beta Test Plan](docs/beta-testing/beta-test-plan.md) to see testing scenarios and provide feedback.
-3. Report issues or suggest improvements via the [GitHub Issues](https://github.com/<your-repo>/issues) page.
-4. Submit pull requests with code contributions, following the guidelines in [Code Architecture](docs/technical/architecture/code-architecture.md).
+1. Read the [Technical Specification](docs/technical/technical_spec.md) to understand the project’s goals and architecture.
+2. Check the [Beta Test Plan](docs/beta-testing/beta_test_plan.md) to see testing scenarios and provide feedback.
+3. Report issues or suggest improvements via the [GitHub Issues](https://github.com/Agartha-Software/Wormhole/issues) page.
+4. Submit pull requests with code contributions, following the guidelines in [Code Architecture](docs/technical/architecture/code_architecture.md).
 
 For terminology, refer to the [Glossary](docs/user-guide/glossary.md) to understand key concepts like nodes, pods, and networks.
 
@@ -146,7 +146,7 @@ For terminology, refer to the [Glossary](docs/user-guide/glossary.md) to underst
 
 ## Known Issues and Limitations
 
-The current beta version has some known limitations, detailed in the [Beta Test Plan](docs/beta-testing/beta-test-plan.md). Key issues include:
+The current beta version has some known limitations, detailed in the [Beta Test Plan](docs/beta-testing/beta_test_plan.md). Key issues include:
 
 - **Windows Support**: Incomplete, with some features not fully implemented.
 - **Documentation**: Some sections are incomplete and being expanded.
