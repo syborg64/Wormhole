@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["get_cli_command","handle_cli_command","main","start_cli_listener","terminal_watchdog"],"type":["CliTcpWriter"]};
+window.SIDEBAR_ITEMS = {"constant":["DEFAULT_ADDRESS"],"fn":["get_cli_command","handle_cli_command","main","start_cli_listener","terminal_watchdog"],"type":["CliTcpWriter"]};
