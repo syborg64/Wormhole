@@ -1,4 +1,7 @@
-# Main Wormhole configuration
+# Global Network configuration
+
+> [!WARNING]
+> /!\ Not all of theses configuration settings are implemented yet /!\
 
 Main configuration for a Wormhole network.
 This configuration defines the general behavior of the network and all its related information.
