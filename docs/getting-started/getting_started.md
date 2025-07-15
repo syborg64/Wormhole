@@ -47,8 +47,8 @@ Join an existing Wormhole network
                                                                             Existing pod address
 ```
 
-For a step-by-step guide to setting up a multi-pod network, see the [CLI Usage Guide](docs/getting-started/memo-cli.md).
-For a more complex Docker-based deployment, refer to the [Docker Guide](docs/getting-started/docker-guide.md).
+For a step-by-step guide to setting up a simple multi-pod network, see the [CLI Usage Guide](docs/getting-started/memo_cli.md).
+For a more complex Docker-based deployment, refer to the [Docker Guide](docs/getting-started/docker_guide.md).
 
 ---
 

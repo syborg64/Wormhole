@@ -44,8 +44,8 @@ For detailed use cases and technical details, see the [Technical Specification](
 The Wormhole documentation is organized into the following sections:
 
 - **Getting Started**:
-  - [Getting Started](docs/getting-started/getting-started.md): Step-by-step instructions for setting up Wormhole.
-  - [Docker Guide](docs/getting-started/docker-guide.md): Instructions for running Wormhole in Docker containers.
+  - [Getting Started](docs/getting-started/getting_started.md): Step-by-step instructions for setting up Wormhole.
+  - [Docker Guide](docs/getting-started/docker_guide.md): Instructions for running Wormhole in Docker containers.
 - **User Guide**:
   - ~[Configuration Guide](docs/user-guide/configuration.md):~ How to configure Wormhole using TOML files. (need update)
   - [Glossary](docs/user-guide/glossary.md): Definitions of key terms and concepts.
@@ -79,6 +79,8 @@ The current beta version has some known limitations, detailed in the [Beta Test 
 
 - **Windows Support**: Incomplete, with some features not fully implemented.
 - **Documentation**: Some sections are incomplete and being expanded.
+- **Configuration**: The configuration files settings are not all implemented.
+- **Stability**: Some bugs persistes due to the early state of the project, check the issues.
 
 We are actively working on these issues and encourage community feedback to improve Wormhole.
 
