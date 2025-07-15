@@ -159,7 +159,7 @@ impl Arbo {
                 name: "/".to_owned(),
                 entry: FsEntry::Directory(vec![]),
                 meta: Metadata {
-                    ino: 0,
+                    ino: ROOT,
                     size: 0,
                     blocks: 0,
                     atime: SystemTime::now(),
@@ -167,7 +167,7 @@ impl Arbo {
                     ctime: SystemTime::now(),
                     crtime: SystemTime::now(),
                     kind: SimpleFileType::Directory,
-                    perm: 0o666,
+                    perm: 0o755,
                     nlink: 0,
                     uid: 0,
                     gid: 0,
@@ -740,7 +740,9 @@ fn index_folder_recursive(
             meta.permissions().mode() as u16,
         ))
         .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err.to_string()))?;
-        arbo.set_inode_meta(used_ino, meta.try_into()?)?;
+        let mut meta: Metadata = meta.try_into()?;
+        meta.ino = used_ino;
+        arbo.set_inode_meta(used_ino, meta)?;
 
         if ftype.is_dir() {
             index_folder_recursive(arbo, *ino - 1, ino, &path.join(&fname), host)
@@ -811,7 +813,7 @@ impl TryInto<Metadata> for fs::Metadata {
     type Error = std::io::Error;
     fn try_into(self) -> Result<Metadata, std::io::Error> {
         Ok(Metadata {
-            ino: 0,
+            ino: 0, // TODO: unsafe default
             size: self.len(),
             blocks: 0,
             atime: self.accessed()?,
