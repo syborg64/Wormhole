@@ -1,4 +1,4 @@
-# Wormhole CLI Usage Guide for First Installation
+# Wormhole CLI Usage Guide to setup a testing environement
 
 This guide explains how to set up a new Wormhole network with multiple pods using the command line interface (CLI). The steps are designed to be simple and clear, requiring no consultation of external resources beyond this document.
 
