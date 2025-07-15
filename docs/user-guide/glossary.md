@@ -65,5 +65,9 @@ There is two types of **pods** :
 > A **passive pod** join/leave is weightless as it's only interracting with the network, not participating to the global strategy.
 >
 
+#### Portal
+
+Portal is a futur type of **pod**, that have access to the files of the network but don't host any. It aims to open the possibilty of a Wormhole setup with servers storing the files and clients machines accessing the files.
+
 ![alt text](../images/wormhole_graph_2.png)
 ![alt text](../images/wormhole_graph.png)
