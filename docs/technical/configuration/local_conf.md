@@ -1,4 +1,8 @@
-# Pod configuration
+# Local Network configuration
+
+> [!WARNING]
+> /!\ Not all of theses configuration settings are implemented yet /!\
+
 This configuration is pod-specific.<br>
 The cluster will comply with it while possible, but can override if necessary (see [emergency strategies](../strategies/emergency.md))<br>
 This configuration is mostly used to adjust the cluster strategy at a local level.
@@ -52,27 +56,3 @@ When choosing a pod to store redundancy, pods higher priority will be used first
 > [!NOTE]
 > This parameter is more useful for the node using the filesystem than for the cluster.<br>
 > Even so, having more cache can give the system more freedom when pulling data and help achieving greater cluster performance.
-
-<br>
-<br>
-<br>
-<br>
-
-___
-___
-___
-
-> [!NOTE]
-> Highlights information that users should take into account, even when skimming.
-
-> [!TIP]
-> Optional information to help a user be more successful.
-
-> [!IMPORTANT]
-> Crucial information necessary for users to succeed.
-
-> [!WARNING]
-> Critical content demanding immediate user attention due to potential risks.
-
-> [!CAUTION]
-> Negative potential consequences of an action.

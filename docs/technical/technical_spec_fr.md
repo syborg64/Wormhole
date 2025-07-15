@@ -31,7 +31,7 @@ Centraliser la donnée sur une seule machine poserait aussi un problème d'inté
 - Besoin de plus de puissance (servir les données plus vite)
 - Fiabilité / Gestion de crise
   - Résister sans effort aux pannes mineures
-  - Suivre sa politique de PCA/PCI ([Plan de Continuité d'activité Informatique](https://fr.wikipedia.org/wiki/Plan_de_continuit%C3%A9_d%27activit%C3%A9_(informatique))) en cas d'incidant majeur
+  - Suivre sa politique de PCA/PCI ([Plan de Continuité d'activité Informatique](https://fr.wikipedia.org/wiki/Plan_de_continuit%C3%A9_d%27activit%C3%A9_(informatique)) en cas d'incidant majeur
 - Faciliter l'accès pour tous les sites géographiques de l'entreprise
 
 > [!TIP] Plan de Continuité d'Activité / Informatique
@@ -159,7 +159,7 @@ Montez en quelques minutes un réseau Wormhole, et vos différents appareils ne 
 
 ___
 
-## specification
+## Spécification
 
 ### Interface native
 
@@ -172,7 +172,8 @@ Nos objectifs prioritaires pour l’EIP sont une intégration sur les plateforme
 - Linux
 - Windows
 - Mac
-Fuse supportant aussi Android fait d’android une plateforme secondaire intéressante à implémenter.
+
+> Fuse supportant aussi Android fait d’android une plateforme secondaire intéressante à implémenter.
 
 Pour simplifier l’accès aux plateformes non supportées nativement, une image Docker sera développée.
 Cette image sera proposée avec une configuration Kubernetes pour faciliter notre entrée dans le monde existant de l’informatique distribuée.
@@ -185,74 +186,76 @@ Pour répondre à ces objectifs, nous optons pour la configuration par fichiers.
 Nous pensons utiliser le format TOML, alliant clarté et modernité, et bien intégré dans l'environnement Rust.
 
 La configuration se veut la plus complète possible pour moduler tous les aspects du réseau. Elle serait donc à plusieurs niveaux :
-Niveau du réseau pour le comportement général.
-Niveau Pod avec les informations locales et les affinités propres au pod
-Niveau par fichier pour spécifier des exceptions dans leur comportement.
+- Niveau du réseau pour le comportement général.
+- Niveau Pod avec les informations locales et les affinités propres au pod
+- Niveau par fichier pour spécifier des exceptions dans leur comportement.
 
 Voici une liste d’exemples de champs de configurations qui seraient mis à disposition de l’utilisateur.
 Cette liste n’est pas exhaustive ou définitive. Notre objectif est de permettre de configurer tout ce qui peut l’être, ce qui explique que la majorité des champs de configuration spécifiques seront définis au cours du projet.
 
-Configuration générale :
-Nom unique du réseau
-Nombre de redondances par fichier
-Stratégie d’ajout (accepter les nouvelles nodes)
-Taille maximale du stockage proposé
-Administration (qui peut modifier la configuration générale)
-Stratégie de panne
-Si elle n’entrave pas le fonctionnement ou l’intégrité
-Si elle entrave l’intégrité (manque de redondances, mais aucun fichier perdu)
-Si elle entrave le fonctionnement (fichiers manquants)
+>**Configuration générale :**
+>- Nom unique du réseau
+>- Nombre de redondances par fichier
+>- Stratégie d’ajout (accepter les nouvelles nodes)
+>- Taille maximale du stockage proposé
+>- Administration (qui peut modifier la configuration générale)
+>- Stratégie de panne
+>- Si elle n’entrave pas le fonctionnement ou l’intégrité
+>- Si elle entrave l’intégrité (manque de redondances, mais aucun fichier perdu)
+>- Si elle entrave le fonctionnement (fichiers manquants)
 
-Configuration par Pod :
-Limite d’espace de stockage
-Cache local (propension à garder des copies locales pour accélérer l’usage)
-Affinités (prioriser ou éviter un pod pour une tâche)
-Stockage des redondances
-Stockage des nouveaux fichiers
-Stockage des fichiers les plus demandés
-Stockage des fichiers les moins demandés
-Stratégie de panne locale (réaction si déconnecté du réseau)
+> **Configuration par Pod :**
+> - Limite d’espace de stockage
+> - Cache local (propension à garder des copies locales pour accélérer l’usage)
+> - Affinités (prioriser ou éviter un pod pour une tâche)
+> - Stockage des redondances
+> - Stockage des nouveaux fichiers
+> - Stockage des fichiers les plus demandés
+> - Stockage des fichiers les moins demandés
+> - Stratégie de panne locale (réaction si déconnecté du réseau)
 
-Configuration par fichier :
-Conserver (force ce Pod à conserver une version locale)
-Ne pas mettre en cache
-Lecture seule
-Nombre de redondances
+**Configuration par fichier :**
+> - Conserver (force ce Pod à conserver une version locale)
+> - Ne pas mettre en cache
+> - Lecture seule
+> - Nombre de redondances
 
 
 Beaucoup d’options de configuration sont ouvertes à l’utilisateur . Pour simplifier leurs définition on a choisi de suivre la même méthode que docker et kubernetes avec des configurations par fichiers. Plus précisément sous le format TOML pour sa modernité et son intégration dans l'écosystème rust.
 
 La configuration serait à plusieurs niveaux, au niveau du réseau pour les configuration générale. Au niveau de chaque machine avec les informations locales et les affinités propres au pod et enfin des configuration par fichier pour spécifier des exceptions dans leur comportement.
 
-Distribution de données
+### Distribution de données
 
-Avec Wormhole, lors de la lecture d’un fichier qui n’est pas présent localement sur la machine, les données seront téléchargées de la machine hôte à la volée. Cela offre plusieurs possibilitées :
-Agir à distance sur le fichier pendant tout le processus (streaming).
-Créer une copie locale du fichier pendant son usage, avant d’exporter les mises à jour sur le réseau.
-Agir à distance est plus lent (latence) et utilise de la bande passante, mais possède le bénéfice de ne pas utiliser d’espace disque.
-Utiliser une copie locale utilise le bénéfice, mais permet une performance accrue.
-L’extensibilité de la configuration permet à l’utilisateur de paramétrer ce comportement (et d’autres comportements similaires).
-Il est aussi important de noter que de manière automatique, Wormhole stockera les fichiers sur les nodes le demandant souvent, optimisant ainsi le système entier.
+Avec Wormhole, lors de la lecture d’un fichier qui n’est pas présent localement sur la machine, les données seront téléchargées de la machine hôte à la volée.
+Cela offre plusieurs possibilitées :
+ - Agir à distance sur le fichier pendant tout le processus (streaming).
+ - Créer une copie locale du fichier pendant son usage, avant d’exporter les mises à jour sur le réseau.
+- Agir à distance est plus lent (latence) et utilise de la bande passante, mais possède le bénéfice de ne pas utiliser d’espace disque.
+- Utiliser une copie locale utilise le bénéfice, mais permet une performance accrue.
+- L’extensibilité de la configuration permet à l’utilisateur de paramétrer ce comportement (et d’autres comportements similaires).
+
+> Il est aussi important de noter que de manière automatique, Wormhole stockera les fichiers sur les nodes le demandant souvent, optimisant ainsi le système entier.
 
 Avec wormhole, à la lecture d’un fichier qui n’est pas présent sur la machine, les données seront téléchargées de la machine hôte. Ici vient une possibilité soit directement stream le contenu du fichier, soit de l'enregistrer avant de transmettre le contenu. L’une des options consomme plus en network et l’autre en espace disque. Cet équilibre peut être choisi par l’utilisateur, entre tout stream, tout enregistrer ou bien définir un entre deux en fonction de la fréquence de lecture et/ou de la taille du fichier.
 
-Stratégies de gestion (tolérance de panne, redondance et intégrité, performance…)
+### Stratégies de gestion (tolérance de panne, redondance et intégrité, performance…)
 
 La gestion des données est une question complexe, et elle l’est encore plus de grandes infrastructures telles que celles que Wormhole peut opérer. Ce n’est pas pour rien que les entreprises ont des équipes entières consacrées au sujet.
 
 Les exigences pouvant changer du tout au tout selon le cas d’usage, Wormhole permet de configurer des stratégies à adopter face à différents sujets.
 
-Conflits de données :
+#### Conflits de données :
 
 La modification simultanée d’un même fichier par plusieurs nodes peut causer des conflits. Il n’existe pas de méthode de résolution de conflits parfaite et universelle. 
 L’utilisateur pourra alors choisir parmi une liste de stratégies qui contiendra (sans s’y limiter) :
-Ecraser (garder la version écrite en dernier)
-Garder deux copies
-
+- Ecraser (garder la version écrite en dernier)
+- Garder deux copies
 
 Plusieurs copies d’un fichiers peut mener à des conflits lors de modifications simultanées donc la résolution de conflits sera donc configurable, soit la version la plus récente du fichier sera gardée soit une copie avec les anciennes modifications sera gardée à côté du fichier original pour permettre à l’utilisateur de résoudre les conflits sois même.
 
-Intégrité des données et service ininterrompu (cas général) :
+
+##### Intégrité des données et service ininterrompu (cas général) :
 
 Il est généralement important d’assurer l’intégrité de ses données en cas de panne. Répartir des copies des fichiers sur des machines différentes du réseau permet de garantir leur intégrité en cas de défaillance.
 Non seulement cela, mais cette réplication permet au réseau de continuer son service sans interruption ou disparition de fichiers, même temporaire.
@@ -261,26 +264,32 @@ Ce procédé porte le nom de redondance a tout de même le défaut de consommer 
 Selon son usage, l’utilisateur pourra activer ou non ce procédé et choisir le nombre de réplicas par fichier.
 Générer un nombre important de copies peut être une opération lourde pour le cluster. L’utilisateur pourra donc moduler la fréquence de mise à jour des copies.
 
-Intégrité et plan de continuité (cas de crise) :
+
+##### Intégrité et plan de continuité (cas de crise) :
 
 La décentralisation et l’usage de la redondance réduisent grandement la probabilité d’incident majeur.
 Cependant, Wormhole permet de définir les stratégies à adopter en cas de malfonction généralisée.
 
-Les situations sont divisées en trois catégories : 
-Situation favorable :
+
+##### Les situations sont divisées en trois catégories :
+
+- **Situation favorable :**
 Pas de pertes de fichiers, le cluster dispose de l’espace nécessaire pour se rééquilibrer et recréer les redondances manquantes.
 Abordé dans la section intégrité des données et service ininterrompu (cas général)
-Situation mitigée :
+
+- **Situation mitigée :**
 Pas de pertes de fichiers, mais le cluster manque d’espace pour s’équilibrer et recréer la redondance nécessaire.
-Situation grave :
+
+- **Situation grave :**
 Fichiers manquants sur le réseau, fonctionnement habituel entravé.
 
 Pour chaque situation, l’utilisateur peut configurer une réaction appropriée.
-Exemples de réactions (non exhaustif) : 
-Ralentir / limiter le trafic
-Geler le réseau (lecture seule) jusqu’à résolution du problème ou action de l’administrateur
-Baisser le nombre de redondances pour augmenter l’espace libre et poursuivre le service autant que possible
-Stopper tout
+
+**Exemples de réactions (non exhaustif) :** 
+- Ralentir / limiter le trafic
+- Geler le réseau (lecture seule) jusqu’à résolution du problème ou action de l’administrateur
+- Baisser le nombre de redondances pour augmenter l’espace libre et poursuivre le service autant que possible
+- Stopper tout
 
 
 Un élément important dans la sauvegarde de données est la redondance. Répartir des copies données sauvegardées sur le réseau permet de garantir leur sécurité en cas de problème sur l’un des disques.
@@ -288,16 +297,17 @@ Dans la configuration on pourra l’activer et définir le nombre de réplicatio
 
 Plusieurs copies d’un fichiers peut mener à des conflits lors de modifications simultanées donc la résolution de conflits sera donc configurable, soit la version la plus récente du fichier sera gardée soit une copie avec les anciennes modifications sera gardée à côté du fichier original pour permettre à l’utilisateur de résoudre les conflits sois même.
 
-Optimisation et répartition des charges
+### Optimisation et répartition des charges
 
 La structure décentralisée en maillage mutualise les capacités et offre de belles perspectives d’optimisation de la performance.
 Le système sera capable de gérer “intelligemment” son infrastructure, par exemple :
-Placer les fichiers et leur redondances sur les nodes les utilisant le plus
-Transferts parallèles (télécharger différentes parties d’un même fichier depuis deux nodes ou plus, doublant la vitesse de transfert. Il en va de même pour l’upload).
-Répartition des opérations lourdes. Exemple : si le nombre de redondances est élevé, chaque node fera le transfert à seulement deux autres, qui feront de même, etc, évitant ainsi à une seule node de faire tous les transferts.
+- Placer les fichiers et leur redondances sur les nodes les utilisant le plus
+- Transferts parallèles (télécharger différentes parties d’un même fichier depuis deux nodes ou plus, doublant la vitesse de transfert. Il en va de même pour l’upload).
+- Répartition des opérations lourdes. Exemple : si le nombre de redondances est élevé, chaque node fera le transfert à seulement deux autres, qui feront de même, etc, évitant ainsi à une seule node de faire tous les transferts.
 
 L’utilisateur pourra aussi moduler ses besoins pour soulager le réseau.
-Exemple :
+
+**Exemple :**
 Réduire la fréquence de réplication des fichiers, pour éviter de propager une opération lourde sur le cluster à chaque édition.
 
 La répartition en maillage permet de mutualiser les capacités network ce qui ouvre de nombreuses possibilités d’optimisation. Par exemple afin d’optimiser les transferts de données. 
@@ -305,14 +315,17 @@ Plaçant les réplications des fichiers les plus utilisés sur les nodes avec la
 Si un fichier que l’on télécharge est présent sur plusieurs machines, chaque machine peut envoyer une partie du fichier ainsi multipliant largement la vitesse d’upload. 
 Avec un nombre de réplication supérieur à 2, le pod de l’utilisateur upload une fois sur un pod “serveur” et les pods “serveurs” gèrent entre eux le reste des réplications. Ainsi l’utilisateur a rapidement sa charge network libérée.
 
-Gestion de pod absent 
+### Gestion de pod absent
 
-La connexion au réseau étant un facteur incertain, il est important de pouvoir réagir en cas de déconnection d’un pod. D’un côté au niveau du cluster:
-Rééquilibrer la charge de la réplication entre les pods restants
-Désactiver la lecture des fichiers absent
+La connexion au réseau étant un facteur incertain, il est important de pouvoir réagir en cas de déconnection d’un pod.
+
+D’un côté au niveau du cluster:
+- Rééquilibrer la charge de la réplication entre les pods restants
+- Désactiver la lecture des fichiers absent
+
 Et niveau du pod déconnecté:
-Informer l’utilisateur
-Réaction simple (exemple: freeze)
+- Informer l’utilisateur
+- Réaction simple (exemple: freeze)
 
 
 
@@ -322,11 +335,11 @@ o - ajout / retrait seamless de nodes (quand ne brise pas l'intégrité des donn
 
 o - pods passifs (portals / clients)
 
-Flexibilité et fonctions additionnelles
-Le cluster peut être modifié sans être interrompu. Cela facilite les évolutions et permet
-L’ajout de nouvelles nodes
-Le retrait de nodes
-La modification de la configuration
+- Flexibilité et fonctions additionnelles
+- Le cluster peut être modifié sans être interrompu. Cela facilite les évolutions et permet
+- L’ajout de nouvelles nodes
+- Le retrait de nodes
+- La modification de la configuration
 
 Le cluster s'équilibre automatiquement selon le nouveau contexte, sans perturber les services pouvant dépendre des données.
 

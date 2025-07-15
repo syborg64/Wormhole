@@ -1,115 +1,97 @@
 # Wormhole
-Wormhole is a data decentralisation solution. It aims to create one single virtual stockage space between many computers.
 
-You can think if it as the *Kubernetes* of storage space.
+Wormhole is a data decentralisation solution. It aims to create one single virtual storage space between many computers.
 
-## Our idea
-Inspired by great declarative software of modern times like docker, we are aming to provide users with a very flexible solution, allowing all kinds of usages while staying declarative, simple and shareable.
-
-## The concept
-We want Wormhole to be as transparent as possible for final users. The storage space take shape of a simple folder. No need to create or mount any partition, the virtual space is mounted in place, where you want in your file tree.
-
-For users and other softwares, the files behaves like any normal files, while they are in fact shared and moved accross all nodes (differents computers) of the network.
-
-## How to launch
-(this is for demo purposes and will be changed)
-
-The connection between the cli and the service is made by default on the address 127.0.0.1:8081 but can be modified by adding the new address in the command just after the binary (to be done for both)
-
-```
-cargo run --bin wormholed
-^---------------------
-Build and run
-```
-
-Create a new Wormhole network
-```
-cargo run --bin wormhole new pod_name -C virutal1/ -i 127.17.0.1:8081
-^---------------------       ^--                ^-----       ^---------------
-Build and run                 command            directory     host ip
-```
-
-Join an existing Wormhole network
-```
-cargo run --bin wormhole new pod_name2 -C virutal2/ -i 127.17.0.2:8081 -u 127.17.0.1:8081 -a 127.17.0.3:8081 127.17.0.4:8081 127.17.0.5:8081
-^---------------------       ^--                ^-----       ^----------       ^-------------     ^-----------------------------------------------
-Build and run                 command            directory     host ip         ip of node to join     additionnal host
-```
-
-
-
-## Guide to Using Docker Images and Test Commands (Not up to date)
-
-#### **1. Start the Infrastructure**
-```bash
-docker-compose up
-```
-- **Purpose**: Launches the `wormhole1` and `wormhole2` services in the background.
-- **Expected Events**:
-  - Containers `w1` and `w2` start with their volumes (`shared_mnt1`, `shared_mnt2`).
-  - Services listen on ports `8081` (w1) and `8082` (w2).
+You can think if it as the *[Kubernetes](https://github.com/kubernetes/kubernetes)* of storage space.
 
 ---
 
-#### **2. Create a Network Template on w1**
-```bash
-docker exec -it w1 ./wormhole template
-```
-- **Purpose**: Initializes a default network configuration in `shared_mnt1/.global_config.toml`.
-- **Expected Result**:
-  ```bash
-  creating network "default"
-  Network configuration created at /usr/src/wormhole/virtual/.global_config.toml
-  ```
+## Overview
+
+Wormhole is an open-source project designed to provide a decentralized, scalable, and user-friendly data storage solution. By creating a virtual file system that spans multiple machines, Wormhole enables seamless data sharing and redundancy without the need for complex infrastructure management. Whether you're a small startup, a large enterprise, or an individual managing personal devices, Wormhole simplifies data storage and access with a native, intuitive interface. The storage space is integrated seamlessly in the usual files of your system.
+
+This `README` provides an introduction to Wormhole, setup instructions, and links to detailed documentation. For a comprehensive understanding of the project's goals and technical details, refer to the [Technical Specification](docs/technical/technical_spec.md).
 
 ---
 
-#### **3. Create a New Pod on w1**
-```bash
-docker exec -it w1 ./wormhole new test
-```
-- **Purpose**: Creates a pod named `test` in `w1`'s network.
-- **Expected Events**:
-  - A `test` folder is created in `shared_mnt1`.
-  - The `w1` service becomes the primary network node.
+## Our Idea
+
+Inspired by great declarative softwares of modern times like Docker, we are aiming to provide users with a very flexible solution, allowing all kinds of usages while staying declarative, simple and shareable.
+
+## Concept
+
+We want Wormhole to be as seamless as possible for final users. The storage space takes the shape of a simple folder. No need to create or mount any partition, nor use a gui to access it, the virtual space is mounted in place, where you want in your file tree.
+
+For users and other softwares, the files behave like any normal files, while they are in fact shared and moved accross all nodes (differents computers) of the network.
 
 ---
 
-#### **4. Inspect the w2 Container**
-```bash
-docker inspect w1
-```
-- **Purpose**: Retrieve `w1`'s internal IP for inter-container communication.
-- **Key Data**:
-  ```json
-  "GateWay": "172.19.0.3",
-  ```
+## Features
+
+- **Decentralized Storage**: Combine multiple machines into a single virtual storage space.
+- **Native Integration**: Files appear as local files, requiring no changes to existing applications.
+- **Scalability**: Suitable from small local networks to large enterprise infrastructures.
+- **Redundancy**: Configurable data replication to ensure integrity and availability.
+- **Flexibility**: Supports dynamic addition/removal of nodes without service interruption.
+- **Configuration**: Declarative, file-based configuration using TOML for ease of use and sharing.
+
+For detailed use cases and technical details, see the [Technical Specification](docs/technical/technical_spec.md).
 
 ---
 
-#### **5. Connect w2 to w1's Network**
-```bash
-docker exec -it w2 ./wormhole new test 172.20.0.3:8081
-```
-- **Purpose**: Join `w2` to the `test` network hosted by `w1`.
-- **Expected Result**:
-  ```bash
-  Pod "test" joined network via 172.20.0.3:8081
-  Syncing with peer... OK
-  ```
+## Documentation
+
+The Wormhole documentation is organized into the following sections:
+
+- **Getting Started**:
+  - [Getting Started](docs/getting-started/getting_started.md): Step-by-step instructions for setting up Wormhole.
+  - [Docker Guide](docs/getting-started/docker_guide.md): Instructions for running Wormhole in Docker containers.
+- **User Guide**:
+  - ~[Configuration Guide](docs/user-guide/configuration.md):~ How to configure Wormhole using TOML files. (need update)
+  - [Glossary](docs/user-guide/glossary.md): Definitions of key terms and concepts.
+- **Technical Documentation**:
+  - [Technical Specification](docs/technical/technical_spec.md): Detailed explanation of Wormhole’s architecture and features.
+  - [Technical Specification (French)](docs/technical/technical_spec_fr.md): French version of the technical specification.
+  - [Configuration Details](docs/technical/configuration/): In-depth configuration options (main, pod, and file-level).
+- **Beta Testing**:
+  - [Beta Test Plan](docs/beta-testing/beta_test_plan.md): Scenarios and criteria for testing the beta version.
+- **UML Diagrams**:
+  - Located in [docs/uml/](docs/uml/): Visual representations of Wormhole’s architecture.
 
 ---
 
-### Complete Workflow
-```bash
-# 1. Start services
-docker-compose up
+## Contributing
 
-# 2. Configure w1 as the primary node
-docker exec -it w1 ./wormhole template
-docker exec -it w1 ./wormhole new test1
+Wormhole is an open-source project, and we welcome contributions from the community! To get involved:
 
-# 3. Configure w2 and connect it
-docker inspect w1 # → Get w1’s IP and port (e.g., GateWay:172.20.0.3)
-docker exec -it w2 ./wormhole new test2 172.20.0.3:8081
-```
+1. Read the [Technical Specification](docs/technical/technical_spec.md) to understand the project’s goals and architecture.
+2. Check the [Beta Test Plan](docs/beta-testing/beta_test_plan.md) to see testing scenarios and provide feedback.
+3. Report issues or suggest improvements via the [GitHub Issues](https://github.com/Agartha-Software/Wormhole/issues) page.
+4. Submit pull requests with code contributions, following the guidelines in [Code Architecture](docs/technical/architecture/code_architecture.md).
+
+For terminology, refer to the [Glossary](docs/user-guide/glossary.md) to understand key concepts like nodes, pods, and networks.
+
+---
+
+## Known Issues and Limitations
+
+The current beta version has some known limitations, detailed in the [Beta Test Plan](docs/beta-testing/beta_test_plan.md). Key issues include:
+
+- **Windows Support**: Incomplete, with some features not fully implemented.
+- **Documentation**: Some sections are incomplete and being expanded.
+- **Configuration**: The configuration files settings are not all implemented.
+- **Stability**: Some bugs persistes due to the early state of the project, check the issues.
+
+We are actively working on these issues and encourage community feedback to improve Wormhole.
+
+---
+
+## License
+
+Wormhole is licensed under the [The GNU Affero General Public License](LICENSE.txt). See the license file for details.
+
+---
+
+## Acknowledgments
+
+Wormhole is developed by Axel Denis, Julian Scott, Ludovic de Chavagnac, and Arthur Aillet. We thank all contributors and testers for their support in making Wormhole.
