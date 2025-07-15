@@ -44,8 +44,8 @@ For detailed use cases and technical details, see the [Technical Specification](
 Follow these steps to set up a Wormhole network on your machine. For detailed instructions, refer to the [Installation Guide](docs/getting-started/installation.md).
 
 Wormhole uses two binaries:
- - "wormholed" the background service managing the pods
- - "womrhole" the command line interface, acting as an interface with the service
+ - "wormholed" the node managing the different pods
+ - "womrhole" the command line interface, acting as an interface with the node
 
  Wormhole being still in heavy developpement, the project still require to build the project from source.
 
@@ -66,19 +66,19 @@ Move the binaries where needed, they can be found under `target/release/wormhole
 
 ### How to run
 
-Launch a new service, the service is started automatically
+Launch a new service, the node is started automatically
 ```
 ./wormholed 127.0.0.1:8081
 ^---------- ^-------------
- Service     Optional address with a default at 127.0.0.1:8081
+Node     Optional address with a default at 127.0.0.1:8081
 ```
 
 Create a new Wormhole network
 The new pod being created with any other connection it will automaticaly create a new network
 ```
-./wormhole 127.0.0.1:8081             new      pod_name  --path dir1/ -i 127.0.0.10:8081
-^--------- ^-------------             ^--      ^-----    ^-------        ^-----------------
- CLI        Optional service address  Command  Pod Name  Directory       Pod Address
+./wormhole 127.0.0.1:8081            new      pod_name  --path dir1/ -i 127.0.0.10:8081
+^--------- ^-------------            ^--      ^-----    ^-------        ^-----------------
+ CLI       Optional node address     Command  Pod Name  Directory       Pod Address
 ```
 
 Join an existing Wormhole network
@@ -99,13 +99,11 @@ For a more complex Docker-based deployment, refer to the [Docker Guide](docs/get
   stop         Stop the service
   template     Create a new network (template)
   new          Create a new pod and join a network if he have peers in arguments or create a new network
-  inspect      Inspect a pod with its configuration, connections, etc
   get-hosts    Get hosts for a specific file
   tree         Tree the folder structure from the given path and show hosts for each file
   remove       Remove a pod from its network
   apply        Apply a new configuration to a pod
   restore      Restore many or a specifique file configuration
-  interrupt    Stops the service
   help         Print this message or the help of the given subcommand(s)
 ```
 
