@@ -260,7 +260,7 @@ async fn start_cli_listener(
     mut ip: IpP,
     mut interrupt_rx: UnboundedReceiver<()>,
 ) {
-    println!("Starting CLI's TcpListener on {}", ip.to_string());
+    println!("Starting CLI's Listener on {}", ip.to_string());
 
     let mut listener = TcpListener::bind(&ip.to_string()).await;
     while let Err(e) = listener {
@@ -270,7 +270,6 @@ async fn start_cli_listener(
             e
         );
         ip.set_port(ip.port + 1);
-        log::debug!("Starting CLI's TcpListener on {}", ip.to_string());
         listener = TcpListener::bind(&ip.to_string()).await;
     }
     log::info!("Started CLI's TcpListener on {}", ip.to_string());
@@ -325,7 +324,7 @@ async fn main() {
     };
     let terminal_handle = tokio::spawn(terminal_watchdog(interrupt_tx));
     let cli_airport = start_cli_listener(&mut pods, ip, interrupt_rx);
-    println!("Starting service on {}", ip_string);
+    log::info!("Starting service on {}", ip_string);
     log::info!("Started");
 
     cli_airport.await;
