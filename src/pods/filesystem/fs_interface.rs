@@ -1,5 +1,5 @@
 use crate::config::{types::Config, LocalConfig};
-use crate::error::{WhError, WhResult};
+use crate::error::WhResult;
 use crate::network::message::Address;
 use crate::pods::arbo::{Arbo, FsEntry, Inode, InodeId, Metadata, GLOBAL_CONFIG_INO};
 use crate::pods::disk_managers::DiskManager;
