@@ -324,7 +324,7 @@ async fn main() {
     };
     let terminal_handle = tokio::spawn(terminal_watchdog(interrupt_tx));
     let cli_airport = start_cli_listener(&mut pods, ip, interrupt_rx);
-    log::info!("Starting service on {}", ip_string);
+    log::trace!("Starting service on {}", ip_string);
     log::info!("Started");
 
     cli_airport.await;
