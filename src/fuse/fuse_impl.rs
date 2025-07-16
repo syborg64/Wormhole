@@ -3,7 +3,8 @@ use crate::fuse::linux_mknod::filetype_from_mode;
 use crate::pods::filesystem::attrs::SetAttrError;
 use crate::pods::filesystem::file_handle::{AccessMode, OpenFlags};
 use crate::pods::filesystem::fs_interface::{FsInterface, SimpleFileType};
-use crate::pods::filesystem::make_inode::{CreateError, MakeInodeError};
+// use crate::pods::filesystem::make_inode::CreateError;
+use crate::pods::filesystem::make_inode::MakeInodeError;
 use crate::pods::filesystem::open::{check_permissions, OpenError};
 use crate::pods::filesystem::read::ReadError;
 
@@ -504,82 +505,82 @@ impl Filesystem for FuseController {
 
     // ^ WRITING
 
-    fn create(
-        &mut self,
-        req: &Request<'_>,
-        parent: u64,
-        name: &OsStr,
-        mode: u32,
-        _umask: u32,
-        flags: i32,
-        reply: fuser::ReplyCreate,
-    ) {
-        let permissions = mode as u16;
-        let kind = match filetype_from_mode(mode) {
-            Some(kind) => kind,
-            None => {
-                // If it's not a file or a directory it's not yet supported
-                reply.error(libc::EPERM);
-                return;
-            }
-        };
+    // fn create(
+    //     &mut self,
+    //     req: &Request<'_>,
+    //     parent: u64,
+    //     name: &OsStr,
+    //     mode: u32,
+    //     _umask: u32,
+    //     flags: i32,
+    //     reply: fuser::ReplyCreate,
+    // ) {
+    //     let permissions = mode as u16;
+    //     let kind = match filetype_from_mode(mode) {
+    //         Some(kind) => kind,
+    //         None => {
+    //             // If it's not a file or a directory it's not yet supported
+    //             reply.error(libc::EPERM);
+    //             return;
+    //         }
+    //     };
 
-        match AccessMode::from_libc(flags)
-            .map_err(|source| CreateError::OpenError { source })
-            .and_then(|access| {
-                self.fs_interface.create(
-                    parent,
-                    name.to_string_lossy().to_string(),
-                    kind,
-                    OpenFlags::from_libc(flags),
-                    access,
-                    permissions,
-                )
-            }) {
-            Ok((inode, fh)) => reply.created(
-                &TTL,
-                &inode.meta.with_ids(req.uid(), req.gid()),
-                0,
-                fh,
-                flags as u32,
-            ),
-            Err(CreateError::MakeInode {
-                source: MakeInodeError::LocalCreationFailed { io },
-            }) => {
-                reply.error(io.raw_os_error().expect(
-                    "Local creation error should always be the underling libc::open os error",
-                ))
-            }
-            Err(CreateError::MakeInode {
-                source: MakeInodeError::WhError { source },
-            }) => reply.error(source.to_libc()),
-            Err(CreateError::MakeInode {
-                source: MakeInodeError::AlreadyExist,
-            }) => reply.error(libc::EEXIST),
-            Err(CreateError::MakeInode {
-                source: MakeInodeError::ParentNotFound,
-            }) => reply.error(libc::ENOENT),
-            Err(CreateError::MakeInode {
-                source: MakeInodeError::ParentNotFolder,
-            }) => reply.error(libc::ENOTDIR),
-            Err(CreateError::MakeInode {
-                source: MakeInodeError::ProtectedNameIsFolder,
-            }) => reply.error(libc::EISDIR),
-            Err(CreateError::WhError { source }) => reply.error(source.to_libc()),
-            Err(CreateError::OpenError {
-                source: OpenError::WhError { source },
-            }) => reply.error(source.to_libc()),
-            Err(CreateError::OpenError {
-                source: OpenError::MultipleAccessFlags,
-            }) => reply.error(libc::EINVAL),
-            Err(CreateError::OpenError {
-                source: OpenError::TruncReadOnly,
-            }) => reply.error(libc::EACCES),
-            Err(CreateError::OpenError {
-                source: OpenError::WrongPermissions,
-            }) => reply.error(libc::EPERM),
-        }
-    }
+    //     match AccessMode::from_libc(flags)
+    //         .map_err(|source| CreateError::OpenError { source })
+    //         .and_then(|access| {
+    //             self.fs_interface.create(
+    //                 parent,
+    //                 name.to_string_lossy().to_string(),
+    //                 kind,
+    //                 OpenFlags::from_libc(flags),
+    //                 access,
+    //                 permissions,
+    //             )
+    //         }) {
+    //         Ok((inode, fh)) => reply.created(
+    //             &TTL,
+    //             &inode.meta.with_ids(req.uid(), req.gid()),
+    //             0,
+    //             fh,
+    //             flags as u32,
+    //         ),
+    //         Err(CreateError::MakeInode {
+    //             source: MakeInodeError::LocalCreationFailed { io },
+    //         }) => {
+    //             reply.error(io.raw_os_error().expect(
+    //                 "Local creation error should always be the underling libc::open os error",
+    //             ))
+    //         }
+    //         Err(CreateError::MakeInode {
+    //             source: MakeInodeError::WhError { source },
+    //         }) => reply.error(source.to_libc()),
+    //         Err(CreateError::MakeInode {
+    //             source: MakeInodeError::AlreadyExist,
+    //         }) => reply.error(libc::EEXIST),
+    //         Err(CreateError::MakeInode {
+    //             source: MakeInodeError::ParentNotFound,
+    //         }) => reply.error(libc::ENOENT),
+    //         Err(CreateError::MakeInode {
+    //             source: MakeInodeError::ParentNotFolder,
+    //         }) => reply.error(libc::ENOTDIR),
+    //         Err(CreateError::MakeInode {
+    //             source: MakeInodeError::ProtectedNameIsFolder,
+    //         }) => reply.error(libc::EISDIR),
+    //         Err(CreateError::WhError { source }) => reply.error(source.to_libc()),
+    //         Err(CreateError::OpenError {
+    //             source: OpenError::WhError { source },
+    //         }) => reply.error(source.to_libc()),
+    //         Err(CreateError::OpenError {
+    //             source: OpenError::MultipleAccessFlags,
+    //         }) => reply.error(libc::EINVAL),
+    //         Err(CreateError::OpenError {
+    //             source: OpenError::TruncReadOnly,
+    //         }) => reply.error(libc::EACCES),
+    //         Err(CreateError::OpenError {
+    //             source: OpenError::WrongPermissions,
+    //         }) => reply.error(libc::EPERM),
+    //     }
+    // }
 
     fn release(
         &mut self,
