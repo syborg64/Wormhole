@@ -9,9 +9,7 @@ use crate::fuse::fuse_impl::mount_fuse;
 use crate::network::message::{
     FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
 };
-use crate::pods::arbo::{
-    FsEntry, GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_INO, ROOT,
-};
+use crate::pods::arbo::{FsEntry, GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_INO, ROOT};
 #[cfg(target_os = "windows")]
 use crate::pods::disk_managers::dummy_disk_manager::DummyDiskManager;
 #[cfg(target_os = "linux")]
@@ -139,11 +137,7 @@ custom_error! {pub PodStopError
 ///
 /// Required at setup to resolve issue #179
 /// (files pulling need the parent folder to be already present)
-fn create_all_dirs(
-    arbo: &Arbo,
-    from: InodeId,
-    disk: &dyn DiskManager,
-) -> io::Result<()> {
+fn create_all_dirs(arbo: &Arbo, from: InodeId, disk: &dyn DiskManager) -> io::Result<()> {
     let to_io_error = |_| {
         io::Error::new(
             io::ErrorKind::InvalidData,
@@ -170,7 +164,7 @@ fn create_all_dirs(
                 create_all_dirs(arbo, *child, disk)?
             }
             Ok(())
-        },
+        }
     };
 }
 
@@ -230,7 +224,7 @@ impl Pod {
         let disk_manager = Box::new(DummyDiskManager::new(&mount_point)?);
 
         create_all_dirs(&arbo, ROOT, disk_manager.as_ref())
-                    .inspect_err(|e| log::error!("unable to create_all_dirs: {e}"))?;
+            .inspect_err(|e| log::error!("unable to create_all_dirs: {e}"))?;
 
         let arbo: Arc<RwLock<Arbo>> = Arc::new(RwLock::new(arbo));
         let redundancy_target = global_config.redundancy.number;
@@ -493,7 +487,9 @@ impl Pod {
         #[cfg(target_os = "windows")]
         drop(fsp_host);
 
-        fs_interface.disk.write_file(&ARBO_FILE_FNAME.into(), &arbo_bin, 0)
+        fs_interface
+            .disk
+            .write_file(&ARBO_FILE_FNAME.into(), &arbo_bin, 0)
             .map_err(|io| PodStopError::ArboSavingFailed { source: io })?;
 
         *peers.write() = Vec::new(); // dropping PeerIPCs
