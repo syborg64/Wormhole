@@ -1,13 +1,26 @@
 [package]
 name = "wormhole"
 version = "0.1.0"
-edition = "2021"
 authors = [
     "Axel Denis <axel.denis@epitech.eu>",
     "Julian Scott <julian.scott@epitech.eu>",
     "Ludovic De Chavagnac <ludovic.de-chavagnac@epitech.eu>",
     "Arthur Aillet <arthur.aillet@epitech.eu>",
 ]
+description = "Wormhole is a data decentralisation solution. It aims to create one single virtual storage space between many computers."
+edition = "2021"
+include = [
+    "/Cargo.toml",
+    "/LICENSE.txt",
+    "README.md",
+    "/src/**",
+    "/tests/**",
+]
+keywords = ["wormhole", "storage"]
+license = "GNU AFFERO GENERAL PUBLIC LICENSE"
+repository = "https://github.com/Agartha-Software/Wormhole"
+rust-version = "1.86.0"
+
 
 [lib]
 name = "wormhole"
