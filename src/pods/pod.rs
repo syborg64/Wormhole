@@ -1,5 +1,3 @@
-use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::{io, sync::Arc};
 
 use crate::config::types::Config;
@@ -12,7 +10,7 @@ use crate::network::message::{
     FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
 };
 use crate::pods::arbo::{
-    FsEntry, Inode, GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO, ROOT,
+    FsEntry, GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_INO, ROOT,
 };
 #[cfg(target_os = "windows")]
 use crate::pods::disk_managers::dummy_disk_manager::DummyDiskManager;
