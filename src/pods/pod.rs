@@ -141,7 +141,11 @@ custom_error! {pub PodStopError
 ///
 /// Required at setup to resolve issue #179
 /// (files pulling need the parent folder to be already present)
-fn create_all_dirs(arbo: &Arbo, from: InodeId, mount_point: &WhPath) -> io::Result<()> {
+fn create_all_dirs(
+    arbo: &Arbo,
+    from: InodeId,
+    disk: &dyn DiskManager,
+) -> io::Result<()> {
     let to_io_error = |_| {
         io::Error::new(
             io::ErrorKind::InvalidData,
@@ -156,45 +160,20 @@ fn create_all_dirs(arbo: &Arbo, from: InodeId, mount_point: &WhPath) -> io::Resu
 
     let from = arbo.n_get_inode(from).map_err(to_io_error)?;
 
-    // (path, perms, children)
-    let directories: Vec<(WhPath, u16, Vec<u64>)> =
-        if let FsEntry::Directory(children) = &from.entry {
-            children
-                .into_iter()
-                .map(|c| arbo.n_get_inode(*c).map_err(to_io_error))
-                .collect::<io::Result<Vec<&Inode>>>()?
-                .into_iter()
-                .filter_map(|inode| match &inode.entry {
-                    FsEntry::Directory(children) => Some((
-                        arbo.n_get_path_from_inode_id(inode.id).unwrap(),
-                        inode.meta.perm,
-                        children.to_owned(),
-                    )),
-                    FsEntry::File(_) => None,
-                })
-                .collect::<Vec<(WhPath, u16, Vec<InodeId>)>>()
-        } else {
-            return Ok(());
-        };
+    return match &from.entry {
+        FsEntry::File(_) => Ok(()),
+        FsEntry::Directory(children) => {
+            let current_path = arbo
+                .n_get_path_from_inode_id(from.id)
+                .map_err(to_io_error)?;
+            ignore_exists(disk.new_dir(&current_path, from.meta.perm))?;
 
-    let current_path = arbo
-        .n_get_path_from_inode_id(from.id)
-        .map_err(to_io_error)?;
-    ignore_exists(fs::create_dir(&mount_point.join(&current_path)))?;
-
-    for (path, perms, children) in directories {
-        let path = mount_point.join(&path);
-        ignore_exists(fs::create_dir(&path))?;
-        // REVIEW permissions are just reconverted from u16 to u32, as I've seen them
-        // be converted from u32 to u16 in fs_interface::setattr
-        // I'm not 100% sure that this is correct.
-        fs::set_permissions(&path, fs::Permissions::from_mode(perms as u32))?;
-        for child in children {
-            create_all_dirs(arbo, child, mount_point)?
-        }
-    }
-
-    Ok(())
+            for child in children {
+                create_all_dirs(arbo, *child, disk)?
+            }
+            Ok(())
+        },
+    };
 }
 
 impl Pod {
@@ -240,15 +219,20 @@ impl Pod {
                     .fold(Arbo::first_ino(), |acc, (ino, _)| u64::max(acc, *ino))
                     + 1;
 
-                create_all_dirs(&arbo, ROOT, &mount_point)
-                    .inspect_err(|e| log::error!("unable to create_all_dirs: {e}"))?;
-
                 (arbo, next_inode, Some(global_config_bytes))
             } else {
                 let (arbo, next_inode) =
                     generate_arbo(&mount_point, &server_address).expect("unable to index folder");
                 (arbo, next_inode, None)
             };
+
+        #[cfg(target_os = "linux")]
+        let disk_manager = Box::new(UnixDiskManager::new(&mount_point)?);
+        #[cfg(target_os = "windows")]
+        let disk_manager = Box::new(DummyDiskManager::new(&mount_point)?);
+
+        create_all_dirs(&arbo, ROOT, disk_manager.as_ref())
+                    .inspect_err(|e| log::error!("unable to create_all_dirs: {e}"))?;
 
         let arbo: Arc<RwLock<Arbo>> = Arc::new(RwLock::new(arbo));
         let redundancy_target = global_config.redundancy.number;
@@ -265,11 +249,6 @@ impl Pod {
             local.clone(),
             global.clone(),
         ));
-
-        #[cfg(target_os = "linux")]
-        let disk_manager = Box::new(UnixDiskManager::new(&mount_point)?);
-        #[cfg(target_os = "windows")]
-        let disk_manager = Box::new(DummyDiskManager::new(&mount_point)?);
 
         if let Some(global_config_bytes) = global_config_bytes {
             if let Ok(perms) = Arbo::write_lock(&arbo, "Pod::new")?
