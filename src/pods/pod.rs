@@ -475,8 +475,8 @@ impl Pod {
         let Self {
             name: _,
             network_interface: _,
-            fs_interface: _,
-            mount_point,
+            fs_interface,
+            mount_point: _,
             peers,
             #[cfg(target_os = "linux")]
             fuse_handle,
@@ -495,7 +495,7 @@ impl Pod {
         #[cfg(target_os = "windows")]
         drop(fsp_host);
 
-        fs::write(&mount_point.join(&ARBO_FILE_FNAME).inner, arbo_bin)
+        fs_interface.disk.write_file(&ARBO_FILE_FNAME.into(), &arbo_bin, 0)
             .map_err(|io| PodStopError::ArboSavingFailed { source: io })?;
 
         *peers.write() = Vec::new(); // dropping PeerIPCs
