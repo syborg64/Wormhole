@@ -138,27 +138,21 @@ custom_error! {pub PodStopError
 /// Required at setup to resolve issue #179
 /// (files pulling need the parent folder to be already present)
 fn create_all_dirs(arbo: &Arbo, from: InodeId, disk: &dyn DiskManager) -> io::Result<()> {
-    let to_io_error = |_| {
-        io::Error::new(
-            io::ErrorKind::InvalidData,
-            "Arbo seems corrupted. Creation of the directory tree failed.",
-        )
-    };
-    let ignore_exists = |case: io::Result<()>| match case {
-        Ok(()) => Ok(()),
-        Err(e) if matches!(e.kind(), io::ErrorKind::AlreadyExists) => Ok(()),
-        Err(e) => Err(e),
-    };
-
-    let from = arbo.n_get_inode(from).map_err(to_io_error)?;
+    let from = arbo.n_get_inode(from).map_err(|e| e.into_io())?;
 
     return match &from.entry {
         FsEntry::File(_) => Ok(()),
         FsEntry::Directory(children) => {
             let current_path = arbo
                 .n_get_path_from_inode_id(from.id)
-                .map_err(to_io_error)?;
-            ignore_exists(disk.new_dir(&current_path, from.meta.perm))?;
+                .map_err(|e| e.into_io())?;
+            disk.new_dir(&current_path, from.meta.perm).or_else(|e| {
+                if e.kind() == io::ErrorKind::AlreadyExists {
+                    Ok(())
+                } else {
+                    Err(e)
+                }
+            })?;
 
             for child in children {
                 create_all_dirs(arbo, *child, disk)?
