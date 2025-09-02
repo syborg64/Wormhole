@@ -58,7 +58,8 @@ jobs:
           wget_release_id: latest
       - name: Install system dependencies
         run: |
-          winget install --id=WinFsp.WinFsp -e
+          curl -o winfsp.msi https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-2.1.25156.msi
+          msiexec /i winfsp.msi /norestart
       - name: Build project
         run: |
           cargo build --release
