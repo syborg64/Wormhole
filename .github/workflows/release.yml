@@ -53,10 +53,7 @@ jobs:
           fetch-depth: 0
       - name: Install system dependencies
         run: |
-          mkdir %TEMP%\msi
-          cd /d %TEMP%\msi
-          curl -L -o winfsp.msi https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-2.1.25156.msi --output-dir "%TEMP%\msi"
-          dir
+          curl -L -o winfsp.msi https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-2.1.25156.msi
           echo $(Get-Date -format "dd-MMM-yyyy HH:mm:ss")
           Start-Process msiexec.exe -Wait -ArgumentList '/i winfsp.msi ALLUSERS=2 MSIINSTALLPERUSER=1 /quiet /norestart /L*v install.log'
           echo $(Get-Date -format "dd-MMM-yyyy HH:mm:ss")
