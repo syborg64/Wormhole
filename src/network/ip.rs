@@ -27,17 +27,7 @@ impl IpP {
 impl TryFrom<&String> for IpP {
     type Error = &'static str;
     fn try_from(addr: &String) -> Result<IpP, Self::Error> {
-        let split = addr.split(":").collect::<Vec<&str>>();
-        if split.len() != 2 {
-            Err("IpP: TryFrom: Invalid ip provided (split on ':' -> len != 2")
-        } else if let (Ok(addr), Ok(port)) = (split[0].parse(), split[1].parse()) {
-            Ok(Self {
-                addr: addr,
-                port: port,
-            })
-        } else {
-            Err("IpP: TryFrom: Invalid ip provided")
-        }
+        IpP::try_from(addr.as_str())
     }
 }
 
