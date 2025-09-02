@@ -65,6 +65,7 @@ jobs:
           dir 'C:\'
           dir 'C:\Program Files'
           dir 'C:\Program Files (x86)'
+          dir 'C:\Program Files (x86)\WinFsp'
           dir 'C:\Program Files (x86)\WinFsp\inc'
           dir 'C:\Program Files (x86)\WinFsp\inc\winfsp'
           echo $WINFSP_INCLUDE_PATH
