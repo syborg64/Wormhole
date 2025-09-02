@@ -54,7 +54,9 @@ jobs:
       - name: Install system dependencies
         run: |
           curl -L -o winfsp.msi https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-2.1.25156.msi
+          echo $(Get-Date -format "dd-MMM-yyyy HH:mm:ss")
           Start-Process msiexec.exe -Wait -ArgumentList '/qn /i winfsp.msi'
+          echo $(Get-Date -format "dd-MMM-yyyy HH:mm:ss")
       - name: Build project
         run: |
           cargo build --release
