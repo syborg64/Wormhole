@@ -1,0 +1,28 @@
+# Maintainer: Axel Denis <axel.denis@epitech.eu>
+# Maintainer: Julian Scott <julian.scott@epitech.eu>
+# Maintainer: Ludovic De Chavagnac <ludovic.de-chavagnac@epitech.eu>
+# Maintainer: Arthur Aillet <arthur.aillet@epitech.eu>
+pkgname=wormhole
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Simple decentralized file storage"
+url="https://github.com/Agartha-Software/Wormhole"
+license=("GNU AFFERO GENERAL PUBLIC LICENSE")
+arch=("x86_64")
+makedepends=("cargo")
+
+pkgver() {
+    (git describe --long --tags || echo "$pkgver") | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'
+}
+
+build() {
+    return 0
+}
+
+package() {
+    cd ..
+    usrdir="$pkgdir/usr"
+    mkdir -p $usrdir
+    cargo install --no-track --path . --root "$usrdir"
+}
+
