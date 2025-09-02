@@ -59,10 +59,15 @@ jobs:
           echo $(Get-Date -format "dd-MMM-yyyy HH:mm:ss")
           gc install.log
       - name: Build project
+        env:
+          WINFSP_INCLUDE_PATH: "C:\\Program Files\\WinFsp\\inc"
         run: |
           dir 'C:\'
           dir 'C:\Program Files'
           dir 'C:\Program Files (x86)'
+          dir 'C:\Program Files (x86)\WinFsp\inc'
+          dir 'C:\Program Files (x86)\WinFsp\inc\winfsp'
+          echo $WINFSP_INCLUDE_PATH
           cargo build --release
       - name: Upload cmd exe
         uses: actions/upload-release-asset@v1
