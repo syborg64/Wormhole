@@ -1,4 +1,3 @@
-use std::fs;
 use std::{io, sync::Arc};
 
 use crate::config::types::Config;
@@ -10,7 +9,7 @@ use crate::fuse::fuse_impl::mount_fuse;
 use crate::network::message::{
     FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
 };
-use crate::pods::arbo::{FsEntry, GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO, ROOT};
+use crate::pods::arbo::{FsEntry, GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_INO, ROOT};
 #[cfg(target_os = "windows")]
 use crate::pods::disk_managers::dummy_disk_manager::DummyDiskManager;
 #[cfg(target_os = "linux")]
@@ -134,6 +133,35 @@ custom_error! {pub PodStopError
     FileNotSent{file: InodeId} = "PodStopError: no pod was able to receive this file before stopping: ({file})"
 }
 
+/// Create all the directories present in Arbo. (not the files)
+///
+/// Required at setup to resolve issue #179
+/// (files pulling need the parent folder to be already present)
+fn create_all_dirs(arbo: &Arbo, from: InodeId, disk: &dyn DiskManager) -> io::Result<()> {
+    let from = arbo.n_get_inode(from).map_err(|e| e.into_io())?;
+
+    return match &from.entry {
+        FsEntry::File(_) => Ok(()),
+        FsEntry::Directory(children) => {
+            let current_path = arbo
+                .n_get_path_from_inode_id(from.id)
+                .map_err(|e| e.into_io())?;
+            disk.new_dir(&current_path, from.meta.perm).or_else(|e| {
+                if e.kind() == io::ErrorKind::AlreadyExists {
+                    Ok(())
+                } else {
+                    Err(e)
+                }
+            })?;
+
+            for child in children {
+                create_all_dirs(arbo, *child, disk)?
+            }
+            Ok(())
+        }
+    };
+}
+
 impl Pod {
     pub async fn new(
         name: String,
@@ -145,7 +173,7 @@ impl Pod {
     ) -> io::Result<Self> {
         let mut global_config = global_config;
 
-        log::info!("mount point {}", mount_point);
+        log::trace!("mount point {}", mount_point);
         let (senders_in, senders_out) = mpsc::unbounded_channel();
         let (receiver_in, mut receiver_out) = mpsc::unbounded_channel();
 
@@ -177,6 +205,7 @@ impl Pod {
                     .iter()
                     .fold(Arbo::first_ino(), |acc, (ino, _)| u64::max(acc, *ino))
                     + 1;
+
                 (arbo, next_inode, Some(global_config_bytes))
             } else {
                 let (arbo, next_inode) =
@@ -184,8 +213,16 @@ impl Pod {
                 (arbo, next_inode, None)
             };
 
-        let redundancy_target = global_config.redundancy.number;
+        #[cfg(target_os = "linux")]
+        let disk_manager = Box::new(UnixDiskManager::new(&mount_point)?);
+        #[cfg(target_os = "windows")]
+        let disk_manager = Box::new(DummyDiskManager::new(&mount_point)?);
+
+        create_all_dirs(&arbo, ROOT, disk_manager.as_ref())
+            .inspect_err(|e| log::error!("unable to create_all_dirs: {e}"))?;
+
         let arbo: Arc<RwLock<Arbo>> = Arc::new(RwLock::new(arbo));
+        let redundancy_target = global_config.redundancy.number;
         let local = Arc::new(RwLock::new(local_config));
         let global = Arc::new(RwLock::new(global_config));
 
@@ -199,11 +236,6 @@ impl Pod {
             local.clone(),
             global.clone(),
         ));
-
-        #[cfg(target_os = "linux")]
-        let disk_manager = Box::new(UnixDiskManager::new(&mount_point)?);
-        #[cfg(target_os = "windows")]
-        let disk_manager = Box::new(DummyDiskManager::new(&mount_point)?);
 
         if let Some(global_config_bytes) = global_config_bytes {
             if let Ok(perms) = Arbo::write_lock(&arbo, "Pod::new")?
@@ -430,8 +462,8 @@ impl Pod {
         let Self {
             name: _,
             network_interface: _,
-            fs_interface: _,
-            mount_point,
+            fs_interface,
+            mount_point: _,
             peers,
             #[cfg(target_os = "linux")]
             fuse_handle,
@@ -450,7 +482,9 @@ impl Pod {
         #[cfg(target_os = "windows")]
         drop(fsp_host);
 
-        fs::write(&mount_point.join(&ARBO_FILE_FNAME).inner, arbo_bin)
+        fs_interface
+            .disk
+            .write_file(&ARBO_FILE_FNAME.into(), &arbo_bin, 0)
             .map_err(|io| PodStopError::ArboSavingFailed { source: io })?;
 
         *peers.write() = Vec::new(); // dropping PeerIPCs

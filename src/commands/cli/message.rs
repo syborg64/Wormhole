@@ -17,7 +17,7 @@ pub async fn cli_messager(ip: &str, cli: Cli) -> CliResult<()> {
     while let Ok(Some(msg)) = ws_stream.try_next().await {
         if msg.is_text() {
             let response = msg.to_text()?;
-            log::info!("Service anwser: {response}");
+            println!("Service anwser: {response}");
             break;
         }
     }

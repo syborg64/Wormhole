@@ -45,17 +45,28 @@ async fn handle_cli_command(
     mut writer: CliTcpWriter,
 ) {
     let response_command = match command {
-        Cli::New(pod_args) => match commands::service::new(pod_args).await {
-            Ok(pod) => {
-                let name = pod.get_name().to_string();
-                pods.insert(name.clone(), pod);
-                Ok(CliSuccess::WithData {
-                    message: String::from("Pod created with success"),
-                    data: name,
+        Cli::New(pod_args) => {
+            let mount_point_exists = pods.values().any(|p| p.get_mount_point() == &pod_args.path);
+
+            if mount_point_exists {
+                log::error!("This mount point already exist.");
+                Err(CliError::Message {
+                    reason: "This mount point already exist.".to_string(),
                 })
+            } else {
+                match commands::service::new(pod_args.clone()).await {
+                    Ok(pod) => {
+                        let name = pod.get_name().to_string();
+                        pods.insert(name.clone(), pod);
+                        Ok(CliSuccess::WithData {
+                            message: String::from("Pod created with success"),
+                            data: name,
+                        })
+                    }
+                    Err(e) => Err(e),
+                }
             }
-            Err(e) => Err(e),
-        },
+        }
         Cli::Start(pod_args) => commands::service::start(pod_args).await,
         Cli::Stop(pod_args) => {
             if let Some(pod) = pods.remove(&pod_args.name) {
