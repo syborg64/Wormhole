@@ -270,8 +270,15 @@ async fn get_cli_command(stream: tokio::net::TcpStream) -> WhResult<(Cli, CliTcp
     Ok((cmd, writer))
 }
 
-const MAX_TRY_PORTS: u8 = 10;
+const MAX_TRY_PORTS: u16 = 10;
 const MAX_PORT: u16 = 65535;
+
+custom_error::custom_error! {CliListenerError
+    ProvidedIpNotAvailable {ip: String, err: String} = "The specified address ({ip}) not available ({err})\nThe service is not starting.",
+    AboveMainPort {max_port: u16} = "Unable to start cli_listener (not testing ports above {max_port})",
+    AboveMaxTry {max_try_port: u16} = "Unable to start cli_listener (tested {max_try_port} ports)",
+}
+
 /// Listens for CLI calls and launch one tcp instance per cli command
 /// if `specific_ip` is not given, will try all ports starting from 8081 to 9999, incrementing until success
 /// if `specific_ip` is given, will try the given ip and fail on error.
@@ -279,7 +286,7 @@ async fn start_cli_listener(
     pods: &mut HashMap<String, Pod>,
     specific_ip: Option<String>,
     mut interrupt_rx: UnboundedReceiver<()>,
-) {
+) -> Result<(), CliListenerError> {
     let mut ip: IpP = IpP::try_from(&specific_ip.clone().unwrap_or("127.0.0.1:8081".to_string()))
         .expect("start_cli_listener: invalid ip provided");
     println!("Starting CLI's Listener on {}", ip.to_string());
@@ -288,20 +295,18 @@ async fn start_cli_listener(
     let mut listener = TcpListener::bind(&ip.to_string()).await;
     while let Err(e) = listener {
         if let Some(_) = specific_ip {
-            log::error!(
-                "The specified address ({}) not available due to {}\nThe service is not starting.",
-                ip.to_string(),
-                e
-            );
-            panic!("Unable to start cli_listener");
+            return Err(CliListenerError::ProvidedIpNotAvailable {
+                ip: ip.to_string(),
+                err: e.to_string(),
+            });
         }
         if ip.port >= MAX_PORT {
-            panic!("Unable to start cli_listener (not testing ports above {MAX_PORT})");
+            return Err(CliListenerError::AboveMainPort { max_port: MAX_PORT });
         }
         if port_tries_count > MAX_TRY_PORTS {
-            panic!("Unable to start cli_listener (tested {MAX_TRY_PORTS}/{MAX_TRY_PORTS})");
+            return Err(CliListenerError::AboveMaxTry { max_try_port: MAX_TRY_PORTS });
         }
-        log::error!(
+        log::warn!(
             "Address {} not available due to {}, switching...",
             ip.to_string(),
             e
@@ -326,7 +331,8 @@ async fn start_cli_listener(
             }
         };
         handle_cli_command(&ip, pods, command, writer).await;
-    }
+    };
+    Ok(())
 }
 
 const DEFAULT_ADDRESS: &str = "127.0.0.1:8081";
@@ -357,7 +363,9 @@ async fn main() {
     let cli_airport = start_cli_listener(&mut pods, ip_string, interrupt_rx);
     log::info!("Started");
 
-    cli_airport.await;
+    let _ = cli_airport.await.inspect_err(|e| {
+        log::error!("Cli listener didn't start:\n{}", e);
+    });
     terminal_handle.abort();
 
     log::info!("Stopping");
