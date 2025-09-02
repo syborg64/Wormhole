@@ -5,10 +5,16 @@ use tokio_tungstenite::tungstenite::{protocol::WebSocketConfig, Message};
 use crate::{commands::cli_commands::Cli, error::CliResult};
 
 pub async fn cli_messager(ip: &str, cli: Cli) -> CliResult<()> {
-    let (mut ws_stream, _) = tokio_tungstenite::connect_async_with_config(format!("ws://{}", ip),
-        Some(WebSocketConfig::default().max_message_size(None).max_frame_size(None)),
+    let (mut ws_stream, _) = tokio_tungstenite::connect_async_with_config(
+        format!("ws://{}", ip),
+        Some(
+            WebSocketConfig::default()
+                .max_message_size(None)
+                .max_frame_size(None),
+        ),
         false,
-    ).await?;
+    )
+    .await?;
     log::info!("Service connected at ws://{ip}");
 
     let bytes = bincode::serialize(&cli)?;

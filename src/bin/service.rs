@@ -224,9 +224,16 @@ async fn handle_cli_command(
 
 async fn get_cli_command(stream: tokio::net::TcpStream) -> WhResult<(Cli, CliTcpWriter)> {
     // Accept the TCP stream as a WebSocket stream
-    let ws_stream = match tokio_tungstenite::accept_async_with_config(stream,
-        Some(WebSocketConfig::default().max_message_size(None).max_frame_size(None)),
-    ).await {
+    let ws_stream = match tokio_tungstenite::accept_async_with_config(
+        stream,
+        Some(
+            WebSocketConfig::default()
+                .max_message_size(None)
+                .max_frame_size(None),
+        ),
+    )
+    .await
+    {
         Ok(s) => s,
         Err(e) => {
             log::error!("get_cli_command: can't accept tcp stream: {}", e);
