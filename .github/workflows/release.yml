@@ -55,7 +55,7 @@ jobs:
         run: |
           curl -L -o winfsp.msi https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-2.1.25156.msi
           echo $(Get-Date -format "dd-MMM-yyyy HH:mm:ss")
-          Start-Process msiexec.exe -Wait -ArgumentList '/i winfsp.msi ALLUSERS=2 MSIINSTALLPERUSER=1 /quiet /norestart /L*v install.log'
+          Start-Process msiexec.exe -Wait -ArgumentList '/i winfsp.msi /quiet /norestart /L*v install.log'
           echo $(Get-Date -format "dd-MMM-yyyy HH:mm:ss")
           gc install.log
       - name: Build project
