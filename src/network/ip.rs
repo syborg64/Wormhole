@@ -2,8 +2,7 @@ use std::fmt::{Debug, Display};
 use std::net::Ipv4Addr;
 
 // stands for ip and port
-#[derive(Debug)]
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct IpP {
     pub addr: Ipv4Addr,
     pub port: u16,

@@ -304,7 +304,9 @@ async fn start_cli_listener(
             return Err(CliListenerError::AboveMainPort { max_port: MAX_PORT });
         }
         if port_tries_count > MAX_TRY_PORTS {
-            return Err(CliListenerError::AboveMaxTry { max_try_port: MAX_TRY_PORTS });
+            return Err(CliListenerError::AboveMaxTry {
+                max_try_port: MAX_TRY_PORTS,
+            });
         }
         log::warn!(
             "Address {} not available due to {}, switching...",
@@ -331,7 +333,7 @@ async fn start_cli_listener(
             }
         };
         handle_cli_command(&ip, pods, command, writer).await;
-    };
+    }
     Ok(())
 }
 
