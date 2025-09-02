@@ -9,11 +9,11 @@ pkgrel=1
 pkgdesc='Simple decentralized file storage'
 url='https://github.com/Agartha-Software/Wormhole'
 license=('AGPL-3.0-only')
-makedepends=(cargo git fuse3)
-depends=(fuse3)
-arch=('any')
-source=('git+https://github.com/Agartha-Software/Wormhole.git#commit=61f0ce6541a139df33050a0c609f4886f5f98901')
-b2sums=("SKIP")
+makedepends=(cargo git)
+depends=(fuse3 gcc-libs)
+arch=('x86_64')
+source=('git+https://github.com/Agartha-Software/Wormhole.git#commit=f709c6897238bf735a61f277b5cd2ab397490e21')
+b2sums=("SKIP") # will be added once we point a real release
 
 prepare() {
     export RUSTUP_TOOLCHAIN=stable
