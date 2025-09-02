@@ -60,9 +60,9 @@ jobs:
           gc install.log
       - name: Build project
         run: |
-          dir 'C:\Users\runneradmin\'
-          dir 'C:\Users\runneradmin\Program Files'
-          dir 'C:\Users\runneradmin\Program Files(x86)'
+          dir 'C:\'
+          dir 'C:\Program Files'
+          dir 'C:\Program Files(x86)'
           cargo build --release
       - name: Upload cmd exe
         uses: actions/upload-release-asset@v1
