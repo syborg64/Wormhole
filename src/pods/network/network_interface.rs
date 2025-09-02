@@ -20,6 +20,7 @@ use crate::{
 };
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 
 use crate::pods::{
     arbo::BLOCK_SIZE,
@@ -645,9 +646,16 @@ impl NetworkInterface {
     ) {
         while let Ok((stream, addr)) = server.listener.accept().await {
             log::debug!("GOT ADDRESS {addr}");
-            let ws_stream = tokio_tungstenite::accept_async(stream)
-                .await
-                .expect("Error during the websocket handshake occurred");
+            let ws_stream = tokio_tungstenite::accept_async_with_config(
+                stream,
+                Some(
+                    WebSocketConfig::default()
+                        .max_message_size(None)
+                        .max_frame_size(None),
+                ),
+            )
+            .await
+            .expect("Error during the websocket handshake occurred");
 
             let (write, read) = futures_util::StreamExt::split(ws_stream);
             let new_peer =

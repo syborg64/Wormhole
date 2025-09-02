@@ -24,8 +24,9 @@ use futures_util::stream::SplitSink;
 use futures_util::{SinkExt, StreamExt};
 use tokio::net::TcpListener;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 use tokio_tungstenite::tungstenite::Message;
-use tokio_tungstenite::{accept_async, WebSocketStream};
+use tokio_tungstenite::WebSocketStream;
 #[cfg(target_os = "windows")]
 use winfsp::winfsp_init;
 use wormhole::commands::{self, cli_commands::Cli};
@@ -204,7 +205,7 @@ async fn handle_cli_command(
         _ => Err(CliError::InvalidCommand),
     };
     let string_output = response_command.map_or_else(|e| e.to_string(), |a| a.to_string());
-    match writer.send(Message::Text(string_output)).await {
+    match writer.send(Message::Text(string_output.into())).await {
         Ok(()) => log::debug!("Sent answer to cli"),
         Err(err) => log::error!("Message can't send to cli: {}", err),
     }
@@ -212,7 +213,9 @@ async fn handle_cli_command(
 
 async fn get_cli_command(stream: tokio::net::TcpStream) -> WhResult<(Cli, CliTcpWriter)> {
     // Accept the TCP stream as a WebSocket stream
-    let ws_stream = match accept_async(stream).await {
+    let ws_stream = match tokio_tungstenite::accept_async_with_config(stream,
+        Some(WebSocketConfig::default().max_message_size(None).max_frame_size(None)),
+    ).await {
         Ok(s) => s,
         Err(e) => {
             log::error!("get_cli_command: can't accept tcp stream: {}", e);
