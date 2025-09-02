@@ -3,6 +3,7 @@ use std::net::Ipv4Addr;
 
 // stands for ip and port
 #[derive(Debug)]
+#[derive(PartialEq)]
 pub struct IpP {
     pub addr: Ipv4Addr,
     pub port: u16,
@@ -58,11 +59,5 @@ impl Clone for IpP {
 impl Display for IpP {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}:{}", self.addr, self.port)
-    }
-}
-
-impl PartialEq for IpP {
-    fn eq(&self, other: &Self) -> bool {
-        self.addr == other.addr && self.port == other.port
     }
 }
