@@ -9,14 +9,15 @@ pkgrel=1
 pkgdesc='Simple decentralized file storage'
 url='https://github.com/Agartha-Software/Wormhole'
 license=('GNU AFFERO GENERAL PUBLIC LICENSE')
-makedepends=('cargo')
+makedepends=(cargo git)
 depends=()
 arch=('any')
-source=("${pkgname}-${pkgver}.zip::https://github.com/Agartha-Software/Wormhole/archive/refs/tags/v$pkgver.zip")
-b2sums=("bac907e2fd3e9a96aa2d548a026230d183c7c9e580fdfaeb2718fd5fe7bb84cb146a0df9e7fdab76b6866eeb0660fad5dcbb79d7b2ded6fea0d1c8f0270eb0d2")
+source=('git+https://github.com/Agartha-Software/Wormhole.git#commit=db022e9aceb9c105c8de7af495a03bec9800d74e')
+b2sums=("SKIP")
 
 prepare() {
     export RUSTUP_TOOLCHAIN=stable
+    cd Wormhole
     cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
 }
 
