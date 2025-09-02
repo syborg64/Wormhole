@@ -47,7 +47,7 @@ pub struct PodConf {
     pub files: Vec<String>,
 }
 
-#[derive(Debug, clap::Args, Serialize, Deserialize)]
+#[derive(Debug, clap::Args, Serialize, Deserialize, Clone)]
 #[command(version, about, long_about = None)]
 pub struct GetHostsArgs {
     /// Name of the pod
@@ -56,7 +56,7 @@ pub struct GetHostsArgs {
     pub path: WhPath,
 }
 
-#[derive(Debug, clap::Args, Serialize, Deserialize)]
+#[derive(Debug, clap::Args, Serialize, Deserialize, Clone)]
 #[command(version, about, long_about = None)]
 pub struct TreeArgs {
     /// Name of the pod
@@ -66,7 +66,7 @@ pub struct TreeArgs {
     pub path: WhPath,
 }
 
-#[derive(Debug, clap::Args, Serialize, Deserialize)]
+#[derive(Debug, clap::Args, Serialize, Deserialize, Clone)]
 #[command(version, about, long_about = None)]
 pub struct PodArgs {
     /// Name of the pod
@@ -85,7 +85,7 @@ pub struct PodArgs {
     pub additional_hosts: Option<Vec<String>>,
 }
 
-#[derive(Debug, clap::Args, Serialize, Deserialize)]
+#[derive(Debug, clap::Args, Serialize, Deserialize, Clone)]
 #[command(version, about, long_about = None)]
 pub struct StatusPodArgs {
     /// Name of the pod for updating status pod. If the name equal 'None' the name will be read from the current directory
@@ -96,7 +96,7 @@ pub struct StatusPodArgs {
     pub path: WhPath,
 }
 
-#[derive(Debug, clap::Args, Serialize, Deserialize)]
+#[derive(Debug, clap::Args, Serialize, Deserialize, Clone)]
 #[command(version, about, long_about = None)]
 pub struct TemplateArg {
     /// Name of the network to create
