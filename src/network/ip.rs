@@ -46,14 +46,12 @@ impl TryFrom<&str> for IpP {
     fn try_from(addr: &str) -> Result<IpP, Self::Error> {
         let split = addr.split(":").collect::<Vec<&str>>();
         if split.len() != 2 {
-            Err("IpP: TryFrom: Invalid ip provided (split on ':' -> len != 2")
-        } else if let (Ok(addr), Ok(port)) = (split[0].parse(), split[1].parse()) {
-            Ok(Self {
-                addr: addr,
-                port: port,
-            })
+            Err("IpP: TryFrom: Invalid ip provided (socket addresses must have a single semicolon (:))")
         } else {
-            Err("IpP: TryFrom: Invalid ip provided")
+            let addr = split[0].parse().ok().ok_or("failed to parse IP")?;
+            let port = split[1].parse().ok().ok_or("failed to parse port")?;
+
+            Ok(Self { addr, port })
         }
     }
 }
