@@ -54,7 +54,7 @@ jobs:
       - name: Install system dependencies
         run: |
           curl -L -o winfsp.msi https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-2.1.25156.msi
-          msiexec /qn /i winfsp.msi
+          Start-Process msiexec.exe -Wait -ArgumentList '/qn /i winfsp.msi'
       - name: Build project
         run: |
           cargo build --release
