@@ -1,13 +1,26 @@
 [package]
 name = "wormhole"
 version = "0.1.0"
-edition = "2021"
 authors = [
     "Axel Denis <axel.denis@epitech.eu>",
     "Julian Scott <julian.scott@epitech.eu>",
     "Ludovic De Chavagnac <ludovic.de-chavagnac@epitech.eu>",
     "Arthur Aillet <arthur.aillet@epitech.eu>",
 ]
+description = "Wormhole is a data decentralisation solution. It aims to create one single virtual storage space between many computers."
+edition = "2021"
+include = [
+    "/Cargo.toml",
+    "/LICENSE.txt",
+    "README.md",
+    "/src/**",
+    "/tests/**",
+]
+keywords = ["wormhole", "storage"]
+license = "GNU AFFERO GENERAL PUBLIC LICENSE"
+repository = "https://github.com/Agartha-Software/Wormhole"
+rust-version = "1.86.0"
+
 
 [lib]
 name = "wormhole"
@@ -35,6 +48,9 @@ version = "0.11.3"
 fuser = "0.15.1"
 openat = "0.1.21"
 
+[patch.crates-io]
+winfsp = { git = 'https://github.com/syborg64/winfsp-rs.git', branch = "feat/drop-glue" }
+winfsp-sys = { git = 'https://github.com/syborg64/winfsp-rs.git', branch = "feat/drop-glue" }
 
 [target.'cfg(windows)'.dependencies]
 winfsp-sys = "0.2.2"
@@ -42,7 +58,7 @@ windows-permissions = "0.2.4"
 winapi = "0.3.9"
 ntapi = "0.4.1"
 nt-time = "0.10.6"
-windows = { version = "0.52.0", features = [
+windows = { version = "0.56.0", features = [
     "Win32_Foundation",
     "Win32_System_IO",
     "Win32",

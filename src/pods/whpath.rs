@@ -95,6 +95,12 @@ impl Into<OsString> for &WhPath {
     }
 }
 
+impl AsRef<Path> for WhPath {
+    fn as_ref(&self) -> &Path {
+        Path::new(&self.inner)
+    }
+}
+
 impl WhPath {
     pub fn new() -> Self {
         WhPath {
@@ -271,7 +277,7 @@ impl WhPath {
         path.remove_last_slash();
         match path.inner.rsplit_once('/') {
             Some((first, last)) => (first.to_string(), last.to_string()),
-            _none => (String::new(), String::new()),
+            None => (String::new(), path.inner),
         }
     }
 

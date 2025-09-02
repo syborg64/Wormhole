@@ -142,6 +142,10 @@ impl Inode {
 }
 
 impl Arbo {
+    pub fn first_ino() -> InodeId {
+        return 11;
+    }
+
     pub fn new() -> Self {
         let mut arbo: Self = Self {
             entries: HashMap::new(),
@@ -155,7 +159,7 @@ impl Arbo {
                 name: "/".to_owned(),
                 entry: FsEntry::Directory(vec![]),
                 meta: Metadata {
-                    ino: 0,
+                    ino: ROOT,
                     size: 0,
                     blocks: 0,
                     atime: SystemTime::now(),
@@ -163,7 +167,7 @@ impl Arbo {
                     ctime: SystemTime::now(),
                     crtime: SystemTime::now(),
                     kind: SimpleFileType::Directory,
-                    perm: 0o666,
+                    perm: 0o755,
                     nlink: 0,
                     uid: 0,
                     gid: 0,
@@ -692,6 +696,7 @@ fn recover_serialized_arbo(parent_folder: &WhPath) -> Option<Arbo> {
     bincode::deserialize(&fs::read(parent_folder.join(ARBO_FILE_FNAME).to_string()).ok()?).ok()
 }
 
+#[cfg(target_os = "linux")]
 fn index_folder_recursive(
     arbo: &mut Arbo,
     parent: InodeId,
@@ -735,7 +740,9 @@ fn index_folder_recursive(
             meta.permissions().mode() as u16,
         ))
         .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err.to_string()))?;
-        arbo.set_inode_meta(used_ino, meta.try_into()?)?;
+        let mut meta: Metadata = meta.try_into()?;
+        meta.ino = used_ino;
+        arbo.set_inode_meta(used_ino, meta)?;
 
         if ftype.is_dir() {
             index_folder_recursive(arbo, *ino - 1, ino, &path.join(&fname), host)
@@ -756,7 +763,7 @@ pub fn generate_arbo(path: &WhPath, host: &String) -> io::Result<(Arbo, InodeId)
         Ok((arbo, next_ino))
     } else {
         let mut arbo = Arbo::new();
-        let mut next_ino: u64 = 11; // NOTE - will be the first registered inode after root
+        let mut next_ino = Arbo::first_ino(); // NOTE - will be the first registered inode after root
 
         #[cfg(target_os = "linux")]
         index_folder_recursive(&mut arbo, ROOT, &mut next_ino, path, host)?;
@@ -806,7 +813,7 @@ impl TryInto<Metadata> for fs::Metadata {
     type Error = std::io::Error;
     fn try_into(self) -> Result<Metadata, std::io::Error> {
         Ok(Metadata {
-            ino: 0,
+            ino: 0, // TODO: unsafe default
             size: self.len(),
             blocks: 0,
             atime: self.accessed()?,

@@ -1,7 +1,9 @@
 use custom_error::custom_error;
 
 use crate::{
-    config::{types::Config, LocalConfig}, error::WhError, pods::arbo::{Arbo, FsEntry, InodeId}
+    config::{types::Config, LocalConfig},
+    error::WhError,
+    pods::arbo::{Arbo, FsEntry, InodeId},
 };
 
 use super::fs_interface::FsInterface;
@@ -52,10 +54,20 @@ impl FsInterface {
         let to_remove_path = arbo.n_get_path_from_inode_id(id)?;
 
         match &arbo.n_get_inode(id)?.entry {
-            FsEntry::File(hosts) if hosts.contains(&LocalConfig::read_lock(&self.network_interface.local_config, "remove_inode_locally")?.general.address) => self
-                .disk
-                .remove_file(&to_remove_path)
-                .map_err(|io| RemoveFileError::LocalDeletionFailed { io })?,
+            FsEntry::File(hosts)
+                if hosts.contains(
+                    &LocalConfig::read_lock(
+                        &self.network_interface.local_config,
+                        "remove_inode_locally",
+                    )?
+                    .general
+                    .address,
+                ) =>
+            {
+                self.disk
+                    .remove_file(&to_remove_path)
+                    .map_err(|io| RemoveFileError::LocalDeletionFailed { io })?
+            }
             FsEntry::File(_) => {
                 // TODO: Remove when wormhole initialisation is cleaner
                 // try to delete the file even if it's not owned to prevent from conflicts on creation later

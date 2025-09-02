@@ -1,11 +1,13 @@
 use crate::fuse::linux_attrs::time_or_now_to_system_time;
 use crate::fuse::linux_mknod::filetype_from_mode;
-use crate::pods::arbo::{FsEntry, Inode};
 use crate::pods::filesystem::attrs::SetAttrError;
+use crate::pods::filesystem::file_handle::{AccessMode, OpenFlags};
 use crate::pods::filesystem::fs_interface::{FsInterface, SimpleFileType};
-use crate::pods::filesystem::make_inode::{CreateError, MakeInodeError};
+// use crate::pods::filesystem::make_inode::CreateError;
+use crate::pods::filesystem::make_inode::MakeInodeError;
 use crate::pods::filesystem::open::{check_permissions, OpenError};
 use crate::pods::filesystem::read::ReadError;
+
 use crate::pods::filesystem::remove_inode::RemoveFileError;
 use crate::pods::filesystem::rename::RenameError;
 use crate::pods::filesystem::write::WriteError;
@@ -13,8 +15,8 @@ use crate::pods::filesystem::xattrs::GetXAttrError;
 use crate::pods::network::pull_file::PullError;
 use crate::pods::whpath::WhPath;
 use fuser::{
-    BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData,
-    ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyXattr, Request,
+    BackgroundSession, Filesystem, MountOption, ReplyAttr, ReplyData, ReplyDirectory, ReplyEmpty,
+    ReplyEntry, ReplyXattr, Request,
 };
 use libc::{EIO, ENOENT, XATTR_CREATE, XATTR_REPLACE};
 use std::ffi::OsStr;
@@ -25,55 +27,21 @@ use std::time::{Duration, SystemTime};
 // NOTE - placeholders
 const TTL: Duration = Duration::from_secs(1);
 
-impl Into<FileType> for SimpleFileType {
-    fn into(self) -> FileType {
-        match self {
-            SimpleFileType::File => FileType::RegularFile,
-            SimpleFileType::Directory => FileType::Directory,
-        }
-    }
-}
-
-impl Into<SimpleFileType> for FileType {
-    fn into(self) -> SimpleFileType {
-        match self {
-            FileType::RegularFile => SimpleFileType::File,
-            FileType::Directory => SimpleFileType::Directory,
-            FileType::NamedPipe => todo!("file type not supported"),
-            FileType::CharDevice => todo!("file type not supported"),
-            FileType::BlockDevice => todo!("file type not supported"),
-            FileType::Symlink => todo!("file type not supported"),
-            FileType::Socket => todo!("file type not supported"),
-        }
-    }
-}
-
 pub struct FuseController {
     pub fs_interface: Arc<FsInterface>,
-}
-
-// NOTE for dev purpose while all metadata is not supported
-fn inode_to_fuse_fileattr(inode: Inode) -> FileAttr {
-    let mut attr: FileAttr = inode.meta.into();
-    attr.ino = inode.id;
-    attr.kind = match inode.entry {
-        FsEntry::Directory(_) => fuser::FileType::Directory,
-        FsEntry::File(_) => fuser::FileType::RegularFile,
-    };
-    attr
 }
 
 // REVIEW - should later invest in proper error handling
 impl Filesystem for FuseController {
     // READING
 
-    fn lookup(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEntry) {
+    fn lookup(&mut self, req: &Request, parent: u64, name: &OsStr, reply: ReplyEntry) {
         match self
             .fs_interface
             .get_entry_from_name(parent, name.to_string_lossy().to_string())
         {
             Ok(inode) => {
-                reply.entry(&TTL, &inode_to_fuse_fileattr(inode), 0);
+                reply.entry(&TTL, &inode.meta.with_ids(req.uid(), req.gid()), 0);
             }
             Err(_) => {
                 reply.error(ENOENT);
@@ -81,11 +49,11 @@ impl Filesystem for FuseController {
         };
     }
 
-    fn getattr(&mut self, _req: &Request, ino: u64, _fh: Option<u64>, reply: ReplyAttr) {
+    fn getattr(&mut self, req: &Request, ino: u64, _fh: Option<u64>, reply: ReplyAttr) {
         let attrs = self.fs_interface.get_inode_attributes(ino);
 
         match attrs {
-            Ok(attrs) => reply.attr(&TTL, &attrs.into()),
+            Ok(attrs) => reply.attr(&TTL, &attrs.with_ids(req.uid(), req.gid())),
             Err(err) => {
                 log::error!("getattr error: {:?}", err);
                 reply.error(err.raw_os_error().unwrap_or(EIO))
@@ -95,7 +63,7 @@ impl Filesystem for FuseController {
 
     fn setattr(
         &mut self,
-        _req: &Request<'_>,
+        req: &Request<'_>,
         ino: u64,
         mode: Option<u32>,
         uid: Option<u32>,
@@ -123,7 +91,7 @@ impl Filesystem for FuseController {
             file_handle,
             flags,
         ) {
-            Ok(meta) => reply.attr(&TTL, &meta.into()),
+            Ok(meta) => reply.attr(&TTL, &meta.with_ids(req.uid(), req.gid())),
             Err(SetAttrError::WhError { source }) => reply.error(source.to_libc()),
             Err(SetAttrError::SizeNoPerm) => reply.error(libc::EPERM),
             Err(SetAttrError::InvalidFileHandle) => reply.error(libc::EBADFD),
@@ -342,7 +310,7 @@ impl Filesystem for FuseController {
 
     fn mknod(
         &mut self,
-        _req: &Request<'_>,
+        req: &Request<'_>,
         parent: u64,
         name: &OsStr,
         mode: u32,
@@ -355,7 +323,7 @@ impl Filesystem for FuseController {
             Some(kind) => kind,
             None => {
                 // If it's not a file or a directory it's not yet supported
-                reply.error(libc::ENOSYS);
+                reply.error(libc::EPERM);
                 return;
             }
         };
@@ -366,7 +334,7 @@ impl Filesystem for FuseController {
             permissions,
             kind,
         ) {
-            Ok(node) => reply.entry(&TTL, &node.meta.into(), 0),
+            Ok(node) => reply.entry(&TTL, &node.meta.with_ids(req.uid(), req.gid()), 0),
             Err(MakeInodeError::LocalCreationFailed { io }) => {
                 reply.error(io.raw_os_error().expect(
                     "Local creation error should always be the underling libc::open os error",
@@ -383,7 +351,7 @@ impl Filesystem for FuseController {
 
     fn mkdir(
         &mut self,
-        _req: &Request<'_>,
+        req: &Request<'_>,
         parent: u64,
         name: &OsStr,
         mode: u32,
@@ -396,7 +364,7 @@ impl Filesystem for FuseController {
             mode as u16,
             SimpleFileType::Directory,
         ) {
-            Ok(node) => reply.entry(&TTL, &node.meta.into(), 0),
+            Ok(node) => reply.entry(&TTL, &node.meta.with_ids(req.uid(), req.gid()), 0),
             Err(MakeInodeError::LocalCreationFailed { io }) => {
                 reply.error(io.raw_os_error().expect(
                     "Local creation error should always be the underling libc::open os error",
@@ -489,7 +457,10 @@ impl Filesystem for FuseController {
     }
 
     fn open(&mut self, _req: &Request<'_>, ino: u64, flags: i32, reply: fuser::ReplyOpen) {
-        match self.fs_interface.open(ino, flags) {
+        match AccessMode::from_libc(flags).and_then(|access| {
+            self.fs_interface
+                .open(ino, OpenFlags::from_libc(flags), access)
+        }) {
             Ok(file_handle) => reply.opened(file_handle, flags as u32), // TODO - check flags ?,
             Err(OpenError::WhError { source }) => reply.error(source.to_libc()),
             Err(OpenError::MultipleAccessFlags) => reply.error(libc::EINVAL),
@@ -534,71 +505,82 @@ impl Filesystem for FuseController {
 
     // ^ WRITING
 
-    fn create(
-        &mut self,
-        _req: &Request<'_>,
-        parent: u64,
-        name: &OsStr,
-        mode: u32,
-        _umask: u32,
-        flags: i32,
-        reply: fuser::ReplyCreate,
-    ) {
-        let permissions = mode as u16;
-        let kind = match filetype_from_mode(mode) {
-            Some(kind) => kind,
-            None => {
-                // If it's not a file or a directory it's not yet supported
-                reply.error(libc::ENOSYS);
-                return;
-            }
-        };
+    // fn create(
+    //     &mut self,
+    //     req: &Request<'_>,
+    //     parent: u64,
+    //     name: &OsStr,
+    //     mode: u32,
+    //     _umask: u32,
+    //     flags: i32,
+    //     reply: fuser::ReplyCreate,
+    // ) {
+    //     let permissions = mode as u16;
+    //     let kind = match filetype_from_mode(mode) {
+    //         Some(kind) => kind,
+    //         None => {
+    //             // If it's not a file or a directory it's not yet supported
+    //             reply.error(libc::EPERM);
+    //             return;
+    //         }
+    //     };
 
-        match self.fs_interface.create(
-            parent,
-            name.to_string_lossy().to_string(),
-            flags,
-            permissions,
-            kind,
-        ) {
-            Ok((inode, fh)) => reply.created(&TTL, &inode.meta.into(), 0, fh, flags as u32),
-            Err(CreateError::MakeInode {
-                source: MakeInodeError::LocalCreationFailed { io },
-            }) => {
-                reply.error(io.raw_os_error().expect(
-                    "Local creation error should always be the underling libc::open os error",
-                ))
-            }
-            Err(CreateError::MakeInode {
-                source: MakeInodeError::WhError { source },
-            }) => reply.error(source.to_libc()),
-            Err(CreateError::MakeInode {
-                source: MakeInodeError::AlreadyExist,
-            }) => reply.error(libc::EEXIST),
-            Err(CreateError::MakeInode {
-                source: MakeInodeError::ParentNotFound,
-            }) => reply.error(libc::ENOENT),
-            Err(CreateError::MakeInode {
-                source: MakeInodeError::ParentNotFolder,
-            }) => reply.error(libc::ENOTDIR),
-            Err(CreateError::MakeInode {
-                source: MakeInodeError::ProtectedNameIsFolder,
-            }) => reply.error(libc::EISDIR),
-            Err(CreateError::WhError { source }) => reply.error(source.to_libc()),
-            Err(CreateError::OpenError {
-                source: OpenError::WhError { source },
-            }) => reply.error(source.to_libc()),
-            Err(CreateError::OpenError {
-                source: OpenError::MultipleAccessFlags,
-            }) => reply.error(libc::EINVAL),
-            Err(CreateError::OpenError {
-                source: OpenError::TruncReadOnly,
-            }) => reply.error(libc::EACCES),
-            Err(CreateError::OpenError {
-                source: OpenError::WrongPermissions,
-            }) => reply.error(libc::EPERM),
-        }
-    }
+    //     match AccessMode::from_libc(flags)
+    //         .map_err(|source| CreateError::OpenError { source })
+    //         .and_then(|access| {
+    //             self.fs_interface.create(
+    //                 parent,
+    //                 name.to_string_lossy().to_string(),
+    //                 kind,
+    //                 OpenFlags::from_libc(flags),
+    //                 access,
+    //                 permissions,
+    //             )
+    //         }) {
+    //         Ok((inode, fh)) => reply.created(
+    //             &TTL,
+    //             &inode.meta.with_ids(req.uid(), req.gid()),
+    //             0,
+    //             fh,
+    //             flags as u32,
+    //         ),
+    //         Err(CreateError::MakeInode {
+    //             source: MakeInodeError::LocalCreationFailed { io },
+    //         }) => {
+    //             reply.error(io.raw_os_error().expect(
+    //                 "Local creation error should always be the underling libc::open os error",
+    //             ))
+    //         }
+    //         Err(CreateError::MakeInode {
+    //             source: MakeInodeError::WhError { source },
+    //         }) => reply.error(source.to_libc()),
+    //         Err(CreateError::MakeInode {
+    //             source: MakeInodeError::AlreadyExist,
+    //         }) => reply.error(libc::EEXIST),
+    //         Err(CreateError::MakeInode {
+    //             source: MakeInodeError::ParentNotFound,
+    //         }) => reply.error(libc::ENOENT),
+    //         Err(CreateError::MakeInode {
+    //             source: MakeInodeError::ParentNotFolder,
+    //         }) => reply.error(libc::ENOTDIR),
+    //         Err(CreateError::MakeInode {
+    //             source: MakeInodeError::ProtectedNameIsFolder,
+    //         }) => reply.error(libc::EISDIR),
+    //         Err(CreateError::WhError { source }) => reply.error(source.to_libc()),
+    //         Err(CreateError::OpenError {
+    //             source: OpenError::WhError { source },
+    //         }) => reply.error(source.to_libc()),
+    //         Err(CreateError::OpenError {
+    //             source: OpenError::MultipleAccessFlags,
+    //         }) => reply.error(libc::EINVAL),
+    //         Err(CreateError::OpenError {
+    //             source: OpenError::TruncReadOnly,
+    //         }) => reply.error(libc::EACCES),
+    //         Err(CreateError::OpenError {
+    //             source: OpenError::WrongPermissions,
+    //         }) => reply.error(libc::EPERM),
+    //     }
+    // }
 
     fn release(
         &mut self,
@@ -625,7 +607,9 @@ impl Filesystem for FuseController {
             }
         };
 
-        match check_permissions(mask, meta.perm) {
+        match AccessMode::from_libc(mask)
+            .and_then(|access| check_permissions(OpenFlags::from_libc(mask), access, meta.perm))
+        {
             Ok(_) => reply.ok(),
             Err(OpenError::MultipleAccessFlags) => reply.error(libc::EINVAL),
             Err(OpenError::TruncReadOnly) => reply.error(libc::EACCES),

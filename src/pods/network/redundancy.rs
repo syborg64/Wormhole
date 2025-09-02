@@ -79,18 +79,29 @@ pub async fn redundancy_worker(
 /// Intended for use in the check_intergrity function
 fn eligible_to_apply(
     ino: InodeId,
+    entry: &FsEntry,
     target_redundancy: u64,
     available_peers: usize,
-    hosts: &Vec<Address>,
     self_addr: &Address,
-) -> bool {
-    if Arbo::is_special(ino) {
-        return false;
+) -> Option<InodeId> {
+    if Arbo::is_local_only(ino) {
+        return None;
     }
-    hosts.clone().sort();
-    hosts.len() < target_redundancy as usize
+    let hosts = if let FsEntry::File(hosts) = entry {
+        let mut hosts = hosts.clone();
+        hosts.sort();
+        hosts
+    } else {
+        return None;
+    };
+    if hosts.len() < target_redundancy as usize
         && available_peers > hosts.len()
         && hosts[0] == *self_addr
+    {
+        Some(ino)
+    } else {
+        None
+    }
 }
 
 async fn check_integrity(
@@ -103,10 +114,25 @@ async fn check_integrity(
     let available_peers = peers.len() + 1;
 
     // Applies redundancy to needed files
-    let futures = Arbo::n_read_lock(&nw_interface.arbo, "redundancy: check_integrity")?
+    let selected_files: Vec<InodeId> =
+        Arbo::n_read_lock(&nw_interface.arbo, "redundancy: check_integrity")?
+            .iter()
+            .filter_map(|(ino, inode)| {
+                eligible_to_apply(*ino, &inode.entry, redundancy, available_peers, self_addr)
+            })
+            .collect();
+    let futures = selected_files
         .iter()
-        .filter(|(ino, inode)| matches!(&inode.entry, FsEntry::File(hosts) if eligible_to_apply(**ino, redundancy, available_peers, hosts, self_addr)))
-        .map(|(ino, _)| apply_to(nw_interface, fs_interface, redundancy, peers, self_addr, ino.clone()))
+        .map(|ino| {
+            apply_to(
+                nw_interface,
+                fs_interface,
+                redundancy,
+                peers,
+                self_addr,
+                ino.clone(),
+            )
+        })
         .collect::<Vec<_>>();
 
     let errors: Vec<WhError> = join_all(futures)
@@ -136,17 +162,18 @@ async fn apply_to(
     self_addr: &Address,
     ino: u64,
 ) -> WhResult<usize> {
-    if Arbo::is_special(ino) {
-        return Ok(0); // NOTE is a silent error ok ?
+    if Arbo::is_local_only(ino) {
+        return Ok(0);
     }
     let file_binary = Arc::new(fs_interface.read_local_file(ino)?);
 
-    let missing_hosts_number: usize;
-    let target_redundancy = if (redundancy - 1) as usize > peers.len() {
-        missing_hosts_number = redundancy as usize - peers.len();
+    let missing_hosts_count: usize;
+    let available_hosts = peers.len() + 1; // + myself
+    let target_redundancy = if redundancy as usize > available_hosts {
+        missing_hosts_count = redundancy as usize - peers.len();
         peers.len()
     } else {
-        missing_hosts_number = 0;
+        missing_hosts_count = 0;
         (redundancy - 1) as usize
     };
 
@@ -161,7 +188,7 @@ async fn apply_to(
     .await;
 
     nw_interface.update_hosts(ino, new_hosts)?;
-    Ok(missing_hosts_number)
+    Ok(missing_hosts_count)
 }
 
 /// start download to others concurrently

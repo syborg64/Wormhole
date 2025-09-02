@@ -23,6 +23,7 @@ pub async fn new(args: PodArgs) -> CliResult<Pod> {
     )
     .await
     .map_err(|e| CliError::PodCreationFailed { reason: e })
+    .inspect_err(|e| log::error!("Pod creation failed: {}", e))
 }
 
 fn add_hosts(
@@ -57,9 +58,6 @@ async fn pod_value(args: &PodArgs) -> CliResult<(GlobalConfig, LocalConfig, Arc<
     }
     if local_config.general.address != args.ip {
         local_config.general.address = args.ip.clone();
-    }
-    if let Err(_) = local_config.write(&local_path) {
-        return Err(CliError::InvalidConfig { file: local_path });
     }
     let server: Arc<Server> = Arc::new(Server::setup(&local_config.general.address).await?);
 

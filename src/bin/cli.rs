@@ -42,8 +42,8 @@ fn main() -> CliResult<()> {
     let args: Vec<String> = env::args().collect();
     let (ip, cli_args) = get_args(args);
     let ip = ip.as_str();
-    log::debug!("Starting cli on {}", ip);
-    log::debug!("cli args: {:?}", cli_args);
+    log::trace!("Starting cli on {}", ip);
+    log::trace!("cli args: {:?}", cli_args);
 
     let status = match Cli::parse_from(cli_args) {
         Cli::Start(args) => commands::cli::start(ip, args),
