@@ -8,11 +8,11 @@ pkgver=0.1.0
 pkgrel=1
 pkgdesc='Simple decentralized file storage'
 url='https://github.com/Agartha-Software/Wormhole'
-license=('GNU AFFERO GENERAL PUBLIC LICENSE')
-makedepends=(cargo git)
-depends=()
+license=('AGPL-3.0-only')
+makedepends=(cargo git fuse3)
+depends=(fuse3)
 arch=('any')
-source=('git+https://github.com/Agartha-Software/Wormhole.git#commit=db022e9aceb9c105c8de7af495a03bec9800d74e')
+source=('git+https://github.com/Agartha-Software/Wormhole.git#commit=61f0ce6541a139df33050a0c609f4886f5f98901')
 b2sums=("SKIP")
 
 prepare() {
@@ -24,15 +24,18 @@ prepare() {
 build() {
     export RUSTUP_TOOLCHAIN=stable
     export CARGO_TARGET_DIR=target
+    cd Wormhole
     cargo build --frozen --release --all-features
 }
 
 check() {
     export RUSTUP_TOOLCHAIN=stable
+    cd Wormhole
     cargo test --frozen --all-features
 }
 
 package() {
+    cd Wormhole
     find target/release \
         -maxdepth 1 \
         -executable \
