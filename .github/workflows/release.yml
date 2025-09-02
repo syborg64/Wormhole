@@ -62,7 +62,7 @@ jobs:
         run: |
           dir 'C:\'
           dir 'C:\Program Files'
-          dir 'C:\Program Files(x86)'
+          dir 'C:\Program Files (x86)'
           cargo build --release
       - name: Upload cmd exe
         uses: actions/upload-release-asset@v1
