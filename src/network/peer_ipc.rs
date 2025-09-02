@@ -6,10 +6,10 @@ use tokio::{
     net::TcpStream,
     sync::mpsc::{self, UnboundedSender},
 };
-use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::tungstenite::{protocol::WebSocketConfig, Message};
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
-use crate::network::forward::{forward_read_to_sender, forward_receiver_to_write};
+use crate::network::forward::{forward_peer_to_receiver, forward_sender_to_peer};
 
 use super::message::{Address, FromNetworkMessage, MessageAndStatus};
 
@@ -23,59 +23,61 @@ pub struct PeerIPC {
 
 impl PeerIPC {
     async fn work(
-        stream: WebSocketStream<MaybeTlsStream<TcpStream>>,
-        sender: mpsc::UnboundedSender<FromNetworkMessage>,
-        mut receiver: mpsc::UnboundedReceiver<MessageAndStatus>,
-        address: Address,
+        peer_stream: WebSocketStream<MaybeTlsStream<TcpStream>>,
+        receiver_in: mpsc::UnboundedSender<FromNetworkMessage>,
+        mut sender_out: mpsc::UnboundedReceiver<MessageAndStatus>,
+        peer: String,
     ) {
-        let (write, read) = stream.split();
+        let (write, read) = peer_stream.split();
         tokio::join!(
-            forward_read_to_sender(read, sender, address),
-            forward_receiver_to_write(write, &mut receiver)
+            forward_peer_to_receiver(read, receiver_in, peer.clone()),
+            forward_sender_to_peer(write, &mut sender_out, peer)
         );
     }
 
     async fn work_from_incomming(
-        write: SplitSink<WebSocketStream<TcpStream>, Message>,
-        read: SplitStream<WebSocketStream<TcpStream>>,
-        sender: mpsc::UnboundedSender<FromNetworkMessage>,
-        mut receiver: mpsc::UnboundedReceiver<MessageAndStatus>,
-        address: Address,
+        peer_write: SplitSink<WebSocketStream<TcpStream>, Message>,
+        peer_read: SplitStream<WebSocketStream<TcpStream>>,
+        receiver_in: mpsc::UnboundedSender<FromNetworkMessage>,
+        mut sender_out: mpsc::UnboundedReceiver<MessageAndStatus>,
+        peer: Address,
     ) {
         tokio::join!(
-            forward_read_to_sender(read, sender, address),
-            forward_receiver_to_write(write, &mut receiver)
+            forward_peer_to_receiver(peer_read, receiver_in, peer.clone()),
+            forward_sender_to_peer(peer_write, &mut sender_out, peer)
         );
     }
 
     pub fn connect_from_incomming(
         address: Address,
-        on_recept: UnboundedSender<FromNetworkMessage>,
+        receiver_in: UnboundedSender<FromNetworkMessage>,
         write: SplitSink<WebSocketStream<TcpStream>, Message>,
         read: SplitStream<WebSocketStream<TcpStream>>,
     ) -> Self {
-        let (peer_send, peer_recv) = mpsc::unbounded_channel();
+        let (sender_in, sender_out) = mpsc::unbounded_channel();
         Self {
             thread: tokio::spawn(Self::work_from_incomming(
                 write,
                 read,
-                on_recept,
-                peer_recv,
+                receiver_in,
+                sender_out,
                 address.clone(),
             )),
             address,
-            sender: peer_send,
+            sender: sender_in,
         }
     }
 
     pub async fn connect(
         address: Address,
-        nfa_tx: UnboundedSender<FromNetworkMessage>,
+        receiver_in: UnboundedSender<FromNetworkMessage>,
     ) -> Option<Self> {
-        let (peer_send, peer_recv) = mpsc::unbounded_channel();
+        let (sender_in, sender_out) = mpsc::unbounded_channel();
 
         let thread = match tokio_tungstenite::connect_async("ws://".to_string() + &address).await {
-            Ok((stream, _)) => tokio::spawn(Self::work(stream, nfa_tx, peer_recv, address.clone())),
+            Ok((stream, _)) => {
+                tokio::spawn(Self::work(stream, receiver_in, sender_out, address.clone()))
+            }
             Err(e) => {
                 log::warn!("failed to connect to {}. Error: {}", address, e);
                 return None;
@@ -84,20 +86,19 @@ impl PeerIPC {
         Some(Self {
             thread,
             address,
-            sender: peer_send,
-            // receiver: inbound_recv,
+            sender: sender_in,
         })
     }
 
     // start connexions to peers
     pub async fn peer_startup(
         peers_ip_list: Vec<Address>,
-        from_network_message_tx: UnboundedSender<FromNetworkMessage>,
+        receiver_in: UnboundedSender<FromNetworkMessage>,
     ) -> Vec<PeerIPC> {
         futures_util::future::join_all(
             peers_ip_list
                 .into_iter()
-                .map(|ip| PeerIPC::connect(ip, from_network_message_tx.clone())), // .filter(|peer| !peer.thread.is_finished())
+                .map(|ip| PeerIPC::connect(ip, receiver_in.clone())), // .filter(|peer| !peer.thread.is_finished())
         )
         .await
         .into_iter()

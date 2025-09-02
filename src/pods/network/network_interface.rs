@@ -501,11 +501,11 @@ impl NetworkInterface {
     }
 
     pub async fn network_airport(
-        mut network_reception: UnboundedReceiver<FromNetworkMessage>,
+        mut receiver: UnboundedReceiver<FromNetworkMessage>,
         fs_interface: Arc<FsInterface>,
     ) {
         loop {
-            let FromNetworkMessage { origin, content } = match network_reception.recv().await {
+            let FromNetworkMessage { origin, content } = match receiver.recv().await {
                 Some(message) => message,
                 None => continue,
             };
@@ -640,7 +640,7 @@ impl NetworkInterface {
 
     pub async fn incoming_connections_watchdog(
         server: Arc<Server>,
-        nfa_tx: UnboundedSender<FromNetworkMessage>,
+        receiver_in: UnboundedSender<FromNetworkMessage>,
         existing_peers: Arc<RwLock<Vec<PeerIPC>>>,
     ) {
         while let Ok((stream, addr)) = server.listener.accept().await {
@@ -651,7 +651,7 @@ impl NetworkInterface {
 
             let (write, read) = futures_util::StreamExt::split(ws_stream);
             let new_peer =
-                PeerIPC::connect_from_incomming(addr.to_string(), nfa_tx.clone(), write, read);
+                PeerIPC::connect_from_incomming(addr.to_string(), receiver_in.clone(), write, read);
             {
                 existing_peers
                     .try_write_for(LOCK_TIMEOUT)

@@ -67,12 +67,12 @@ custom_error! {pub PodInfoError
 pub async fn initiate_connection(
     peers_addrs: Vec<Address>,
     server_address: Address,
-    tx: &UnboundedSender<FromNetworkMessage>,
-    rx: &mut UnboundedReceiver<FromNetworkMessage>,
+    receiver_in: &UnboundedSender<FromNetworkMessage>,
+    receiver_out: &mut UnboundedReceiver<FromNetworkMessage>,
 ) -> Option<(FileSystemSerialized, Vec<Address>, PeerIPC, Vec<u8>)> {
     if peers_addrs.len() >= 1 {
         for first_contact in peers_addrs {
-            let first_ipc = PeerIPC::connect(first_contact.to_owned(), tx.clone()).await;
+            let first_ipc = PeerIPC::connect(first_contact.to_owned(), receiver_in.clone()).await;
 
             if let Some(ipc) = first_ipc {
                 if let Err(err) = ipc.sender.send((MessageContent::RequestFs, None)) {
@@ -85,7 +85,7 @@ pub async fn initiate_connection(
 
                 loop {
                     info!("Awaiting response from {first_contact}");
-                    match rx.recv().await {
+                    match receiver_out.recv().await {
                         // TODO: timeout here in case of peer malfunction
                         Some(FromNetworkMessage {
                             origin: _,
@@ -146,9 +146,10 @@ impl Pod {
         let mut global_config = global_config;
 
         log::info!("mount point {}", mount_point);
-        let (to_network_message_tx, to_network_message_rx) = mpsc::unbounded_channel();
-        let (from_network_message_tx, mut from_network_message_rx) = mpsc::unbounded_channel();
-        let (to_redundancy_tx, to_redundancy_rx) = mpsc::unbounded_channel();
+        let (senders_in, senders_out) = mpsc::unbounded_channel();
+        let (receiver_in, mut receiver_out) = mpsc::unbounded_channel();
+
+        let (redundancy_tx, redundancy_rx) = mpsc::unbounded_channel();
 
         global_config.general.peers.retain(|x| *x != server_address);
 
@@ -159,14 +160,14 @@ impl Pod {
                 initiate_connection(
                     global_config.general.peers.clone(),
                     server_address.clone(),
-                    &from_network_message_tx,
-                    &mut from_network_message_rx,
+                    &receiver_in,
+                    &mut receiver_out,
                 )
                 .await
             {
                 // TODO use global_config ?
 
-                peers = PeerIPC::peer_startup(peers_addrs, from_network_message_tx.clone()).await;
+                peers = PeerIPC::peer_startup(peers_addrs, receiver_in.clone()).await;
                 peers.push(ipc);
                 register_to_others(&peers, &server_address)?;
 
@@ -191,8 +192,8 @@ impl Pod {
         let network_interface = Arc::new(NetworkInterface::new(
             arbo.clone(),
             mount_point.clone(),
-            to_network_message_tx.clone(),
-            to_redundancy_tx.clone(),
+            senders_in.clone(),
+            redundancy_tx.clone(),
             next_inode,
             Arc::new(RwLock::new(peers)),
             local.clone(),
@@ -221,26 +222,26 @@ impl Pod {
 
         // Start ability to recieve messages
         let network_airport_handle = tokio::spawn(NetworkInterface::network_airport(
-            from_network_message_rx,
+            receiver_out,
             fs_interface.clone(),
         ));
 
         // Start ability to send messages
         let peer_broadcast_handle = tokio::spawn(NetworkInterface::contact_peers(
             network_interface.peers.clone(),
-            to_network_message_rx,
+            senders_out,
         ));
 
         let new_peer_handle = tokio::spawn(NetworkInterface::incoming_connections_watchdog(
             server,
-            from_network_message_tx.clone(),
+            receiver_in.clone(),
             network_interface.peers.clone(),
         ));
 
         let peers = network_interface.peers.clone();
 
         let redundancy_worker_handle = tokio::spawn(redundancy_worker(
-            to_redundancy_rx,
+            redundancy_rx,
             network_interface.clone(),
             fs_interface.clone(),
             redundancy_target,
