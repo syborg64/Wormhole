@@ -53,8 +53,8 @@ jobs:
           fetch-depth: 0
       - name: Install system dependencies
         run: |
-          curl -o winfsp.msi https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-2.1.25156.msi
-          msiexec /i winfsp.msi /norestart
+          curl -L -o winfsp.msi https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-2.1.25156.msi
+          msiexec /a /i winfsp.msi /norestart
       - name: Build project
         run: |
           cargo build --release
