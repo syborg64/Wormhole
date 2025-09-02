@@ -21,7 +21,7 @@ pub async fn forward_sender_to_peer<T>(
     while let Some((message, status_tx)) = sender_out.recv().await {
         let serialized = bincode::serialize::<MessageContent>(&message);
         match serialized {
-            Err(e) => error!("failed to deserialize toward {peer}: {e:?}"),
+            Err(e) => error!("failed to serialize toward {peer}: {e:?}"),
             Ok(serialized) => {
                 let sent = peer_write.send(Message::binary(serialized)).await;
 
