@@ -4,7 +4,10 @@ use std::{
 };
 
 use futures_util::io;
-use wormhole::network::ip::IpP;
+use wormhole::{
+    network::ip::IpP,
+    pods::arbo::{GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME},
+};
 
 use crate::functionnal::environment_manager::types::{Service, CLI_BIN};
 
@@ -116,6 +119,7 @@ pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<
 }
 
 /// Assert that all files in `dir1` exist and have the same content in `dir2`
+/// Does not compare nor check config files
 // taken (but edited) from https://doc.rust-lang.org/stable/nightly-rustc/src/run_make_support/assertion_helpers/mod.rs.html#113-135
 pub fn assert_dirs_are_equal(dir1: impl AsRef<Path>, dir2: impl AsRef<Path>) {
     let dir2 = dir2.as_ref();
@@ -123,6 +127,12 @@ pub fn assert_dirs_are_equal(dir1: impl AsRef<Path>, dir2: impl AsRef<Path>) {
     std::fs::read_dir(dir1).unwrap().for_each(|entry| {
         let entry = entry.unwrap();
         let entry_name = entry.file_name();
+
+        if entry_name.to_str().unwrap().contains(LOCAL_CONFIG_FNAME)
+            || entry_name.to_str().unwrap().contains(GLOBAL_CONFIG_FNAME)
+        {
+            return;
+        }
 
         if entry.path().is_dir() {
             assert_dirs_are_equal(&entry.path(), &dir2.join(entry_name));
