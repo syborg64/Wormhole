@@ -12,6 +12,8 @@ jobs:
       contents: write
       pull-requests: write
     runs-on: ubuntu-latest
+    outputs:
+      url: ${{ steps.store_url.outputs.UPLOAD_URL }}
     steps:
       - name: Create Release
         id: create_release
@@ -20,9 +22,12 @@ jobs:
           config-name: release.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - run: |
+      - name: Store Upload Url
+        id: store_url
+        run: |
           upload_url=$(curl -sL https://api.github.com/repos/actions/checkout/releases/latest | jq -r '.upload_url')
-          echo UPLOAD_URL=$upload_url >> $GITHUB_ENV
+          echo UPLOAD_URL=$upload_url >> $$GITHUB_OUTPUT
+          echo $upload_url
         shell: bash
 
   build-linux:
@@ -78,7 +83,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          upload_url: ${{ env.UPLOAD_URL }}
+          upload_url: ${{ needs.update_release_draft.outputs.url }}
           asset_path: ./target/release/wormhole.exe
           asset_name: wormhole.exe
           asset_content_type: application/exe
@@ -87,7 +92,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          upload_url: ${{ env.UPLOAD_URL }}
+          upload_url: ${{ needs.update_release_draft.outputs.url }}
           asset_path: ./target/release/wormholed.exe
           asset_name: wormholed.exe
           asset_content_type: application/exe
