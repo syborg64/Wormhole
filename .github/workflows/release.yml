@@ -20,6 +20,11 @@ jobs:
           config-name: release.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: |
+          upload_url=$(curl -sL https://api.github.com/repos/actions/checkout/releases/latest | jq -r '.upload_url')
+          echo UPLOAD_URL=$upload_url >> $GITHUB_ENV
+        shell: bash
+
   build-linux:
     needs: update_release_draft # wait for the release to exist first
     name: Build for linux
@@ -68,17 +73,12 @@ jobs:
           dir 'C:\Program Files (x86)\WinFsp'
           echo $WINFSP_INCLUDE_PATH
           cargo build --release
-      - name: Get latest release
-        id: get_release
-        uses: bruceadams/get-release@v1.3.2
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
       - name: Upload cmd exe
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          upload_url: ${{ steps.get_release.outputs.upload_url }}
+          upload_url: ${{ env.UPLOAD_URL }}
           asset_path: ./target/release/wormhole.exe
           asset_name: wormhole.exe
           asset_content_type: application/exe
@@ -87,7 +87,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          upload_url: ${{ steps.get_release.outputs.upload_url }}
+          upload_url: ${{ env.UPLOAD_URL }}
           asset_path: ./target/release/wormholed.exe
           asset_name: wormholed.exe
           asset_content_type: application/exe
