@@ -47,7 +47,6 @@ version = "0.11.3"
 [target.'cfg(unix)'.dependencies]
 fuser = "0.15.1"
 openat = "0.1.21"
-signal-hook-tokio = {version = "^0.3.1", features = ["futures-v0_3"]}
 
 [patch.crates-io]
 winfsp = { git = 'https://github.com/syborg64/winfsp-rs.git', branch = "feat/drop-glue" }
@@ -83,6 +82,7 @@ tokio = { version = "1.38.0", default-features = false, features = [
     "rt-multi-thread",
     "time",
     "sync",
+    "signal",
 ] }
 tokio-tungstenite = "0.23"
 futures-util = { version = "0.3.30", default-features = false, features = [

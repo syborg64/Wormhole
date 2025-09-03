@@ -23,7 +23,9 @@ use std::env;
 use futures_util::stream::SplitSink;
 use futures_util::{SinkExt, StreamExt};
 use signal_hook::consts::signal::*;
-use signal_hook_tokio::Signals;
+use tokio::signal;
+use tokio::signal::windows::*;
+// use signal_hook_tokio::Signals;
 use tokio::net::TcpListener;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio_tungstenite::tungstenite::Message;
@@ -35,7 +37,7 @@ use wormhole::config::LocalConfig;
 use wormhole::error::{CliError, CliSuccess, WhError, WhResult};
 use wormhole::network::ip::IpP;
 use wormhole::pods::pod::Pod;
-use wormhole::signals::{get_signal_description, ALL_SIGNALS};
+// use wormhole::signals::{get_signal_description, ALL_SIGNALS};
 #[cfg(target_os = "windows")]
 use {
     futures::future::select, futures::future::Either, tokio::signal::windows, winfsp::winfsp_init,
@@ -315,8 +317,8 @@ const DEFAULT_ADDRESS: &str = "127.0.0.1:8081";
 async fn main() {
     let (interrupt_tx, interrupt_rx) = mpsc::unbounded_channel::<()>();
     let (signals_tx, signals_rx) = mpsc::unbounded_channel::<()>();
-    let signals = Signals::new(ALL_SIGNALS).expect("main: Error SignalsInfo creation");
-    let handle = signals.handle();
+   // let signals = Signals::new(ALL_SIGNALS).expect("main: Error SignalsInfo creation");
+    // let handle = signals.handle();
 
     let mut pods: HashMap<String, Pod> = HashMap::new();
 
@@ -346,15 +348,15 @@ async fn main() {
         }
     };
     let terminal_handle = tokio::spawn(terminal_watchdog(interrupt_tx));
-    let signals_task = tokio::spawn(handle_signals(signals, signals_tx));
-    let cli_airport = tokio::spawn(start_cli_listener(pods, ip, interrupt_rx, signals_rx));
+    let signals_task = tokio::spawn(handle_signals(signals_tx));
+    start_cli_listener(&mut pods, ip, interrupt_rx, signals_rx).await;
     log::trace!("Starting service on {}", ip_string);
     log::info!("Started");
 
-    cli_airport.await;
-    terminal_handle.abort();
-    handle.close();
+    // cli_airport.await;
     signals_task.await.unwrap();
+    terminal_handle.abort();
+    // handle.close();
 
     log::info!("Stopping");
     for (name, pod) in pods.into_iter() {
@@ -384,10 +386,10 @@ pub async fn terminal_watchdog(tx: UnboundedSender<()>) {
     }
 }
 
-async fn handle_signals(signals: Signals, tx: UnboundedSender<()>) {
+async fn handle_signals(tx: UnboundedSender<()>) {
     #[cfg(unix)]
     {
-        handle_signals_unix(signals, tx).await;
+        handle_signals_unix(tx).await;
     }
 
     #[cfg(windows)]
@@ -397,34 +399,41 @@ async fn handle_signals(signals: Signals, tx: UnboundedSender<()>) {
 }
 
 #[cfg(unix)]
-async fn handle_signals_unix(mut signals: Signals, tx: UnboundedSender<()>) {
-    while let Some(signal) = signals.next().await {
-        let description = get_signal_description(signal);
-        match signal {
-            SIGTERM | SIGINT | SIGQUIT => {
-                log::info!("Quiting by Signal: {description}");
-                let _ = tx.send(());
-                return;
-            }
-            _ => log::warn!("This signal is not supported: {description}"),
+async fn handle_signals_unix(tx: UnboundedSender<()>) {
+    let mut sigint = signal(SignalKind::interrupt()).expect("failed to bind SIGINT");
+    let mut sigterm = signal(SignalKind::terminate()).expect("failed to bind SIGTERM");
+
+    log::info!("Unix signal handler initialised, waiting for SIGINT or SIGTERM…");
+
+    tokio::select! {
+        _ = sigint.recv() => {
+            log::info!("Quiting by Signal: SIGINT");
+            let _ = tx.send(());
+        }
+        _ = sigterm.recv() => {
+            log::info!("Quiting by Signal: SIGTERM");
+            let _ = tx.send(());
         }
     }
 }
 
 #[cfg(windows)]
 async fn handle_signals_windows(tx: UnboundedSender<()>) {
-    let ctrl_c = tokio::signal::ctrl_c();
-    let ctrl_break = tokio::signal::ctrl_break();
+    log::info!("Windows signal handler initialised…");
 
-    log::info!("Windows signal handler initialised, wait a Ctrl+C or Ctrl+Break…");
+    let mut sig_c = tokio::signal::windows::ctrl_c()
+        .expect("Failed to register ctrl_c");
+    let mut sig_break = tokio::signal::windows::ctrl_break()
+        .expect("Failed to register ctrl_break");
 
     tokio::select! {
-        _ = windows::ctrl_c() => {
+        _ = sig_c.recv() => {
             log::info!("Quiting by Signal: CTRL+C");
         }
-        _ = windows::ctrl_break() => {
+        _ = sig_break.recv() => {
             log::info!("Quiting by Signal: CTRL+BREAK");
         }
     }
-    tx.send(()).ok();
+
+    let _ = tx.send(());
 }
