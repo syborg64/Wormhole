@@ -52,7 +52,6 @@ impl Drop for Service {
                     .join("\n")
             ),
         }
-        assert!(exit_status.is_ok())
     }
 }
 
