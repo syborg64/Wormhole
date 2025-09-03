@@ -50,17 +50,28 @@ async fn handle_cli_command(
     mut writer: CliTcpWriter,
 ) {
     let response_command = match command {
-        Cli::New(pod_args) => match commands::service::new(pod_args).await {
-            Ok(pod) => {
-                let name = pod.get_name().to_string();
-                pods.insert(name.clone(), pod);
-                Ok(CliSuccess::WithData {
-                    message: String::from("Pod created with success"),
-                    data: name,
+        Cli::New(pod_args) => {
+            let mount_point_exists = pods.values().any(|p| p.get_mount_point() == &pod_args.path);
+
+            if mount_point_exists {
+                log::error!("This mount point already exist.");
+                Err(CliError::Message {
+                    reason: "This mount point already exist.".to_string(),
                 })
+            } else {
+                match commands::service::new(pod_args.clone()).await {
+                    Ok(pod) => {
+                        let name = pod.get_name().to_string();
+                        pods.insert(name.clone(), pod);
+                        Ok(CliSuccess::WithData {
+                            message: String::from("Pod created with success"),
+                            data: name,
+                        })
+                    }
+                    Err(e) => Err(e),
+                }
             }
-            Err(e) => Err(e),
-        },
+        }
         Cli::Start(pod_args) => commands::service::start(pod_args).await,
         Cli::Stop(pod_args) => {
             if let Some(pod) = pods.remove(&pod_args.name) {
@@ -263,12 +274,11 @@ async fn get_cli_command(stream: tokio::net::TcpStream) -> WhResult<(Cli, CliTcp
 /// Listens for CLI calls and launch one tcp instance per cli command
 async fn start_cli_listener(
     pods: &mut HashMap<String, Pod>,
-    ip: String,
+    mut ip: IpP,
     mut interrupt_rx: UnboundedReceiver<()>,
     mut signals_rx: UnboundedReceiver<()>,
-) -> HashMap<String, Pod> {
-    let mut ip: IpP = IpP::try_from(&ip).expect("start_cli_listener: invalid ip provided");
-    println!("Starting CLI's TcpListener on {}", ip.to_string());
+) {
+    println!("Starting CLI's Listener on {}", ip.to_string());
 
     let mut listener = TcpListener::bind(&ip.to_string()).await;
     while let Err(e) = listener {
@@ -278,7 +288,6 @@ async fn start_cli_listener(
             e
         );
         ip.set_port(ip.port + 1);
-        log::debug!("Starting CLI's TcpListener on {}", ip.to_string());
         listener = TcpListener::bind(&ip.to_string()).await;
     }
     log::info!("Started CLI's TcpListener on {}", ip.to_string());
@@ -300,6 +309,8 @@ async fn start_cli_listener(
     }
 }
 
+const DEFAULT_ADDRESS: &str = "127.0.0.1:8081";
+
 #[tokio::main]
 async fn main() {
     let (interrupt_tx, interrupt_rx) = mpsc::unbounded_channel::<()>();
@@ -308,6 +319,11 @@ async fn main() {
     let handle = signals.handle();
 
     let mut pods: HashMap<String, Pod> = HashMap::new();
+
+    if env::args().any(|arg| arg == "-h" || arg == "--help") {
+        println!("Usage: wormholed <IP>\n\nIP is the node address, default at {DEFAULT_ADDRESS}");
+        return;
+    }
 
     env_logger::init();
 
@@ -320,15 +336,19 @@ async fn main() {
         }
     }
 
-    let ip: String = env::args()
-        .nth(1)
-        .unwrap_or("127.0.0.1:8081".to_string())
-        .into();
-    println!("Starting service on {}", ip);
+    let ip_string = env::args().nth(1).unwrap_or(DEFAULT_ADDRESS.into());
 
+    let ip = match IpP::try_from(&ip_string) {
+        Ok(ip) => ip,
+        Err(_) => {
+            println!("Address IP '{ip_string}' is invalid");
+            return;
+        }
+    };
     let terminal_handle = tokio::spawn(terminal_watchdog(interrupt_tx));
     let signals_task = tokio::spawn(handle_signals(signals, signals_tx));
     let cli_airport = tokio::spawn(start_cli_listener(pods, ip, interrupt_rx, signals_rx));
+    log::trace!("Starting service on {}", ip_string);
     log::info!("Started");
 
     cli_airport.await;
