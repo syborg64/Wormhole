@@ -22,11 +22,8 @@ use std::env;
 
 use futures_util::stream::SplitSink;
 use futures_util::{SinkExt, StreamExt};
-use signal_hook::consts::signal::*;
-use tokio::signal;
-use tokio::signal::windows::*;
-// use signal_hook_tokio::Signals;
 use tokio::net::TcpListener;
+use tokio::signal;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{accept_async, WebSocketStream};
@@ -37,7 +34,6 @@ use wormhole::config::LocalConfig;
 use wormhole::error::{CliError, CliSuccess, WhError, WhResult};
 use wormhole::network::ip::IpP;
 use wormhole::pods::pod::Pod;
-// use wormhole::signals::{get_signal_description, ALL_SIGNALS};
 #[cfg(target_os = "windows")]
 use {
     futures::future::select, futures::future::Either, tokio::signal::windows, winfsp::winfsp_init,
@@ -317,8 +313,6 @@ const DEFAULT_ADDRESS: &str = "127.0.0.1:8081";
 async fn main() {
     let (interrupt_tx, interrupt_rx) = mpsc::unbounded_channel::<()>();
     let (signals_tx, signals_rx) = mpsc::unbounded_channel::<()>();
-   // let signals = Signals::new(ALL_SIGNALS).expect("main: Error SignalsInfo creation");
-    // let handle = signals.handle();
 
     let mut pods: HashMap<String, Pod> = HashMap::new();
 
@@ -353,10 +347,8 @@ async fn main() {
     log::trace!("Starting service on {}", ip_string);
     log::info!("Started");
 
-    // cli_airport.await;
-    signals_task.await.unwrap();
     terminal_handle.abort();
-    // handle.close();
+    signals_task.await.unwrap();
 
     log::info!("Stopping");
     for (name, pod) in pods.into_iter() {
@@ -400,8 +392,10 @@ async fn handle_signals(tx: UnboundedSender<()>) {
 
 #[cfg(unix)]
 async fn handle_signals_unix(tx: UnboundedSender<()>) {
-    let mut sigint = signal(SignalKind::interrupt()).expect("failed to bind SIGINT");
-    let mut sigterm = signal(SignalKind::terminate()).expect("failed to bind SIGTERM");
+    use tokio::signal::unix;
+
+    let mut sigint = unix::signal(unix::SignalKind::interrupt()).expect("failed to bind SIGINT");
+    let mut sigterm = unix::signal(unix::SignalKind::terminate()).expect("failed to bind SIGTERM");
 
     log::info!("Unix signal handler initialised, waiting for SIGINT or SIGTERM…");
 
@@ -421,10 +415,9 @@ async fn handle_signals_unix(tx: UnboundedSender<()>) {
 async fn handle_signals_windows(tx: UnboundedSender<()>) {
     log::info!("Windows signal handler initialised…");
 
-    let mut sig_c = tokio::signal::windows::ctrl_c()
-        .expect("Failed to register ctrl_c");
-    let mut sig_break = tokio::signal::windows::ctrl_break()
-        .expect("Failed to register ctrl_break");
+    let mut sig_c = tokio::signal::windows::ctrl_c().expect("Failed to register ctrl_c");
+    let mut sig_break =
+        tokio::signal::windows::ctrl_break().expect("Failed to register ctrl_break");
 
     tokio::select! {
         _ = sig_c.recv() => {
