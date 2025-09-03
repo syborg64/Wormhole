@@ -47,6 +47,7 @@ version = "0.11.3"
 [target.'cfg(unix)'.dependencies]
 fuser = "0.15.1"
 openat = "0.1.21"
+signal-hook-tokio = {version = "^0.3.1", features = ["futures-v0_3"]}
 
 [patch.crates-io]
 winfsp = { git = 'https://github.com/syborg64/winfsp-rs.git', branch = "feat/drop-glue" }
@@ -98,7 +99,6 @@ parking_lot = "0.12.3"
 sysinfo = "0.34.2"
 custom_error = "1.9.2"
 signal-hook = "0.3.18"
-signal-hook-tokio = {version = "^0.3.1", features = ["futures-v0_3"]}
 futures = "0.3"
 
 [dev-dependencies]
