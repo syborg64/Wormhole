@@ -273,7 +273,7 @@ async fn get_cli_command(stream: tokio::net::TcpStream) -> WhResult<(Cli, CliTcp
 async fn start_cli_listener(
     pods: &mut HashMap<String, Pod>,
     mut ip: IpP,
-    mut interrupt_rx: UnboundedReceiver<()>,
+    // mut interrupt_rx: UnboundedReceiver<()>,
     mut signals_rx: UnboundedReceiver<()>,
 ) {
     println!("Starting CLI's Listener on {}", ip.to_string());
@@ -293,7 +293,7 @@ async fn start_cli_listener(
 
     while let Some(Ok((stream, _))) = tokio::select! {
         v = listener.accept() => Some(v),
-        _ = interrupt_rx.recv() => None,
+        // _ = interrupt_rx.recv() => None,
         _ = signals_rx.recv() => None,
     } {
         let (command, writer) = match get_cli_command(stream).await {
@@ -342,10 +342,10 @@ async fn main() {
         }
     };
     let terminal_handle = tokio::spawn(terminal_watchdog(interrupt_tx));
-    let signals_task = tokio::spawn(handle_signals(signals_tx));
-    start_cli_listener(&mut pods, ip, interrupt_rx, signals_rx).await;
+    let signals_task = tokio::spawn(handle_signals(signals_tx, interrupt_rx));
     log::trace!("Starting service on {}", ip_string);
     log::info!("Started");
+    start_cli_listener(&mut pods, ip, signals_rx).await;
 
     terminal_handle.abort();
     signals_task.await.unwrap();
@@ -378,20 +378,20 @@ pub async fn terminal_watchdog(tx: UnboundedSender<()>) {
     }
 }
 
-async fn handle_signals(tx: UnboundedSender<()>) {
+async fn handle_signals(tx: UnboundedSender<()>, interrupt_rx: UnboundedReceiver<()>) {
     #[cfg(unix)]
     {
-        handle_signals_unix(tx).await;
+        handle_signals_unix(tx, interrupt_rx).await;
     }
 
     #[cfg(windows)]
     {
-        handle_signals_windows(tx).await;
+        handle_signals_windows(tx, interrupt_rx).await;
     }
 }
 
 #[cfg(unix)]
-async fn handle_signals_unix(tx: UnboundedSender<()>) {
+async fn handle_signals_unix(tx: UnboundedSender<()>, mut interrupt_rx: UnboundedReceiver<()>) {
     use tokio::signal::unix;
 
     let mut sigint = unix::signal(unix::SignalKind::interrupt()).expect("failed to bind SIGINT");
@@ -408,11 +408,14 @@ async fn handle_signals_unix(tx: UnboundedSender<()>) {
             log::info!("Quiting by Signal: SIGTERM");
             let _ = tx.send(());
         }
+        _ = interrupt_rx.recv() => {
+            let _ = tx.send(());
+        }
     }
 }
 
 #[cfg(windows)]
-async fn handle_signals_windows(tx: UnboundedSender<()>) {
+async fn handle_signals_windows(tx: UnboundedSender<()>, mut interrupt_rx: UnboundedReceiver<()>) {
     log::info!("Windows signal handler initialised…");
 
     let mut sig_c = tokio::signal::windows::ctrl_c().expect("Failed to register ctrl_c");
@@ -425,6 +428,9 @@ async fn handle_signals_windows(tx: UnboundedSender<()>) {
         }
         _ = sig_break.recv() => {
             log::info!("Quiting by Signal: CTRL+BREAK");
+        }
+        _ = interrupt_rx.recv() => {
+            log::info!("Quitting by Ctrl-D");
         }
     }
 
