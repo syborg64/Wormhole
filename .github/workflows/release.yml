@@ -12,6 +12,8 @@ jobs:
       contents: write
       pull-requests: write
     runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.store_id.outputs.RELEASE_ID }}
     steps:
       - name: Create Release
         id: create_release
@@ -20,6 +22,13 @@ jobs:
           config-name: release.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Store Release Id
+        id: store_id
+        run: |
+          echo "RELEASE_ID=${{ steps.create_release.outputs.id }}" >> $GITHUB_OUTPUT
+          echo $GITHUB_OUTPUT
+        shell: bash
+
   build-linux:
     needs: update_release_draft # wait for the release to exist first
     name: Build for linux
@@ -77,12 +86,14 @@ jobs:
       - name: Upload cli exe
         uses: svenstaro/upload-release-action@2.11.2
         with:
+          release_id: ${{ needs.update_release_draft.outputs.release_id }}
           overwrite: true
           file: ./target/release/wormhole.exe
           asset_name: wormhole.exe
       - name: Upload service exe
         uses: svenstaro/upload-release-action@2.11.2
         with:
+          release_id: ${{ needs.update_release_draft.outputs.release_id }}
           overwrite: true
           file: ./target/release/wormholed.exe
           asset_name: wormholed.exe
