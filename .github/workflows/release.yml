@@ -12,8 +12,6 @@ jobs:
       contents: write
       pull-requests: write
     runs-on: ubuntu-latest
-    outputs:
-      url: ${{ steps.store_url.outputs.UPLOAD_URL }}
     steps:
       - name: Create Release
         id: create_release
@@ -22,13 +20,6 @@ jobs:
           config-name: release.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Store Upload Url
-        id: store_url
-        run: |
-          echo "UPLOAD_URL=${{ steps.create_release.outputs.upload_url }}" >> $GITHUB_OUTPUT
-          echo $GITHUB_OUTPUT
-        shell: bash
-
   build-linux:
     needs: update_release_draft # wait for the release to exist first
     name: Build for linux
@@ -84,20 +75,14 @@ jobs:
           WINFSP_INCLUDE_PATH: "C:\\Program Files\\WinFsp\\inc"
         run: cargo build --release
       - name: Upload cli exe
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+        uses: svenstaro/upload-release-action@2.11.2
         with:
-          upload_url: ${{ needs.update_release_draft.outputs.url }}
-          asset_path: ./target/release/wormhole.exe
+          overwrite: true
+          file: ./target/release/wormhole.exe
           asset_name: wormhole.exe
-          asset_content_type: application/exe
       - name: Upload service exe
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+        uses: svenstaro/upload-release-action@2.11.2
         with:
-          upload_url: ${{ needs.update_release_draft.outputs.url }}
-          asset_path: ./target/release/wormholed.exe
+          overwrite: true
+          file: ./target/release/wormholed.exe
           asset_name: wormholed.exe
-          asset_content_type: application/exe
