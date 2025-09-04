@@ -315,15 +315,19 @@ impl Pod {
         }
     }
 
-    pub fn get_file_tree_and_hosts(&self, path: WhPath) -> Result<CliHostTree, PodInfoError> {
+    pub fn get_file_tree_and_hosts(&self, path: Option<WhPath>) -> Result<CliHostTree, PodInfoError> {
         let arbo = Arbo::n_read_lock(&self.network_interface.arbo, "Pod::get_info")?;
-        let ino = &arbo
+        let ino = if let Some(path) = path {
+            arbo
             .get_inode_from_path(&path)
             .map_err(|_| PodInfoError::FileNotFound)?
-            .id;
+            .id
+        } else {
+            ROOT
+        };
 
         Ok(CliHostTree {
-            lines: Self::recurse_tree(&*arbo, *ino, 0),
+            lines: Self::recurse_tree(&*arbo, ino, 0),
         })
     }
 

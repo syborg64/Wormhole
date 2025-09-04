@@ -3,10 +3,10 @@ use std::env;
 use tokio::runtime::Runtime;
 
 use crate::{
-    commands::cli_commands::{
+    commands::{cli::path_or_wd, cli_commands::{
         Cli::{self},
         StatusPodArgs,
-    },
+    }},
     error::CliResult,
     pods::whpath::WhPath,
 };
@@ -14,14 +14,8 @@ use crate::{
 use super::cli_messager;
 
 pub fn start(ip: &str, mut start_args: StatusPodArgs) -> CliResult<()> {
-    if start_args.name == "." {
-        let p = env::current_dir()?;
-        let path = WhPath::from(&p.display().to_string());
-        start_args.path = if start_args.path.inner != "." {
-            path.join(&start_args.path)
-        } else {
-            path
-        }
+    if start_args.name.is_none() {
+        start_args.path = Some(path_or_wd(start_args.path)?)
     }
 
     let rt = Runtime::new().unwrap();

@@ -45,15 +45,16 @@ async fn handle_cli_command(
 ) {
     let response_command = match command {
         Cli::New(pod_args) => {
-            let mount_point_exists = pods.values().any(|p| p.get_mount_point() == &pod_args.path);
-
-            if mount_point_exists {
-                log::error!("This mount point already exist.");
+            if if let Some(path) = &pod_args.mountpoint {
+                pods.values().any(|p| p.get_mount_point() == path)
+            } else {
+                false
+            } {
                 Err(CliError::Message {
                     reason: "This mount point already exist.".to_string(),
                 })
             } else {
-                match commands::service::new(pod_args.clone()).await {
+                match commands::service::new(pod_args).await {
                     Ok(pod) => {
                         let name = pod.get_name().to_string();
                         pods.insert(name.clone(), pod);
@@ -68,74 +69,80 @@ async fn handle_cli_command(
         }
         Cli::Start(pod_args) => commands::service::start(pod_args).await,
         Cli::Stop(pod_args) => {
-            if let Some(pod) = pods.remove(&pod_args.name) {
+            if let Some(pod) = pod_args.name.as_ref().and_then(|n| pods.remove(n)) {
                 commands::service::stop(pod).await
             } else {
                 log::warn!("(TODO) Stopping a pod by path is not yet implemented");
                 Err(CliError::PodRemovalFailed {
-                    name: pod_args.name,
+                    name: pod_args.name.unwrap_or("".to_owned()),
                 })
             }
         }
         Cli::Remove(remove_arg) => {
-            let opt = if remove_arg.name != "." {
-                pods.remove(&remove_arg.name)
-            } else if remove_arg.path.inner != "." {
-                let key_to_remove = pods
-                    .iter()
-                    .find(|(_, pod)| pod.get_mount_point() == &remove_arg.path)
-                    .map(|(key, _)| key.clone());
+            let key = remove_arg
+                .name
+                .clone()
+                .ok_or(CliError::PodNotFound)
+                .or_else(|_| {
+                    remove_arg
+                        .path
+                        .clone()
+                        .ok_or(CliError::InvalidArgument {
+                            arg: "missing both path and name args".to_owned(),
+                        })
+                        .and_then(|path| {
+                            pods.iter()
+                                .find(|(_, pod)| pod.get_mount_point() == &path)
+                                .map(|(key, _)| key.clone())
+                                .ok_or(CliError::PodNotFound)
+                        })
+                });
+            let pod = key.and_then(|key| pods.remove(&key).ok_or(CliError::PodNotFound));
 
-                key_to_remove.and_then(|key| pods.remove(&key))
-            } else {
-                log::error!("No pod name nor path were provided by RemovePod command");
-                None
-            };
-            if let Some(pod) = opt {
-                commands::service::remove(remove_arg, pod).await
-            } else {
-                Err(CliError::PodRemovalFailed {
-                    name: remove_arg.name,
-                })
+            match pod {
+                Ok(pod) => commands::service::remove(remove_arg, pod).await,
+                Err(e) => Err(e),
             }
         }
-        Cli::Restore(mut resotre_args) => {
-            let opt_pod = if resotre_args.name == "." {
-                pods.iter()
-                    .find(|(_, pod)| pod.get_mount_point() == &resotre_args.path)
+        Cli::Restore(mut restore_args) => {
+            let opt_pod = if let Some(name) = &restore_args.name {
+                pods.iter().find(|(n, _)| n == &name)
+            } else if let Some(path) = &restore_args.path {
+                pods.iter().find(|(_, pod)| pod.get_mount_point() == path)
             } else {
-                pods.iter().find(|(n, _)| n == &&resotre_args.name)
+                None
             };
             if let Some((_, pod)) = opt_pod {
-                resotre_args.path = pod.get_mount_point().clone();
+                restore_args.path = Some(pod.get_mount_point().clone());
                 commands::service::restore(
                     pod.local_config.clone(),
                     pod.global_config.clone(),
-                    resotre_args,
+                    restore_args,
                 )
             } else {
                 log::error!(
                     "Pod at this path doesn't existe {:?}, {:?}",
-                    resotre_args.name,
-                    resotre_args.path
+                    restore_args.name,
+                    restore_args.path
                 );
                 Err(CliError::PodRemovalFailed {
-                    name: resotre_args.name,
+                    name: restore_args.name.unwrap_or("".to_owned()),
                 })
             }
         }
         Cli::Apply(mut pod_conf) => {
             // Find the good pod
-            let opt_pod = if pod_conf.name == "." {
-                pods.iter()
-                    .find(|(_, pod)| pod.get_mount_point() == &pod_conf.path)
+            let opt_pod = if let Some(name) = &pod_conf.name {
+                pods.iter().find(|(n, _)| n == &name)
+            } else if let Some(path) = &pod_conf.path {
+                pods.iter().find(|(_, pod)| pod.get_mount_point() == path)
             } else {
-                pods.iter().find(|(n, _)| n == &&pod_conf.name)
+                None
             };
 
             //Apply new confi in the pod and check if the name change
             let res = if let Some((name, pod)) = opt_pod {
-                pod_conf.path = pod.get_mount_point().clone();
+                pod_conf.path = Some(pod.get_mount_point().clone());
 
                 match commands::service::apply(
                     pod.local_config.clone(),
@@ -187,8 +194,14 @@ async fn handle_cli_command(
             }
         }
         Cli::GetHosts(args) => {
-            if let Some(pod) = pods.get(&args.name) {
-                match pod.get_file_hosts(args.path) {
+            if let Some((_, pod)) = if let Some(name) = &args.name {
+                pods.iter().find(|(n, _)| n == &name)
+            } else if let Some(path) = &args.path {
+                pods.iter().find(|(_, pod)| pod.get_mount_point() == path)
+            } else {
+                None
+            } {
+                match pod.get_file_hosts(args.path.unwrap_or(".".into())) {
                     Ok(hosts) => Ok(CliSuccess::WithData {
                         message: "Hosts:".to_owned(),
                         data: format!("{:?}", hosts),
@@ -200,8 +213,24 @@ async fn handle_cli_command(
             }
         }
         Cli::Tree(args) => {
-            if let Some(pod) = pods.get(&args.name) {
-                match pod.get_file_tree_and_hosts(args.path) {
+            let path = args.path.and_then(|path| std::fs::canonicalize(&path).ok());
+            log::info!("TREE: canonical: {path:?}");
+            if let Some((pod, subpath)) = {
+                if let Some(name) = &args.name {
+                    pods.iter()
+                    .find_map(|(n, pod)| (n == name).then_some((pod, None)))
+                } else if let Some(path) = &path {
+
+                    pods.iter().find_map(|(_, pod)| {log::info!("TREE: pod: {:?}", &pod.get_mount_point());
+                        path.strip_prefix(&pod.get_mount_point())
+                            .ok()
+                            .map(|sub| (pod, Some(sub.into())))
+                    })
+                } else {
+                    None
+                }
+            } {
+                match pod.get_file_tree_and_hosts(subpath) {
                     Ok(tree) => Ok(CliSuccess::WithData {
                         message: "File tree and hosts per file:".to_owned(),
                         data: tree.to_string(),
@@ -214,7 +243,9 @@ async fn handle_cli_command(
         }
         _ => Err(CliError::InvalidCommand),
     };
-    let string_output = response_command.map_or_else(|e| e.to_string(), |a| a.to_string());
+    let string_output = response_command
+        .inspect_err(|e| log::error!("handling cli: {e:?}"))
+        .map_or_else(|e| e.to_string(), |a| a.to_string());
     match writer.send(Message::Text(string_output)).await {
         Ok(()) => log::debug!("Sent answer to cli"),
         Err(err) => log::error!("Message can't send to cli: {}", err),
