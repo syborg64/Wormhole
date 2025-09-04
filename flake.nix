@@ -36,7 +36,7 @@
             version = "0.0.0";
             src = fetchGit {
               url = "https://github.com/Agartha-Software/Wormhole";
-              rev = "65510c91fc23c72e97b318e2a0d79bc5d01e9f51";
+              rev = "55c5ff8953af9f1de1a0a4cda4cf210374e85358";
             };
             doCheck = false;
             dontFixup = true;
