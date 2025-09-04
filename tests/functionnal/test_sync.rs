@@ -9,7 +9,7 @@ use serial_test::serial;
 #[test]
 fn sync_start_state() {
     start_log();
-    log::info!("vvvvvv basic_text_file_transfer vvvvvv");
+    log::info!("vvvvvv sync start state vvvvvv");
     let mut env = EnvironmentManager::new();
     env.add_service().unwrap();
     std::thread::sleep(*SLEEP_TIME);
@@ -55,5 +55,5 @@ fn sync_start_state() {
         }
     }
     std::thread::sleep(*SLEEP_TIME);
-    log::info!("^^^^^^ basic_text_file_transfer ^^^^^^");
+    log::info!("^^^^^^ sync start state ^^^^^^");
 }

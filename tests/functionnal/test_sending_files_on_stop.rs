@@ -14,7 +14,7 @@ use serial_test::serial;
 #[test]
 fn test_sending_files_on_stop() {
     start_log();
-    log::info!("vvvvvv basic_text_file_transfer vvvvvv");
+    log::info!("vvvvvv sending files on stop vvvvvv");
     let mut env = EnvironmentManager::new();
     env.add_service().unwrap();
     env.add_service().unwrap();
@@ -38,5 +38,5 @@ fn test_sending_files_on_stop() {
         }
     }
     std::thread::sleep(*SLEEP_TIME);
-    log::info!("^^^^^^ basic_text_file_transfer ^^^^^^");
+    log::info!("^^^^^^ sending files on stop ^^^^^^");
 }
