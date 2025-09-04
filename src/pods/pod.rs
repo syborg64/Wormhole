@@ -208,7 +208,7 @@ impl Pod {
                 (arbo, next_inode, Some(global_config_bytes))
             } else {
                 let (arbo, next_inode) =
-                    generate_arbo(&mount_point, &server_address).expect("unable to index folder");
+                    generate_arbo(&mount_point, &server_address).unwrap_or((Arbo::new(), Arbo::first_ino()));
                 (arbo, next_inode, None)
             };
 
