@@ -21,8 +21,8 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "french"; MessagesFile: "compiler:Languages\French.isl"
 
 [Files]
-Source: "target\release\wormhole.exe"; DestDir: "{app}"; Flags: allowunsafefiles
-Source: "target\release\wormholed.exe"; DestDir: "{app}"; Flags: allowunsafefiles
+Source: "..\target\release\wormhole.exe"; DestDir: "{app}"; Flags: allowunsafefiles
+Source: "..\target\release\wormholed.exe"; DestDir: "{app}"; Flags: allowunsafefiles
 
 [Tasks]
 Name: "StartMenuEntry" ; Description: "Start wormhole service when Windows starts" ; GroupDescription: "Windows Startup"; MinVersion: 4,4;
