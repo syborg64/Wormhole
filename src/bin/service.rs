@@ -337,7 +337,7 @@ async fn start_cli_listener(
     specific_ip: Option<String>,
     mut interrupt_rx: UnboundedReceiver<()>,
 ) -> Result<(), CliListenerError> {
-    let mut ip: IpP = IpP::try_from(&specific_ip.clone().unwrap_or("127.0.0.1:8081".to_string()))
+    let mut ip: IpP = IpP::try_from(&specific_ip.clone().unwrap_or(DEFAULT_ADDRESS.to_string()))
         .expect("start_cli_listener: invalid ip provided");
     println!("Starting CLI's Listener on {}", ip.to_string());
 
