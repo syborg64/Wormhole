@@ -69,13 +69,33 @@ async fn handle_cli_command(
         }
         Cli::Start(pod_args) => commands::service::start(pod_args).await,
         Cli::Stop(pod_args) => {
-            if let Some(pod) = pod_args.name.as_ref().and_then(|n| pods.remove(n)) {
-                commands::service::stop(pod).await
-            } else {
-                log::warn!("(TODO) Stopping a pod by path is not yet implemented");
-                Err(CliError::PodRemovalFailed {
-                    name: pod_args.name.unwrap_or("".to_owned()),
-                })
+            let key = pod_args
+                .name
+                .clone()
+                .ok_or(CliError::PodNotFound)
+                .or_else(|_| {
+                    pod_args
+                        .path
+                        .clone()
+                        .ok_or(CliError::InvalidArgument {
+                            arg: "missing both path and name args".to_owned(),
+                        })
+                        .and_then(|path| {
+                            pods.iter()
+                                .find(|(_, pod)| pod.get_mount_point() == &path)
+                                .map(|(key, _)| key.clone())
+                                .ok_or(CliError::PodNotFound)
+                        })
+                });
+            match key {
+                Err(e) => Err(e),
+                Ok(key) => {
+                    if let Some(pod) = pods.remove(&key) {
+                        commands::service::stop(pod).await
+                    } else {
+                        Err(CliError::PodNotFound)
+                    }
+                }
             }
         }
         Cli::Remove(remove_arg) => {
@@ -218,10 +238,10 @@ async fn handle_cli_command(
             if let Some((pod, subpath)) = {
                 if let Some(name) = &args.name {
                     pods.iter()
-                    .find_map(|(n, pod)| (n == name).then_some((pod, None)))
+                        .find_map(|(n, pod)| (n == name).then_some((pod, None)))
                 } else if let Some(path) = &path {
-
-                    pods.iter().find_map(|(_, pod)| {log::info!("TREE: pod: {:?}", &pod.get_mount_point());
+                    pods.iter().find_map(|(_, pod)| {
+                        log::info!("TREE: pod: {:?}", &pod.get_mount_point());
                         path.strip_prefix(&pod.get_mount_point())
                             .ok()
                             .map(|sub| (pod, Some(sub.into())))
