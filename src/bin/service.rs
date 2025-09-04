@@ -369,7 +369,6 @@ pub async fn terminal_watchdog(tx: UnboundedSender<()>) {
         // NOTE -  on ctrl-D -> quit
         match read {
             0 => {
-                log::info!("Quiting by Ctrl+D!");
                 let _ = tx.send(());
                 return;
             }
@@ -409,6 +408,7 @@ async fn handle_signals_unix(tx: UnboundedSender<()>, mut interrupt_rx: Unbounde
             let _ = tx.send(());
         }
         _ = interrupt_rx.recv() => {
+            log::info!("Quiting by Ctrl+D! (EOF)");
             let _ = tx.send(());
         }
     }
@@ -425,14 +425,15 @@ async fn handle_signals_windows(tx: UnboundedSender<()>, mut interrupt_rx: Unbou
     tokio::select! {
         _ = sig_c.recv() => {
             log::info!("Quiting by Signal: CTRL+C");
+            let _ = tx.send(());
         }
         _ = sig_break.recv() => {
             log::info!("Quiting by Signal: CTRL+BREAK");
+            let _ = tx.send(());
         }
         _ = interrupt_rx.recv() => {
-            log::info!("Quitting by Ctrl-D");
+            log::info!("Quiting by Ctrl-Z (EOF)");
+            let _ = tx.send(());
         }
     }
-
-    let _ = tx.send(());
 }
