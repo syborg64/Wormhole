@@ -89,8 +89,8 @@
             '';
 
             meta = {
-              description = "My handwritten package";
-              license = pkgs.lib.licenses.mit;
+              description = "Simple decentralized file storage";
+              license = pkgs.lib.licenses.agpl3Only;
             };
           };
         });
