@@ -37,7 +37,6 @@ pub async fn forward_sender_to_peer<T>(
             }
         }
     }
-    log::warn!("forward to {peer} finished");
 }
 
 pub async fn forward_peer_to_receiver<
