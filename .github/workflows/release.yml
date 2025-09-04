@@ -101,7 +101,7 @@ jobs:
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         with:
           path: .github/installer.iss
-          options: /F WormholeInstaller.exe /O .\
+          options: /F"WormholeInstaller.exe" /O".\"
       - name: Upload wormhole installer
         uses: svenstaro/upload-release-action@2.11.2
         with:
