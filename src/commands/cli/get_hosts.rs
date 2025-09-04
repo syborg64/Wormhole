@@ -11,7 +11,7 @@ use crate::{
 
 use super::cli_messager;
 
-pub fn get_hosts(ip: &str, mut args: GetHostsArgs) -> CliResult<()> {
+pub fn get_hosts(ip: &str, mut args: GetHostsArgs) -> CliResult<String> {
     if args.name.is_none() {
         args.path = Some(path_or_wd(args.path)?)
     }

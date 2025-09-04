@@ -1,3 +1,4 @@
+use std::time::Duration;
 use std::{io, sync::Arc};
 
 use crate::config::types::Config;
@@ -83,29 +84,30 @@ pub async fn initiate_connection(
                 }
 
                 loop {
-                    info!("Awaiting response from {first_contact}");
-                    match rx.recv().await {
-                        // TODO: timeout here in case of peer malfunction
-                        Some(FromNetworkMessage {
+                    match tokio::time::timeout(Duration::from_secs(2), rx.recv()).await {
+                        Ok(Some(FromNetworkMessage {
                             origin: _,
                             content: MessageContent::FsAnswer(fs, mut peers_address, global_config),
-                        }) => {
+                        })) => {
                             // remove itself from peers and first_connect because the connection is already existing
                             peers_address.retain(|address| {
                                 *address != server_address && *address != first_contact
                             });
                             return Some((fs, peers_address, ipc, global_config));
                         }
-                        Some(_) => {
+                        Ok(Some(_)) => {
                             info!(
                                 "First message with {first_contact} failed: His answer is not the FileSystem, corrupted client.\n
-                                Trying with next know address"
+                                Trying with next known address"
                             );
                             break;
                         }
-                        None => {
-                            info!("Empty response from {first_contact}...");
-                            continue;
+                        Ok(None) => continue,
+                        Err(_) => {
+                            log::error!(
+                                "Timeout when waiting peer answer. Trying with next known address"
+                            );
+                            break;
                         }
                     };
                 }
@@ -207,6 +209,16 @@ impl Pod {
 
                 (arbo, next_inode, Some(global_config_bytes))
             } else {
+                if global_config.general.peers.len() > 0 {
+                    // NOTE - temporary fix
+                    // made to help with tests and debug
+                    // choice not to fail should later be supported by the cli
+                    log::error!("No peers answered. Stopping.");
+                    return Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        "None of the specified peers could answer",
+                    ));
+                }
                 let (arbo, next_inode) =
                     generate_arbo(&mount_point, &server_address).unwrap_or((Arbo::new(), Arbo::first_ino()));
                 (arbo, next_inode, None)

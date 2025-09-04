@@ -10,7 +10,7 @@ use crate::error::CliResult;
 
 use super::cli_messager;
 
-pub fn remove(ip: &str, mut args: RemoveArgs) -> CliResult<()> {
+pub fn remove(ip: &str, mut args: RemoveArgs) -> CliResult<String> {
     if args.name.is_none() {
         args.path = Some(path_or_wd(args.path)?)
     }

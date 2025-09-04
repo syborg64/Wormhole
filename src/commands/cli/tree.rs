@@ -11,10 +11,11 @@ use crate::{
 
 use super::cli_messager;
 
-pub fn tree(ip: &str, mut args: TreeArgs) -> CliResult<()> {
+pub fn tree(ip: &str, mut args: TreeArgs) -> CliResult<String> {
     if args.name.is_none() {
         args.path = Some(path_or_wd(args.path)?)
     }
+
     let rt = Runtime::new().unwrap();
     rt.block_on(cli_messager(ip, Cli::Tree(args)))
 }

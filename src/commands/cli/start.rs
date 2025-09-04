@@ -13,7 +13,7 @@ use crate::{
 
 use super::cli_messager;
 
-pub fn start(ip: &str, mut start_args: StatusPodArgs) -> CliResult<()> {
+pub fn start(ip: &str, mut start_args: StatusPodArgs) -> CliResult<String> {
     if start_args.name.is_none() {
         start_args.path = Some(path_or_wd(start_args.path)?)
     }
