@@ -11,6 +11,11 @@ Should install both `wormhole` and `wormholed` binaries
 ### Nix / NixOS
 This repo provides a flake for you that can install Wormhole
 
+#### To try
+```nix shell --experimental-features 'nix-command flakes' github:Agartha-Software/Wormhole/#default```
+You will then get Wormhole on this ephemeral shell.
+
+#### To install
 Add Wormhole in your flake inputs
 ```nix
 # flake.nix
