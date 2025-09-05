@@ -5,7 +5,10 @@
 use tokio::runtime::Runtime;
 
 use crate::{
-    commands::{cli::path_or_wd, cli_commands::{Cli, TreeArgs}},
+    commands::{
+        cli::path_or_wd,
+        cli_commands::{Cli, TreeArgs},
+    },
     error::CliResult,
 };
 

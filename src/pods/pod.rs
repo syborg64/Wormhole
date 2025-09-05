@@ -219,8 +219,8 @@ impl Pod {
                         "None of the specified peers could answer",
                     ));
                 }
-                let (arbo, next_inode) =
-                    generate_arbo(&mount_point, &server_address).unwrap_or((Arbo::new(), Arbo::first_ino()));
+                let (arbo, next_inode) = generate_arbo(&mount_point, &server_address)
+                    .unwrap_or((Arbo::new(), Arbo::first_ino()));
                 (arbo, next_inode, None)
             };
 
@@ -327,13 +327,15 @@ impl Pod {
         }
     }
 
-    pub fn get_file_tree_and_hosts(&self, path: Option<WhPath>) -> Result<CliHostTree, PodInfoError> {
+    pub fn get_file_tree_and_hosts(
+        &self,
+        path: Option<WhPath>,
+    ) -> Result<CliHostTree, PodInfoError> {
         let arbo = Arbo::n_read_lock(&self.network_interface.arbo, "Pod::get_info")?;
         let ino = if let Some(path) = path {
-            arbo
-            .get_inode_from_path(&path)
-            .map_err(|_| PodInfoError::FileNotFound)?
-            .id
+            arbo.get_inode_from_path(&path)
+                .map_err(|_| PodInfoError::FileNotFound)?
+                .id
         } else {
             ROOT
         };

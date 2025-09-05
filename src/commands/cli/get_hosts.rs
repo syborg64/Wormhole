@@ -5,7 +5,10 @@
 use tokio::runtime::Runtime;
 
 use crate::{
-    commands::{cli::path_or_wd, cli_commands::{Cli, GetHostsArgs}},
+    commands::{
+        cli::path_or_wd,
+        cli_commands::{Cli, GetHostsArgs},
+    },
     error::CliResult,
 };
 

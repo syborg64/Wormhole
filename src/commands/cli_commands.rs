@@ -76,16 +76,16 @@ pub struct PodArgs {
     // TODO: make optional again when the url can provide the name expected
     pub name: String,
     /// mount point to create the pod in. By default creates a pod from the folder in the working directory with the name of the pod
-    #[arg(long="mount", short='m')]
+    #[arg(long = "mount", short = 'm')]
     pub mountpoint: Option<WhPath>,
     /// Local port for the pod to use
-    #[arg(long, short='p', default_value = "40000")]
+    #[arg(long, short = 'p', default_value = "40000")]
     pub port: String,
     /// Network url as <address of node to join from> + ':' + <network name>'
     #[arg(long, short)]
     pub url: Option<String>,
     /// Additional hosts to try to join from as a backup
-    #[arg(raw=true)]
+    #[arg(raw = true)]
     pub additional_hosts: Vec<String>,
 }
 
@@ -106,7 +106,7 @@ pub struct TemplateArg {
     #[arg(default_value = "wormhole")]
     pub name: String,
     /// Path to create the pod in. By default creates a pod from the folder with the name given
-    #[arg(long="mount", short)]
+    #[arg(long = "mount", short)]
     pub mountpoint: Option<WhPath>,
 }
 

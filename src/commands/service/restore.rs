@@ -20,11 +20,11 @@ pub fn restore(
         match file.as_str() {
             LOCAL_CONFIG_FNAME => {
                 let path = &args
-                        .path
-                        .as_ref()
-                        .unwrap_or(&".".into())
-                        .join(LOCAL_CONFIG_FNAME)
-                        .inner;
+                    .path
+                    .as_ref()
+                    .unwrap_or(&".".into())
+                    .join(LOCAL_CONFIG_FNAME)
+                    .inner;
                 if !Path::new(&path).exists() {
                     File::create(path.clone())?;
                 }
@@ -34,11 +34,11 @@ pub fn restore(
             }
             GLOBAL_CONFIG_FNAME => {
                 let path = &args
-                        .path
-                        .as_ref()
-                        .unwrap_or(&".".into())
-                        .join(GLOBAL_CONFIG_FNAME)
-                        .inner;
+                    .path
+                    .as_ref()
+                    .unwrap_or(&".".into())
+                    .join(GLOBAL_CONFIG_FNAME)
+                    .inner;
                 if !Path::new(&path).exists() {
                     File::create(path.clone())?;
                 }

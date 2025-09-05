@@ -3,10 +3,13 @@ use std::env;
 use tokio::runtime::Runtime;
 
 use crate::{
-    commands::{cli::path_or_wd, cli_commands::{
-        Cli::{self},
-        StatusPodArgs,
-    }},
+    commands::{
+        cli::path_or_wd,
+        cli_commands::{
+            Cli::{self},
+            StatusPodArgs,
+        },
+    },
     error::CliResult,
     pods::whpath::WhPath,
 };

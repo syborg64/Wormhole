@@ -1,14 +1,12 @@
-use std::env;
-
 use tokio::runtime::Runtime;
 
 use crate::{
-    commands::{cli::path_or_wd, cli_commands::{Cli, PodConf}},
-    error::{CliError, CliResult},
-    pods::{
-        arbo::{GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME},
-        whpath::WhPath,
+    commands::{
+        cli::path_or_wd,
+        cli_commands::{Cli, PodConf},
     },
+    error::{CliError, CliResult},
+    pods::arbo::{GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME},
 };
 
 use super::cli_messager;

@@ -53,12 +53,14 @@ fn is_new_wh_file_config(path: &WhPath) -> CliResult<()> {
 
 //FIXME - Error id name of the pod not check (can be already exist)
 pub fn new(ip: &str, mut args: PodArgs) -> CliResult<String> {
-    match std::env::current_dir().ok().and_then(|f| -> Option<WhPath> {
-        f.join(args.mountpoint.clone().unwrap_or((&args.name).into()))
-            .as_os_str()
-            .try_into()
-            .ok()
-    }) {
+    match std::env::current_dir()
+        .ok()
+        .and_then(|f| -> Option<WhPath> {
+            f.join(args.mountpoint.clone().unwrap_or((&args.name).into()))
+                .as_os_str()
+                .try_into()
+                .ok()
+        }) {
         None => Err(CliError::InvalidArgument {
             arg: format!("path is invalid or missing"),
         }),

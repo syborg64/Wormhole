@@ -33,7 +33,6 @@ impl EnvironmentManager {
 
     /// Create a service on the next available ip. No pods are created.
     pub fn add_service(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-
         let mut ip = IpP {
             addr: std::net::Ipv4Addr::new(0, 0, 0, 0),
             port: self.reserve_port(),
