@@ -84,6 +84,9 @@ pub struct PodArgs {
     /// Network url as <address of node to join from> + ':' + <network name>'
     #[arg(long, short)]
     pub url: Option<String>,
+    /// Name for this pod to use as a machine name with the network. Defaults to your Machine's name
+    #[arg(long, short='H')]
+    pub hostname: Option<String>,
     /// Additional hosts to try to join from as a backup
     #[arg(raw = true)]
     pub additional_hosts: Vec<String>,
