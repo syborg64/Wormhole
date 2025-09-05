@@ -15,7 +15,7 @@ use tokio_tungstenite::{
 };
 
 use crate::{
-    config::{GlobalConfig, LocalConfig},
+    config::{GlobalConfig},
     error::WhError,
     pods::{arbo::Arbo, network::network_interface::NetworkInterface},
 };
@@ -102,7 +102,7 @@ impl From<bincode::Error> for HandshakeError {
     }
 }
 
-const GIT_VERSION: &'static str = env!("GIT_HASH");
+const GIT_HASH: &'static str = env!("GIT_HASH");
 
 #[derive(Deserialize, Serialize)]
 enum Handshake {
@@ -233,6 +233,36 @@ pub async fn wave(
 
     match handshake {
         Handshake::Wave(wave) => Ok(wave),
-        other => Err(HandshakeError::InvalidHandshake)
+        _ => Err(HandshakeError::InvalidHandshake)
+    }
+}
+
+pub async fn connect(
+    stream: &mut SplitStream<WebSocketStream<TcpStream>>,
+    sink: &mut SplitSink<WebSocketStream<TcpStream>, Message>,
+    hostname: String,
+) -> Result<Accept, HandshakeError> {
+    let connect = Connect {
+        hostname,
+        magic_version: GIT_HASH.into(),
+        socket: None,
+    };
+
+    let serialized = bincode::serialize(&Handshake::Connect(connect))?;
+    sink.send(Message::Binary(serialized)).await?;
+
+
+    let response = stream.next().await.ok_or(HandshakeError::InvalidHandshake)??;
+
+    let handshake = if let Message::Binary(bytes) = response {
+        Ok(bincode::deserialize::<Handshake>(&bytes)?)
+    } else {
+        Err(HandshakeError::InvalidHandshake)
+    }?;
+
+    match handshake {
+        Handshake::Accept(accept) => Ok(accept),
+        Handshake::Refuse(error) => Err(error.into()),
+        _ => Err(HandshakeError::InvalidHandshake)
     }
 }
