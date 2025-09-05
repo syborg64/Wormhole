@@ -12,7 +12,7 @@ Should install both `wormhole` and `wormholed` binaries
 This repo provides a flake for you that can install Wormhole
 
 #### To try
-```nix shell --experimental-features 'nix-command flakes' github:Agartha-Software/Wormhole/#default```
+```nix shell github:Agartha-Software/Wormhole/#wormhole```
 You will then get Wormhole on this ephemeral shell.
 
 #### To install
@@ -26,12 +26,25 @@ inputs = {
 };
 ```
 
-Add the package in your configuration
+Then add this in your flake modules (if you wish to enable the systemd service):
+```nix
+modules = [
+  ...
+  inputs.wormhole.nixosModules.wormhole
+    {
+      services.wormhole.enable = true;
+    }
+    ...
+];
+```
+
+Add the package in your configuration.
+It will provide the package `wormhole` and `wormhold` (even if you didn't add the systemd service).
 ```nix
 # configuration.nix
 environment.systemPackages = with pkgs; [
   ...
-  inputs.wormhole.packages.${pkgs.system}.default # wormhole package
+  inputs.wormhole.packages.${pkgs.system}.wormhole # wormhole package
   ...
 ];
 ```
