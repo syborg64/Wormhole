@@ -33,10 +33,9 @@ use wormhole::config::LocalConfig;
 use wormhole::error::{CliError, CliSuccess, WhError, WhResult};
 use wormhole::network::ip::IpP;
 use wormhole::pods::pod::Pod;
+
 #[cfg(target_os = "windows")]
-use {
-    winfsp::winfsp_init,
-};
+use winfsp::winfsp_init;
 
 type CliTcpWriter =
     SplitSink<WebSocketStream<tokio::net::TcpStream>, tokio_tungstenite::tungstenite::Message>;
