@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    branches: [main, feat/deb-package]
+    branches: [main]
   workflow_dispatch: # Allow manual triggers
 
 jobs:
