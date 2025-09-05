@@ -16,9 +16,10 @@ use super::message::{Address, FromNetworkMessage, MessageAndStatus};
 #[derive(Debug)]
 pub struct PeerIPC {
     pub address: Address,
+    pub hostname: String,
     pub thread: tokio::task::JoinHandle<()>,
-    pub sender: mpsc::UnboundedSender<MessageAndStatus>, // send a message to the peer
-                                                         // pub receiver: mpsc::Receiver<NetworkMessage>, // receive a message from the peer
+    pub sender: mpsc::UnboundedSender<MessageAndStatus>,
+    // pub receiver: mpsc::Receiver<NetworkMessage>, // receive a message from the peer
 }
 
 impl PeerIPC {
@@ -65,6 +66,7 @@ impl PeerIPC {
             )),
             address,
             sender: sender_in,
+            hostname: todo!(),
         }
     }
 
@@ -74,6 +76,7 @@ impl PeerIPC {
     ) -> Option<Self> {
         let (sender_in, sender_out) = mpsc::unbounded_channel();
 
+        log::trace!("connecting to ws://{address}");
         let thread = match tokio_tungstenite::connect_async_with_config(
             "ws://".to_string() + &address,
             Some(
@@ -93,9 +96,11 @@ impl PeerIPC {
                 return None;
             }
         };
+        let hostname = todo!();
         Some(Self {
             thread,
             address,
+            hostname,
             sender: sender_in,
         })
     }

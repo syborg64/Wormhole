@@ -1,5 +1,5 @@
 use super::message::ToNetworkMessage;
-use crate::error::{CliError, CliResult};
+use crate::{error::{CliError, CliResult}, pods::pod::Pod};
 use std::{
     collections::HashMap,
     net::SocketAddr,
@@ -11,6 +11,11 @@ use tokio::{
 };
 pub type Tx = UnboundedReceiver<ToNetworkMessage>;
 pub type PeerMap = Arc<Mutex<HashMap<SocketAddr, Tx>>>;
+
+pub struct Service {
+    // pub server: Server
+    pub pods: HashMap<String, Pod>
+}
 
 pub struct Server {
     pub listener: TcpListener,

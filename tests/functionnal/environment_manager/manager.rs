@@ -13,6 +13,7 @@ use crate::functionnal::{
 };
 
 pub struct EnvironmentManager {
+    pub port: std::ops::RangeFrom<u16>,
     pub services: Vec<Service>,
 }
 
@@ -21,25 +22,21 @@ impl EnvironmentManager {
         start_log();
         log::trace!("SLEEP_TIME for this test is {:?}", *SLEEP_TIME);
         return EnvironmentManager {
+            port: SERVICE_MIN_PORT..,
             services: Vec::new(),
         };
     }
 
+    pub fn reserve_port(&mut self) -> u16 {
+        return self.port.next().expect("port range");
+    }
+
     /// Create a service on the next available ip. No pods are created.
     pub fn add_service(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        let mut ip = self
-            .services
-            .iter()
-            .map(|service| &service.ip)
-            .max_by(|ip1, ip2| ip1.port.cmp(&ip2.port))
-            .map_or_else(
-                || IpP::try_from(&format!("127.0.0.1:{SERVICE_MIN_PORT}")).unwrap(),
-                |ip| {
-                    let mut ip = ip.clone();
-                    ip.set_port(ip.port + 1);
-                    ip
-                },
-            );
+        let mut ip = IpP {
+            addr: std::net::Ipv4Addr::new(0, 0, 0, 0),
+            port: self.reserve_port(),
+        };
 
         // checks that no service is running on this ip
         let (mut status, _, _) = cli_command(&[&ip.to_string(), "status"]);
@@ -133,14 +130,10 @@ impl EnvironmentManager {
         let mut startup_files = startup_files;
 
         // find the next available pod ip
-        let max_pod_ip = self
-            .services
-            .iter()
-            .map(|service| &service.pods)
-            .flatten()
-            .max_by(|(_, ip, _), (_, ip2, _)| ip.get_ip_last().cmp(&ip2.get_ip_last()))
-            .map(|(_, ip, _)| ip.clone())
-            .unwrap_or(IpP::try_from("127.0.0.1:8080").unwrap());
+        let pod_ip = IpP {
+            addr: std::net::Ipv4Addr::new(0, 0, 0, 1),
+            port: self.reserve_port(),
+        };
 
         // find an ip of a pod already on this network (if any)
         let conn_to = self
@@ -153,16 +146,14 @@ impl EnvironmentManager {
 
         self.services
             .iter_mut()
-            .fold((max_pod_ip, conn_to), |(max_pod_ip, conn_to), service| {
+            .fold((pod_ip, conn_to), |(pod_ip, conn_to), service| {
                 if let Some((_, ip, _)) = service.pods.iter().find(|(nw, _, _)| *nw == network_name)
                 {
                     // The service already runs a pod on this network
-                    (max_pod_ip, Some(ip.clone()))
+                    (pod_ip, Some(ip.clone()))
                 } else {
                     // The service does not runs a pod on this network
                     let temp_dir = assert_fs::TempDir::new().expect("can't create temp dir");
-                    let mut pod_ip = max_pod_ip.clone();
-                    pod_ip.set_ip_last(pod_ip.get_ip_last() + 1);
 
                     match &startup_files {
                         None => (),

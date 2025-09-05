@@ -59,7 +59,7 @@ pub fn cli_pod_creation_command(
     let (status, _, _) = cli_command(&[
         service_ip.to_string().as_ref(),
         "template",
-        "-p",
+        "-m",
         dir_path.to_string_lossy().to_string().as_ref(),
     ]);
     assert!(status.success(), "template cli command failed");
@@ -71,12 +71,11 @@ pub fn cli_pod_creation_command(
             let mut args = vec![
                 service_ip.to_string(),
                 "new".to_string(),
-                "-n".to_string(),
                 network_name.clone(),
-                "-p".to_string(),
+                "-m".to_string(),
                 dir_path.to_string_lossy().to_string(),
-                "-i".to_string(),
-                ip.to_string(),
+                "-p".to_string(),
+                ip.port.to_string(),
             ];
 
             if let Some(peer) = connect_to {
