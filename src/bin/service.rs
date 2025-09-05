@@ -42,6 +42,7 @@ type CliTcpWriter =
     SplitSink<WebSocketStream<tokio::net::TcpStream>, tokio_tungstenite::tungstenite::Message>;
 
 async fn handle_cli_command(
+    ip: &IpP,
     pods: &mut HashMap<String, Pod>,
     command: Cli,
     mut writer: CliTcpWriter,
@@ -215,9 +216,13 @@ async fn handle_cli_command(
                 Err(CliError::PodNotFound)
             }
         }
-        _ => Err(CliError::InvalidCommand),
+        Cli::Template(_template_arg) => todo!(),
+        Cli::Inspect => todo!(),
+        Cli::Status => Ok(CliSuccess::Message(format!("{}", ip.to_string()))),
+        Cli::Interrupt => todo!(),
     };
-    let string_output = response_command.map_or_else(|e| e.to_string(), |a| a.to_string());
+    let string_output =
+        response_command.map_or_else(|e| format!("CliError: {:?}", e), |a| a.to_string());
     match writer.send(Message::Text(string_output)).await {
         Ok(()) => log::debug!("Sent answer to cli"),
         Err(err) => log::error!("Message can't send to cli: {}", err),
@@ -268,22 +273,52 @@ async fn get_cli_command(stream: tokio::net::TcpStream) -> WhResult<(Cli, CliTcp
     Ok((cmd, writer))
 }
 
+const MAX_TRY_PORTS: u16 = 10;
+const MAX_PORT: u16 = 65535;
+
+custom_error::custom_error! {CliListenerError
+    ProvidedIpNotAvailable {ip: String, err: String} = "The specified address ({ip}) not available ({err})\nThe service is not starting.",
+    AboveMainPort {max_port: u16} = "Unable to start cli_listener (not testing ports above {max_port})",
+    AboveMaxTry {max_try_port: u16} = "Unable to start cli_listener (tested {max_try_port} ports)",
+}
+
 /// Listens for CLI calls and launch one tcp instance per cli command
+/// if `specific_ip` is not given, will try all ports starting from 8081 to 9999, incrementing until success
+/// if `specific_ip` is given, will try the given ip and fail on error.
 async fn start_cli_listener(
     pods: &mut HashMap<String, Pod>,
-    mut ip: IpP,
+    specific_ip: Option<String>,
     mut signals_rx: UnboundedReceiver<()>,
-) {
+) -> Result<(), CliListenerError> {
+    let mut ip: IpP = IpP::try_from(&specific_ip.clone().unwrap_or("127.0.0.1:8081".to_string()))
+        .expect("start_cli_listener: invalid ip provided");
     println!("Starting CLI's Listener on {}", ip.to_string());
 
+    let mut port_tries_count = 0;
     let mut listener = TcpListener::bind(&ip.to_string()).await;
     while let Err(e) = listener {
-        log::error!(
+        if let Some(_) = specific_ip {
+            return Err(CliListenerError::ProvidedIpNotAvailable {
+                ip: ip.to_string(),
+                err: e.to_string(),
+            });
+        }
+        if ip.port >= MAX_PORT {
+            return Err(CliListenerError::AboveMainPort { max_port: MAX_PORT });
+        }
+        if port_tries_count > MAX_TRY_PORTS {
+            return Err(CliListenerError::AboveMaxTry {
+                max_try_port: MAX_TRY_PORTS,
+            });
+        }
+        log::warn!(
             "Address {} not available due to {}, switching...",
             ip.to_string(),
             e
         );
         ip.set_port(ip.port + 1);
+        port_tries_count += 1;
+        log::debug!("Starting CLI's TcpListener on {}", ip.to_string());
         listener = TcpListener::bind(&ip.to_string()).await;
     }
     log::info!("Started CLI's TcpListener on {}", ip.to_string());
@@ -300,8 +335,9 @@ async fn start_cli_listener(
                 continue;
             }
         };
-        handle_cli_command(pods, command, writer).await;
+        handle_cli_command(&ip, pods, command, writer).await;
     }
+    Ok(())
 }
 
 const DEFAULT_ADDRESS: &str = "127.0.0.1:8081";
@@ -322,27 +358,19 @@ async fn main() {
 
     #[cfg(target_os = "windows")]
     match winfsp_init() {
-        Ok(_token) => println!("got fsp token!"),
+        Ok(_token) => log::debug!("got fsp token!"),
         Err(err) => {
-            println!("fsp error: {:?}", err);
+            log::error!("fsp error: {:?}", err);
             std::process::exit(84)
         }
     }
 
-    let ip_string = env::args().nth(1).unwrap_or(DEFAULT_ADDRESS.into());
-
-    let ip = match IpP::try_from(&ip_string) {
-        Ok(ip) => ip,
-        Err(_) => {
-            println!("Address IP '{ip_string}' is invalid");
-            return;
-        }
-    };
+    let ip_string = env::args().nth(1);
     let terminal_handle = tokio::spawn(terminal_watchdog(interrupt_tx));
     let signals_task = tokio::spawn(handle_signals(signals_tx, interrupt_rx));
-    log::trace!("Starting service on {}", ip_string);
+    log::trace!("Starting service on {:?}", ip_string);
     log::info!("Started");
-    start_cli_listener(&mut pods, ip, signals_rx).await;
+    let _ = start_cli_listener(&mut pods, ip_string, signals_rx).await;
 
     terminal_handle.abort();
     signals_task.await.unwrap();
