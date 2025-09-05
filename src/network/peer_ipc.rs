@@ -1,3 +1,4 @@
+use futures::future::Either;
 use futures_util::{
     stream::{SplitSink, SplitStream},
     StreamExt,
@@ -9,13 +10,13 @@ use tokio::{
 use tokio_tungstenite::tungstenite::{protocol::WebSocketConfig, Message};
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
-use crate::network::forward::{forward_peer_to_receiver, forward_sender_to_peer};
+use crate::{config::{GlobalConfig, LocalConfig}, network::{forward::{forward_peer_to_receiver, forward_sender_to_peer}, handshake::{self, Accept, Handshake, HandshakeError}}, pods::{arbo::Arbo, network::network_interface::NetworkInterface}};
 
 use super::message::{Address, FromNetworkMessage, MessageAndStatus};
 
 #[derive(Debug)]
 pub struct PeerIPC {
-    pub address: Address,
+    pub url: Option<String>,
     pub hostname: String,
     pub thread: tokio::task::JoinHandle<()>,
     pub sender: mpsc::UnboundedSender<MessageAndStatus>,
@@ -24,15 +25,15 @@ pub struct PeerIPC {
 
 impl PeerIPC {
     async fn work(
-        peer_stream: WebSocketStream<MaybeTlsStream<TcpStream>>,
+        peer_write: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
+        peer_read: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
         receiver_in: mpsc::UnboundedSender<FromNetworkMessage>,
         mut sender_out: mpsc::UnboundedReceiver<MessageAndStatus>,
         peer: String,
     ) {
-        let (write, read) = peer_stream.split();
         tokio::join!(
-            forward_peer_to_receiver(read, receiver_in, peer.clone()),
-            forward_sender_to_peer(write, &mut sender_out, peer)
+            forward_peer_to_receiver(peer_read, receiver_in, peer.clone()),
+            forward_sender_to_peer(peer_write, &mut sender_out, peer)
         );
     }
 
@@ -49,36 +50,49 @@ impl PeerIPC {
         );
     }
 
-    pub fn connect_from_incomming(
-        address: Address,
+    pub async fn accept(
+        network_interface: &NetworkInterface,
+        stream: WebSocketStream<TcpStream>,
+        // address: Address,
+        // hostname: String,
         receiver_in: UnboundedSender<FromNetworkMessage>,
-        write: SplitSink<WebSocketStream<TcpStream>, Message>,
-        read: SplitStream<WebSocketStream<TcpStream>>,
-    ) -> Self {
+        // write: SplitSink<WebSocketStream<TcpStream>, Message>,
+        // read: SplitStream<WebSocketStream<TcpStream>>,
+    ) -> Result<Self, HandshakeError> {
         let (sender_in, sender_out) = mpsc::unbounded_channel();
-        Self {
+
+        let (mut sink, mut stream) = stream.split();
+
+        let (hostname, url) = match handshake::accept(&mut stream, &mut sink, network_interface).await? {
+            Either::Left(connect) => (connect.hostname, connect.url),
+            Either::Right(wave) => (wave.hostname, wave.url),
+        };
+
+        Ok(Self {
             thread: tokio::spawn(Self::work_from_incomming(
-                write,
-                read,
+                sink,
+                stream,
                 receiver_in,
                 sender_out,
-                address.clone(),
+                hostname.clone(),
             )),
-            address,
+            url,
             sender: sender_in,
-            hostname: todo!(),
-        }
+            hostname,
+        })
     }
 
     pub async fn connect(
-        address: Address,
+        url: String,
+        config: &LocalConfig,
         receiver_in: UnboundedSender<FromNetworkMessage>,
-    ) -> Option<Self> {
+    ) -> Result<(Self, Accept), HandshakeError> {
+        let _ = config;
         let (sender_in, sender_out) = mpsc::unbounded_channel();
 
-        log::trace!("connecting to ws://{address}");
-        let thread = match tokio_tungstenite::connect_async_with_config(
-            "ws://".to_string() + &address,
+        log::trace!("connecting to ws://{url}");
+        let (accept, thread) = match tokio_tungstenite::connect_async_with_config(
+            "ws://".to_string() + &url,
             Some(
                 WebSocketConfig::default()
                     .max_message_size(None)
@@ -89,21 +103,24 @@ impl PeerIPC {
         .await
         {
             Ok((stream, _)) => {
-                tokio::spawn(Self::work(stream, receiver_in, sender_out, address.clone()))
+                let (mut sink, mut stream) = stream.split();
+                let accept = handshake::connect(&mut stream, &mut sink, config.general.hostname.clone()).await?;
+                (accept, tokio::spawn(Self::work(sink, stream, receiver_in, sender_out, url.clone())))
             }
             Err(e) => {
-                log::warn!("failed to connect to {}. Error: {}", address, e);
-                return None;
+                log::warn!("failed to connect to {}. Error: {}", url, e);
+                return Err(e.into());
             }
         };
-        let hostname = todo!();
-        Some(Self {
+        Ok((Self {
             thread,
-            address,
-            hostname,
+            url: Some(url),
+            hostname: accept.hostname.clone(),
             sender: sender_in,
-        })
+        }, accept))
     }
+
+    // pub async fn link()
 
     // start connexions to peers
     pub async fn peer_startup(
@@ -124,7 +141,7 @@ impl PeerIPC {
 
 impl Drop for PeerIPC {
     fn drop(&mut self) {
-        log::debug!("Dropping PeerIPC {}", self.address);
+        log::debug!("Dropping PeerIPC {}", self.hostname);
         self.thread.abort();
     }
 }
