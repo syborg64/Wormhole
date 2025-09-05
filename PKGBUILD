@@ -12,7 +12,7 @@ license=('AGPL-3.0-only')
 makedepends=(cargo git)
 depends=(fuse3 gcc-libs)
 arch=('x86_64')
-source=('git+https://github.com/Agartha-Software/Wormhole.git#commit=f709c6897238bf735a61f277b5cd2ab397490e21')
+source=('git+https://github.com/Agartha-Software/Wormhole.git#commit=ab4b4b0ec311c7d84d7baf9e2886f443e9afbeb0')
 b2sums=("SKIP") # will be added once we point a real release
 
 prepare() {
@@ -41,5 +41,6 @@ package() {
         -executable \
         -type f \
         -exec install -Dm0755 -t "$pkgdir/usr/bin/" {} +
-    systemctl enable --now wormhole.service
+
+    install -Dm644 "./wormhole.service" "$pkgdir/usr/lib/systemd/system/wormhole.service"
 }
