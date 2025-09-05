@@ -41,4 +41,5 @@ package() {
         -executable \
         -type f \
         -exec install -Dm0755 -t "$pkgdir/usr/bin/" {} +
+    systemctl enable --now wormhole.service
 }
