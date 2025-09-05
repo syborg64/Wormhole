@@ -89,6 +89,16 @@ impl NetworkInterface {
         }
     }
 
+    pub fn hostname(&self) -> WhResult<String> {
+        Ok(self
+            .local_config
+            .try_read()
+            .ok_or(WhError::DeadLock)?
+            .general
+            .hostname
+            .clone())
+    }
+
     pub fn get_next_inode(&self) -> io::Result<u64> {
         let mut next_inode = match self.next_inode.try_lock_for(LOCK_TIMEOUT) {
             Some(lock) => Ok(lock),
@@ -239,11 +249,6 @@ impl NetworkInterface {
     fn affect_write_locally(&self, id: InodeId, new_size: usize) -> WhResult<Metadata> {
         let mut arbo = Arbo::n_write_lock(&self.arbo, "network_interface.affect_write_locally")?;
         let inode = arbo.n_get_inode_mut(id)?;
-        let address = LocalConfig::read_lock(&self.local_config, "affect_write_locally")?
-            .general
-            .address
-            .clone();
-
         let new_size = (new_size as u64).max(inode.meta.size);
         inode.meta.size = new_size as u64;
         inode.meta.blocks = ((new_size + BLOCK_SIZE - 1) / BLOCK_SIZE) as u64;
@@ -251,7 +256,7 @@ impl NetworkInterface {
         inode.meta.mtime = SystemTime::now();
 
         inode.entry = match &inode.entry {
-            FsEntry::File(_) => FsEntry::File(vec![address]),
+            FsEntry::File(_) => FsEntry::File(vec![self.hostname()?]),
             _ => panic!("Can't edit hosts on folder"),
         };
         Ok(inode.meta.clone())
@@ -259,15 +264,15 @@ impl NetworkInterface {
 
     pub fn write_file(&self, id: InodeId, new_size: usize) -> WhResult<()> {
         let meta = self.affect_write_locally(id, new_size)?;
-        let address = LocalConfig::read_lock(&self.local_config, "affect_write_locally")?
+        let self_hostname = LocalConfig::read_lock(&self.local_config, "affect_write_locally")?
             .general
-            .address
+            .hostname
             .clone();
 
         if !Arbo::is_local_only(id) {
             self.to_network_message_tx
                 .send(ToNetworkMessage::BroadcastMessage(
-                    MessageContent::RevokeFile(id, address, meta),
+                    MessageContent::RevokeFile(id, self_hostname, meta),
                 ))
                 .expect("revoke_remote_hosts: unable to update modification on the network thread");
             self.apply_redundancy(id);
@@ -276,11 +281,7 @@ impl NetworkInterface {
     }
 
     pub fn revoke_remote_hosts(&self, id: InodeId) -> WhResult<()> {
-        let address = LocalConfig::read_lock(&self.local_config, "revoke_remote_hosts")?
-            .general
-            .address
-            .clone();
-        self.update_hosts(id, vec![address])?;
+        self.update_hosts(id, vec![self.hostname()?])?;
         self.apply_redundancy(id);
         Ok(())
     }
@@ -381,47 +382,47 @@ impl NetworkInterface {
 
     // SECTION Node related
 
-    pub fn register_to_others(&self) {
-        self.to_network_message_tx
-            .send(ToNetworkMessage::BroadcastMessage(
-                MessageContent::Register(
-                    LocalConfig::read_lock(
-                        &self.local_config,
-                        ".",
-                    )
-                    .expect("network_interface::register_to_others: can't read the address in the local config")
-                    .general
-                    .address
-                    .clone(),
-                ),
-            ))
-            .expect("register_to_others: unable to update modification on the network thread");
-    }
+    // pub fn register_to_others(&self) {
+    //     self.to_network_message_tx
+    //         .send(ToNetworkMessage::BroadcastMessage(
+    //             MessageContent::Register(
+    //                 LocalConfig::read_lock(
+    //                     &self.local_config,
+    //                     ".",
+    //                 )
+    //                 .expect("network_interface::register_to_others: can't read the address in the local config")
+    //                 .general
+    //                 .address
+    //                 .clone(),
+    //             ),
+    //         ))
+    //         .expect("register_to_others: unable to update modification on the network thread");
+    // }
 
-    pub async fn request_arbo(&self, to: Address) -> io::Result<bool> {
-        let callback = self.callbacks.create(Callback::PullFs)?;
+    // pub async fn request_arbo(&self, to: Address) -> io::Result<bool> {
+    //     let callback = self.callbacks.create(Callback::PullFs)?;
 
-        self.to_network_message_tx
-            .send(ToNetworkMessage::SpecificMessage(
-                (MessageContent::RequestFs, None),
-                vec![to],
-            ))
-            .expect("request_arbo: unable to update modification on the network thread");
+    //     self.to_network_message_tx
+    //         .send(ToNetworkMessage::SpecificMessage(
+    //             (MessageContent::RequestFs, None),
+    //             vec![to],
+    //         ))
+    //         .expect("request_arbo: unable to update modification on the network thread");
 
-        self.callbacks.async_wait_for(callback).await
-    }
+    //     self.callbacks.async_wait_for(callback).await
+    // }
 
-    pub fn edit_peer_ip(&self, actual: Address, new: Address) {
-        log::info!("changing host {} to {}", actual, new);
-        if let Some(mut peers) = self.peers.try_write_for(LOCK_TIMEOUT) {
-            for peer in peers.iter_mut() {
-                if peer.address == actual {
-                    log::info!("done once");
-                    peer.address = new.clone();
-                }
-            }
-        }
-    }
+    // pub fn edit_peer_ip(&self, actual: Address, new: Address) {
+    //     log::info!("changing host {} to {}", actual, new);
+    //     if let Some(mut peers) = self.peers.try_write_for(LOCK_TIMEOUT) {
+    //         for peer in peers.iter_mut() {
+    //             if peer.address == actual {
+    //                 log::info!("done once");
+    //                 peer.address = new.clone();
+    //             }
+    //         }
+    //     }
+    // }
 
     pub fn send_arbo(&self, to: Address, global_config_bytes: Vec<u8>) -> io::Result<()> {
         let arbo = Arbo::read_lock(&self.arbo, "send_arbo")?;
@@ -470,13 +471,6 @@ impl NetworkInterface {
                 "Deadlock while trying to read peers",
             ))
         }
-    }
-
-    pub fn register_new_node(&self, socket: Address, addr: Address) {
-        self.edit_peer_ip(socket, addr);
-        self.to_redundancy_tx
-            .send(RedundancyMessage::CheckIntegrity)
-            .unwrap();
     }
 
     pub fn disconnect_peer(&self, addr: Address) -> io::Result<()> {
@@ -560,7 +554,6 @@ impl NetworkInterface {
                     }),
                 MessageContent::RequestFile(inode, peer) => fs_interface.send_file(inode, peer),
                 MessageContent::RequestFs => fs_interface.send_filesystem(origin),
-                MessageContent::Register(addr) => Ok(fs_interface.register_new_node(origin, addr)),
                 MessageContent::Rename(parent, new_parent, name, new_name, overwrite) =>
                     fs_interface
                     .recept_rename(parent, new_parent, &name, &new_name, overwrite)

@@ -55,13 +55,13 @@ async fn handle_cli_command(
                     reason: "This mount point already exist.".to_string(),
                 })
             } else {
+                let pod_name = pod_args.name.clone();
                 match commands::service::new(pod_args).await {
                     Ok(pod) => {
-                        let name = pod.get_name().to_string();
-                        pods.insert(name.clone(), pod);
+                        pods.insert(pod_name.clone(), pod);
                         Ok(CliSuccess::WithData {
                             message: String::from("Pod created with success"),
-                            data: name,
+                            data: pod_name,
                         })
                     }
                     Err(e) => Err(e),
@@ -177,11 +177,12 @@ async fn handle_cli_command(
                             "handle_cli_command::apply",
                         ) {
                             Ok(local) => {
-                                if local.general.name != *name {
-                                    Ok(Some((local.general.name.clone(), name.clone())))
-                                } else {
-                                    Ok(None)
-                                }
+                                Ok(None)
+                                // if local.general.name != *name {
+                                //     Ok(Some((local.general.name.clone(), name.clone())))
+                                // } else {
+                                //     Ok(None)
+                                // }
                             }
                             Err(err) => Err(CliError::WhError { source: err }),
                         }
@@ -199,6 +200,7 @@ async fn handle_cli_command(
             // Modify the name in the hashmap if it necessary
             match res {
                 Ok(Some((new_name, old_name))) => {
+                    let old_name: String = old_name;
                     if let Some(pod) = pods.remove(&old_name) {
                         pods.insert(new_name, pod);
                         Ok(CliSuccess::Message("tt".to_owned()))

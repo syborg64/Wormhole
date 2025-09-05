@@ -16,6 +16,7 @@ use super::message::{Address, FromNetworkMessage, MessageAndStatus};
 #[derive(Debug)]
 pub struct PeerIPC {
     pub address: Address,
+    pub hostname: String,
     pub thread: tokio::task::JoinHandle<()>,
     pub sender: mpsc::UnboundedSender<MessageAndStatus>, // send a message to the peer
                                                          // pub receiver: mpsc::Receiver<NetworkMessage>, // receive a message from the peer
@@ -50,6 +51,7 @@ impl PeerIPC {
 
     pub fn connect_from_incomming(
         address: Address,
+        hostname: String,
         on_recept: UnboundedSender<FromNetworkMessage>,
         write: SplitSink<WebSocketStream<TcpStream>, Message>,
         read: SplitStream<WebSocketStream<TcpStream>>,
@@ -64,6 +66,7 @@ impl PeerIPC {
                 address.clone(),
             )),
             address,
+            hostname,
             sender: peer_send,
         }
     }
@@ -82,8 +85,10 @@ impl PeerIPC {
                 return None;
             }
         };
+        let hostname = todo!();
         Some(Self {
             thread,
+            hostname,
             address,
             sender: peer_send,
             // receiver: inbound_recv,

@@ -97,6 +97,7 @@ serde_with = "3.11.0"
 parking_lot = "0.12.3"
 sysinfo = "0.34.2"
 custom_error = "1.9.2"
+gethostname = "1.0.2"
 
 [dev-dependencies]
 assert_fs = "1.1.2"

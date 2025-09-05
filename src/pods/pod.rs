@@ -41,11 +41,10 @@ use super::arbo::{InodeId, ARBO_FILE_FNAME, ARBO_FILE_INO, GLOBAL_CONFIG_INO};
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct Pod {
-    name: String,
     network_interface: Arc<NetworkInterface>,
     fs_interface: Arc<FsInterface>,
     mount_point: WhPath,
-    peers: Arc<RwLock<Vec<PeerIPC>>>,
+    pub peers: Arc<RwLock<Vec<PeerIPC>>>,
     #[cfg(target_os = "linux")]
     fuse_handle: fuser::BackgroundSession,
     #[cfg(target_os = "windows")]
@@ -66,7 +65,7 @@ custom_error! {pub PodInfoError
 
 pub async fn initiate_connection(
     peers_addrs: Vec<Address>,
-    server_address: Address,
+    // server_address: Address,
     tx: &UnboundedSender<FromNetworkMessage>,
     rx: &mut UnboundedReceiver<FromNetworkMessage>,
 ) -> Option<(FileSystemSerialized, Vec<Address>, PeerIPC, Vec<u8>)> {
@@ -90,9 +89,7 @@ pub async fn initiate_connection(
                             content: MessageContent::FsAnswer(fs, mut peers_address, global_config),
                         })) => {
                             // remove itself from peers and first_connect because the connection is already existing
-                            peers_address.retain(|address| {
-                                *address != server_address && *address != first_contact
-                            });
+                            peers_address.retain(|address| *address != first_contact);
                             return Some((fs, peers_address, ipc, global_config));
                         }
                         Ok(Some(_)) => {
@@ -118,14 +115,14 @@ pub async fn initiate_connection(
     None
 }
 
-fn register_to_others(peers: &Vec<PeerIPC>, self_address: &Address) -> std::io::Result<()> {
-    for peer in peers {
-        peer.sender
-            .send((MessageContent::Register(self_address.clone()), None))
-            .map_err(|err| std::io::Error::new(io::ErrorKind::NotConnected, err))?;
-    }
-    Ok(())
-}
+// fn register_to_others(peers: &Vec<PeerIPC>, self_address: &Address) -> std::io::Result<()> {
+//     for peer in peers {
+//         peer.sender
+//             .send((MessageContent::Register(self_address.clone()), None))
+//             .map_err(|err| std::io::Error::new(io::ErrorKind::NotConnected, err))?;
+//     }
+//     Ok(())
+// }
 
 custom_error! {pub PodStopError
     WhError{source: WhError} = "{source}",
@@ -166,12 +163,10 @@ fn create_all_dirs(arbo: &Arbo, from: InodeId, disk: &dyn DiskManager) -> io::Re
 
 impl Pod {
     pub async fn new(
-        name: String,
         global_config: GlobalConfig,
         local_config: LocalConfig,
         mount_point: WhPath,
         server: Arc<Server>,
-        server_address: Address,
     ) -> io::Result<Self> {
         let mut global_config = global_config;
 
@@ -180,15 +175,14 @@ impl Pod {
         let (from_network_message_tx, mut from_network_message_rx) = mpsc::unbounded_channel();
         let (to_redundancy_tx, to_redundancy_rx) = mpsc::unbounded_channel();
 
-        global_config.general.peers.retain(|x| *x != server_address);
+        // global_config.general.peers.retain(|x| *x != server_address);
 
         let mut peers = vec![];
 
         let (arbo, next_inode, global_config_bytes) =
             if let Some((fs_serialized, peers_addrs, ipc, global_config_bytes)) =
                 initiate_connection(
-                    global_config.general.peers.clone(),
-                    server_address.clone(),
+                    global_config.general.entrypoints.clone(),
                     &from_network_message_tx,
                     &mut from_network_message_rx,
                 )
@@ -198,7 +192,7 @@ impl Pod {
 
                 peers = PeerIPC::peer_startup(peers_addrs, from_network_message_tx.clone()).await;
                 peers.push(ipc);
-                register_to_others(&peers, &server_address)?;
+                // register_to_others(&peers, &server_address)?;
 
                 let mut arbo = Arbo::new();
                 arbo.overwrite_self(fs_serialized.fs_index);
@@ -209,7 +203,7 @@ impl Pod {
 
                 (arbo, next_inode, Some(global_config_bytes))
             } else {
-                if global_config.general.peers.len() > 0 {
+                if global_config.general.entrypoints.len() > 0 {
                     // NOTE - temporary fix
                     // made to help with tests and debug
                     // choice not to fail should later be supported by the cli
@@ -219,8 +213,9 @@ impl Pod {
                         "None of the specified peers could answer",
                     ));
                 }
-                let (arbo, next_inode) = generate_arbo(&mount_point, &server_address)
-                    .unwrap_or((Arbo::new(), Arbo::first_ino()));
+                let (arbo, next_inode) =
+                    generate_arbo(&mount_point, &local_config.general.hostname)
+                        .unwrap_or((Arbo::new(), Arbo::first_ino()));
                 (arbo, next_inode, None)
             };
 
@@ -288,11 +283,9 @@ impl Pod {
             network_interface.clone(),
             fs_interface.clone(),
             redundancy_target,
-            server_address,
         ));
 
         Ok(Self {
-            name: name.clone(),
             network_interface,
             fs_interface: fs_interface.clone(),
             mount_point: mount_point.clone(),
@@ -411,29 +404,27 @@ impl Pod {
 
     /// Gets every file hosted by this pod only and sends them to other pods
     async fn send_files_when_stopping(&self, arbo: &Arbo, peers: Vec<Address>) {
-        let address = if let Ok(local_conf_lock) = LocalConfig::read_lock(
-            &self.network_interface.local_config,
-            "send_files_when_stopping",
-        ) {
-            local_conf_lock.general.address.clone()
-        } else {
-            log::error!("send_files_when_stopping: can't lock local conf to get local address. No files sent.");
-            return;
-        };
-
         futures_util::future::join_all(
-            arbo.files_hosted_only_by(&address)
-                .filter_map(|inode| {
-                    if inode.id == GLOBAL_CONFIG_INO
-                        || inode.id == LOCAL_CONFIG_INO
-                        || inode.id == ARBO_FILE_INO
-                    {
-                        None
-                    } else {
-                        Some(inode.id)
-                    }
-                })
-                .map(|id| self.send_file_to_possible_hosts(&peers, id)),
+            arbo.files_hosted_only_by(
+                &self
+                    .network_interface
+                    .local_config
+                    .read()
+                    .general
+                    .hostname
+                    .clone(),
+            )
+            .filter_map(|inode| {
+                if inode.id == GLOBAL_CONFIG_INO
+                    || inode.id == LOCAL_CONFIG_INO
+                    || inode.id == ARBO_FILE_INO
+                {
+                    None
+                } else {
+                    Some(inode.id)
+                }
+            })
+            .map(|id| self.send_file_to_possible_hosts(&peers, id)),
         )
         .await
         .iter()
@@ -468,16 +459,17 @@ impl Pod {
             .to_network_message_tx
             .send(ToNetworkMessage::BroadcastMessage(
                 MessageContent::Disconnect(
-                    LocalConfig::read_lock(&self.local_config, "pod::stop")?
+                    self.network_interface
+                        .local_config
+                        .read()
                         .general
-                        .address
+                        .hostname
                         .clone(),
                 ),
             ))
             .expect("to_network_message_tx closed.");
 
         let Self {
-            name: _,
             network_interface: _,
             fs_interface,
             mount_point: _,
@@ -509,10 +501,6 @@ impl Pod {
         new_peer_handle.abort();
         peer_broadcast_handle.abort();
         Ok(())
-    }
-
-    pub fn get_name(&self) -> &str {
-        return &self.name;
     }
 
     pub fn get_mount_point(&self) -> &WhPath {
