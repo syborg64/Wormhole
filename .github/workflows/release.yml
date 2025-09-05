@@ -12,6 +12,8 @@ jobs:
       contents: write
       pull-requests: write
     runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.store_id.outputs.RELEASE_ID }}
     steps:
       - name: Create Release
         id: create_release
@@ -20,6 +22,13 @@ jobs:
           config-name: release.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Store Release Id
+        id: store_id
+        run: |
+          echo "RELEASE_ID=${{ steps.create_release.outputs.id }}" >> $GITHUB_OUTPUT
+          echo $GITHUB_OUTPUT
+        shell: bash
+
   build-linux:
     needs: update_release_draft # wait for the release to exist first
     name: Build for linux
@@ -32,6 +41,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Cache Cargo registry & git
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -51,38 +67,33 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Cache Cargo registry & git
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
       - name: Install system dependencies
         run: |
           curl -L -o winfsp.msi https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-2.1.25156.msi
-          echo $(Get-Date -format "dd-MMM-yyyy HH:mm:ss")
           Start-Process msiexec.exe -Wait -ArgumentList '/i winfsp.msi /quiet /norestart ADDLOCAL=ALL /L*v install.log'
-          echo $(Get-Date -format "dd-MMM-yyyy HH:mm:ss")
           gc install.log
       - name: Build project
         env:
           WINFSP_INCLUDE_PATH: "C:\\Program Files\\WinFsp\\inc"
-        run: |
-          dir 'C:\'
-          dir 'C:\Program Files'
-          dir 'C:\Program Files (x86)'
-          dir 'C:\Program Files (x86)\WinFsp'
-          echo $WINFSP_INCLUDE_PATH
-          cargo build --release
-      - name: Upload cmd exe
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+        run: cargo build --release
+      - name: Upload cli exe
+        uses: svenstaro/upload-release-action@2.11.2
         with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./target/release/wormhole.exe
+          release_id: ${{ needs.update_release_draft.outputs.release_id }}
+          overwrite: true
+          file: ./target/release/wormhole.exe
           asset_name: wormhole.exe
-          asset_content_type: application/exe
       - name: Upload service exe
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+        uses: svenstaro/upload-release-action@2.11.2
         with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./target/release/wormholed.exe
+          release_id: ${{ needs.update_release_draft.outputs.release_id }}
+          overwrite: true
+          file: ./target/release/wormholed.exe
           asset_name: wormholed.exe
-          asset_content_type: application/exe
