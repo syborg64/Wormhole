@@ -41,8 +41,11 @@
             systemd.services.wormhole = {
               description = "Wormhole Service Daemon";
               wantedBy = [ "multi-user.target" ];
-              serviceConfig.ExecStart = "${package}/bin/wormholed 0.0.0.0:8081";
-              serviceConfig.Restart = "on-failure";
+              after = [ "network.target" ];
+              serviceConfig = {
+                ExecStart = "${package}/bin/wormholed 0.0.0.0:8081";
+                Restart = "on-failure";
+              };
               environment.SERVICE_ADDRESS = "0.0.0.0:8081";
             };
           };
