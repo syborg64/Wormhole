@@ -15,7 +15,7 @@ use tokio_tungstenite::{
 };
 
 use crate::{
-    config::GlobalConfig,
+    config::{GlobalConfig, LocalConfig},
     error::WhError,
     pods::{arbo::Arbo, network::network_interface::NetworkInterface},
 };
@@ -27,13 +27,13 @@ custom_error! {
     Tungstenite{source: tungstenite::Error} = "tungstenite: {source}",
     Serialization{bincode: bincode::Error} = "bincode: {bincode}",
     WhError{source: WhError} = "{source}",
-    Lossy{serialized: HandshakeErrorSerialized} = "{serialized}",
+    Remote{serialized: RemoteHandshakeError} = "{serialized}",
 }
 
 custom_error! {
     /// WARNING: make sure this struct is kept in sync with HandshakeError
     #[derive(Serialize, Deserialize, Clone)]
-    pub HandshakeErrorSerialized
+    pub RemoteHandshakeError
     InvalidHandshake = "peer behaved unexpectedly",
     DuplicateHostname{hostname: String} = "peer by name {hostname} is already on this network",
     Tungstenite{string: String} = "tungstenite: {string}",
@@ -41,10 +41,10 @@ custom_error! {
     WhError{string: String} = "{string}",
 }
 
-impl From<&HandshakeError> for HandshakeErrorSerialized {
+impl From<&HandshakeError> for RemoteHandshakeError {
     fn from(value: &HandshakeError) -> Self {
         type E = HandshakeError;
-        type ES = HandshakeErrorSerialized;
+        type ES = RemoteHandshakeError;
         match value {
             E::InvalidHandshake => ES::InvalidHandshake,
             E::Tungstenite { source } => ES::Tungstenite {
@@ -59,42 +59,42 @@ impl From<&HandshakeError> for HandshakeErrorSerialized {
             E::WhError { source } => ES::WhError {
                 string: source.to_string(),
             },
-            E::Lossy { serialized } => serialized.clone(),
+            E::Remote { serialized } => serialized.clone(),
         }
     }
 }
 
-impl From<HandshakeErrorSerialized> for HandshakeError {
-    fn from(value: HandshakeErrorSerialized) -> Self {
+impl From<RemoteHandshakeError> for HandshakeError {
+    fn from(value: RemoteHandshakeError) -> Self {
         type E = HandshakeError;
-        type ES = HandshakeErrorSerialized;
+        type ES = RemoteHandshakeError;
         match value {
             ES::InvalidHandshake => E::InvalidHandshake,
             ES::DuplicateHostname { hostname } => E::DuplicateHostname { hostname },
-            other => E::Lossy {
+            other => E::Remote {
                 serialized: other.clone(),
             },
         }
     }
 }
 
-impl Serialize for HandshakeError {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        HandshakeErrorSerialized::from(self).serialize(serializer)
-    }
-}
+// impl Serialize for HandshakeError {
+//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+//     where
+//         S: serde::Serializer,
+//     {
+//         RemoteHandshakeError::from(self).serialize(serializer)
+//     }
+// }
 
-impl<'de> Deserialize<'de> for HandshakeError {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        Ok(HandshakeErrorSerialized::deserialize(deserializer)?.into())
-    }
-}
+// impl<'de> Deserialize<'de> for HandshakeError {
+//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+//     where
+//         D: serde::Deserializer<'de>,
+//     {
+//         Ok(RemoteHandshakeError::deserialize(deserializer)?.into())
+//     }
+// }
 
 impl From<bincode::Error> for HandshakeError {
     fn from(bincode: bincode::Error) -> Self {
@@ -108,7 +108,7 @@ const GIT_VERSION: &'static str = env!("GIT_HASH");
 enum Handshake {
     Accept(Accept),
     Connect(Connect),
-    Refuse(HandshakeError),
+    Refuse(RemoteHandshakeError),
     Wave(Wave),
 }
 
@@ -192,13 +192,47 @@ pub async fn accept<T: StreamExt<Item = Result<Message, tungstenite::Error>> + S
         Ok(_) => Err(HandshakeError::InvalidHandshake),
         Err(e) => Err(e),
     };
-    if let Err(error) = &result {
-        sink.send(Message::Binary(bincode::serialize(&Handshake::Refuse(
-            HandshakeError::Lossy {
-                serialized: error.into(),
-            },
-        ))?))
-        .await?;
-    }
+    let result = if let Err(error) = result {
+        (async ||
+            { sink.send(Message::Binary(bincode::serialize(&Handshake::Refuse(
+                (&error).into(),
+            ))?))
+            .await?;
+            Err(error)
+        }
+        )()
+        .await
+    } else {
+        result
+    };
     result
+}
+
+pub async fn wave(
+    stream: &mut SplitStream<WebSocketStream<TcpStream>>,
+    sink: &mut SplitSink<WebSocketStream<TcpStream>, Message>,
+    hostname: String,
+    blame: String,
+) -> Result<Wave, HandshakeError> {
+    let wave = Wave {
+        hostname,
+        blame,
+    };
+
+    let serialized = bincode::serialize(&Handshake::Wave(wave))?;
+    sink.send(Message::Binary(serialized)).await?;
+
+
+    let response = stream.next().await.ok_or(HandshakeError::InvalidHandshake)??;
+
+    let handshake = if let Message::Binary(bytes) = response {
+        Ok(bincode::deserialize::<Handshake>(&bytes)?)
+    } else {
+        Err(HandshakeError::InvalidHandshake)
+    }?;
+
+    match handshake {
+        Handshake::Wave(wave) => Ok(wave),
+        other => Err(HandshakeError::InvalidHandshake)
+    }
 }
