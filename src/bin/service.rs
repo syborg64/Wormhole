@@ -23,7 +23,6 @@ use std::env;
 use futures_util::stream::SplitSink;
 use futures_util::{SinkExt, StreamExt};
 use tokio::net::TcpListener;
-use tokio::signal;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{accept_async, WebSocketStream};
@@ -36,7 +35,7 @@ use wormhole::network::ip::IpP;
 use wormhole::pods::pod::Pod;
 #[cfg(target_os = "windows")]
 use {
-    futures::future::select, futures::future::Either, tokio::signal::windows, winfsp::winfsp_init,
+    winfsp::winfsp_init,
 };
 
 type CliTcpWriter =
@@ -273,7 +272,6 @@ async fn get_cli_command(stream: tokio::net::TcpStream) -> WhResult<(Cli, CliTcp
 async fn start_cli_listener(
     pods: &mut HashMap<String, Pod>,
     mut ip: IpP,
-    // mut interrupt_rx: UnboundedReceiver<()>,
     mut signals_rx: UnboundedReceiver<()>,
 ) {
     println!("Starting CLI's Listener on {}", ip.to_string());
@@ -293,7 +291,6 @@ async fn start_cli_listener(
 
     while let Some(Ok((stream, _))) = tokio::select! {
         v = listener.accept() => Some(v),
-        // _ = interrupt_rx.recv() => None,
         _ = signals_rx.recv() => None,
     } {
         let (command, writer) = match get_cli_command(stream).await {
