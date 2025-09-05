@@ -1,11 +1,11 @@
 {
   inputs = { nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05"; };
 
-  outputs = { nixpkgs, ... }:
+  outputs = { self, nixpkgs, ... }:
     let
       systems = [ "x86_64-linux" "aarch64-linux" ];
       forEachSystem = nixpkgs.lib.genAttrs systems;
-    in rec {
+    in {
       devShells = forEachSystem (system:
         let pkgs = nixpkgs.legacyPackages.${system};
         in {
@@ -28,23 +28,20 @@
         let pkgs = nixpkgs.legacyPackages.${system};
         in { wormhole = import ./nix/package.nix { inherit pkgs; }; });
 
-      nixosModules.wormhole = { config, pkgs, ... }:
-        let cfg = config.services.wormhole;
+      nixosModules.wormhole = { config, lib, pkgs, ... }:
+        let
+          cfg = config.services.wormhole;
+          package = self.packages.${pkgs.system}.wormhole;
         in {
           options.services.wormhole = {
-            enable = pkgs.lib.mkEnableOption "Run the Wormhole daemon";
-            package = pkgs.lib.mkOption {
-              type = pkgs.lib.types.package;
-              default = packages.${pkgs.system}.wormholed;
-            };
+            enable = lib.mkEnableOption "Run the Wormhole daemon";
           };
 
-          config = pkgs.lib.mkIf cfg.enable {
+          config = lib.mkIf cfg.enable {
             systemd.services.wormhole = {
               description = "Wormhole Service Daemon";
               wantedBy = [ "multi-user.target" ];
-              serviceConfig.ExecStart =
-                "${cfg.package}/bin/wormholed 0.0.0.0:8081";
+              serviceConfig.ExecStart = "${package}/bin/wormholed 0.0.0.0:8081";
               serviceConfig.Restart = "on-failure";
               environment.SERVICE_ADDRESS = "0.0.0.0:8081";
             };
