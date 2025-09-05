@@ -44,3 +44,21 @@ package() {
 
     install -Dm644 "./wormhole.service" "$pkgdir/usr/lib/systemd/system/wormhole.service"
 }
+
+post_install() {
+    echo "==> To start Wormhole as a service:"
+    echo "    sudo systemctl enable --now wormhole.service"
+    echo
+    echo "==> Default bind address: 0.0.0.0:8081"
+    echo "    You can override it with:"
+    echo "        sudo systemctl edit wormhole"
+    echo "    and set:"
+    echo "        [Service]"
+    echo "        Environment=SERVICE_ADDRESS=ip:port"
+}
+
+post_upgrade() {
+    post_install
+}
+
+# NOTE - test with `extra-x86_64-build`
