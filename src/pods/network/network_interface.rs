@@ -16,7 +16,7 @@ use crate::{
         peer_ipc::PeerIPC,
         server::Server,
     },
-    pods::filesystem::make_inode::MakeInodeError,
+    pods::{arbo::Ino, filesystem::make_inode::MakeInodeError},
 };
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
@@ -39,23 +39,23 @@ use crate::pods::{
 
 use crate::pods::network::callbacks::Callbacks;
 
-pub fn get_all_peers_address(peers: &Arc<RwLock<Vec<PeerIPC>>>) -> WhResult<Vec<Address>> {
+pub fn get_all_peers_address(peers: &Arc<RwLock<Vec<PeerIPC>>>) -> WhResult<Vec<String>> {
     Ok(peers
         .try_read_for(LOCK_TIMEOUT)
         .ok_or(WhError::WouldBlock {
             called_from: "get_all_peers_address: can't lock peers mutex".to_string(),
         })?
         .iter()
-        .map(|peer| peer.address.clone())
-        .collect::<Vec<Address>>())
+        .map(|peer| peer.hostname.clone())
+        .collect::<Vec<String>>())
 }
 #[derive(Debug)]
 pub struct NetworkInterface {
     pub arbo: Arc<RwLock<Arbo>>,
     pub mount_point: WhPath,
+    pub url: Option<String>,
     pub to_network_message_tx: UnboundedSender<ToNetworkMessage>,
     pub to_redundancy_tx: UnboundedSender<RedundancyMessage>,
-    pub next_inode: Mutex<InodeId>, // TODO - replace with InodeIndex type
     pub callbacks: Callbacks,
     pub peers: Arc<RwLock<Vec<PeerIPC>>>,
     pub local_config: Arc<RwLock<LocalConfig>>,
@@ -66,21 +66,19 @@ impl NetworkInterface {
     pub fn new(
         arbo: Arc<RwLock<Arbo>>,
         mount_point: WhPath,
+        url: Option<String>,
         to_network_message_tx: UnboundedSender<ToNetworkMessage>,
         to_redundancy_tx: UnboundedSender<RedundancyMessage>,
-        next_inode: InodeId,
         peers: Arc<RwLock<Vec<PeerIPC>>>,
         local_config: Arc<RwLock<LocalConfig>>,
         global_config: Arc<RwLock<GlobalConfig>>,
     ) -> Self {
-        let next_inode = Mutex::new(next_inode);
-
         Self {
             arbo,
+            url,
             mount_point,
             to_network_message_tx,
             to_redundancy_tx,
-            next_inode,
             callbacks: Callbacks {
                 callbacks: HashMap::new().into(),
             },
@@ -100,50 +98,78 @@ impl NetworkInterface {
             .clone())
     }
 
-    pub fn get_next_inode(&self) -> io::Result<u64> {
-        let mut next_inode = match self.next_inode.try_lock_for(LOCK_TIMEOUT) {
-            Some(lock) => Ok(lock),
-            None => Err(io::Error::new(
-                io::ErrorKind::Interrupted,
-                "get_next_inode: can't lock next_inode",
-            )),
-        }?;
-        let available_inode = *next_inode;
-        *next_inode += 1;
+    #[deprecated(note = "bad to preallocate inodes like this")]
+    pub fn get_next_inode(&self) -> io::Result<Ino> {
+        self.arbo
+            .write()
+            .next_ino
+            .next()
+            .ok_or(io::Error::other("ran out of inodes"))
 
-        Ok(available_inode)
+        // let mut next_inode = match self.next_inode.try_lock_for(LOCK_TIMEOUT) {
+        //     Some(lock) => Ok(lock),
+        //     None => Err(io::Error::new(
+        //         io::ErrorKind::Interrupted,
+        //         "get_next_inode: can't lock next_inode",
+        //     )),
+        // }?;
+        // let available_inode = *next_inode;
+        // *next_inode += 1;
+
+        // Ok(available_inode)
     }
 
     /** TODO: Doc when reviews are finished */
+    #[deprecated(note = "bad to preallocate inodes like this")]
     pub fn n_get_next_inode(&self) -> WhResult<u64> {
-        let mut next_inode =
-            self.next_inode
-                .try_lock_for(LOCK_TIMEOUT)
-                .ok_or(WhError::WouldBlock {
-                    called_from: "get_next_inode".to_string(),
-                })?;
+        self.arbo
+            .write()
+            .next_ino
+            .next()
+            .ok_or(WhError::WouldBlock {
+                called_from: "n_get_next_inode".to_owned(),
+            })
+            .inspect_err(|_| log::error!("Ran out of Ino, returning Wh::WouldBlock"))
 
-        let available_inode = *next_inode;
-        *next_inode += 1;
+        // let mut next_inode =
+        //     self.next_inode
+        //         .try_lock_for(LOCK_TIMEOUT)
+        //         .ok_or(WhError::WouldBlock {
+        //             called_from: "get_next_inode".to_string(),
+        //         })?;
 
-        Ok(available_inode)
+        // let available_inode = *next_inode;
+        // *next_inode += 1;
+
+        // Ok(available_inode)
     }
 
-    #[must_use]
-    pub fn promote_next_inode(&self, new: u64) -> WhResult<()> {
-        let mut next_inode =
-            self.next_inode
-                .try_lock_for(LOCK_TIMEOUT)
-                .ok_or(WhError::WouldBlock {
-                    called_from: "promote_next_inode".to_string(),
-                })?;
-
-        // REVIEW: next_inode being behind a mutex is weird and
-        // the function not taking a mutable ref feels weird, is next_inode behind a mutex just to allow a simple &self?
-        if *next_inode < new {
-            *next_inode = new;
-        };
+    #[deprecated(note = "probably bad to manipulate arbo from the outside like this")]
+    pub fn promote_next_inode(&self, new: Ino) -> WhResult<()> {
+        let next = &mut self.arbo.write().next_ino;
+        new.ge(&next.start)
+            .then_some(())
+            .ok_or(WhError::InodeNotFound)
+            .inspect_err(|_| log::error!("Ran out of Ino, returning Wh::WouldBlock"))?;
+        *next = new..;
+        // .next()
+        // .ok_or(WhError::WouldBlock { called_from: "n_get_next_inode".to_owned()} )
+        // .inspect_err(|e| log::error!("Ran out of Ino, returning Wh::WouldBlock"))
         Ok(())
+
+        // let mut next_inode =
+        //     self.next_inode
+        //         .try_lock_for(LOCK_TIMEOUT)
+        //         .ok_or(WhError::WouldBlock {
+        //             called_from: "promote_next_inode".to_string(),
+        //         })?;
+
+        // // REVIEW: next_inode being behind a mutex is weird and
+        // // the function not taking a mutable ref feels weird, is next_inode behind a mutex just to allow a simple &self?
+        // if *next_inode < new {
+        //     *next_inode = new;
+        // };
+        // Ok(())
     }
 
     #[must_use]
@@ -441,8 +467,8 @@ impl NetworkInterface {
             let peers_address_list = peers
                 .iter()
                 .filter_map(|peer| {
-                    if peer.address != to {
-                        Some(peer.address.clone())
+                    if peer.hostname != to {
+                        Some(peer.hostname.clone())
                     } else {
                         None
                     }
@@ -481,7 +507,7 @@ impl NetworkInterface {
                 std::io::ErrorKind::WouldBlock,
                 format!("disconnect_peer: can't write lock peers"),
             ))?
-            .retain(|p| p.address != addr);
+            .retain(|p| p.hostname != addr);
 
         log::debug!("Disconnecting {addr}. Removing from inodes hosts");
         for inode in Arbo::write_lock(&self.arbo, "disconnect_peer")?.inodes_mut() {
@@ -607,7 +633,7 @@ impl NetworkInterface {
                 .try_read_for(LOCK_TIMEOUT)
                 .expect("mutext error on contact_peers") // TODO - handle timeout
                 .iter()
-                .map(|peer| (peer.sender.clone(), peer.address.clone()))
+                .map(|peer| (peer.sender.clone(), peer.hostname.clone()))
                 .collect();
 
             match message {
@@ -635,7 +661,7 @@ impl NetworkInterface {
     pub async fn incoming_connections_watchdog(
         server: Arc<Server>,
         receiver_in: UnboundedSender<FromNetworkMessage>,
-        existing_peers: Arc<RwLock<Vec<PeerIPC>>>,
+        network_interface: Arc<NetworkInterface>,
     ) {
         while let Ok((stream, addr)) = server.listener.accept().await {
             log::debug!("GOT ADDRESS {addr}");
@@ -650,14 +676,13 @@ impl NetworkInterface {
             .await
             .expect("Error during the websocket handshake occurred");
 
-            let (write, read) = futures_util::StreamExt::split(ws_stream);
-            let new_peer =
-                PeerIPC::connect_from_incomming(addr.to_string(), receiver_in.clone(), write, read);
-            {
-                existing_peers
+            match PeerIPC::accept(&network_interface, ws_stream, receiver_in.clone()).await {
+                Ok(new_peer) => network_interface
+                    .peers
                     .try_write_for(LOCK_TIMEOUT)
                     .expect("incoming_connections_watchdog: can't lock existing peers")
-                    .push(new_peer);
+                    .push(new_peer),
+                Err(e) => log::error!("incomming: accept: {e}"),
             }
         }
     }

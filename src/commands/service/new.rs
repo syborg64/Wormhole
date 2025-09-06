@@ -56,19 +56,7 @@ async fn pod_value(args: &PodArgs) -> CliResult<(GlobalConfig, LocalConfig, Arc<
         })?;
 
     log::info!("canonical: {:?}", path);
-    // let pod_name = args.name.clone().ok_or(||CliError::PodNotFound).or_else(|_| match std::fs::canonicalize(&path).map(|file| {
-    //     file.file_name()
-    //     .and_then(|f| f.to_str())
-    //     .map(|f| f.to_owned())
-    // }) {
-    //     Ok(Some(name)) => Ok(name.to_owned()),
-    //     e => {
-    //         Err(CliError::InvalidArgument {
-    //             arg: format!("name: {e:?}"),
-    //         })
-    //     }
-    // })?;
-    // log::info!("name: {pod_name}");
+
     let address = "0.0.0.0:".to_owned() + &args.port;
     let local_cfg_path = path.join(LOCAL_CONFIG_FNAME);
     let global_cfg_path = path.join(GLOBAL_CONFIG_FNAME);

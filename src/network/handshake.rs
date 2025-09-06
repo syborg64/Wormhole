@@ -1,8 +1,8 @@
-use std::net::SocketAddr;
+use std::{convert::identity, net::SocketAddr};
 
 use custom_error::custom_error;
+use futures::{future::Either, Sink, Stream};
 use futures_util::{
-    future::Either,
     stream::{SplitSink, SplitStream},
     SinkExt,
 };
@@ -11,17 +11,18 @@ use tokio::net::TcpStream;
 use tokio_stream::StreamExt;
 use tokio_tungstenite::{
     tungstenite::{self, Message},
-    WebSocketStream,
+    MaybeTlsStream, WebSocketStream,
 };
 
 use crate::{
-    config::{GlobalConfig},
+    config::GlobalConfig,
     error::WhError,
     pods::{arbo::Arbo, network::network_interface::NetworkInterface},
 };
 
 custom_error! {
     pub HandshakeError
+    CouldntConnect = "peer did not respond",
     InvalidHandshake = "peer behaved unexpectedly",
     DuplicateHostname{hostname: String} = "peer by name {hostname} is already on this network",
     Tungstenite{source: tungstenite::Error} = "tungstenite: {source}",
@@ -34,6 +35,7 @@ custom_error! {
     /// WARNING: make sure this struct is kept in sync with HandshakeError
     #[derive(Serialize, Deserialize, Clone)]
     pub RemoteHandshakeError
+    CouldntConnect = "peer did not respond",
     InvalidHandshake = "peer behaved unexpectedly",
     DuplicateHostname{hostname: String} = "peer by name {hostname} is already on this network",
     Tungstenite{string: String} = "tungstenite: {string}",
@@ -46,6 +48,7 @@ impl From<&HandshakeError> for RemoteHandshakeError {
         type E = HandshakeError;
         type ES = RemoteHandshakeError;
         match value {
+            E::CouldntConnect => ES::CouldntConnect,
             E::InvalidHandshake => ES::InvalidHandshake,
             E::Tungstenite { source } => ES::Tungstenite {
                 string: source.to_string(),
@@ -69,6 +72,7 @@ impl From<RemoteHandshakeError> for HandshakeError {
         type E = HandshakeError;
         type ES = RemoteHandshakeError;
         match value {
+            ES::CouldntConnect => E::CouldntConnect,
             ES::InvalidHandshake => E::InvalidHandshake,
             ES::DuplicateHostname { hostname } => E::DuplicateHostname { hostname },
             other => E::Remote {
@@ -77,24 +81,6 @@ impl From<RemoteHandshakeError> for HandshakeError {
         }
     }
 }
-
-// impl Serialize for HandshakeError {
-//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-//     where
-//         S: serde::Serializer,
-//     {
-//         RemoteHandshakeError::from(self).serialize(serializer)
-//     }
-// }
-
-// impl<'de> Deserialize<'de> for HandshakeError {
-//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-//     where
-//         D: serde::Deserializer<'de>,
-//     {
-//         Ok(RemoteHandshakeError::deserialize(deserializer)?.into())
-//     }
-// }
 
 impl From<bincode::Error> for HandshakeError {
     fn from(bincode: bincode::Error) -> Self {
@@ -105,39 +91,81 @@ impl From<bincode::Error> for HandshakeError {
 const GIT_HASH: &'static str = env!("GIT_HASH");
 
 #[derive(Deserialize, Serialize)]
-enum Handshake {
-    Accept(Accept),
+pub enum Handshake {
+    /// First Message.
+    /// Sent by connecting peers for entry into a network
+    /// Valid replies: [Handshake::Accept], [Handshake::Accept]
     Connect(Connect),
+
+    /// Second Message.
+    /// Returned by entrypoint to entrant to complete the handshake
+    /// Contains important information about this network
+    /// Valid replies: Move on to [crate::network::message::MessageContent]
+    Accept(Accept),
+
+    /// Alternative Second Message.
+    /// Returned by entrypoint to entrant to interrupt the handshake
+    /// Valid replies: Shut down. Retry ?
     Refuse(RemoteHandshakeError),
+
+    /// Simple Acknowledge Message
+    /// Symmetric first and second message
+    /// Send first by connecting peers and returned by accepting peers
+    /// Valid replies: [Handshake::Wave] then [crate::network::message::MessageContent]
     Wave(Wave),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-struct Accept {
+pub struct Accept {
+    /// hostname of the accepting peer
     pub hostname: String,
+
+    /// hostname of  peers, in arbitrary order, with Accepting at the first
+    pub hosts: Vec<String>,
+
+    /// urls of all avaialble peers, in the same order
+    pub urls: Vec<Option<String>>,
+
+    /// global config of the network
     pub config: GlobalConfig,
+
+    /// ITree of the network
     pub arbo: Arbo,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-struct Connect {
+pub struct Connect {
+    /// version string to detect incompatible serialization
     pub magic_version: String,
+
+    /// hostname of the connecting peer
     pub hostname: String,
-    pub socket: Option<SocketAddr>,
+
+    /// url by which this peer may be accessed, if available
+    pub url: Option<String>,
+    // /// simple unencrypted passkey
     // pub authentification: String,
+
+    // /// startup contributions
     // pub files: HashMap<WhPath, Metadata>
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-struct Wave {
+pub struct Wave {
+    /// hostname of the waving peer
     pub hostname: String,
+
+    /// url by which the waving peer may be reached, if available
+    pub url: Option<String>,
+
+    /// hostname of the third party peer that acted as an entrypoint
     pub blame: String,
 }
 
-pub async fn accept<T: StreamExt<Item = Result<Message, tungstenite::Error>> + SinkExt<Message>>(
+pub async fn accept(
     stream: &mut SplitStream<WebSocketStream<TcpStream>>,
     sink: &mut SplitSink<WebSocketStream<TcpStream>, Message>,
-    network: NetworkInterface,
+    network: &NetworkInterface,
 ) -> Result<Either<Connect, Wave>, HandshakeError> {
     let message = stream
         .next()
@@ -154,17 +182,36 @@ pub async fn accept<T: StreamExt<Item = Result<Message, tungstenite::Error>> + S
         Ok(Handshake::Connect(connect)) => {
             (async || {
                 // closures to capture ? process
-                let peers_lock = network.peers.read();
+                let hostname = network.hostname()?;
+                let url = network.url.clone();
+                let (all_different, url_pairs): (Vec<bool>, Vec<(String, Option<String>)>) =
+                    network
+                        .peers
+                        .read()
+                        .iter()
+                        .map(|peer| {
+                            (
+                                peer.hostname != connect.hostname,
+                                (peer.hostname.clone(), peer.url.clone()),
+                            )
+                        })
+                        .unzip();
 
-                peers_lock
-                    .iter()
-                    .all(|peer| peer.hostname != connect.hostname)
+                (all_different.into_iter().all(identity) && hostname != connect.hostname)
                     .then_some(())
                     .ok_or(HandshakeError::DuplicateHostname {
                         hostname: connect.hostname.clone(),
                     })?;
+
+                let (hosts, urls) = [(hostname.clone(), url)]
+                    .into_iter()
+                    .chain(url_pairs.into_iter())
+                    .unzip();
+
                 let accept = Accept {
-                    hostname: network.hostname()?,
+                    urls,
+                    hosts,
+                    hostname,
                     config: network.global_config.read().clone(),
                     arbo: (*network.arbo.read()).clone(),
                 };
@@ -180,6 +227,7 @@ pub async fn accept<T: StreamExt<Item = Result<Message, tungstenite::Error>> + S
                 // closures to capture ? process
                 let wave_back = Wave {
                     hostname: network.hostname()?,
+                    url: None,
                     blame: wave.hostname.clone(),
                 };
                 let data = bincode::serialize(&Handshake::Wave(wave_back))?;
@@ -193,14 +241,13 @@ pub async fn accept<T: StreamExt<Item = Result<Message, tungstenite::Error>> + S
         Err(e) => Err(e),
     };
     let result = if let Err(error) = result {
-        (async ||
-            { sink.send(Message::Binary(bincode::serialize(&Handshake::Refuse(
-                (&error).into(),
-            ))?.into()))
+        (async || {
+            sink.send(Message::Binary(
+                bincode::serialize(&Handshake::Refuse((&error).into()))?.into(),
+            ))
             .await?;
             Err(error)
-        }
-        )()
+        })()
         .await
     } else {
         result
@@ -208,22 +255,29 @@ pub async fn accept<T: StreamExt<Item = Result<Message, tungstenite::Error>> + S
     result
 }
 
-pub async fn wave(
-    stream: &mut SplitStream<WebSocketStream<TcpStream>>,
-    sink: &mut SplitSink<WebSocketStream<TcpStream>, Message>,
+pub async fn wave<T>(
+    stream: &mut SplitStream<WebSocketStream<T>>,
+    sink: &mut SplitSink<WebSocketStream<T>, Message>,
     hostname: String,
     blame: String,
-) -> Result<Wave, HandshakeError> {
+) -> Result<Wave, HandshakeError>
+where
+    SplitStream<WebSocketStream<T>>: StreamExt<Item = Result<Message, tungstenite::Error>>,
+    WebSocketStream<T>: Sink<Message, Error = tungstenite::Error>,
+{
     let wave = Wave {
         hostname,
+        url: None,
         blame,
     };
 
     let serialized = bincode::serialize(&Handshake::Wave(wave))?;
     sink.send(Message::Binary(serialized.into())).await?;
 
-
-    let response = stream.next().await.ok_or(HandshakeError::InvalidHandshake)??;
+    let response = stream
+        .next()
+        .await
+        .ok_or(HandshakeError::InvalidHandshake)??;
 
     let handshake = if let Message::Binary(bytes) = response {
         Ok(bincode::deserialize::<Handshake>(&bytes)?)
@@ -233,26 +287,28 @@ pub async fn wave(
 
     match handshake {
         Handshake::Wave(wave) => Ok(wave),
-        _ => Err(HandshakeError::InvalidHandshake)
+        _ => Err(HandshakeError::InvalidHandshake),
     }
 }
 
 pub async fn connect(
-    stream: &mut SplitStream<WebSocketStream<TcpStream>>,
-    sink: &mut SplitSink<WebSocketStream<TcpStream>, Message>,
+    stream: &mut SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
+    sink: &mut SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
     hostname: String,
 ) -> Result<Accept, HandshakeError> {
     let connect = Connect {
         hostname,
         magic_version: GIT_HASH.into(),
-        socket: None,
+        url: None,
     };
 
     let serialized = bincode::serialize(&Handshake::Connect(connect))?;
     sink.send(Message::Binary(serialized.into())).await?;
 
-
-    let response = stream.next().await.ok_or(HandshakeError::InvalidHandshake)??;
+    let response = stream
+        .next()
+        .await
+        .ok_or(HandshakeError::InvalidHandshake)??;
 
     let handshake = if let Message::Binary(bytes) = response {
         Ok(bincode::deserialize::<Handshake>(&bytes)?)
@@ -263,6 +319,6 @@ pub async fn connect(
     match handshake {
         Handshake::Accept(accept) => Ok(accept),
         Handshake::Refuse(error) => Err(error.into()),
-        _ => Err(HandshakeError::InvalidHandshake)
+        _ => Err(HandshakeError::InvalidHandshake),
     }
 }

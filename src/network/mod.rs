@@ -5,4 +5,5 @@ pub mod peer_ipc;
 // pub mod peers_operations;
 pub mod server;
 mod handshake;
+pub use handshake::HandshakeError;
 // pub mod watchdogs;

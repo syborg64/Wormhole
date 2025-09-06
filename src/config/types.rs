@@ -62,6 +62,7 @@ pub struct LocalConfig {
 pub struct GeneralLocalConfig {
     // pub name: String,
     pub hostname: String,
+    pub url: Option<String>,
 }
 
 impl LocalConfig {

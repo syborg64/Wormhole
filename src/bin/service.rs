@@ -50,7 +50,7 @@ async fn handle_cli_command(
     let response_command = match command {
         Cli::New(pod_args) => {
             if if let Some(path) = &pod_args.mountpoint {
-                pods.values().any(|p| p.get_mount_point() == path)
+                pods.values().any(|p| p.get_mountpoint() == path)
             } else {
                 false
             } {
@@ -86,7 +86,7 @@ async fn handle_cli_command(
                         })
                         .and_then(|path| {
                             pods.iter()
-                                .find(|(_, pod)| pod.get_mount_point() == &path)
+                                .find(|(_, pod)| pod.get_mountpoint() == &path)
                                 .map(|(key, _)| key.clone())
                                 .ok_or(CliError::PodNotFound)
                         })
@@ -116,7 +116,7 @@ async fn handle_cli_command(
                         })
                         .and_then(|path| {
                             pods.iter()
-                                .find(|(_, pod)| pod.get_mount_point() == &path)
+                                .find(|(_, pod)| pod.get_mountpoint() == &path)
                                 .map(|(key, _)| key.clone())
                                 .ok_or(CliError::PodNotFound)
                         })
@@ -132,12 +132,12 @@ async fn handle_cli_command(
             let opt_pod = if let Some(name) = &restore_args.name {
                 pods.iter().find(|(n, _)| n == &name)
             } else if let Some(path) = &restore_args.path {
-                pods.iter().find(|(_, pod)| pod.get_mount_point() == path)
+                pods.iter().find(|(_, pod)| pod.get_mountpoint() == path)
             } else {
                 None
             };
             if let Some((_, pod)) = opt_pod {
-                restore_args.path = Some(pod.get_mount_point().clone());
+                restore_args.path = Some(pod.get_mountpoint().clone());
                 commands::service::restore(
                     pod.local_config.clone(),
                     pod.global_config.clone(),
@@ -159,14 +159,14 @@ async fn handle_cli_command(
             let opt_pod = if let Some(name) = &pod_conf.name {
                 pods.iter().find(|(n, _)| n == &name)
             } else if let Some(path) = &pod_conf.path {
-                pods.iter().find(|(_, pod)| pod.get_mount_point() == path)
+                pods.iter().find(|(_, pod)| pod.get_mountpoint() == path)
             } else {
                 None
             };
 
             //Apply new confi in the pod and check if the name change
             let res = if let Some((name, pod)) = opt_pod {
-                pod_conf.path = Some(pod.get_mount_point().clone());
+                pod_conf.path = Some(pod.get_mountpoint().clone());
 
                 match commands::service::apply(
                     pod.local_config.clone(),
@@ -223,7 +223,7 @@ async fn handle_cli_command(
             if let Some((_, pod)) = if let Some(name) = &args.name {
                 pods.iter().find(|(n, _)| n == &name)
             } else if let Some(path) = &args.path {
-                pods.iter().find(|(_, pod)| pod.get_mount_point() == path)
+                pods.iter().find(|(_, pod)| pod.get_mountpoint() == path)
             } else {
                 None
             } {
@@ -247,8 +247,8 @@ async fn handle_cli_command(
                         .find_map(|(n, pod)| (n == name).then_some((pod, None)))
                 } else if let Some(path) = &path {
                     pods.iter().find_map(|(_, pod)| {
-                        log::info!("TREE: pod: {:?}", &pod.get_mount_point());
-                        path.strip_prefix(&pod.get_mount_point())
+                        log::info!("TREE: pod: {:?}", &pod.get_mountpoint());
+                        path.strip_prefix(&pod.get_mountpoint())
                             .ok()
                             .map(|sub| (pod, Some(sub.into())))
                     })

@@ -30,6 +30,11 @@ pub fn apply(
                         conf.general.hostname = hostname.clone();
                         log.push_str("Warning: hostname change rejected\n");
                     }
+                    let url = &local_config.read().general.url;
+                    if conf.general.url != *url {
+                        conf.general.url = url.clone();
+                        log.push_str("Warning: url change rejected\n");
+                    }
                 }
                 *LocalConfig::write_lock(&local_config, "apply::local_config")? = conf;
             }
