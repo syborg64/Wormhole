@@ -99,7 +99,7 @@ async fn check_integrity(
 ) -> WhResult<()> {
     let available_peers = peers.len() + 1;
 
-    let hostname= nw_interface.hostname()?;
+    let hostname = nw_interface.hostname()?;
 
     // Applies redundancy to needed files
     let selected_files: Vec<Ino> =
@@ -176,8 +176,7 @@ async fn push_redundancy(
     file_binary: Arc<Vec<u8>>,
     target_redundancy: usize,
 ) -> Vec<Address> {
-    let mut success_hosts: Vec<Address> =
-        vec![nw_interface.hostname().unwrap()];
+    let mut success_hosts: Vec<Address> = vec![nw_interface.hostname().unwrap()];
     let mut set: JoinSet<WhResult<Address>> = JoinSet::new();
 
     for i in 0..target_redundancy {

@@ -11,12 +11,12 @@ use tokio_tungstenite::tungstenite::{protocol::WebSocketConfig, Message};
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
 use crate::{
-    config::{GlobalConfig, LocalConfig},
+    config::LocalConfig,
     network::{
         forward::{forward_peer_to_receiver, forward_sender_to_peer},
-        handshake::{self, Accept, Handshake, HandshakeError, Wave},
+        handshake::{self, Accept, HandshakeError, Wave},
     },
-    pods::{arbo::Arbo, network::network_interface::NetworkInterface},
+    pods::network::network_interface::NetworkInterface,
 };
 
 use super::message::{Address, FromNetworkMessage, MessageAndStatus};
@@ -107,9 +107,7 @@ impl PeerIPC {
         {
             Ok((stream, _)) => {
                 let (mut sink, mut stream) = stream.split();
-                let accept =
-                    handshake::connect(&mut stream, &mut sink, &config)
-                        .await?;
+                let accept = handshake::connect(&mut stream, &mut sink, &config).await?;
                 (
                     accept,
                     tokio::spawn(Self::work(

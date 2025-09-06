@@ -1,7 +1,5 @@
-use std::{convert::identity, net::SocketAddr};
-
 use custom_error::custom_error;
-use futures::{future::Either, Sink, Stream};
+use futures::{future::Either, Sink};
 use futures_util::{
     stream::{SplitSink, SplitStream},
     SinkExt,
@@ -202,21 +200,21 @@ pub async fn accept(
                 // closures to capture ? process
                 let hostname = network.hostname()?;
                 let url = network.url.clone();
-                let url_pairs =  network
-                        .peers
-                        .read()
-                        .iter()
-                        .map(|peer|
-                                (peer.hostname.clone(), peer.url.clone()),
-                        ).collect::<Vec<_>>();
+                let url_pairs = network
+                    .peers
+                    .read()
+                    .iter()
+                    .map(|peer| (peer.hostname.clone(), peer.url.clone()))
+                    .collect::<Vec<_>>();
 
                 let (hosts, urls) = [(hostname.clone(), url)]
                     .into_iter()
-                    .chain(url_pairs.into_iter()).inspect(|(h, u)|log::trace!("accept:h{h}, u{u:?}"))
+                    .chain(url_pairs.into_iter())
+                    .inspect(|(h, u)| log::trace!("accept:h{h}, u{u:?}"))
                     .unzip();
                 let rename = unique_hostname(connect.hostname.clone(), &hosts);
 
-                if let Some(rename) = &rename{
+                if let Some(rename) = &rename {
                     connect.hostname = rename.clone();
                 }
 

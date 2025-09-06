@@ -98,8 +98,6 @@ pub struct GeneralGlobalConfig {
     pub pods_names: Vec<String>,
 }
 
-
-
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RedundancyConfig {
     pub number: u64,

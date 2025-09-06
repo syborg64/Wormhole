@@ -1,4 +1,3 @@
-use crate::config::{types::Config, LocalConfig};
 use crate::error::WhResult;
 use crate::network::message::Address;
 use crate::pods::arbo::{Arbo, FsEntry, Inode, InodeId, Metadata, GLOBAL_CONFIG_INO};
@@ -215,8 +214,7 @@ impl FsInterface {
         host: String,
         meta: Metadata,
     ) -> Result<(), AcknoledgeSetAttrError> {
-        let needs_delete = host
-            != self.network_interface.hostname()?;
+        let needs_delete = host != self.network_interface.hostname()?;
         self.acknowledge_metadata(id, meta)?;
         self.network_interface
             .acknowledge_hosts_edition(id, vec![host])
@@ -238,7 +236,13 @@ impl FsInterface {
     }
 
     pub fn recept_remove_hosts(&self, id: InodeId, hosts: Vec<Address>) -> io::Result<()> {
-        if hosts.contains(&self.network_interface.hostname().ok().ok_or(io::Error::other("deadlock"))?) {
+        if hosts.contains(
+            &self
+                .network_interface
+                .hostname()
+                .ok()
+                .ok_or(io::Error::other("deadlock"))?,
+        ) {
             if let Err(e) = self.disk.remove_file(
                 &Arbo::read_lock(&self.arbo, "recept_remove_hosts")?.get_path_from_inode_id(id)?,
             ) {
