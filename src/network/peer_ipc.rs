@@ -108,7 +108,7 @@ impl PeerIPC {
             Ok((stream, _)) => {
                 let (mut sink, mut stream) = stream.split();
                 let accept =
-                    handshake::connect(&mut stream, &mut sink, config.general.hostname.clone())
+                    handshake::connect(&mut stream, &mut sink, &config)
                         .await?;
                 (
                     accept,
@@ -188,7 +188,7 @@ impl PeerIPC {
     }
 
     // start connexions to peers
-    pub async fn peer_startup<I: Iterator<Item = String>>(
+    pub async fn peer_startup<I: IntoIterator<Item = String>>(
         peer_entrypoints: I,
         hostname: String,
         blame: String,

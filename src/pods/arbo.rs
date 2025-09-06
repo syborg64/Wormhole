@@ -41,7 +41,6 @@ pub const ARBO_FILE_FNAME: &str = ".arbo";
 pub type Hosts = Vec<Address>;
 
 /// todo: replace usage of InodeId with Ino when no parallel merges are likely to be conflicting
-#[deprecated(note = "use Ino")]
 pub type InodeId = u64;
 pub type Ino = u64;
 

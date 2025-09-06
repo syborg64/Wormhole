@@ -61,17 +61,20 @@ async fn pod_value(args: &PodArgs) -> CliResult<(GlobalConfig, LocalConfig, Arc<
     let local_cfg_path = path.join(LOCAL_CONFIG_FNAME);
     let global_cfg_path = path.join(GLOBAL_CONFIG_FNAME);
 
-    // return Err(CliError::BincodeError);
-
     let mut local_config: LocalConfig = LocalConfig::read(&local_cfg_path).unwrap_or_default();
-    // local_config.general.name = args.name.clone();
     local_config.general.hostname = args
         .hostname
         .clone()
-        .or_else(|| gethostname().into_string().ok().map(|h| h + &args.port))
+        .or_else(|| gethostname().into_string().ok())
         .ok_or(CliError::Message {
             reason: "no valid hostname".to_owned(),
         })?;
+    local_config.general.url = Some(
+        args.listen_url
+            .as_ref()
+            .unwrap_or(&local_config.general.hostname)
+            .clone(),
+    );
     let server: Arc<Server> = Arc::new(Server::setup(&address).await?);
 
     let global_config: GlobalConfig = GlobalConfig::read(global_cfg_path).unwrap_or_default();

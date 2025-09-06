@@ -15,7 +15,7 @@ use tokio_tungstenite::{
 };
 
 use crate::{
-    config::GlobalConfig,
+    config::{GlobalConfig, LocalConfig},
     error::WhError,
     pods::{arbo::Arbo, network::network_interface::NetworkInterface},
 };
@@ -24,7 +24,6 @@ custom_error! {
     pub HandshakeError
     CouldntConnect = "peer did not respond",
     InvalidHandshake = "peer behaved unexpectedly",
-    DuplicateHostname{hostname: String} = "peer by name {hostname} is already on this network",
     Tungstenite{source: tungstenite::Error} = "tungstenite: {source}",
     Serialization{bincode: bincode::Error} = "bincode: {bincode}",
     WhError{source: WhError} = "{source}",
@@ -37,7 +36,6 @@ custom_error! {
     pub RemoteHandshakeError
     CouldntConnect = "peer did not respond",
     InvalidHandshake = "peer behaved unexpectedly",
-    DuplicateHostname{hostname: String} = "peer by name {hostname} is already on this network",
     Tungstenite{string: String} = "tungstenite: {string}",
     Serialization{string: String} = "bincode: {string}",
     WhError{string: String} = "{string}",
@@ -56,9 +54,6 @@ impl From<&HandshakeError> for RemoteHandshakeError {
             E::Serialization { bincode } => ES::Serialization {
                 string: bincode.to_string(),
             },
-            E::DuplicateHostname { hostname } => ES::DuplicateHostname {
-                hostname: hostname.to_string(),
-            },
             E::WhError { source } => ES::WhError {
                 string: source.to_string(),
             },
@@ -74,7 +69,6 @@ impl From<RemoteHandshakeError> for HandshakeError {
         match value {
             ES::CouldntConnect => E::CouldntConnect,
             ES::InvalidHandshake => E::InvalidHandshake,
-            ES::DuplicateHostname { hostname } => E::DuplicateHostname { hostname },
             other => E::Remote {
                 serialized: other.clone(),
             },
@@ -120,7 +114,10 @@ pub struct Accept {
     /// hostname of the accepting peer
     pub hostname: String,
 
-    /// hostname of  peers, in arbitrary order, with Accepting at the first
+    /// rename the connecting host, in case of name collisions
+    pub rename: Option<String>,
+
+    /// hostname of peers, in arbitrary order, with the accepting host first
     pub hosts: Vec<String>,
 
     /// urls of all avaialble peers, in the same order
@@ -162,6 +159,27 @@ pub struct Wave {
     pub blame: String,
 }
 
+fn unique_hostname(mut hostname: String, colliders: &Vec<String>) -> Option<String> {
+    if !colliders.contains(&hostname) {
+        return None;
+    }
+    while colliders.contains(&hostname) {
+        println!("failed: {hostname}");
+        if let Some((prefix, realname)) = hostname.split_once('.') {
+            if let Ok(idx) = prefix.parse::<usize>() {
+                hostname = format!("{}.{}", idx + 1, realname);
+            } else if &prefix == &"" {
+                hostname = format!("1{}", hostname);
+            } else {
+                hostname = format!("1.{}", hostname);
+            }
+        } else {
+            hostname = format!("1.{}", hostname);
+        }
+    }
+    Some(hostname)
+}
+
 pub async fn accept(
     stream: &mut SplitStream<WebSocketStream<TcpStream>>,
     sink: &mut SplitSink<WebSocketStream<TcpStream>, Message>,
@@ -179,43 +197,38 @@ pub async fn accept(
     };
 
     let result = match handshake {
-        Ok(Handshake::Connect(connect)) => {
+        Ok(Handshake::Connect(mut connect)) => {
             (async || {
                 // closures to capture ? process
                 let hostname = network.hostname()?;
                 let url = network.url.clone();
-                let (all_different, url_pairs): (Vec<bool>, Vec<(String, Option<String>)>) =
-                    network
+                let url_pairs =  network
                         .peers
                         .read()
                         .iter()
-                        .map(|peer| {
-                            (
-                                peer.hostname != connect.hostname,
+                        .map(|peer|
                                 (peer.hostname.clone(), peer.url.clone()),
-                            )
-                        })
-                        .unzip();
-
-                (all_different.into_iter().all(identity) && hostname != connect.hostname)
-                    .then_some(())
-                    .ok_or(HandshakeError::DuplicateHostname {
-                        hostname: connect.hostname.clone(),
-                    })?;
+                        ).collect::<Vec<_>>();
 
                 let (hosts, urls) = [(hostname.clone(), url)]
                     .into_iter()
-                    .chain(url_pairs.into_iter())
+                    .chain(url_pairs.into_iter()).inspect(|(h, u)|log::trace!("accept:h{h}, u{u:?}"))
                     .unzip();
+                let rename = unique_hostname(connect.hostname.clone(), &hosts);
+
+                if let Some(rename) = &rename{
+                    connect.hostname = rename.clone();
+                }
 
                 let accept = Accept {
                     urls,
                     hosts,
+                    rename,
                     hostname,
                     config: network.global_config.read().clone(),
                     arbo: (*network.arbo.read()).clone(),
                 };
-                let data = bincode::serialize(&accept)?;
+                let data = bincode::serialize(&Handshake::Accept(accept))?;
                 sink.send(Message::Binary(data.into())).await?;
 
                 Ok(Either::Left(connect))
@@ -294,12 +307,12 @@ where
 pub async fn connect(
     stream: &mut SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
     sink: &mut SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
-    hostname: String,
+    local_config: &LocalConfig,
 ) -> Result<Accept, HandshakeError> {
     let connect = Connect {
-        hostname,
+        hostname: local_config.general.hostname.clone(),
         magic_version: GIT_HASH.into(),
-        url: None,
+        url: local_config.general.url.clone(),
     };
 
     let serialized = bincode::serialize(&Handshake::Connect(connect))?;

@@ -10,7 +10,7 @@ use crate::network::message::{
     FileSystemSerialized, FromNetworkMessage, MessageContent, ToNetworkMessage,
 };
 use crate::network::HandshakeError;
-use crate::pods::arbo::{FsEntry, GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_INO, ROOT};
+use crate::pods::arbo::{FsEntry, GLOBAL_CONFIG_FNAME, LOCAL_CONFIG_FNAME, LOCAL_CONFIG_INO, ROOT};
 #[cfg(target_os = "windows")]
 use crate::pods::disk_managers::dummy_disk_manager::DummyDiskManager;
 #[cfg(target_os = "linux")]
@@ -93,21 +93,43 @@ async fn initiate_connection(
                     return Err(receiver_out);
                 }
                 Ok((ipc, accept)) => {
-                    return if let Some(urls) = accept.urls.into_iter().skip(1).fold(Some(vec![]), |a, b| {
-                        a.and_then(|mut a| {
-                            a.push(b?);
-                            Some(a)
-                        })
-                    }) {
-                        Ok(PodPrototype {
-                            arbo: accept.arbo,
-                            peers: vec![ipc],
-                            global_config: accept.config,
-                            local_config: local_config.clone(),
-                            mountpoint: mountpoint.clone(),
-                            receiver_out,
-                            receiver_in: receiver_in.clone(),
-                        })
+                    return if let Some(urls) =
+                        accept.urls.into_iter().skip(1).fold(Some(vec![]), |a, b| {
+                            a.and_then(|mut a| {
+                                a.push(b?);
+                                Some(a)
+                            })
+                        }) {
+                        let mut local_config = local_config.clone();
+                        if let Some(rename) = accept.rename {
+                            local_config.general.hostname = rename;
+                        }
+
+                        match PeerIPC::peer_startup(
+                            urls,
+                            local_config.general.hostname.clone(),
+                            accept.hostname,
+                            receiver_in.clone(),
+                        )
+                        .await
+                        {
+                            Ok(mut other_ipc) => {
+                                other_ipc.insert(0, ipc);
+                                Ok(PodPrototype {
+                                    arbo: accept.arbo,
+                                    peers: other_ipc,
+                                    global_config: accept.config,
+                                    local_config,
+                                    mountpoint: mountpoint.clone(),
+                                    receiver_out,
+                                    receiver_in: receiver_in.clone(),
+                                })
+                            }
+                            Err(e) => {
+                                log::error!("a peer failed: {e}");
+                                Err(receiver_out)
+                            }
+                        }
                     } else {
                         log::error!("Peers do not all have a url!");
                         Err(receiver_out)
@@ -176,12 +198,7 @@ impl Pod {
         let global_config = global_config;
 
         log::trace!("mount point {}", mountpoint);
-        // let (senders_in, senders_out) = mpsc::unbounded_channel();
-        let (receiver_in, mut receiver_out) = mpsc::unbounded_channel();
-
-        // global_config.general.peers.retain(|x| *x != server_address);
-
-        // let mut peers = vec![];
+        let (receiver_in, receiver_out) = mpsc::unbounded_channel();
 
         let proto = match initiate_connection(
             &mountpoint,
@@ -243,6 +260,21 @@ impl Pod {
             disk_manager.write_file(
                 &GLOBAL_CONFIG_FNAME.into(),
                 toml::to_string(&proto.global_config)
+                    .expect("infallible")
+                    .as_bytes(),
+                0,
+            )?;
+        }
+
+        if let Ok(perms) = proto
+            .arbo
+            .get_inode(LOCAL_CONFIG_INO)
+            .map(|inode| inode.meta.perm)
+        {
+            let _ = disk_manager.new_file(&LOCAL_CONFIG_FNAME.into(), perms);
+            disk_manager.write_file(
+                &LOCAL_CONFIG_FNAME.into(),
+                toml::to_string(&proto.local_config)
                     .expect("infallible")
                     .as_bytes(),
                 0,
