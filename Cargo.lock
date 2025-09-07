@@ -2500,7 +2500,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "052283831dbae3d879dc7f51f3d92703a316ca49f91540417d38591826127814"
 
 [[package]]
-name = "wormhole"
+name = "wormhole-fs"
 version = "0.1.0"
 dependencies = [
  "assert_fs",
