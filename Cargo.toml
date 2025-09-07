@@ -15,6 +15,7 @@ include = [
     "README.md",
     "/src/**",
     "/tests/**",
+    "build.rs",
 ]
 keywords = ["wormhole", "storage"]
 license = "GNU AFFERO GENERAL PUBLIC LICENSE"
