@@ -18,7 +18,7 @@ include = [
     "build.rs",
 ]
 keywords = ["wormhole", "storage"]
-license = "GNU AFFERO GENERAL PUBLIC LICENSE"
+license = "	AGPL-3.0-only"
 repository = "https://github.com/Agartha-Software/Wormhole"
 rust-version = "1.86.0"
 
