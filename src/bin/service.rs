@@ -31,7 +31,7 @@ use wormhole::commands::{self, cli_commands::Cli};
 use wormhole::config::types::Config;
 use wormhole::config::LocalConfig;
 use wormhole::error::{CliError, CliSuccess, WhError, WhResult};
-use wormhole::network::ip::IpP;
+use wormhole::network::ip::{IpP, MAX_PORT, MAX_TRY_PORTS};
 use wormhole::pods::pod::Pod;
 
 #[cfg(target_os = "windows")]
@@ -271,9 +271,6 @@ async fn get_cli_command(stream: tokio::net::TcpStream) -> WhResult<(Cli, CliTcp
 
     Ok((cmd, writer))
 }
-
-const MAX_TRY_PORTS: u16 = 10;
-const MAX_PORT: u16 = 65535;
 
 custom_error::custom_error! {CliListenerError
     ProvidedIpNotAvailable {ip: String, err: String} = "The specified address ({ip}) not available ({err})\nThe service is not starting.",

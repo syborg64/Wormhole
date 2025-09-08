@@ -1,6 +1,9 @@
 use std::fmt::{Debug, Display};
 use std::net::Ipv4Addr;
 
+pub const MAX_TRY_PORTS: u16 = 10;
+pub const MAX_PORT: u16 = 65535;
+
 // stands for ip and port
 #[derive(Debug, PartialEq)]
 pub struct IpP {
