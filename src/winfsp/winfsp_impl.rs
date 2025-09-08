@@ -313,7 +313,7 @@ impl FileSystemContext for FSPController {
                 .inspect_err(|e| log::warn!("cleanup::{e};"));
             let _ = self
                 .fs_interface
-                .release(context.handle)
+                .release(context.handle, context.ino)
                 .inspect_err(|e| log::warn!("cleanup::{e};"));
             // cannot bubble out errors here
         }
