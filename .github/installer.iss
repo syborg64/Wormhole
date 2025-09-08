@@ -5,8 +5,8 @@
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
 AppId={{627C9749-3020-4310-87C4-CF790AFC6DF0}
 AppName=Wormhole
-AppVersion=1.0
-//AppVerName=Wormhole 1.0
+AppVersion=0.2
+; AppVerName=Wormhole 1.0
 AppPublisher=Agartha-Software
 AppPublisherURL=https://github.com/Agartha-Software/Wormhole
 AppSupportURL=https://github.com/Agartha-Software/Wormhole
@@ -42,7 +42,7 @@ Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environmen
 Filename: "powershell.exe"; \
   Parameters: "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command Add-MpPreference -ExclusionPath '""{app}\wormholed.exe""'"; \
   Flags: runhidden runascurrentuser; Tasks: AddDefenderExclusion
-    
+
 [Code]
 function NeedsAddPath(Param: string): boolean;
 var
