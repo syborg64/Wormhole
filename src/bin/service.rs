@@ -163,7 +163,7 @@ async fn handle_cli_command(
                 None
             };
 
-            //Apply new confi in the pod and check if the name change
+            //Apply new config in the pod and check if the name change
             let res = if let Some((name, pod)) = opt_pod {
                 pod_conf.path = Some(pod.get_mount_point().clone());
 
@@ -203,16 +203,18 @@ async fn handle_cli_command(
                 Ok(Some((new_name, old_name))) => {
                     if let Some(pod) = pods.remove(&old_name) {
                         pods.insert(new_name, pod);
-                        Ok(CliSuccess::Message("tt".to_owned()))
+                        Ok(CliSuccess::Message(
+                            "Configuration applied successfully. Pod name changed.".to_owned(),
+                        ))
                     } else {
                         Err(CliError::Message {
-                            reason: "non".to_owned(),
+                            reason: "Impossible to remove the pod for change his name".to_owned(),
                         })
                     }
                 }
-                Ok(None) => {
-                    todo!()
-                }
+                Ok(None) => Ok(CliSuccess::Message(
+                    "Configuration applied successfully. Pod name unchanged.".to_owned(),
+                )),
                 Err(err) => Err(err),
             }
         }
