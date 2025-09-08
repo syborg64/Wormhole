@@ -30,7 +30,7 @@ use tokio_tungstenite::{accept_async, WebSocketStream};
 use wormhole::commands::{self, cli_commands::Cli};
 use wormhole::config::types::Config;
 use wormhole::config::LocalConfig;
-use wormhole::error::{CliError, CliSuccess, WhError, WhResult};
+use wormhole::error::{CliError, CliListenerError, CliSuccess, WhError, WhResult};
 use wormhole::network::ip::{IpP, MAX_PORT, MAX_TRY_PORTS};
 use wormhole::pods::pod::Pod;
 
@@ -269,12 +269,6 @@ async fn get_cli_command(stream: tokio::net::TcpStream) -> WhResult<(Cli, CliTcp
     };
 
     Ok((cmd, writer))
-}
-
-custom_error::custom_error! {CliListenerError
-    ProvidedIpNotAvailable {ip: String, err: String} = "The specified address ({ip}) not available ({err})\nThe service is not starting.",
-    AboveMainPort {max_port: u16} = "Unable to start cli_listener (not testing ports above {max_port})",
-    AboveMaxTry {max_try_port: u16} = "Unable to start cli_listener (tested {max_try_port} ports)",
 }
 
 /// Listens for CLI calls and launch one tcp instance per cli command
