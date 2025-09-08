@@ -38,6 +38,7 @@ custom_error! {pub CliError
     BincodeError = "Serialization error",
     TungsteniteError = "WebSocket error",
     IoError{source: io::Error} = "I/O error: {source}", // Pour les erreurs fs::remove_dir_all, etc.
+    PortError{source: PortError} = "{source}",
 
     PodNotFound = "Pod not found",
     PodInfoError{source: PodInfoError} = "{source}",
@@ -56,6 +57,13 @@ custom_error! {pub CliError
     Unimplemented{arg: String} = "{arg} not implemented",
     Server{addr: String, err: std::io::Error} = "Impossible to bind to this address {addr}",
     Message{reason: String} = "{reason}",
+}
+
+custom_error! { pub PortError
+    InvalidPort{port: u16 } = "Invalid port: {port}. The port must be between 1024 and 65535",
+    PortAlreadyInUse{port: u16,  address: String} = "Port {port} is already in use on {address}",
+    PortBindFailed{address: String, source: std::io::Error} = "Unable to bind to address {address}: {source}",
+    AddressParseError{address: String} = "Invalid address format: {address}. Expect format: IP:PORT",
 }
 
 #[derive(Debug)]
