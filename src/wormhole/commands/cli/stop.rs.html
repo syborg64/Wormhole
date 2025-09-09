@@ -13,7 +13,7 @@
 <a href=#13 id=13 data-nosnippet>13</a>
 <a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span><span class="kw">super</span>::cli_messager;
 <a href=#15 id=15 data-nosnippet>15</a>
-<a href=#16 id=16 data-nosnippet>16</a><span class="kw">pub fn </span>stop(ip: <span class="kw-2">&amp;</span>str, <span class="kw-2">mut </span>stop_args: StatusPodArgs) -&gt; CliResult&lt;String&gt; {
+<a href=#16 id=16 data-nosnippet>16</a><span class="kw">pub fn </span>stop(ip: <span class="kw-2">&amp;</span>str, <span class="kw-2">mut </span>stop_args: StatusPodArgs) -&gt; CliResult&lt;()&gt; {
 <a href=#17 id=17 data-nosnippet>17</a>    <span class="kw">if </span>stop_args.name == <span class="string">"." </span>{
 <a href=#18 id=18 data-nosnippet>18</a>        <span class="kw">let </span>p = env::current_dir()<span class="question-mark">?</span>;
 <a href=#19 id=19 data-nosnippet>19</a>        <span class="kw">let </span>path = WhPath::from(<span class="kw-2">&amp;</span>p.display().to_string());
