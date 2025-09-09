@@ -54,7 +54,7 @@
 <a href=#54 id=54 data-nosnippet>54</a>}
 <a href=#55 id=55 data-nosnippet>55</a>
 <a href=#56 id=56 data-nosnippet>56</a><span class="comment">//FIXME - Error id name of the pod not check (can be already exist)
-<a href=#57 id=57 data-nosnippet>57</a></span><span class="kw">pub fn </span>new(ip: <span class="kw-2">&amp;</span>str, <span class="kw-2">mut </span>args: PodArgs) -&gt; CliResult&lt;()&gt; {
+<a href=#57 id=57 data-nosnippet>57</a></span><span class="kw">pub fn </span>new(ip: <span class="kw-2">&amp;</span>str, <span class="kw-2">mut </span>args: PodArgs) -&gt; CliResult&lt;String&gt; {
 <a href=#58 id=58 data-nosnippet>58</a>    <span class="kw">if </span>args.path.inner == <span class="string">"." </span>{
 <a href=#59 id=59 data-nosnippet>59</a>        args.path = WhPath::from(<span class="kw-2">&amp;</span>env::current_dir()<span class="question-mark">?</span>.display().to_string());
 <a href=#60 id=60 data-nosnippet>60</a>    }
@@ -71,5 +71,5 @@
 <a href=#71 id=71 data-nosnippet>71</a>            additional_hosts: args.additional_hosts,
 <a href=#72 id=72 data-nosnippet>72</a>        }),
 <a href=#73 id=73 data-nosnippet>73</a>    ))<span class="question-mark">?</span>;
-<a href=#74 id=74 data-nosnippet>74</a>    <span class="prelude-val">Ok</span>(())
+<a href=#74 id=74 data-nosnippet>74</a>    <span class="prelude-val">Ok</span>(<span class="string">"ok"</span>.to_string())
 <a href=#75 id=75 data-nosnippet>75</a>}</code></pre></div></section></main></body></html>

@@ -193,146 +193,145 @@
 <a href=#193 id=193 data-nosnippet>193</a>            }
 <a href=#194 id=194 data-nosnippet>194</a>        };
 <a href=#195 id=195 data-nosnippet>195</a>        drop(arbo);
-<a href=#196 id=196 data-nosnippet>196</a>
-<a href=#197 id=197 data-nosnippet>197</a>        <span class="kw">let </span>_created = <span class="self">self</span>.disk.new_file(<span class="kw-2">&amp;</span>path, perms);
-<a href=#198 id=198 data-nosnippet>198</a>        <span class="kw">let </span>status = <span class="self">self
-<a href=#199 id=199 data-nosnippet>199</a>            </span>.disk
-<a href=#200 id=200 data-nosnippet>200</a>            .write_file(<span class="kw-2">&amp;</span>path, <span class="kw-2">&amp;</span>binary, <span class="number">0</span>)
-<a href=#201 id=201 data-nosnippet>201</a>            .inspect_err(|e| <span class="macro">log::error!</span>(<span class="string">"writing pulled file: {e}"</span>));
-<a href=#202 id=202 data-nosnippet>202</a>        <span class="kw">let _ </span>= <span class="self">self
-<a href=#203 id=203 data-nosnippet>203</a>            </span>.network_interface
-<a href=#204 id=204 data-nosnippet>204</a>            .callbacks
-<a href=#205 id=205 data-nosnippet>205</a>            .resolve(Callback::Pull(id), status.is_ok());
-<a href=#206 id=206 data-nosnippet>206</a>        status<span class="question-mark">?</span>;
-<a href=#207 id=207 data-nosnippet>207</a>        <span class="self">self</span>.network_interface
-<a href=#208 id=208 data-nosnippet>208</a>            .add_inode_hosts(id, <span class="macro">vec!</span>[address])
-<a href=#209 id=209 data-nosnippet>209</a>            .expect(<span class="string">"can't update inode hosts"</span>);
-<a href=#210 id=210 data-nosnippet>210</a>        <span class="prelude-val">Ok</span>(())
-<a href=#211 id=211 data-nosnippet>211</a>    }
-<a href=#212 id=212 data-nosnippet>212</a>
-<a href=#213 id=213 data-nosnippet>213</a>    <span class="kw">pub fn </span>recept_edit_hosts(<span class="kw-2">&amp;</span><span class="self">self</span>, id: InodeId, hosts: Vec&lt;Address&gt;) -&gt; WhResult&lt;()&gt; {
-<a href=#214 id=214 data-nosnippet>214</a>        <span class="kw">if </span>!hosts.contains(
-<a href=#215 id=215 data-nosnippet>215</a>            <span class="kw-2">&amp;</span>LocalConfig::read_lock(<span class="kw-2">&amp;</span><span class="self">self</span>.network_interface.local_config, <span class="string">"recept_binary"</span>)<span class="question-mark">?
-<a href=#216 id=216 data-nosnippet>216</a>                </span>.general
-<a href=#217 id=217 data-nosnippet>217</a>                .address,
-<a href=#218 id=218 data-nosnippet>218</a>        ) {
-<a href=#219 id=219 data-nosnippet>219</a>            <span class="kw">let </span>path =
-<a href=#220 id=220 data-nosnippet>220</a>                Arbo::n_read_lock(<span class="kw-2">&amp;</span><span class="self">self</span>.arbo, <span class="string">"recept_edit_hosts"</span>)<span class="question-mark">?</span>.n_get_path_from_inode_id(id)<span class="question-mark">?</span>;
-<a href=#221 id=221 data-nosnippet>221</a>            <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = <span class="self">self</span>.disk.remove_file(<span class="kw-2">&amp;</span>path) {
-<a href=#222 id=222 data-nosnippet>222</a>                <span class="macro">log::debug!</span>(<span class="string">"recept_edit_hosts: can't delete file. {}"</span>, e);
-<a href=#223 id=223 data-nosnippet>223</a>            }
-<a href=#224 id=224 data-nosnippet>224</a>        }
-<a href=#225 id=225 data-nosnippet>225</a>        <span class="self">self</span>.network_interface.acknowledge_hosts_edition(id, hosts)
-<a href=#226 id=226 data-nosnippet>226</a>    }
-<a href=#227 id=227 data-nosnippet>227</a>
-<a href=#228 id=228 data-nosnippet>228</a>    <span class="kw">pub fn </span>recept_revoke_hosts(
-<a href=#229 id=229 data-nosnippet>229</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#230 id=230 data-nosnippet>230</a>        id: InodeId,
-<a href=#231 id=231 data-nosnippet>231</a>        host: Address,
-<a href=#232 id=232 data-nosnippet>232</a>        meta: Metadata,
-<a href=#233 id=233 data-nosnippet>233</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), AcknoledgeSetAttrError&gt; {
-<a href=#234 id=234 data-nosnippet>234</a>        <span class="kw">let </span>needs_delete = host
-<a href=#235 id=235 data-nosnippet>235</a>            != LocalConfig::read_lock(<span class="kw-2">&amp;</span><span class="self">self</span>.network_interface.local_config, <span class="string">"recept_binary"</span>)<span class="question-mark">?
-<a href=#236 id=236 data-nosnippet>236</a>                </span>.general
-<a href=#237 id=237 data-nosnippet>237</a>                .address;
-<a href=#238 id=238 data-nosnippet>238</a>        <span class="self">self</span>.acknowledge_metadata(id, meta)<span class="question-mark">?</span>;
-<a href=#239 id=239 data-nosnippet>239</a>        <span class="self">self</span>.network_interface
-<a href=#240 id=240 data-nosnippet>240</a>            .acknowledge_hosts_edition(id, <span class="macro">vec!</span>[host])
-<a href=#241 id=241 data-nosnippet>241</a>            .map_err(|source| AcknoledgeSetAttrError::WhError { source })<span class="question-mark">?</span>;
-<a href=#242 id=242 data-nosnippet>242</a>        <span class="kw">if </span>needs_delete {
-<a href=#243 id=243 data-nosnippet>243</a>            <span class="comment">// TODO: recept_revoke_hosts, for the redudancy, should recieve the written text (data from write) instead of deleting and adding it back completely with apply_redudancy
-<a href=#244 id=244 data-nosnippet>244</a>            </span><span class="kw">if let </span><span class="prelude-val">Err</span>(e) = <span class="self">self</span>.disk.remove_file(
-<a href=#245 id=245 data-nosnippet>245</a>                <span class="kw-2">&amp;</span>Arbo::n_read_lock(<span class="kw-2">&amp;</span><span class="self">self</span>.arbo, <span class="string">"recept_revoke_hosts"</span>)<span class="question-mark">?
-<a href=#246 id=246 data-nosnippet>246</a>                    </span>.n_get_path_from_inode_id(id)<span class="question-mark">?</span>,
-<a href=#247 id=247 data-nosnippet>247</a>            ) {
-<a href=#248 id=248 data-nosnippet>248</a>                <span class="macro">log::debug!</span>(<span class="string">"recept_revoke_hosts: can't delete file. {}"</span>, e);
-<a href=#249 id=249 data-nosnippet>249</a>            }
-<a href=#250 id=250 data-nosnippet>250</a>        }
-<a href=#251 id=251 data-nosnippet>251</a>        <span class="prelude-val">Ok</span>(())
-<a href=#252 id=252 data-nosnippet>252</a>    }
-<a href=#253 id=253 data-nosnippet>253</a>
-<a href=#254 id=254 data-nosnippet>254</a>    <span class="kw">pub fn </span>recept_add_hosts(<span class="kw-2">&amp;</span><span class="self">self</span>, id: InodeId, hosts: Vec&lt;Address&gt;) -&gt; io::Result&lt;()&gt; {
-<a href=#255 id=255 data-nosnippet>255</a>        <span class="self">self</span>.network_interface.aknowledge_new_hosts(id, hosts)
-<a href=#256 id=256 data-nosnippet>256</a>    }
-<a href=#257 id=257 data-nosnippet>257</a>
-<a href=#258 id=258 data-nosnippet>258</a>    <span class="kw">pub fn </span>recept_remove_hosts(<span class="kw-2">&amp;</span><span class="self">self</span>, id: InodeId, hosts: Vec&lt;Address&gt;) -&gt; io::Result&lt;()&gt; {
-<a href=#259 id=259 data-nosnippet>259</a>        <span class="kw">if </span>hosts.contains(
-<a href=#260 id=260 data-nosnippet>260</a>            <span class="kw-2">&amp;</span>LocalConfig::read_lock(<span class="kw-2">&amp;</span><span class="self">self</span>.network_interface.local_config, <span class="string">"recept_remove_hosts"</span>)
-<a href=#261 id=261 data-nosnippet>261</a>                .map_err(|e| io::Error::new(ErrorKind::Other, e.to_string()))<span class="question-mark">?
-<a href=#262 id=262 data-nosnippet>262</a>                </span>.general
-<a href=#263 id=263 data-nosnippet>263</a>                .address,
-<a href=#264 id=264 data-nosnippet>264</a>        ) {
-<a href=#265 id=265 data-nosnippet>265</a>            <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = <span class="self">self</span>.disk.remove_file(
-<a href=#266 id=266 data-nosnippet>266</a>                <span class="kw-2">&amp;</span>Arbo::read_lock(<span class="kw-2">&amp;</span><span class="self">self</span>.arbo, <span class="string">"recept_remove_hosts"</span>)<span class="question-mark">?</span>.get_path_from_inode_id(id)<span class="question-mark">?</span>,
-<a href=#267 id=267 data-nosnippet>267</a>            ) {
-<a href=#268 id=268 data-nosnippet>268</a>                <span class="macro">log::debug!</span>(<span class="string">"recept_remove_hosts: can't delete file. {}"</span>, e);
-<a href=#269 id=269 data-nosnippet>269</a>            }
-<a href=#270 id=270 data-nosnippet>270</a>        }
-<a href=#271 id=271 data-nosnippet>271</a>
-<a href=#272 id=272 data-nosnippet>272</a>        <span class="self">self</span>.network_interface.aknowledge_hosts_removal(id, hosts)
-<a href=#273 id=273 data-nosnippet>273</a>    }
-<a href=#274 id=274 data-nosnippet>274</a>
-<a href=#275 id=275 data-nosnippet>275</a>    <span class="comment">// !SECTION
-<a href=#276 id=276 data-nosnippet>276</a>
-<a href=#277 id=277 data-nosnippet>277</a>    // SECTION remote -&gt; read
-<a href=#278 id=278 data-nosnippet>278</a>    </span><span class="kw">pub fn </span>send_filesystem(<span class="kw-2">&amp;</span><span class="self">self</span>, to: Address) -&gt; io::Result&lt;()&gt; {
-<a href=#279 id=279 data-nosnippet>279</a>        <span class="kw">let </span>arbo = Arbo::read_lock(<span class="kw-2">&amp;</span><span class="self">self</span>.arbo, <span class="string">"fs_interface::send_filesystem"</span>)<span class="question-mark">?</span>;
-<a href=#280 id=280 data-nosnippet>280</a>        <span class="kw">let </span>global_config_file_size = arbo
-<a href=#281 id=281 data-nosnippet>281</a>            .get_inode(GLOBAL_CONFIG_INO)
-<a href=#282 id=282 data-nosnippet>282</a>            .map(|inode| inode.meta.size)
-<a href=#283 id=283 data-nosnippet>283</a>            .ok();
-<a href=#284 id=284 data-nosnippet>284</a>        <span class="kw">let </span>global_config_path = <span class="kw">if </span>global_config_file_size.is_some() {
-<a href=#285 id=285 data-nosnippet>285</a>            <span class="prelude-val">Some</span>(
-<a href=#286 id=286 data-nosnippet>286</a>                arbo.get_path_from_inode_id(GLOBAL_CONFIG_INO)<span class="question-mark">?
-<a href=#287 id=287 data-nosnippet>287</a>                    </span>.set_relative(),
-<a href=#288 id=288 data-nosnippet>288</a>            )
-<a href=#289 id=289 data-nosnippet>289</a>        } <span class="kw">else </span>{
-<a href=#290 id=290 data-nosnippet>290</a>            <span class="prelude-val">None
-<a href=#291 id=291 data-nosnippet>291</a>        </span>};
-<a href=#292 id=292 data-nosnippet>292</a>        drop(arbo);
-<a href=#293 id=293 data-nosnippet>293</a>        <span class="macro">log::info!</span>(<span class="string">"reading global config at {global_config_path:?}"</span>);
-<a href=#294 id=294 data-nosnippet>294</a>
-<a href=#295 id=295 data-nosnippet>295</a>        <span class="kw">let </span><span class="kw-2">mut </span>global_config_bytes = Vec::new();
-<a href=#296 id=296 data-nosnippet>296</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(global_config_file_size) = global_config_file_size {
-<a href=#297 id=297 data-nosnippet>297</a>            global_config_bytes.resize(global_config_file_size <span class="kw">as </span>usize, <span class="number">0</span>);
-<a href=#298 id=298 data-nosnippet>298</a>
-<a href=#299 id=299 data-nosnippet>299</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(global_config_path) = global_config_path {
-<a href=#300 id=300 data-nosnippet>300</a>                <span class="self">self</span>.disk
-<a href=#301 id=301 data-nosnippet>301</a>                    .read_file(<span class="kw-2">&amp;</span>global_config_path, <span class="number">0</span>, <span class="kw-2">&amp;mut </span>global_config_bytes)
-<a href=#302 id=302 data-nosnippet>302</a>                    .expect(<span class="string">"disk can't read file (global condfig)"</span>);
-<a href=#303 id=303 data-nosnippet>303</a>            }
-<a href=#304 id=304 data-nosnippet>304</a>        }
-<a href=#305 id=305 data-nosnippet>305</a>        <span class="self">self</span>.network_interface.send_arbo(to, global_config_bytes)
-<a href=#306 id=306 data-nosnippet>306</a>    }
-<a href=#307 id=307 data-nosnippet>307</a>
-<a href=#308 id=308 data-nosnippet>308</a>    <span class="kw">pub fn </span>register_new_node(<span class="kw-2">&amp;</span><span class="self">self</span>, socket: Address, addr: Address) {
-<a href=#309 id=309 data-nosnippet>309</a>        <span class="self">self</span>.network_interface.register_new_node(socket, addr);
-<a href=#310 id=310 data-nosnippet>310</a>    }
-<a href=#311 id=311 data-nosnippet>311</a>
-<a href=#312 id=312 data-nosnippet>312</a>    <span class="kw">pub fn </span>send_file(<span class="kw-2">&amp;</span><span class="self">self</span>, inode: InodeId, to: Address) -&gt; io::Result&lt;()&gt; {
-<a href=#313 id=313 data-nosnippet>313</a>        <span class="kw">let </span>arbo = Arbo::read_lock(<span class="kw-2">&amp;</span><span class="self">self</span>.arbo, <span class="string">"send_arbo"</span>)<span class="question-mark">?</span>;
-<a href=#314 id=314 data-nosnippet>314</a>        <span class="kw">let </span>path = arbo.get_path_from_inode_id(inode)<span class="question-mark">?</span>;
-<a href=#315 id=315 data-nosnippet>315</a>        <span class="kw">let </span><span class="kw-2">mut </span>size = arbo.get_inode(inode)<span class="question-mark">?</span>.meta.size <span class="kw">as </span>usize;
-<a href=#316 id=316 data-nosnippet>316</a>        <span class="kw">let </span><span class="kw-2">mut </span>data = Vec::new();
-<a href=#317 id=317 data-nosnippet>317</a>        data.resize(size, <span class="number">0</span>);
-<a href=#318 id=318 data-nosnippet>318</a>        size = <span class="self">self</span>.disk.read_file(<span class="kw-2">&amp;</span>path, <span class="number">0</span>, <span class="kw-2">&amp;mut </span>data)<span class="question-mark">?</span>;
-<a href=#319 id=319 data-nosnippet>319</a>        data.resize(size, <span class="number">0</span>);
-<a href=#320 id=320 data-nosnippet>320</a>        <span class="self">self</span>.network_interface.send_file(inode, data, to)
-<a href=#321 id=321 data-nosnippet>321</a>    }
-<a href=#322 id=322 data-nosnippet>322</a>
-<a href=#323 id=323 data-nosnippet>323</a>    <span class="kw">pub fn </span>read_local_file(<span class="kw-2">&amp;</span><span class="self">self</span>, inode: InodeId) -&gt; WhResult&lt;Vec&lt;u8&gt;&gt; {
-<a href=#324 id=324 data-nosnippet>324</a>        <span class="kw">let </span>arbo = Arbo::n_read_lock(<span class="kw-2">&amp;</span><span class="self">self</span>.arbo, <span class="string">"send_arbo"</span>)<span class="question-mark">?</span>;
-<a href=#325 id=325 data-nosnippet>325</a>        <span class="kw">let </span>path = arbo
-<a href=#326 id=326 data-nosnippet>326</a>            .get_path_from_inode_id(inode)
-<a href=#327 id=327 data-nosnippet>327</a>            .map_err(|<span class="kw">_</span>| <span class="kw">crate</span>::error::WhError::InodeNotFound)<span class="question-mark">?</span>;
-<a href=#328 id=328 data-nosnippet>328</a>        <span class="kw">let </span>size = arbo.n_get_inode(inode)<span class="question-mark">?</span>.meta.size;
-<a href=#329 id=329 data-nosnippet>329</a>        drop(arbo);
-<a href=#330 id=330 data-nosnippet>330</a>
-<a href=#331 id=331 data-nosnippet>331</a>        <span class="kw">let </span><span class="kw-2">mut </span>buff = Vec::new();
-<a href=#332 id=332 data-nosnippet>332</a>        buff.resize(size <span class="kw">as </span>usize, <span class="number">0</span>);
-<a href=#333 id=333 data-nosnippet>333</a>        <span class="self">self</span>.disk
-<a href=#334 id=334 data-nosnippet>334</a>            .read_file(<span class="kw-2">&amp;</span>path, <span class="number">0</span>, <span class="kw-2">&amp;mut </span>buff)
-<a href=#335 id=335 data-nosnippet>335</a>            .map_err(|<span class="kw">_</span>| <span class="kw">crate</span>::error::WhError::InodeNotFound)<span class="question-mark">?</span>;
-<a href=#336 id=336 data-nosnippet>336</a>        <span class="prelude-val">Ok</span>(buff)
-<a href=#337 id=337 data-nosnippet>337</a>    }
-<a href=#338 id=338 data-nosnippet>338</a>}</code></pre></div></section></main></body></html>
+<a href=#196 id=196 data-nosnippet>196</a>        <span class="kw">let </span>_created = <span class="self">self</span>.disk.new_file(<span class="kw-2">&amp;</span>path, perms);
+<a href=#197 id=197 data-nosnippet>197</a>        <span class="kw">let </span>status = <span class="self">self
+<a href=#198 id=198 data-nosnippet>198</a>            </span>.disk
+<a href=#199 id=199 data-nosnippet>199</a>            .write_file(<span class="kw-2">&amp;</span>path, <span class="kw-2">&amp;</span>binary, <span class="number">0</span>)
+<a href=#200 id=200 data-nosnippet>200</a>            .inspect_err(|e| <span class="macro">log::error!</span>(<span class="string">"writing pulled file: {e}"</span>));
+<a href=#201 id=201 data-nosnippet>201</a>        <span class="kw">let _ </span>= <span class="self">self
+<a href=#202 id=202 data-nosnippet>202</a>            </span>.network_interface
+<a href=#203 id=203 data-nosnippet>203</a>            .callbacks
+<a href=#204 id=204 data-nosnippet>204</a>            .resolve(Callback::Pull(id), status.is_ok());
+<a href=#205 id=205 data-nosnippet>205</a>        status<span class="question-mark">?</span>;
+<a href=#206 id=206 data-nosnippet>206</a>        <span class="self">self</span>.network_interface
+<a href=#207 id=207 data-nosnippet>207</a>            .add_inode_hosts(id, <span class="macro">vec!</span>[address])
+<a href=#208 id=208 data-nosnippet>208</a>            .expect(<span class="string">"can't update inode hosts"</span>);
+<a href=#209 id=209 data-nosnippet>209</a>        <span class="prelude-val">Ok</span>(())
+<a href=#210 id=210 data-nosnippet>210</a>    }
+<a href=#211 id=211 data-nosnippet>211</a>
+<a href=#212 id=212 data-nosnippet>212</a>    <span class="kw">pub fn </span>recept_edit_hosts(<span class="kw-2">&amp;</span><span class="self">self</span>, id: InodeId, hosts: Vec&lt;Address&gt;) -&gt; WhResult&lt;()&gt; {
+<a href=#213 id=213 data-nosnippet>213</a>        <span class="kw">if </span>!hosts.contains(
+<a href=#214 id=214 data-nosnippet>214</a>            <span class="kw-2">&amp;</span>LocalConfig::read_lock(<span class="kw-2">&amp;</span><span class="self">self</span>.network_interface.local_config, <span class="string">"recept_binary"</span>)<span class="question-mark">?
+<a href=#215 id=215 data-nosnippet>215</a>                </span>.general
+<a href=#216 id=216 data-nosnippet>216</a>                .address,
+<a href=#217 id=217 data-nosnippet>217</a>        ) {
+<a href=#218 id=218 data-nosnippet>218</a>            <span class="kw">let </span>path =
+<a href=#219 id=219 data-nosnippet>219</a>                Arbo::n_read_lock(<span class="kw-2">&amp;</span><span class="self">self</span>.arbo, <span class="string">"recept_edit_hosts"</span>)<span class="question-mark">?</span>.n_get_path_from_inode_id(id)<span class="question-mark">?</span>;
+<a href=#220 id=220 data-nosnippet>220</a>            <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = <span class="self">self</span>.disk.remove_file(<span class="kw-2">&amp;</span>path) {
+<a href=#221 id=221 data-nosnippet>221</a>                <span class="macro">log::debug!</span>(<span class="string">"recept_edit_hosts: can't delete file. {}"</span>, e);
+<a href=#222 id=222 data-nosnippet>222</a>            }
+<a href=#223 id=223 data-nosnippet>223</a>        }
+<a href=#224 id=224 data-nosnippet>224</a>        <span class="self">self</span>.network_interface.acknowledge_hosts_edition(id, hosts)
+<a href=#225 id=225 data-nosnippet>225</a>    }
+<a href=#226 id=226 data-nosnippet>226</a>
+<a href=#227 id=227 data-nosnippet>227</a>    <span class="kw">pub fn </span>recept_revoke_hosts(
+<a href=#228 id=228 data-nosnippet>228</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#229 id=229 data-nosnippet>229</a>        id: InodeId,
+<a href=#230 id=230 data-nosnippet>230</a>        host: Address,
+<a href=#231 id=231 data-nosnippet>231</a>        meta: Metadata,
+<a href=#232 id=232 data-nosnippet>232</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), AcknoledgeSetAttrError&gt; {
+<a href=#233 id=233 data-nosnippet>233</a>        <span class="kw">let </span>needs_delete = host
+<a href=#234 id=234 data-nosnippet>234</a>            != LocalConfig::read_lock(<span class="kw-2">&amp;</span><span class="self">self</span>.network_interface.local_config, <span class="string">"recept_binary"</span>)<span class="question-mark">?
+<a href=#235 id=235 data-nosnippet>235</a>                </span>.general
+<a href=#236 id=236 data-nosnippet>236</a>                .address;
+<a href=#237 id=237 data-nosnippet>237</a>        <span class="self">self</span>.acknowledge_metadata(id, meta)<span class="question-mark">?</span>;
+<a href=#238 id=238 data-nosnippet>238</a>        <span class="self">self</span>.network_interface
+<a href=#239 id=239 data-nosnippet>239</a>            .acknowledge_hosts_edition(id, <span class="macro">vec!</span>[host])
+<a href=#240 id=240 data-nosnippet>240</a>            .map_err(|source| AcknoledgeSetAttrError::WhError { source })<span class="question-mark">?</span>;
+<a href=#241 id=241 data-nosnippet>241</a>        <span class="kw">if </span>needs_delete {
+<a href=#242 id=242 data-nosnippet>242</a>            <span class="comment">// TODO: recept_revoke_hosts, for the redudancy, should recieve the written text (data from write) instead of deleting and adding it back completely with apply_redudancy
+<a href=#243 id=243 data-nosnippet>243</a>            </span><span class="kw">if let </span><span class="prelude-val">Err</span>(e) = <span class="self">self</span>.disk.remove_file(
+<a href=#244 id=244 data-nosnippet>244</a>                <span class="kw-2">&amp;</span>Arbo::n_read_lock(<span class="kw-2">&amp;</span><span class="self">self</span>.arbo, <span class="string">"recept_revoke_hosts"</span>)<span class="question-mark">?
+<a href=#245 id=245 data-nosnippet>245</a>                    </span>.n_get_path_from_inode_id(id)<span class="question-mark">?</span>,
+<a href=#246 id=246 data-nosnippet>246</a>            ) {
+<a href=#247 id=247 data-nosnippet>247</a>                <span class="macro">log::debug!</span>(<span class="string">"recept_revoke_hosts: can't delete file. {}"</span>, e);
+<a href=#248 id=248 data-nosnippet>248</a>            }
+<a href=#249 id=249 data-nosnippet>249</a>        }
+<a href=#250 id=250 data-nosnippet>250</a>        <span class="prelude-val">Ok</span>(())
+<a href=#251 id=251 data-nosnippet>251</a>    }
+<a href=#252 id=252 data-nosnippet>252</a>
+<a href=#253 id=253 data-nosnippet>253</a>    <span class="kw">pub fn </span>recept_add_hosts(<span class="kw-2">&amp;</span><span class="self">self</span>, id: InodeId, hosts: Vec&lt;Address&gt;) -&gt; io::Result&lt;()&gt; {
+<a href=#254 id=254 data-nosnippet>254</a>        <span class="self">self</span>.network_interface.aknowledge_new_hosts(id, hosts)
+<a href=#255 id=255 data-nosnippet>255</a>    }
+<a href=#256 id=256 data-nosnippet>256</a>
+<a href=#257 id=257 data-nosnippet>257</a>    <span class="kw">pub fn </span>recept_remove_hosts(<span class="kw-2">&amp;</span><span class="self">self</span>, id: InodeId, hosts: Vec&lt;Address&gt;) -&gt; io::Result&lt;()&gt; {
+<a href=#258 id=258 data-nosnippet>258</a>        <span class="kw">if </span>hosts.contains(
+<a href=#259 id=259 data-nosnippet>259</a>            <span class="kw-2">&amp;</span>LocalConfig::read_lock(<span class="kw-2">&amp;</span><span class="self">self</span>.network_interface.local_config, <span class="string">"recept_remove_hosts"</span>)
+<a href=#260 id=260 data-nosnippet>260</a>                .map_err(|e| io::Error::new(ErrorKind::Other, e.to_string()))<span class="question-mark">?
+<a href=#261 id=261 data-nosnippet>261</a>                </span>.general
+<a href=#262 id=262 data-nosnippet>262</a>                .address,
+<a href=#263 id=263 data-nosnippet>263</a>        ) {
+<a href=#264 id=264 data-nosnippet>264</a>            <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = <span class="self">self</span>.disk.remove_file(
+<a href=#265 id=265 data-nosnippet>265</a>                <span class="kw-2">&amp;</span>Arbo::read_lock(<span class="kw-2">&amp;</span><span class="self">self</span>.arbo, <span class="string">"recept_remove_hosts"</span>)<span class="question-mark">?</span>.get_path_from_inode_id(id)<span class="question-mark">?</span>,
+<a href=#266 id=266 data-nosnippet>266</a>            ) {
+<a href=#267 id=267 data-nosnippet>267</a>                <span class="macro">log::debug!</span>(<span class="string">"recept_remove_hosts: can't delete file. {}"</span>, e);
+<a href=#268 id=268 data-nosnippet>268</a>            }
+<a href=#269 id=269 data-nosnippet>269</a>        }
+<a href=#270 id=270 data-nosnippet>270</a>
+<a href=#271 id=271 data-nosnippet>271</a>        <span class="self">self</span>.network_interface.aknowledge_hosts_removal(id, hosts)
+<a href=#272 id=272 data-nosnippet>272</a>    }
+<a href=#273 id=273 data-nosnippet>273</a>
+<a href=#274 id=274 data-nosnippet>274</a>    <span class="comment">// !SECTION
+<a href=#275 id=275 data-nosnippet>275</a>
+<a href=#276 id=276 data-nosnippet>276</a>    // SECTION remote -&gt; read
+<a href=#277 id=277 data-nosnippet>277</a>    </span><span class="kw">pub fn </span>send_filesystem(<span class="kw-2">&amp;</span><span class="self">self</span>, to: Address) -&gt; io::Result&lt;()&gt; {
+<a href=#278 id=278 data-nosnippet>278</a>        <span class="kw">let </span>arbo = Arbo::read_lock(<span class="kw-2">&amp;</span><span class="self">self</span>.arbo, <span class="string">"fs_interface::send_filesystem"</span>)<span class="question-mark">?</span>;
+<a href=#279 id=279 data-nosnippet>279</a>        <span class="kw">let </span>global_config_file_size = arbo
+<a href=#280 id=280 data-nosnippet>280</a>            .get_inode(GLOBAL_CONFIG_INO)
+<a href=#281 id=281 data-nosnippet>281</a>            .map(|inode| inode.meta.size)
+<a href=#282 id=282 data-nosnippet>282</a>            .ok();
+<a href=#283 id=283 data-nosnippet>283</a>        <span class="kw">let </span>global_config_path = <span class="kw">if </span>global_config_file_size.is_some() {
+<a href=#284 id=284 data-nosnippet>284</a>            <span class="prelude-val">Some</span>(
+<a href=#285 id=285 data-nosnippet>285</a>                arbo.get_path_from_inode_id(GLOBAL_CONFIG_INO)<span class="question-mark">?
+<a href=#286 id=286 data-nosnippet>286</a>                    </span>.set_relative(),
+<a href=#287 id=287 data-nosnippet>287</a>            )
+<a href=#288 id=288 data-nosnippet>288</a>        } <span class="kw">else </span>{
+<a href=#289 id=289 data-nosnippet>289</a>            <span class="prelude-val">None
+<a href=#290 id=290 data-nosnippet>290</a>        </span>};
+<a href=#291 id=291 data-nosnippet>291</a>        drop(arbo);
+<a href=#292 id=292 data-nosnippet>292</a>        <span class="macro">log::info!</span>(<span class="string">"reading global config at {global_config_path:?}"</span>);
+<a href=#293 id=293 data-nosnippet>293</a>
+<a href=#294 id=294 data-nosnippet>294</a>        <span class="kw">let </span><span class="kw-2">mut </span>global_config_bytes = Vec::new();
+<a href=#295 id=295 data-nosnippet>295</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(global_config_file_size) = global_config_file_size {
+<a href=#296 id=296 data-nosnippet>296</a>            global_config_bytes.resize(global_config_file_size <span class="kw">as </span>usize, <span class="number">0</span>);
+<a href=#297 id=297 data-nosnippet>297</a>
+<a href=#298 id=298 data-nosnippet>298</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(global_config_path) = global_config_path {
+<a href=#299 id=299 data-nosnippet>299</a>                <span class="self">self</span>.disk
+<a href=#300 id=300 data-nosnippet>300</a>                    .read_file(<span class="kw-2">&amp;</span>global_config_path, <span class="number">0</span>, <span class="kw-2">&amp;mut </span>global_config_bytes)
+<a href=#301 id=301 data-nosnippet>301</a>                    .expect(<span class="string">"disk can't read file (global condfig)"</span>);
+<a href=#302 id=302 data-nosnippet>302</a>            }
+<a href=#303 id=303 data-nosnippet>303</a>        }
+<a href=#304 id=304 data-nosnippet>304</a>        <span class="self">self</span>.network_interface.send_arbo(to, global_config_bytes)
+<a href=#305 id=305 data-nosnippet>305</a>    }
+<a href=#306 id=306 data-nosnippet>306</a>
+<a href=#307 id=307 data-nosnippet>307</a>    <span class="kw">pub fn </span>register_new_node(<span class="kw-2">&amp;</span><span class="self">self</span>, socket: Address, addr: Address) {
+<a href=#308 id=308 data-nosnippet>308</a>        <span class="self">self</span>.network_interface.register_new_node(socket, addr);
+<a href=#309 id=309 data-nosnippet>309</a>    }
+<a href=#310 id=310 data-nosnippet>310</a>
+<a href=#311 id=311 data-nosnippet>311</a>    <span class="kw">pub fn </span>send_file(<span class="kw-2">&amp;</span><span class="self">self</span>, inode: InodeId, to: Address) -&gt; io::Result&lt;()&gt; {
+<a href=#312 id=312 data-nosnippet>312</a>        <span class="kw">let </span>arbo = Arbo::read_lock(<span class="kw-2">&amp;</span><span class="self">self</span>.arbo, <span class="string">"send_arbo"</span>)<span class="question-mark">?</span>;
+<a href=#313 id=313 data-nosnippet>313</a>        <span class="kw">let </span>path = arbo.get_path_from_inode_id(inode)<span class="question-mark">?</span>;
+<a href=#314 id=314 data-nosnippet>314</a>        <span class="kw">let </span><span class="kw-2">mut </span>size = arbo.get_inode(inode)<span class="question-mark">?</span>.meta.size <span class="kw">as </span>usize;
+<a href=#315 id=315 data-nosnippet>315</a>        <span class="kw">let </span><span class="kw-2">mut </span>data = Vec::new();
+<a href=#316 id=316 data-nosnippet>316</a>        data.resize(size, <span class="number">0</span>);
+<a href=#317 id=317 data-nosnippet>317</a>        size = <span class="self">self</span>.disk.read_file(<span class="kw-2">&amp;</span>path, <span class="number">0</span>, <span class="kw-2">&amp;mut </span>data)<span class="question-mark">?</span>;
+<a href=#318 id=318 data-nosnippet>318</a>        data.resize(size, <span class="number">0</span>);
+<a href=#319 id=319 data-nosnippet>319</a>        <span class="self">self</span>.network_interface.send_file(inode, data, to)
+<a href=#320 id=320 data-nosnippet>320</a>    }
+<a href=#321 id=321 data-nosnippet>321</a>
+<a href=#322 id=322 data-nosnippet>322</a>    <span class="kw">pub fn </span>read_local_file(<span class="kw-2">&amp;</span><span class="self">self</span>, inode: InodeId) -&gt; WhResult&lt;Vec&lt;u8&gt;&gt; {
+<a href=#323 id=323 data-nosnippet>323</a>        <span class="kw">let </span>arbo = Arbo::n_read_lock(<span class="kw-2">&amp;</span><span class="self">self</span>.arbo, <span class="string">"send_arbo"</span>)<span class="question-mark">?</span>;
+<a href=#324 id=324 data-nosnippet>324</a>        <span class="kw">let </span>path = arbo
+<a href=#325 id=325 data-nosnippet>325</a>            .get_path_from_inode_id(inode)
+<a href=#326 id=326 data-nosnippet>326</a>            .map_err(|<span class="kw">_</span>| <span class="kw">crate</span>::error::WhError::InodeNotFound)<span class="question-mark">?</span>;
+<a href=#327 id=327 data-nosnippet>327</a>        <span class="kw">let </span>size = arbo.n_get_inode(inode)<span class="question-mark">?</span>.meta.size;
+<a href=#328 id=328 data-nosnippet>328</a>        drop(arbo);
+<a href=#329 id=329 data-nosnippet>329</a>
+<a href=#330 id=330 data-nosnippet>330</a>        <span class="kw">let </span><span class="kw-2">mut </span>buff = Vec::new();
+<a href=#331 id=331 data-nosnippet>331</a>        buff.resize(size <span class="kw">as </span>usize, <span class="number">0</span>);
+<a href=#332 id=332 data-nosnippet>332</a>        <span class="self">self</span>.disk
+<a href=#333 id=333 data-nosnippet>333</a>            .read_file(<span class="kw-2">&amp;</span>path, <span class="number">0</span>, <span class="kw-2">&amp;mut </span>buff)
+<a href=#334 id=334 data-nosnippet>334</a>            .map_err(|<span class="kw">_</span>| <span class="kw">crate</span>::error::WhError::InodeNotFound)<span class="question-mark">?</span>;
+<a href=#335 id=335 data-nosnippet>335</a>        <span class="prelude-val">Ok</span>(buff)
+<a href=#336 id=336 data-nosnippet>336</a>    }
+<a href=#337 id=337 data-nosnippet>337</a>}</code></pre></div></section></main></body></html>
